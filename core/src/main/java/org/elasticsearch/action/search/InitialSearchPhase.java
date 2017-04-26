@@ -46,12 +46,12 @@ import java.util.stream.Stream;
  */
 abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends SearchPhase {
     private final SearchRequest request;
-    private final GroupShardsIterator shardsIts;
+    private final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final Logger logger;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
 
-    InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator shardsIts, Logger logger) {
+    InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts, Logger logger) {
         super(name);
         this.request = request;
         this.shardsIts = shardsIts;
@@ -64,10 +64,10 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     }
 
     private void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
-                                final ShardIterator shardIt, Exception e) {
+                                final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
-        SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId());
+        SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId(), shardIt.getOriginalIndices());
         onShardFailure(shardIndex, shardTarget, e);
 
         if (totalOps.incrementAndGet() == expectedTotalOps) {
@@ -124,7 +124,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     @Override
     public final void run() throws IOException {
         int shardIndex = -1;
-        for (final ShardIterator shardIt : shardsIts) {
+        for (final SearchShardIterator shardIt : shardsIts) {
             shardIndex++;
             final ShardRouting shard = shardIt.nextOrNull();
             if (shard != null) {
@@ -136,7 +136,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-    private void performPhaseOnShard(final int shardIndex, final ShardIterator shardIt, final ShardRouting shard) {
+    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final ShardRouting shard) {
         if (shard == null) {
             // TODO upgrade this to an assert...
             // no more active shards... (we should not really get here, but just for safety)
@@ -144,7 +144,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         } else {
             try {
                 executePhaseOnShard(shardIt, shard, new SearchActionListener<FirstResult>(new SearchShardTarget(shard.currentNodeId(),
-                    shardIt.shardId()), shardIndex) {
+                    shardIt.shardId(), shardIt.getOriginalIndices()), shardIndex) {
                     @Override
                     public void innerOnResponse(FirstResult result) {
                         onShardResult(result, shardIt);
@@ -213,7 +213,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
      * @param shard the shard routing to send the request for
      * @param listener the listener to notify on response
      */
-    protected abstract void executePhaseOnShard(ShardIterator shardIt, ShardRouting shard, SearchActionListener<FirstResult> listener);
+    protected abstract void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
+                                                SearchActionListener<FirstResult> listener);
 
     /**
      * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing

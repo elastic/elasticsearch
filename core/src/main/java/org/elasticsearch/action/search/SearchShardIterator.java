@@ -17,19 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing;
+package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.List;
 
 /**
- * The {@link PlainShardIterator} is a {@link ShardsIterator} which iterates all
- * shards or a given {@link ShardId shard id}
+ * Extension of {@link PlainShardIterator} used in the search api, which also holds the {@link OriginalIndices}
+ * of the search request. Useful especially with cross cluster search, as each cluster has its own set of original indices.
  */
-public class PlainShardIterator extends PlainShardsIterator implements ShardIterator {
+public final class SearchShardIterator extends PlainShardIterator {
 
-    private final ShardId shardId;
+    private final OriginalIndices originalIndices;
 
     /**
      * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
@@ -38,30 +41,15 @@ public class PlainShardIterator extends PlainShardsIterator implements ShardIter
      * @param shardId shard id of the group
      * @param shards  shards to iterate
      */
-    public PlainShardIterator(ShardId shardId, List<ShardRouting> shards) {
-        super(shards);
-        this.shardId = shardId;
+    public SearchShardIterator(ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
+        super(shardId, shards);
+        this.originalIndices = originalIndices;
     }
 
-    @Override
-    public ShardId shardId() {
-        return this.shardId;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        ShardIterator that = (ShardIterator) o;
-        return shardId.equals(that.shardId());
-    }
-
-    @Override
-    public int hashCode() {
-        return shardId.hashCode();
-    }
-
-    @Override
-    public int compareTo(ShardIterator o) {
-        return shardId.compareTo(o.shardId());
+    /**
+     * Returns the original indices associated with this shard iterator, specifically with the cluster that this shard belongs to.
+     */
+    public OriginalIndices getOriginalIndices() {
+        return originalIndices;
     }
 }

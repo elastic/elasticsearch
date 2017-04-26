@@ -76,10 +76,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         return originalIndices.indicesOptions();
     }
 
-    public OriginalIndices getOriginalIndices() {
-        return originalIndices;
-    }
-
     @Override
     public ShardId shardId() {
         return shardSearchLocalRequest.shardId();

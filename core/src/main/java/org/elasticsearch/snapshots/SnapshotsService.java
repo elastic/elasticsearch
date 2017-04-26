@@ -913,13 +913,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 try {
                     final Repository repository = repositoriesService.repository(snapshot.getRepository());
                     logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
-                    ArrayList<ShardSearchFailure> failures = new ArrayList<>();
                     ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
                     for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
                         ShardId shardId = shardStatus.key;
                         ShardSnapshotStatus status = shardStatus.value;
                         if (status.state().failed()) {
-                            failures.add(new ShardSearchFailure(status.reason(), new SearchShardTarget(status.nodeId(), shardId)));
                             shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
                         }
                     }

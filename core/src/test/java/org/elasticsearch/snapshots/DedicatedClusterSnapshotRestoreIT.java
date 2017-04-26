@@ -820,7 +820,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                              .put("compress", randomBoolean())));
 
         assertAcked(prepareCreate(sourceIdx, 0, Settings.builder()
-            .put("number_of_shards", between(1, 20)).put("number_of_replicas", 0)));
+            .put("number_of_shards", between(2, 10)).put("number_of_replicas", 0)));
         ensureGreen();
 
         logger.info("--> indexing some data");

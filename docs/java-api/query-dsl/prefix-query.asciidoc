@@ -3,14 +3,9 @@
 
 See {ref}/query-dsl-prefix-query.html[Prefix Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = prefixQuery(
-    "brand",    <1>
-    "heine"     <2>
-);
+include-tagged::{query-dsl-test}[prefix]
 --------------------------------------------------
 <1> field
 <2> prefix
-
-

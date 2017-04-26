@@ -239,11 +239,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         Map<String, Object> params = null;
         XContentParser.Token token;
         String currentFieldName = null;
-        Set<String> scriptParameters = new HashSet<>();
-        scriptParameters.add(INIT_SCRIPT_FIELD.getPreferredName());
-        scriptParameters.add(MAP_SCRIPT_FIELD.getPreferredName());
-        scriptParameters.add(COMBINE_SCRIPT_FIELD.getPreferredName());
-        scriptParameters.add(REDUCE_SCRIPT_FIELD.getPreferredName());
 
         XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

@@ -45,7 +45,6 @@ import org.elasticsearch.index.analysis.FlattenGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.GermanNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.HindiNormalizationFilterFactory;
-import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.IndicNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.KStemTokenFilterFactory;
@@ -58,14 +57,12 @@ import org.elasticsearch.index.analysis.LetterTokenizerFactory;
 import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
-import org.elasticsearch.index.analysis.MappingCharFilterFactory;
 import org.elasticsearch.index.analysis.MinHashTokenFilterFactory;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.index.analysis.PathHierarchyTokenizerFactory;
 import org.elasticsearch.index.analysis.PatternCaptureGroupTokenFilterFactory;
-import org.elasticsearch.index.analysis.PatternReplaceCharFilterFactory;
 import org.elasticsearch.index.analysis.PatternReplaceTokenFilterFactory;
 import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
@@ -325,9 +322,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<String,Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
-        .put("htmlstrip",      HtmlStripCharFilterFactory.class)
-        .put("mapping",        MappingCharFilterFactory.class)
-        .put("patternreplace", PatternReplaceCharFilterFactory.class)
+        .put("htmlstrip",      MovedToAnalysisCommon.class)
+        .put("mapping",        MovedToAnalysisCommon.class)
+        .put("patternreplace", MovedToAnalysisCommon.class)
 
         // TODO: these charfilters are not yet exposed: useful?
         // handling of zwnj for persian

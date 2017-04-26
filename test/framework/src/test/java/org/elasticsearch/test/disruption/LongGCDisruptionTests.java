@@ -22,6 +22,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.management.ThreadInfo;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,8 +71,8 @@ public class LongGCDisruptionTests extends ESTestCase {
         final CountDownLatch pauseUnderLock = new CountDownLatch(1);
         final LockedExecutor lockedExecutor = new LockedExecutor();
         final AtomicLong ops = new AtomicLong();
+        final Thread[] threads = new Thread[10];
         try {
-            Thread[] threads = new Thread[10];
             for (int i = 0; i < 10; i++) {
                 // at least one locked and one none lock thread
                 final boolean lockedExec = (i < 9 && randomBoolean()) || i == 0;
@@ -101,6 +103,9 @@ public class LongGCDisruptionTests extends ESTestCase {
         } finally {
             stop.set(true);
             pauseUnderLock.countDown();
+            for (final Thread thread : threads) {
+                thread.join();
+            }
         }
     }
 
@@ -121,8 +126,8 @@ public class LongGCDisruptionTests extends ESTestCase {
         final AtomicBoolean stop = new AtomicBoolean();
         final LockedExecutor lockedExecutor = new LockedExecutor();
         final AtomicLong ops = new AtomicLong();
+        final Thread[] threads = new Thread[10];
         try {
-            Thread[] threads = new Thread[10];
             for (int i = 0; i < 10; i++) {
                 threads[i] = new Thread(() -> {
                     for (int iter = 0; stop.get() == false; iter++) {
@@ -150,6 +155,9 @@ public class LongGCDisruptionTests extends ESTestCase {
             assertBusy(() -> assertThat(ops.get(), greaterThan(first)));
         } finally {
             stop.set(true);
+            for (final Thread thread : threads) {
+                thread.join();
+            }
         }
     }
 
@@ -183,6 +191,7 @@ public class LongGCDisruptionTests extends ESTestCase {
         final CountDownLatch pauseUnderLock = new CountDownLatch(1);
         final LockedExecutor lockedExecutor = new LockedExecutor();
         final AtomicLong ops = new AtomicLong();
+        final List<Thread> threads = new ArrayList<>();
         try {
             for (int i = 0; i < 5; i++) {
                 // at least one locked and one none lock thread
@@ -206,6 +215,7 @@ public class LongGCDisruptionTests extends ESTestCase {
                 });
 
                 thread.setName("[" + disruptedNodeName + "][" + i + "]");
+                threads.add(thread);
                 thread.start();
             }
 
@@ -224,12 +234,13 @@ public class LongGCDisruptionTests extends ESTestCase {
                     }
                 });
                 thread.setName("[" + blockedNodeName + "][" + i + "]");
+                threads.add(thread);
                 thread.start();
             }
             // make sure some threads of test_node are under lock
             underLock.await();
             disruption.startDisrupting();
-            waitForBlockDetectionResult.await(30, TimeUnit.SECONDS);
+            assertTrue(waitForBlockDetectionResult.await(30, TimeUnit.SECONDS));
             disruption.stopDisrupting();
 
             ThreadInfo threadInfo = blockDetectionResult.get();
@@ -240,6 +251,9 @@ public class LongGCDisruptionTests extends ESTestCase {
         } finally {
             stop.set(true);
             pauseUnderLock.countDown();
+            for (final Thread thread : threads) {
+                thread.join();
+            }
         }
     }
 }

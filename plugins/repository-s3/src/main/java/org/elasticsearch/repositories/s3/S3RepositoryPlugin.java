@@ -102,6 +102,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
             S3ClientSettings.PROXY_USERNAME_SETTING,
             S3ClientSettings.PROXY_PASSWORD_SETTING,
             S3ClientSettings.READ_TIMEOUT_SETTING,
+            S3ClientSettings.MAX_RETRIES_SETTING,
+            S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
 
             // Register global cloud aws settings: cloud.aws (might have been registered in ec2 plugin)
             AwsS3Service.KEY_SETTING,

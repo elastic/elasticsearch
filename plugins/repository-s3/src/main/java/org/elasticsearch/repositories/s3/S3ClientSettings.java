@@ -31,6 +31,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.s3.AwsS3Service.CLOUD_S3;
@@ -58,15 +59,15 @@ class S3ClientSettings {
 
     /** The protocol to use to connect to s3. */
     static final Setting.AffixSetting<Protocol> PROTOCOL_SETTING = Setting.affixKeySetting(PREFIX, "protocol",
-        key -> new Setting<>(key, "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Setting.Property.NodeScope));
+        key -> new Setting<>(key, "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope));
 
     /** The host name of a proxy to connect to s3 through. */
     static final Setting.AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(PREFIX, "proxy.host",
-        key -> Setting.simpleString(key, Setting.Property.NodeScope));
+        key -> Setting.simpleString(key, Property.NodeScope));
 
     /** The port of a proxy to connect to s3 through. */
     static final Setting.AffixSetting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(PREFIX, "proxy.port",
-        key -> Setting.intSetting(key, 80, 0, 1<<16, Setting.Property.NodeScope));
+        key -> Setting.intSetting(key, 80, 0, 1<<16, Property.NodeScope));
 
     /** The username of a proxy to connect to s3 through. */
     static final Setting.AffixSetting<SecureString> PROXY_USERNAME_SETTING = Setting.affixKeySetting(PREFIX, "proxy.username",
@@ -78,8 +79,15 @@ class S3ClientSettings {
 
     /** The socket timeout for connecting to s3. */
     static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "read_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT),
-            Setting.Property.NodeScope));
+        key -> Setting.timeSetting(key, TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope));
+
+    /** The number of retries to use when an s3 request fails. */
+    static final Setting.AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(PREFIX, "max_retries",
+        key -> Setting.intSetting(key, S3Repository.Repositories.MAX_RETRIES_SETTING, 0, Property.NodeScope));
+
+    /** Whether retries should be throttled (ie use backoff). */
+    static final Setting.AffixSetting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(PREFIX, "use_throttle_retries",
+        key -> Setting.boolSetting(key, S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING, Property.NodeScope));
 
     /** Credentials to authenticate with s3. */
     final BasicAWSCredentials credentials;
@@ -113,9 +121,15 @@ class S3ClientSettings {
     /** The read timeout for the s3 client. */
     final int readTimeoutMillis;
 
+    /** The number of retries to use for the s3 client. */
+    final int maxRetries;
+
+    /** Whether the s3 client should use an exponential backoff retry policy. */
+    final boolean throttleRetries;
+
     private S3ClientSettings(BasicAWSCredentials credentials, String endpoint, String region, Protocol protocol,
                              String proxyHost, int proxyPort, String proxyUsername,
-                             String proxyPassword, String awsSigner, int readTimeoutMillis) {
+                             String proxyPassword, String awsSigner, int readTimeoutMillis, int maxRetries, boolean throttleRetries) {
         this.credentials = credentials;
         this.region = region;
         this.endpoint = endpoint;
@@ -126,6 +140,8 @@ class S3ClientSettings {
         this.proxyPassword = proxyPassword;
         this.awsSigner = awsSigner;
         this.readTimeoutMillis = readTimeoutMillis;
+        this.maxRetries = maxRetries;
+        this.throttleRetries = throttleRetries;
     }
 
     /**
@@ -174,7 +190,9 @@ class S3ClientSettings {
                 proxyUsername.toString(),
                 proxyPassword.toString(),
                 CLOUD_S3.SIGNER_SETTING.get(settings),
-                (int)getConfigValue(settings, clientName, READ_TIMEOUT_SETTING, AwsS3Service.CLOUD_S3.READ_TIMEOUT).millis()
+                (int)getConfigValue(settings, clientName, READ_TIMEOUT_SETTING, AwsS3Service.CLOUD_S3.READ_TIMEOUT).millis(),
+                getConfigValue(settings, clientName, MAX_RETRIES_SETTING, S3Repository.Repositories.MAX_RETRIES_SETTING),
+                getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING, S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING)
             );
         }
     }

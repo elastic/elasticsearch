@@ -26,7 +26,10 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.List;
 
-//TODO add javadocs
+/**
+ * Extension of {@link PlainShardIterator} used in the search api, which also holds the {@link OriginalIndices}
+ * of the search request. Useful especially with cross cluster search, as each cluster has its own set of original indices.
+ */
 public final class SearchShardIterator extends PlainShardIterator {
 
     private final OriginalIndices originalIndices;
@@ -43,6 +46,9 @@ public final class SearchShardIterator extends PlainShardIterator {
         this.originalIndices = originalIndices;
     }
 
+    /**
+     * Returns the original indices associated with this shard iterator, specifically with the cluster that this shard belongs to.
+     */
     public OriginalIndices getOriginalIndices() {
         return originalIndices;
     }

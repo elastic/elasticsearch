@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -73,7 +74,7 @@ public class ShardSearchFailureTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(0, 0, "some message", null),
-                new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), null));
+                new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), OriginalIndices.NONE));
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
                 "{\"shard\":123,"

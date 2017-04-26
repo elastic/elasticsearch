@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -92,7 +93,8 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws IOException {
         ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(shardId,
             new String[]{request.type()}, request.nowInMillis, request.filteringAlias());
-        SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, null, SearchService.NO_TIMEOUT, null);
+        SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, OriginalIndices.NONE,
+                SearchService.NO_TIMEOUT, null);
         Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         Engine.GetResult result = null;
         try {

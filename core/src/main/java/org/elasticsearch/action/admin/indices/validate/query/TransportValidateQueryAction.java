@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -155,7 +156,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         String error = null;
         ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(request.shardId(), request.types(),
             request.nowInMillis(), request.filteringAliases());
-        SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, null, SearchService.NO_TIMEOUT, null);
+        SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, OriginalIndices.NONE,
+                SearchService.NO_TIMEOUT, null);
         try {
             ParsedQuery parsedQuery = searchContext.getQueryShardContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);

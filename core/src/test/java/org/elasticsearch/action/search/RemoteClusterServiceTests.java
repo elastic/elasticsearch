@@ -227,13 +227,23 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         TestShardRouting.newShardRouting("bar", 0, "node1", false, ShardRoutingState.STARTED)})
             };
             searchShardsResponseMap.put("test_cluster_1", new ClusterSearchShardsResponse(groups, nodes, indicesAndAliases));
-            //TODO add more clusters
+            DiscoveryNode[] nodes2 = new DiscoveryNode[] {
+                    new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT)
+            };
+            ClusterSearchShardsGroup[] groups2 = new ClusterSearchShardsGroup[] {
+                    new ClusterSearchShardsGroup(new ShardId("xyz", "xyz_id", 0),
+                            new ShardRouting[] {TestShardRouting.newShardRouting("xyz", 0, "node3", true, ShardRoutingState.STARTED)})
+            };
+            searchShardsResponseMap.put("test_cluster_2", new ClusterSearchShardsResponse(groups2, nodes2, null));
+
             Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
             remoteIndicesByCluster.put("test_cluster_1",
                     new OriginalIndices(new String[]{"foo", "bar"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
+            remoteIndicesByCluster.put("test_cluster_2",
+                    new OriginalIndices(new String[]{"xyz"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
             Map<String, AliasFilter> remoteAliases = new HashMap<>();
             service.processRemoteShards(searchShardsResponseMap, remoteIndicesByCluster, iteratorList, remoteAliases);
-            assertEquals(3, iteratorList.size());
+            assertEquals(4, iteratorList.size());
             for (ShardIterator iterator : iteratorList) {
                 if (iterator.shardId().getIndexName().endsWith("foo")) {
                     assertTrue(iterator.shardId().getId() == 0 || iterator.shardId().getId() == 1);
@@ -245,7 +255,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertNotNull(shardRouting);
                     assertEquals(shardRouting.getIndexName(), "foo");
                     assertNull(iterator.nextOrNull());
-                } else {
+                } else if (iterator.shardId().getIndexName().endsWith("bar")) {
                     assertEquals(0, iterator.shardId().getId());
                     assertEquals("test_cluster_1:bar", iterator.shardId().getIndexName());
                     ShardRouting shardRouting = iterator.nextOrNull();
@@ -255,13 +265,22 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertNotNull(shardRouting);
                     assertEquals(shardRouting.getIndexName(), "bar");
                     assertNull(iterator.nextOrNull());
+                } else if (iterator.shardId().getIndexName().endsWith("xyz")) {
+                    assertEquals(0, iterator.shardId().getId());
+                    assertEquals("test_cluster_2:xyz", iterator.shardId().getIndexName());
+                    ShardRouting shardRouting = iterator.nextOrNull();
+                    assertNotNull(shardRouting);
+                    assertEquals(shardRouting.getIndexName(), "xyz");
+                    assertNull(iterator.nextOrNull());
                 }
             }
-            assertEquals(2, remoteAliases.size());
+            assertEquals(3, remoteAliases.size());
             assertTrue(remoteAliases.toString(), remoteAliases.containsKey("foo_id"));
             assertTrue(remoteAliases.toString(), remoteAliases.containsKey("bar_id"));
+            assertTrue(remoteAliases.toString(), remoteAliases.containsKey("xyz_id"));
             assertEquals(new TermsQueryBuilder("foo", "bar"), remoteAliases.get("foo_id").getQueryBuilder());
             assertEquals(new MatchAllQueryBuilder(), remoteAliases.get("bar_id").getQueryBuilder());
+            assertNull(remoteAliases.get("xyz_id").getQueryBuilder());
         }
     }
 

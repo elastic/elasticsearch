@@ -1060,7 +1060,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         for (LamtypeContext lamtype : ctx.lamtype()) {
             if (lamtype.decltype() == null) {
-                paramTypes.add("def");
+                paramTypes.add(null);
             } else {
                 paramTypes.add(lamtype.decltype().getText());
             }

@@ -329,6 +329,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         request = new StartRecoveryRequest(
             recoveryTarget.shardId(),
+            recoveryTarget.indexShard().routingEntry().allocationId().getId(),
             recoveryTarget.sourceNode(),
             clusterService.localNode(),
             metadataSnapshot,

@@ -78,7 +78,6 @@ public class RecoverySourceHandler {
     protected final Logger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
-    private final String indexName;
     private final int shardId;
     // Request containing source and target node information
     private final StartRecoveryRequest request;
@@ -116,7 +115,6 @@ public class RecoverySourceHandler {
         this.request = request;
         this.currentClusterStateVersionSupplier = currentClusterStateVersionSupplier;
         this.delayNewRecoveries = delayNewRecoveries;
-        this.indexName = this.request.shardId().getIndex().getName();
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), nodeSettings, request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
@@ -443,7 +441,7 @@ public class RecoverySourceHandler {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("finalizing recovery");
         cancellableThreads.execute(() -> {
-            shard.markAllocationIdAsInSync(recoveryTarget.getTargetAllocationId());
+            shard.markAllocationIdAsInSync(request.targetAllocationId());
             recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint());
         });
 

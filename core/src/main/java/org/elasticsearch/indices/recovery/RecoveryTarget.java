@@ -374,12 +374,13 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer
-            .BatchOperationException {
+    public long indexTranslogOperations(
+            List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer.BatchOperationException {
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
         indexShard().performBatchRecovery(operations);
+        return indexShard().getLocalCheckpoint();
     }
 
     @Override

@@ -67,9 +67,11 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
     public void testSimpleGetFieldMappings() throws Exception {
 
         assertAcked(prepareCreate("indexa")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB")));
         assertAcked(client().admin().indices().prepareCreate("indexb")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB")));
 
@@ -184,6 +186,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
 
     public void testGetFieldMappingsWithBlocks() throws Exception {
         assertAcked(prepareCreate("test")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB")));
 

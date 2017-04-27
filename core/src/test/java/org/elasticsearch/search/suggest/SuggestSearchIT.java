@@ -881,8 +881,8 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put("index.analysis.filter.shingler.output_unigrams", true)).addMapping("type1", mappingBuilder));
         ensureGreen();
 
-        index("test", "type2", "1", "foo", "bar");
-        index("test", "type2", "2", "foo", "bar");
+        index("test", "type1", "11", "foo", "bar");
+        index("test", "type1", "12", "foo", "bar");
         index("test", "type1", "1", "name", "Just testing the suggestions api");
         index("test", "type1", "2", "name", "An other title about equal length");
         refresh();

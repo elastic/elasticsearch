@@ -56,12 +56,14 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
 
     public void testSimpleGetMappings() throws Exception {
         client().admin().indices().prepareCreate("indexa")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB"))
                 .addMapping("Atype", getMappingForType("Atype"))
                 .addMapping("Btype", getMappingForType("Btype"))
                 .execute().actionGet();
         client().admin().indices().prepareCreate("indexb")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB"))
                 .addMapping("Atype", getMappingForType("Atype"))
@@ -143,6 +145,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
 
     public void testGetMappingsWithBlocks() throws IOException {
         client().admin().indices().prepareCreate("test")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB"))
                 .execute().actionGet();

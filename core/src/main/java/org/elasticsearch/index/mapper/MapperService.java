@@ -25,6 +25,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -94,6 +96,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
         Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Boolean> INDEX_MAPPING_SINGLE_TYPE_SETTING;
+    static {
+        Function<Settings, String> defValue = settings -> {
+            // TODO: uncomment this
+            /*boolean singleType = true;
+            if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null) {
+                singleType = Version.indexCreated(settings).onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED);
+            }*/
+            boolean singleType = false;
+            return Boolean.valueOf(singleType).toString();
+        };
+        INDEX_MAPPING_SINGLE_TYPE_SETTING = Setting.boolSetting("index.mapping.single_type", defValue, Property.IndexScope, Property.Final);
+    }
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
@@ -454,6 +469,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 if (results.containsKey(updatedDocumentMapper.type())) {
                     results.put(updatedDocumentMapper.type(), updatedDocumentMapper);
                 }
+            }
+        }
+
+        if (indexSettings.getValue(INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+            Set<String> actualTypes = new HashSet<>(mappers.keySet());
+            actualTypes.remove(DEFAULT_MAPPING);
+            if (actualTypes.size() > 1) {
+                throw new IllegalArgumentException(
+                        "Rejecting mapping update to [" + index().getName() + "] as the final mapping would have more than 1 type: " + actualTypes);
             }
         }
 

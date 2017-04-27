@@ -113,17 +113,16 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
     public void testPercolatorQuery() throws Exception {
         createIndex("test", client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field1", "type=keyword", "field2", "type=keyword")
-                .addMapping("queries", "query", "type=percolator")
+                .addMapping("type", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
         );
 
-        client().prepareIndex("test", "queries", "1")
+        client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .get();
-        client().prepareIndex("test", "queries", "2")
+        client().prepareIndex("test", "type", "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject())
                 .get();
-        client().prepareIndex("test", "queries", "3")
+        client().prepareIndex("test", "type", "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "value"))
                         .must(matchQuery("field2", "value"))
@@ -162,45 +161,44 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
     public void testPercolatorRangeQueries() throws Exception {
         createIndex("test", client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field1", "type=long", "field2", "type=double", "field3", "type=ip")
-                .addMapping("queries", "query", "type=percolator")
+                .addMapping("type", "field1", "type=long", "field2", "type=double", "field3", "type=ip", "query", "type=percolator")
         );
 
-        client().prepareIndex("test", "queries", "1")
+        client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("query", rangeQuery("field1").from(10).to(12)).endObject())
                 .get();
-        client().prepareIndex("test", "queries", "2")
+        client().prepareIndex("test", "type", "2")
                 .setSource(jsonBuilder().startObject().field("query", rangeQuery("field1").from(20).to(22)).endObject())
                 .get();
-        client().prepareIndex("test", "queries", "3")
+        client().prepareIndex("test", "type", "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(rangeQuery("field1").from(10).to(12))
                         .must(rangeQuery("field1").from(12).to(14))
                 ).endObject()).get();
         client().admin().indices().prepareRefresh().get();
-        client().prepareIndex("test", "queries", "4")
+        client().prepareIndex("test", "type", "4")
                 .setSource(jsonBuilder().startObject().field("query", rangeQuery("field2").from(10).to(12)).endObject())
                 .get();
-        client().prepareIndex("test", "queries", "5")
+        client().prepareIndex("test", "type", "5")
                 .setSource(jsonBuilder().startObject().field("query", rangeQuery("field2").from(20).to(22)).endObject())
                 .get();
-        client().prepareIndex("test", "queries", "6")
+        client().prepareIndex("test", "type", "6")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(rangeQuery("field2").from(10).to(12))
                         .must(rangeQuery("field2").from(12).to(14))
                 ).endObject()).get();
         client().admin().indices().prepareRefresh().get();
-        client().prepareIndex("test", "queries", "7")
+        client().prepareIndex("test", "type", "7")
                 .setSource(jsonBuilder().startObject()
                         .field("query", rangeQuery("field3").from("192.168.1.0").to("192.168.1.5"))
                         .endObject())
                 .get();
-        client().prepareIndex("test", "queries", "8")
+        client().prepareIndex("test", "type", "8")
                 .setSource(jsonBuilder().startObject()
                         .field("query", rangeQuery("field3").from("192.168.1.20").to("192.168.1.30"))
                         .endObject())
                 .get();
-        client().prepareIndex("test", "queries", "9")
+        client().prepareIndex("test", "type", "9")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(rangeQuery("field3").from("192.168.1.0").to("192.168.1.5"))
                         .must(rangeQuery("field3").from("192.168.1.5").to("192.168.1.10"))
@@ -258,25 +256,24 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
     public void testPercolatorQueryExistingDocument() throws Exception {
         createIndex("test", client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field1", "type=keyword", "field2", "type=keyword")
-                .addMapping("queries", "query", "type=percolator")
+                .addMapping("type", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
         );
 
-        client().prepareIndex("test", "queries", "1")
+        client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .get();
-        client().prepareIndex("test", "queries", "2")
+        client().prepareIndex("test", "type", "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject())
                 .get();
-        client().prepareIndex("test", "queries", "3")
+        client().prepareIndex("test", "type", "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "value"))
                         .must(matchQuery("field2", "value"))
                 ).endObject()).get();
 
-        client().prepareIndex("test", "type", "1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("test", "type", "2").setSource("field1", "value").get();
-        client().prepareIndex("test", "type", "3").setSource("field1", "value", "field2", "value").get();
+        client().prepareIndex("test", "type", "4").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test", "type", "5").setSource("field1", "value").get();
+        client().prepareIndex("test", "type", "6").setSource("field1", "value", "field2", "value").get();
         client().admin().indices().prepareRefresh().get();
 
         logger.info("percolating empty doc");
@@ -288,7 +285,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
         logger.info("percolating doc with 1 field");
         response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", "type", "test", "type", "2", null, null, null))
+                .setQuery(new PercolateQueryBuilder("query", "type", "test", "type", "5", null, null, null))
                 .addSort("_uid", SortOrder.ASC)
                 .get();
         assertHitCount(response, 2);
@@ -297,7 +294,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
         logger.info("percolating doc with 2 fields");
         response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", "type", "test", "type", "3", null, null, null))
+                .setQuery(new PercolateQueryBuilder("query", "type", "test", "type", "6", null, null, null))
                 .addSort("_uid", SortOrder.ASC)
                 .get();
         assertHitCount(response, 3);
@@ -308,15 +305,14 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
     public void testPercolatorQueryExistingDocumentSourceDisabled() throws Exception {
         createIndex("test", client().admin().indices().prepareCreate("test")
-            .addMapping("type", "_source", "enabled=false", "field1", "type=keyword")
-            .addMapping("queries", "query", "type=percolator")
+            .addMapping("type", "_source", "enabled=false", "field1", "type=keyword", "query", "type=percolator")
         );
 
-        client().prepareIndex("test", "queries", "1")
+        client().prepareIndex("test", "type", "1")
             .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
             .get();
 
-        client().prepareIndex("test", "type", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test", "type", "2").setSource("{}", XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         logger.info("percolating empty doc with source disabled");
@@ -331,18 +327,17 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
     public void testPercolatorSpecificQueries()  throws Exception {
         createIndex("test", client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field1", "type=text", "field2", "type=text")
-                .addMapping("queries", "query", "type=percolator")
+                .addMapping("type", "field1", "type=text", "field2", "type=text", "query", "type=percolator")
         );
 
-        client().prepareIndex("test", "queries", "1")
+        client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("query", commonTermsQuery("field1", "quick brown fox")).endObject())
                 .get();
-        client().prepareIndex("test", "queries", "2")
+        client().prepareIndex("test", "type", "2")
                 .setSource(jsonBuilder().startObject().field("query", multiMatchQuery("quick brown fox", "field1", "field2")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).endObject())
                 .get();
-        client().prepareIndex("test", "queries", "3")
+        client().prepareIndex("test", "type", "3")
                 .setSource(jsonBuilder().startObject().field("query",
                         spanNearQuery(spanTermQuery("field1", "quick"), 0)
                                 .addClause(spanTermQuery("field1", "brown"))
@@ -352,7 +347,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .get();
         client().admin().indices().prepareRefresh().get();
 
-        client().prepareIndex("test", "queries", "4")
+        client().prepareIndex("test", "type", "4")
                 .setSource(jsonBuilder().startObject().field("query",
                         spanNotQuery(
                                 spanNearQuery(spanTermQuery("field1", "quick"), 0)
@@ -367,7 +362,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .get();
 
         // doesn't match
-        client().prepareIndex("test", "queries", "5")
+        client().prepareIndex("test", "type", "5")
                 .setSource(jsonBuilder().startObject().field("query",
                         spanNotQuery(
                                 spanNearQuery(spanTermQuery("field1", "quick"), 0)
@@ -410,22 +405,21 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
             fieldMapping.append(",index_options=offsets");
         }
         createIndex("test", client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field1", fieldMapping)
-                .addMapping("queries", "query", "type=percolator")
+                .addMapping("type", "field1", fieldMapping, "query", "type=percolator")
         );
-        client().prepareIndex("test", "queries", "1")
+        client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "brown fox")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "queries", "2")
+        client().prepareIndex("test", "type", "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "lazy dog")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "queries", "3")
+        client().prepareIndex("test", "type", "3")
                 .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "jumps")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "queries", "4")
+        client().prepareIndex("test", "type", "4")
                 .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "dog")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "queries", "5")
+        client().prepareIndex("test", "type", "5")
                 .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "fox")).endObject())
                 .execute().actionGet();
         client().admin().indices().prepareRefresh().get();
@@ -454,14 +448,13 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
     public void testTakePositionOffsetGapIntoAccount() throws Exception {
         createIndex("test", client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field", "type=text,position_increment_gap=5")
-                .addMapping("queries", "query", "type=percolator")
+                .addMapping("type", "field", "type=text,position_increment_gap=5", "query", "type=percolator")
         );
-        client().prepareIndex("test", "queries", "1")
+        client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("query",
                         new MatchPhraseQueryBuilder("field", "brown fox").slop(4)).endObject())
                 .get();
-        client().prepareIndex("test", "queries", "2")
+        client().prepareIndex("test", "type", "2")
                 .setSource(jsonBuilder().startObject().field("query",
                         new MatchPhraseQueryBuilder("field", "brown fox").slop(5)).endObject())
                 .get();
@@ -478,6 +471,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
     public void testManyPercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
         createIndex("test", client().admin().indices().prepareCreate("test")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("doc_type", "field", "type=keyword")
                 .addMapping("query_type1", queryFieldName, "type=percolator")
                 .addMapping("query_type2", queryFieldName, "type=percolator", "second_query_field", "type=percolator")
@@ -498,9 +492,11 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
     public void testWithMultiplePercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
         createIndex("test1", client().admin().indices().prepareCreate("test1")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("doc_type", "field", "type=keyword")
                 .addMapping("query_type", queryFieldName, "type=percolator"));
         createIndex("test2", client().admin().indices().prepareCreate("test2")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("doc_type", "field", "type=keyword")
                 .addMapping("query_type", jsonBuilder().startObject().startObject("query_type").startObject("properties")
                         .startObject("object_field")
@@ -560,21 +556,20 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
     public void testPercolateQueryWithNestedDocuments() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
-        mapping.startObject().startObject("properties").startObject("companyname").field("type", "text").endObject()
-                .startObject("employee").field("type", "nested").startObject("properties")
-                .startObject("name").field("type", "text").endObject().endObject().endObject().endObject()
+        mapping.startObject().startObject("properties").startObject("query").field("type", "percolator").endObject()
+                .startObject("companyname").field("type", "text").endObject().startObject("employee").field("type", "nested")
+                .startObject("properties").startObject("name").field("type", "text").endObject().endObject().endObject().endObject()
                 .endObject();
         createIndex("test", client().admin().indices().prepareCreate("test")
                 .addMapping("employee", mapping)
-                .addMapping("queries", "query", "type=percolator")
         );
-        client().prepareIndex("test", "queries", "q1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "employee", "q1").setSource(jsonBuilder().startObject()
                 .field("query", QueryBuilders.nestedQuery("employee",
                         QueryBuilders.matchQuery("employee.name", "virginia potts").operator(Operator.AND), ScoreMode.Avg)
                 ).endObject())
                 .get();
         // this query should never match as it doesn't use nested query:
-        client().prepareIndex("test", "queries", "q2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "employee", "q2").setSource(jsonBuilder().startObject()
                 .field("query", QueryBuilders.matchQuery("employee.name", "virginia")).endObject())
                 .get();
         client().admin().indices().prepareRefresh().get();
@@ -730,26 +725,25 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
     public void testPercolatorQueryViaMultiSearch() throws Exception {
         createIndex("test", client().admin().indices().prepareCreate("test")
-            .addMapping("type", "field1", "type=text")
-            .addMapping("queries", "query", "type=percolator")
+            .addMapping("type", "field1", "type=text", "query", "type=percolator")
         );
 
-        client().prepareIndex("test", "queries", "1")
+        client().prepareIndex("test", "type", "1")
             .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
             .execute().actionGet();
-        client().prepareIndex("test", "queries", "2")
+        client().prepareIndex("test", "type", "2")
             .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
             .execute().actionGet();
-        client().prepareIndex("test", "queries", "3")
+        client().prepareIndex("test", "type", "3")
             .setSource(jsonBuilder().startObject().field("query", boolQuery()
                 .must(matchQuery("field1", "b"))
                 .must(matchQuery("field1", "c"))
             ).endObject())
             .execute().actionGet();
-        client().prepareIndex("test", "queries", "4")
+        client().prepareIndex("test", "type", "4")
             .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
             .execute().actionGet();
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test", "type", "5")
             .setSource(jsonBuilder().startObject().field("field1", "c").endObject())
             .execute().actionGet();
         client().admin().indices().prepareRefresh().get();
@@ -768,9 +762,9 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .setQuery(new PercolateQueryBuilder("query", "type",
                     jsonBuilder().startObject().field("field1", "d").endObject().bytes(), XContentType.JSON)))
             .add(client().prepareSearch("test")
-                .setQuery(new PercolateQueryBuilder("query", "type", "test", "type", "1", null, null, null)))
+                .setQuery(new PercolateQueryBuilder("query", "type", "test", "type", "5", null, null, null)))
             .add(client().prepareSearch("test") // non existing doc, so error element
-                .setQuery(new PercolateQueryBuilder("query", "type", "test", "type", "2", null, null, null)))
+                .setQuery(new PercolateQueryBuilder("query", "type", "test", "type", "6", null, null, null)))
             .get();
 
         MultiSearchResponse.Item item = response.getResponses()[0];
@@ -803,7 +797,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         assertThat(item.getFailureMessage(), notNullValue());
         assertThat(item.getFailureMessage(), equalTo("all shards failed"));
         assertThat(ExceptionsHelper.unwrapCause(item.getFailure().getCause()).getMessage(),
-            containsString("[test/type/2] couldn't be found"));
+            containsString("[test/type/6] couldn't be found"));
     }
 
 }

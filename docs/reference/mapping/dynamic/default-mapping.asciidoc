@@ -12,6 +12,9 @@ mapping types, can be customised by adding a mapping type with the name
 --------------------------------------------------
 PUT my_index
 {
+  "settings": {
+    "mapping.single_type": false
+  },
   "mappings": {
     "_default_": { <1>
       "_source": {

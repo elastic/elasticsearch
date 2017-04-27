@@ -37,6 +37,8 @@ import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.analysis.standard.ClassicFilter;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
@@ -46,6 +48,8 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
+
 public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
@@ -53,6 +57,14 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("asciifolding", ASCIIFoldingTokenFilterFactory::new);
         filters.put("word_delimiter", WordDelimiterTokenFilterFactory::new);
         filters.put("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
+        return filters;
+    }
+
+    public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
+        Map<String, AnalysisProvider<CharFilterFactory>> filters = new TreeMap<>();
+        filters.put("html_strip", HtmlStripCharFilterFactory::new);
+        filters.put("pattern_replace", requriesAnalysisSettings(PatternReplaceCharFilterFactory::new));
+        filters.put("mapping", requriesAnalysisSettings(MappingCharFilterFactory::new));
         return filters;
     }
 
@@ -109,7 +121,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
                       | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE
                       | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
                       | WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE, null)));
-
         return filters;
     }
 }

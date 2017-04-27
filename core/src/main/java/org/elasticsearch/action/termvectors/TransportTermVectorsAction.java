@@ -58,7 +58,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         if (request.request().doc() != null && request.request().routing() == null) {
             // artificial document without routing specified, ignore its "id" and use either random shard or according to preference
-            GroupShardsIterator groupShardsIter = clusterService.operationRouting().searchShards(state,
+            GroupShardsIterator<ShardIterator> groupShardsIter = clusterService.operationRouting().searchShards(state,
                     new String[] { request.concreteIndex() }, null, request.request().preference());
             return groupShardsIter.iterator().next();
         }

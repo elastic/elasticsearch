@@ -50,14 +50,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final AtomicLong bytesSinceLastPause = new AtomicLong();
 
     private final Consumer<Long> onSourceThrottle;
-    private String targetAllocationId;
 
-    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, String targetAllocationId, TransportService transportService,
+    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService,
                                        DiscoveryNode targetNode, RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
-        this.targetAllocationId = targetAllocationId;
         this.transportService = transportService;
-
-
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.targetNode = targetNode;
@@ -78,9 +74,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
+    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
-                new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, maxUnsafeAutoIdTimestamp),
+                new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps),
                 TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }
@@ -164,8 +160,4 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                         throttleTimeInNanos), fileChunkRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }
 
-    @Override
-    public String getTargetAllocationId() {
-        return targetAllocationId;
-    }
 }

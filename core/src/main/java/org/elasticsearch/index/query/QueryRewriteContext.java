@@ -25,10 +25,12 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.template.CompiledTemplate;
 
 import java.util.function.LongSupplier;
 
@@ -104,7 +106,7 @@ public class QueryRewriteContext {
     }
 
     public BytesReference getTemplateBytes(Script template) {
-        ExecutableScript executable = scriptService.executable(template, ScriptContext.Standard.SEARCH);
-        return (BytesReference) executable.run();
+        CompiledTemplate compiledTemplate = scriptService.compileTemplate(template, ScriptContext.Standard.SEARCH);
+        return compiledTemplate.run(template.getParams());
     }
 }

@@ -306,11 +306,6 @@ public class ValueCountIT extends ESIntegTestCase {
                     return new LeafSearchScript() {
 
                         @Override
-                        public Object unwrap(Object value) {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
                         public void setNextVar(String name, Object value) {
                             vars.put(name, value);
                         }

@@ -204,3 +204,5 @@ include::index-modules/slowlog.asciidoc[]
 include::index-modules/store.asciidoc[]
 
 include::index-modules/translog.asciidoc[]
+
+include::index-modules/index-sorting.asciidoc[]

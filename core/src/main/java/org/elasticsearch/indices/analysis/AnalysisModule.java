@@ -71,7 +71,6 @@ import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.GreekAnalyzerProvider;
 import org.elasticsearch.index.analysis.HindiAnalyzerProvider;
 import org.elasticsearch.index.analysis.HindiNormalizationFilterFactory;
-import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
 import org.elasticsearch.index.analysis.HungarianAnalyzerProvider;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.IndicNormalizationFilterFactory;
@@ -91,7 +90,6 @@ import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
 import org.elasticsearch.index.analysis.LithuanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.LowerCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
-import org.elasticsearch.index.analysis.MappingCharFilterFactory;
 import org.elasticsearch.index.analysis.MinHashTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
@@ -99,7 +97,6 @@ import org.elasticsearch.index.analysis.NorwegianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PathHierarchyTokenizerFactory;
 import org.elasticsearch.index.analysis.PatternAnalyzerProvider;
 import org.elasticsearch.index.analysis.PatternCaptureGroupTokenFilterFactory;
-import org.elasticsearch.index.analysis.PatternReplaceCharFilterFactory;
 import org.elasticsearch.index.analysis.PatternReplaceTokenFilterFactory;
 import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianAnalyzerProvider;
@@ -152,6 +149,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
+
 /**
  * Sets up {@link AnalysisRegistry}.
  */
@@ -193,9 +192,6 @@ public final class AnalysisModule {
 
     private NamedRegistry<AnalysisProvider<CharFilterFactory>> setupCharFilters(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<CharFilterFactory>> charFilters = new NamedRegistry<>("char_filter");
-        charFilters.register("html_strip", HtmlStripCharFilterFactory::new);
-        charFilters.register("pattern_replace", requriesAnalysisSettings(PatternReplaceCharFilterFactory::new));
-        charFilters.register("mapping", requriesAnalysisSettings(MappingCharFilterFactory::new));
         charFilters.extractAndRegister(plugins, AnalysisPlugin::getCharFilters);
         return charFilters;
     }
@@ -376,19 +372,6 @@ public final class AnalysisModule {
         return normalizers;
     }
 
-    private static <T> AnalysisModule.AnalysisProvider<T> requriesAnalysisSettings(AnalysisModule.AnalysisProvider<T> provider) {
-        return new AnalysisModule.AnalysisProvider<T>() {
-            @Override
-            public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
-                return provider.get(indexSettings, environment, name, settings);
-            }
-
-            @Override
-            public boolean requiresAnalysisSettings() {
-                return true;
-            }
-        };
-    }
 
     /**
      * The basic factory interface for analysis components.

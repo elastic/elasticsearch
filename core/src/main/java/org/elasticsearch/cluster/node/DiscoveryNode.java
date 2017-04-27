@@ -198,7 +198,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
 
     /** extract node roles from the given settings */
     public static Set<Role> getRolesFromSettings(Settings settings) {
-        Set<Role> roles = new HashSet<>();
+        Set<Role> roles = EnumSet.noneOf(Role.class);
         if (Node.NODE_INGEST_SETTING.get(settings)) {
             roles.add(Role.INGEST);
         }

@@ -23,24 +23,20 @@ import org.apache.lucene.analysis.MockLowerCaseFilter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 
 public class CustomNormalizerTests extends ESTokenStreamTestCase {
-    private static final AnalysisPlugin MOCK_ANALYSIS_PLUGIN = new AnalysisPlugin() {
-        @Override
-        public Map<String, PreBuiltTokenFilterSpec> getPreBuiltTokenFilters() {
-            return singletonMap("mock_forbidden", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
-                    new MockLowerCaseFilter(input)));
-        }
-    };
+    private static final AnalysisPlugin MOCK_ANALYSIS_PLUGIN = new MockAnalysisPlugin();
 
     public void testBasics() throws IOException {
         Settings settings = Settings.builder()
@@ -79,12 +75,11 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
 
     public void testCharFilters() throws IOException {
         Settings settings = Settings.builder()
-                .put("index.analysis.char_filter.my_mapping.type", "mapping")
-                .putArray("index.analysis.char_filter.my_mapping.mappings", "a => z")
+                .put("index.analysis.char_filter.my_mapping.type", "mock_char_filter")
                 .putArray("index.analysis.normalizer.my_normalizer.char_filter", "my_mapping")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN);
         assertNull(analysis.indexAnalyzers.get("my_normalizer"));
         NamedAnalyzer normalizer = analysis.indexAnalyzers.getNormalizer("my_normalizer");
         assertNotNull(normalizer);
@@ -111,5 +106,50 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings));
         assertEquals("Custom normalizer [my_normalizer] may not use char filter [html_strip]", e.getMessage());
+    }
+
+    private static class MockAnalysisPlugin implements AnalysisPlugin {
+        @Override
+        public Map<String, PreBuiltTokenFilterSpec> getPreBuiltTokenFilters() {
+            return singletonMap("mock_forbidden", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
+                    new MockLowerCaseFilter(input)));
+        }
+
+        @Override
+        public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
+            return singletonMap("mock_char_filter", (indexSettings, env, name, settings) -> {
+                class Factory implements CharFilterFactory, MultiTermAwareComponent {
+                    @Override
+                    public String name() {
+                        return name;
+                    }
+                    @Override
+                    public Reader create(Reader reader) {
+                        return new Reader() {
+                            @Override
+                            public int read(char[] cbuf, int off, int len) throws IOException {
+                                int result = reader.read(cbuf, off, len);
+                                for (int i = off; i < result; i++) {
+                                    if (cbuf[i] == 'a') {
+                                        cbuf[i] = 'z';
+                                    }
+                                }
+                                return result;
+                            }
+
+                            @Override
+                            public void close() throws IOException {
+                                reader.close();
+                            }
+                        };
+                    }
+                    @Override
+                    public Object getMultiTermComponent() {
+                        return this;
+                    }
+                }
+                return new Factory();
+            });
+        }
     }
 }

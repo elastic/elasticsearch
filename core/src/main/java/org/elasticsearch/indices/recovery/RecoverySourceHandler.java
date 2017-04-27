@@ -78,7 +78,6 @@ public class RecoverySourceHandler {
     protected final Logger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
-    private final String indexName;
     private final int shardId;
     // Request containing source and target node information
     private final StartRecoveryRequest request;
@@ -116,7 +115,6 @@ public class RecoverySourceHandler {
         this.request = request;
         this.currentClusterStateVersionSupplier = currentClusterStateVersionSupplier;
         this.delayNewRecoveries = delayNewRecoveries;
-        this.indexName = this.request.shardId().getIndex().getName();
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), nodeSettings, request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
@@ -157,7 +155,7 @@ public class RecoverySourceHandler {
             }
 
             try {
-                prepareTargetForTranslog(translogView.totalOperations(), shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp());
+                prepareTargetForTranslog(translogView.totalOperations());
             } catch (final Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e);
             }
@@ -389,13 +387,13 @@ public class RecoverySourceHandler {
         }
     }
 
-    void prepareTargetForTranslog(final int totalTranslogOps, final long maxUnsafeAutoIdTimestamp) throws IOException {
+    void prepareTargetForTranslog(final int totalTranslogOps) throws IOException {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("recovery [phase1]: prepare remote engine for translog");
         final long startEngineStart = stopWatch.totalTime().millis();
         // Send a request preparing the new shard's translog to receive operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes.
-        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp));
+        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(totalTranslogOps));
         stopWatch.stop();
 
         response.startTime = stopWatch.totalTime().millis() - startEngineStart;
@@ -443,7 +441,7 @@ public class RecoverySourceHandler {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("finalizing recovery");
         cancellableThreads.execute(() -> {
-            shard.markAllocationIdAsInSync(recoveryTarget.getTargetAllocationId());
+            shard.markAllocationIdAsInSync(request.targetAllocationId());
             recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint());
         });
 

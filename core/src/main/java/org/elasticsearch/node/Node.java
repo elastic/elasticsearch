@@ -168,7 +168,7 @@ import static java.util.stream.Collectors.toList;
 public class Node implements Closeable {
 
 
-    public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING =
+    public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
     public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
     public static final Setting<Boolean> NODE_MASTER_SETTING =
@@ -523,15 +523,21 @@ public class Node implements Closeable {
 
         boolean clean = true;
         for (final String defaultPathData : Environment.DEFAULT_PATH_DATA_SETTING.get(settings)) {
-            final Path nodeDirectory = NodeEnvironment.resolveNodePath(getPath(defaultPathData), nodeEnv.getNodeLockId());
-            if (Files.exists(nodeDirectory) == false) {
+            final Path defaultNodeDirectory = NodeEnvironment.resolveNodePath(getPath(defaultPathData), nodeEnv.getNodeLockId());
+            if (Files.exists(defaultNodeDirectory) == false) {
                 continue;
             }
-            final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(nodeDirectory);
+
+            if (isDefaultPathDataInPathData(nodeEnv, defaultNodeDirectory)) {
+                continue;
+            }
+
+            final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(defaultNodeDirectory);
             final Set<String> availableIndexFolders = nodeEnv.availableIndexFoldersForPath(nodePath);
             if (availableIndexFolders.isEmpty()) {
                 continue;
             }
+
             clean = false;
             logger.error("detected index data in default.path.data [{}] where there should not be any", nodePath.indicesPath);
             for (final String availableIndexFolder : availableIndexFolders) {
@@ -552,6 +558,15 @@ public class Node implements Closeable {
                 "detected index data in default.path.data %s where there should not be any; check the logs for details",
                 Environment.DEFAULT_PATH_DATA_SETTING.get(settings));
         throw new IllegalStateException(message);
+    }
+
+    private static boolean isDefaultPathDataInPathData(final NodeEnvironment nodeEnv, final Path defaultNodeDirectory) throws IOException {
+        for (final NodeEnvironment.NodePath dataPath : nodeEnv.nodePaths()) {
+            if (Files.isSameFile(dataPath.path, defaultNodeDirectory)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @SuppressForbidden(reason = "read path that is not configured in environment")
@@ -712,13 +727,7 @@ public class Node implements Closeable {
             injector.getInstance(HttpServerTransport.class).start();
         }
 
-        // start nodes now, after the http server, because it may take some time
-        tribeService.startNodes();
-        // starts connecting to remote clusters if any cluster is configured
-        SearchTransportService searchTransportService = injector.getInstance(SearchTransportService.class);
-        searchTransportService.start();
-
-        if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
+        if (WRITE_PORTS_FILE_SETTING.get(settings)) {
             if (NetworkModule.HTTP_ENABLED.get(settings)) {
                 HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
                 writePortsFile("http", http.boundAddress());
@@ -726,6 +735,12 @@ public class Node implements Closeable {
             TransportService transport = injector.getInstance(TransportService.class);
             writePortsFile("transport", transport.boundAddress());
         }
+
+        // start nodes now, after the http server, because it may take some time
+        tribeService.startNodes();
+        // starts connecting to remote clusters if any cluster is configured
+        SearchTransportService searchTransportService = injector.getInstance(SearchTransportService.class);
+        searchTransportService.start();
 
         logger.info("started");
 

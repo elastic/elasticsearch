@@ -45,7 +45,6 @@ import org.elasticsearch.index.analysis.FlattenGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.GermanNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.HindiNormalizationFilterFactory;
-import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.IndicNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.KStemTokenFilterFactory;
@@ -58,14 +57,12 @@ import org.elasticsearch.index.analysis.LetterTokenizerFactory;
 import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
-import org.elasticsearch.index.analysis.MappingCharFilterFactory;
 import org.elasticsearch.index.analysis.MinHashTokenFilterFactory;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.index.analysis.PathHierarchyTokenizerFactory;
 import org.elasticsearch.index.analysis.PatternCaptureGroupTokenFilterFactory;
-import org.elasticsearch.index.analysis.PatternReplaceCharFilterFactory;
 import org.elasticsearch.index.analysis.PatternReplaceTokenFilterFactory;
 import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
@@ -97,6 +94,7 @@ import org.elasticsearch.plugins.AnalysisPlugin.PreBuiltTokenFilterSpec;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -115,7 +113,7 @@ import static java.util.Collections.singletonList;
  * If we don't want to expose one for a specific reason, just map it to Void.
  * The deprecated ones can be mapped to Deprecated.class.
  */
-public class AnalysisFactoryTestCase extends ESTestCase {
+public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
     private static final Pattern UNDERSCORE_THEN_ANYTHING = Pattern.compile("_(.)");
 
@@ -155,7 +153,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<PreBuiltTokenizers, Class<?>> PREBUILT_TOKENIZERS;
     static {
-        PREBUILT_TOKENIZERS = new HashMap<>();
+        PREBUILT_TOKENIZERS = new EnumMap<>(PreBuiltTokenizers.class);
         for (PreBuiltTokenizers tokenizer : PreBuiltTokenizers.values()) {
             Class<?> luceneFactoryClazz;
             switch (tokenizer) {
@@ -292,9 +290,9 @@ public class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<String,Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
-        .put("htmlstrip",      HtmlStripCharFilterFactory.class)
-        .put("mapping",        MappingCharFilterFactory.class)
-        .put("patternreplace", PatternReplaceCharFilterFactory.class)
+        .put("htmlstrip",      MovedToAnalysisCommon.class)
+        .put("mapping",        MovedToAnalysisCommon.class)
+        .put("patternreplace", MovedToAnalysisCommon.class)
 
         // TODO: these charfilters are not yet exposed: useful?
         // handling of zwnj for persian
@@ -303,7 +301,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<PreBuiltCharFilters, Class<?>> PREBUILT_CHARFILTERS;
     static {
-        PREBUILT_CHARFILTERS = new HashMap<>();
+        PREBUILT_CHARFILTERS = new EnumMap<>(PreBuiltCharFilters.class);
         for (PreBuiltCharFilters tokenizer : PreBuiltCharFilters.values()) {
             Class<?> luceneFactoryClazz;
             switch (tokenizer) {

@@ -73,7 +73,8 @@ final class DfsQueryPhase extends SearchPhase {
         for (final DfsSearchResult dfsResult : resultList) {
             final SearchShardTarget searchShardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(searchShardTarget.getNodeId());
-            QuerySearchRequest querySearchRequest = new QuerySearchRequest(context.getRequest(), dfsResult.getRequestId(), dfs);
+            QuerySearchRequest querySearchRequest = new QuerySearchRequest(searchShardTarget.getOriginalIndices(),
+                    dfsResult.getRequestId(), dfs);
             final int shardIndex = dfsResult.getShardIndex();
             searchTransportService.sendExecuteQuery(connection, querySearchRequest, context.getTask(),
                 new SearchActionListener<QuerySearchResult>(searchShardTarget, shardIndex) {
@@ -95,7 +96,7 @@ final class DfsQueryPhase extends SearchPhase {
                             // the query might not have been executed at all (for example because thread pool rejected
                             // execution) and the search context that was created in dfs phase might not be released.
                             // release it again to be in the safe side
-                            context.sendReleaseSearchContext(querySearchRequest.id(), connection);
+                            context.sendReleaseSearchContext(querySearchRequest.id(), connection, searchShardTarget.getOriginalIndices());
                         }
                     }
                 });

@@ -19,11 +19,8 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.test.ESTestCase;
 
@@ -56,48 +53,6 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
                     System::nanoTime);
         }
 
-        final ShardIterator it = new ShardIterator() {
-            @Override
-            public ShardId shardId() {
-                return null;
-            }
-
-            @Override
-            public void reset() {
-
-            }
-
-            @Override
-            public int compareTo(ShardIterator o) {
-                return 0;
-            }
-
-            @Override
-            public int size() {
-                return 0;
-            }
-
-            @Override
-            public int sizeActive() {
-                return 0;
-            }
-
-            @Override
-            public ShardRouting nextOrNull() {
-                return null;
-            }
-
-            @Override
-            public int remaining() {
-                return 0;
-            }
-
-            @Override
-            public Iterable<ShardRouting> asUnordered() {
-                return null;
-            }
-        };
-
         return new AbstractSearchAsyncAction<SearchPhaseResult>(
                 "test",
                 null,
@@ -108,7 +63,7 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new GroupShardsIterator(Collections.singletonList(it)),
+                new GroupShardsIterator<>(Collections.singletonList(new SearchShardIterator(null, Collections.emptyList(), null))),
                 timeProvider,
                 0,
                 null,
@@ -123,7 +78,7 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
 
             @Override
             protected void executePhaseOnShard(
-                    final ShardIterator shardIt,
+                    final SearchShardIterator shardIt,
                     final ShardRouting shard,
                     final SearchActionListener<SearchPhaseResult> listener) {
 
@@ -157,5 +112,4 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
             assertThat(actual, greaterThanOrEqualTo(TimeUnit.NANOSECONDS.toMillis(expected.get())));
         }
     }
-
 }

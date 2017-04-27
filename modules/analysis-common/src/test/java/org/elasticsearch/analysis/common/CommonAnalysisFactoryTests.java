@@ -20,6 +20,7 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
+import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.List;
@@ -52,6 +53,13 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getCharFilters() {
         Map<String, Class<?>> filters = new TreeMap<>(super.getCharFilters());
+        filters.put("htmlstrip",      HtmlStripCharFilterFactory.class);
+        filters.put("mapping",        MappingCharFilterFactory.class);
+        filters.put("patternreplace", PatternReplaceCharFilterFactory.class);
+
+        // TODO: these charfilters are not yet exposed: useful?
+        // handling of zwnj for persian
+        filters.put("persian",        Void.class);
         return filters;
     }
 

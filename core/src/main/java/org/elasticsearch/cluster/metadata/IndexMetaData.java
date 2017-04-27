@@ -41,8 +41,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -62,7 +60,6 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -440,12 +437,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         return mappings.get(mappingType);
     }
 
-    public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString("index.shrink.source.uuid");
-    public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString("index.shrink.source.name");
+    public static final String INDEX_SHRINK_SOURCE_UUID_KEY = "index.shrink.source.uuid";
+    public static final String INDEX_SHRINK_SOURCE_NAME_KEY = "index.shrink.source.name";
+    public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString(INDEX_SHRINK_SOURCE_UUID_KEY);
+    public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString(INDEX_SHRINK_SOURCE_NAME_KEY);
 
 
     public Index getMergeSourceIndex() {
-        return INDEX_SHRINK_SOURCE_UUID.exists(settings) ? new Index(INDEX_SHRINK_SOURCE_NAME.get(settings),  INDEX_SHRINK_SOURCE_UUID.get(settings)) : null;
+        return INDEX_SHRINK_SOURCE_UUID.exists(settings) ? new Index(INDEX_SHRINK_SOURCE_NAME.get(settings), INDEX_SHRINK_SOURCE_UUID.get(settings)) : null;
     }
 
     /**

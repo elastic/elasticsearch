@@ -165,6 +165,7 @@ configure(distributions) {
       from project(':core').configurations.runtime
       // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
       from { project(':distribution:tools:java-version-checker').jar }
+      from { project(':distribution:tools:plugin-cli').jar }
     }
 
     modulesFiles = copySpec {

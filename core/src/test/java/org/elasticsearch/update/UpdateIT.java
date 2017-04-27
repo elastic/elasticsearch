@@ -491,61 +491,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra").toString(), equalTo("foo"));
     }
-
-    public void testVersionedUpdate() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
-        ensureGreen();
-
-        index("test", "type", "1", "text", "value"); // version is now 1
-
-        assertThrows(client().prepareUpdate(indexOrAlias(), "type", "1")
-                        .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v2"))).setVersion(2)
-                        .execute(),
-                VersionConflictEngineException.class);
-
-        client().prepareUpdate(indexOrAlias(), "type", "1")
-                .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v2"))).setVersion(1).get();
-        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(2L));
-
-        // and again with a higher version..
-        client().prepareUpdate(indexOrAlias(), "type", "1")
-                .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v3"))).setVersion(2).get();
-
-        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(3L));
-
-        // after delete
-        client().prepareDelete("test", "type", "1").get();
-        assertThrows(client().prepareUpdate("test", "type", "1")
-                        .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v2"))).setVersion(3)
-                        .execute(),
-                DocumentMissingException.class);
-
-        // external versioning
-        client().prepareIndex("test", "type", "2").setSource("text", "value").setVersion(10).setVersionType(VersionType.EXTERNAL).get();
-
-        assertThrows(client().prepareUpdate(indexOrAlias(), "type", "2")
-                        .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v2"))).setVersion(2)
-                        .setVersionType(VersionType.EXTERNAL).execute(),
-                ActionRequestValidationException.class);
-
-        GetResponse get = get("test", "type", "2");
-        assertThat(get.getVersion(), equalTo(10L));
-        assertThat((String) get.getSource().get("text"), equalTo("value"));
-
-        // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
-
-        // With internal versions, tt means "if object is there with version X, update it or explode. If it is not there, index.
-        client().prepareUpdate(indexOrAlias(), "type", "3")
-                .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v2")))
-                .setVersion(10).setUpsert("{ \"text\": \"v0\" }", XContentType.JSON).get();
-        get = get("test", "type", "3");
-        assertThat(get.getVersion(), equalTo(1L));
-        assertThat((String) get.getSource().get("text"), equalTo("v0"));
-
-        // retry on conflict is rejected:
-        assertThrows(client().prepareUpdate(indexOrAlias(), "type", "1").setVersion(10).setRetryOnConflict(5), ActionRequestValidationException.class);
-    }
-
+    
     public void testIndexAutoCreation() throws Exception {
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())

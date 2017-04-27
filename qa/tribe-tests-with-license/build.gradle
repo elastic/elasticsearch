@@ -70,6 +70,15 @@ integTestCluster {
   setting 'xpack.watcher.enabled', false
   setting 'xpack.graph.enabled', false
   setting 'xpack.ml.enabled', false
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    // 5 nodes: tribe + clusterOne (1 node + tribe internal node) + clusterTwo (1 node + tribe internal node)
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=5&wait_for_status=yellow",
+            dest: tmpFile.toString(),
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+  }
 }
 
 integTestRunner {

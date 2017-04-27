@@ -71,7 +71,8 @@ integTestCluster {
     setting 'tribe.cluster2.xpack.ml.enabled', 'false'
     waitCondition = { node, ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow",
+        // 5 nodes: tribe + clusterOne (1 node + tribe internal node) + clusterTwo (1 node + tribe internal node)
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=5&wait_for_status=yellow",
                 dest: tmpFile.toString(),
                 username: 'test_user',
                 password: 'changeme',

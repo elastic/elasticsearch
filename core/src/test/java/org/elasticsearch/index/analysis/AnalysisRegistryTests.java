@@ -36,7 +36,6 @@ import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.AnalysisPlugin.PreBuiltTokenFilterSpec;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
@@ -45,6 +44,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -67,7 +67,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         emptyEnvironment = new Environment(Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build());
-        emptyRegistry = new AnalysisRegistry(emptyEnvironment, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
+        emptyRegistry = new AnalysisRegistry(emptyEnvironment, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyList());
         emptyIndexSettingsOfCurrentVersion = IndexSettingsModule.newIndexSettings("index", Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build());
@@ -194,10 +194,10 @@ public class AnalysisRegistryTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         IndexAnalyzers indexAnalyzers =
-                new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
+                new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyList())
                     .build(idxSettings);
         IndexAnalyzers otherIndexAnalyzers =
-                new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
+                new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyList())
                     .build(idxSettings);
         final int numIters = randomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {
@@ -208,15 +208,15 @@ public class AnalysisRegistryTests extends ESTestCase {
 
     public void testPreBuiltTokenFiltersAreCached() throws IOException {
         AtomicBoolean built = new AtomicBoolean(false);
-        PreBuiltTokenFilterSpec assertsBuiltOnce = new PreBuiltTokenFilterSpec(false, PreBuiltCacheFactory.CachingStrategy.ONE,
-                (tokens, version) -> {
+        PreConfiguredTokenFilter assertsBuiltOnce = new PreConfiguredTokenFilter("asserts_built_once", false,
+                PreBuiltCacheFactory.CachingStrategy.ONE, (tokens, version) -> {
                     if (false == built.compareAndSet(false, true)) {
                         fail("Attempted to build the token filter twice when it should have been cached");
                     }
                     return new MockTokenFilter(tokens, MockTokenFilter.EMPTY_STOPSET);
                 });
         try (AnalysisRegistry registryWithPreBuiltTokenFilter = new AnalysisRegistry(emptyEnvironment, emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap(), singletonMap("asserts_built_once", assertsBuiltOnce))) {
+                emptyMap(), emptyMap(), singletonList(assertsBuiltOnce))) {
             IndexAnalyzers indexAnalyzers = registryWithPreBuiltTokenFilter.build(emptyIndexSettingsOfCurrentVersion);
             IndexAnalyzers otherIndexAnalyzers = registryWithPreBuiltTokenFilter.build(emptyIndexSettingsOfCurrentVersion);
             assertSame(indexAnalyzers.get("asserts_built_once"), otherIndexAnalyzers.get("asserts_built_once"));
@@ -235,7 +235,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-                new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
+                new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyList())
                     .build(idxSettings));
         assertThat(e.getMessage(), equalTo("analyzer [test_analyzer] must specify either an analyzer type, or a tokenizer"));
     }

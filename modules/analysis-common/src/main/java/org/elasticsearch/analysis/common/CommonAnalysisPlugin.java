@@ -39,12 +39,15 @@ import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.analysis.standard.ClassicFilter;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -69,52 +72,42 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     }
 
     @Override
-    public Map<String, PreBuiltTokenFilterSpec> getPreBuiltTokenFilters() {
+    public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
         // TODO we should revisit the caching strategies.
-        Map<String, PreBuiltTokenFilterSpec> filters = new TreeMap<>();
-        filters.put("asciifolding", new PreBuiltTokenFilterSpec(true, CachingStrategy.ONE, (input, version) ->
-                new ASCIIFoldingFilter(input)));
-        filters.put("classic", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
-                new ClassicFilter(input)));
-        filters.put("common_grams", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
+        List<PreConfiguredTokenFilter> filters = new ArrayList<>();
+        filters.add(new PreConfiguredTokenFilter("asciifolding", true, CachingStrategy.ONE, ASCIIFoldingFilter::new));
+        filters.add(new PreConfiguredTokenFilter("classic", false, CachingStrategy.ONE, ClassicFilter::new));
+        filters.add(new PreConfiguredTokenFilter("common_grams", false, CachingStrategy.LUCENE, input ->
                 new CommonGramsFilter(input, CharArraySet.EMPTY_SET)));
-        filters.put("edge_ngram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
+        filters.add(new PreConfiguredTokenFilter("edge_ngram", false, CachingStrategy.LUCENE, input ->
                 new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
         // TODO deprecate edgeNGram
-        filters.put("edgeNGram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
+        filters.add(new PreConfiguredTokenFilter("edgeNGram", false, CachingStrategy.LUCENE, input ->
                 new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
-        filters.put("kstem", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
-                new KStemFilter(input)));
-        filters.put("length", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
-                new LengthFilter(input, 0, Integer.MAX_VALUE)));
-        filters.put("ngram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
-                new NGramTokenFilter(input)));
+        filters.add(new PreConfiguredTokenFilter("kstem", false, CachingStrategy.ONE, KStemFilter::new));
+        filters.add(new PreConfiguredTokenFilter("length", false, CachingStrategy.LUCENE, input ->
+                new LengthFilter(input, 0, Integer.MAX_VALUE)));  // TODO this one seems useless
+        filters.add(new PreConfiguredTokenFilter("ngram", false, CachingStrategy.LUCENE, NGramTokenFilter::new));
         // TODO deprecate nGram
-        filters.put("nGram", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
-                new NGramTokenFilter(input)));
-        filters.put("porter_stem", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
-                new PorterStemFilter(input)));
-        filters.put("reverse", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
-                new ReverseStringFilter(input)));
+        filters.add(new PreConfiguredTokenFilter("nGram", false, CachingStrategy.LUCENE, NGramTokenFilter::new));
+        filters.add(new PreConfiguredTokenFilter("porter_stem", false, CachingStrategy.ONE, PorterStemFilter::new));
+        filters.add(new PreConfiguredTokenFilter("reverse", false, CachingStrategy.LUCENE, ReverseStringFilter::new));
         // The stop filter is in lucene-core but the English stop words set is in lucene-analyzers-common
-        filters.put("stop", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
+        filters.add(new PreConfiguredTokenFilter("stop", false, CachingStrategy.LUCENE, input ->
                 new StopFilter(input, StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
-        filters.put("trim", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (input, version) ->
-                new TrimFilter(input)));
-        filters.put("truncate", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
+        filters.add(new PreConfiguredTokenFilter("trim", false, CachingStrategy.LUCENE, TrimFilter::new));
+        filters.add(new PreConfiguredTokenFilter("truncate", false, CachingStrategy.ONE, input ->
                 new TruncateTokenFilter(input, 10)));
-        filters.put("unique", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
-                new UniqueTokenFilter(input)));
-        filters.put("uppercase", new PreBuiltTokenFilterSpec(true, CachingStrategy.LUCENE, (input, version) ->
-                new UpperCaseFilter(input)));
-        filters.put("word_delimiter", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
+        filters.add(new PreConfiguredTokenFilter("unique", false, CachingStrategy.ONE, UniqueTokenFilter::new));
+        filters.add(new PreConfiguredTokenFilter("uppercase", true, CachingStrategy.LUCENE, UpperCaseFilter::new));
+        filters.add(new PreConfiguredTokenFilter("word_delimiter", false, CachingStrategy.ONE, input ->
                 new WordDelimiterFilter(input,
                         WordDelimiterFilter.GENERATE_WORD_PARTS
                       | WordDelimiterFilter.GENERATE_NUMBER_PARTS
                       | WordDelimiterFilter.SPLIT_ON_CASE_CHANGE
                       | WordDelimiterFilter.SPLIT_ON_NUMERICS
                       | WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null)));
-        filters.put("word_delimiter_graph", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
+        filters.add(new PreConfiguredTokenFilter("word_delimiter_graph", false, CachingStrategy.ONE, input ->
                 new WordDelimiterGraphFilter(input,
                         WordDelimiterGraphFilter.GENERATE_WORD_PARTS
                       | WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS

@@ -31,8 +31,10 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 
 public class CustomNormalizerTests extends ESTokenStreamTestCase {
@@ -110,9 +112,8 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
 
     private static class MockAnalysisPlugin implements AnalysisPlugin {
         @Override
-        public Map<String, PreBuiltTokenFilterSpec> getPreBuiltTokenFilters() {
-            return singletonMap("mock_forbidden", new PreBuiltTokenFilterSpec(false, CachingStrategy.ONE, (input, version) ->
-                    new MockLowerCaseFilter(input)));
+        public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
+            return singletonList(new PreConfiguredTokenFilter("mock_forbidden", false, CachingStrategy.ONE, MockLowerCaseFilter::new));
         }
 
         @Override

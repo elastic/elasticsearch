@@ -103,6 +103,7 @@ import org.elasticsearch.index.analysis.PersianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.PorterStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.PortugueseAnalyzerProvider;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.ReverseTokenFilterFactory;
 import org.elasticsearch.index.analysis.RomanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.RussianAnalyzerProvider;
@@ -142,12 +143,11 @@ import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilt
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.AnalysisPlugin.PreBuiltTokenFilterSpec;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
 
@@ -176,7 +176,7 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
 
-        Map<String, PreBuiltTokenFilterSpec> preBuiltTokenFilters = setupPreBuiltTokenFilters(plugins);
+        List<PreConfiguredTokenFilter> preBuiltTokenFilters = setupPreBuiltTokenFilters(plugins);
 
         analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers
             .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry(), preBuiltTokenFilters);
@@ -267,16 +267,19 @@ public final class AnalysisModule {
         return tokenFilters;
     }
 
-    static Map<String, PreBuiltTokenFilterSpec> setupPreBuiltTokenFilters(List<AnalysisPlugin> plugins) {
-        NamedRegistry<PreBuiltTokenFilterSpec> preBuiltTokenFilters = new NamedRegistry<>("pre built token_filter");
+    static List<PreConfiguredTokenFilter> setupPreBuiltTokenFilters(List<AnalysisPlugin> plugins) {
+        // Use NamedRegistry for the duplicate detection
+        NamedRegistry<PreConfiguredTokenFilter> preBuiltTokenFilters = new NamedRegistry<>("pre-configured token_filter");
 
         // Add filters available in lucene-core
-        preBuiltTokenFilters.register("lowercase", new PreBuiltTokenFilterSpec(true, CachingStrategy.LUCENE, (inputs, version) ->
-                new LowerCaseFilter(inputs)));
-        preBuiltTokenFilters.register("standard", new PreBuiltTokenFilterSpec(false, CachingStrategy.LUCENE, (inputs, version) ->
-                new StandardFilter(inputs)));
-        /* Note that "stop" is available in lucene-core but it's pre-built version uses a set of English stop words that are in
-         * lucene-analyzers-common so "stop" is defined in the analysis-common module. */
+        preBuiltTokenFilters.register("lowercase",
+                new PreConfiguredTokenFilter("lowercase", true, CachingStrategy.LUCENE, LowerCaseFilter::new));
+        preBuiltTokenFilters.register("standard",
+                new PreConfiguredTokenFilter("standard", false, CachingStrategy.LUCENE, StandardFilter::new));
+        /* Note that "stop" is available in lucene-core but it's pre-built
+         * version uses a set of English stop words that are in
+         * lucene-analyzers-common so "stop" is defined in the analysis-common
+         * module. */
         
         // Add token filers declared in PreBuiltTokenFilters until they have all been migrated
         for (PreBuiltTokenFilters preBuilt : PreBuiltTokenFilters.values()) {
@@ -285,13 +288,18 @@ public final class AnalysisModule {
                 // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
                 continue;
             default:
-                preBuiltTokenFilters.register(preBuilt.name().toLowerCase(Locale.ROOT),
-                        new PreBuiltTokenFilterSpec(preBuilt.isMultiTermAware(), preBuilt.getCachingStrategy(), preBuilt::create));
+                String name = preBuilt.name().toLowerCase(Locale.ROOT);
+                preBuiltTokenFilters.register(name,
+                        new PreConfiguredTokenFilter(name, preBuilt.isMultiTermAware(), preBuilt.getCachingStrategy(), preBuilt::create));
             }
         }
 
-        preBuiltTokenFilters.extractAndRegister(plugins, AnalysisPlugin::getPreBuiltTokenFilters);
-        return preBuiltTokenFilters.getRegistry();
+        for (AnalysisPlugin plugin: plugins) {
+            for (PreConfiguredTokenFilter filter : plugin.getPreConfiguredTokenFilters()) {
+                preBuiltTokenFilters.register(filter.getName(), filter);
+            }
+        }
+        return new ArrayList<>(preBuiltTokenFilters.getRegistry().values());
     }
 
     private NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {

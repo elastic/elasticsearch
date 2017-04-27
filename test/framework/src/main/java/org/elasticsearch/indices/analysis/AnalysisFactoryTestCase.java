@@ -67,6 +67,7 @@ import org.elasticsearch.index.analysis.PatternReplaceTokenFilterFactory;
 import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.PorterStemTokenFilterFactory;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.ReverseTokenFilterFactory;
 import org.elasticsearch.index.analysis.ScandinavianFoldingFilterFactory;
 import org.elasticsearch.index.analysis.ScandinavianNormalizationFilterFactory;
@@ -102,8 +103,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 
@@ -462,7 +465,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                 expected.add(tokenizer);
             }
         }
-        Map<String, PreBuiltTokenFilterSpec> preBuiltTokenFilters = AnalysisModule.setupPreBuiltTokenFilters(singletonList(plugin));
+        Map<String, PreConfiguredTokenFilter> preBuiltTokenFilters =
+                AnalysisModule.setupPreBuiltTokenFilters(singletonList(plugin)).stream()
+                    .collect(Collectors.toMap(PreConfiguredTokenFilter::getName, Function.identity()));
         for (Map.Entry<String, Class<?>> entry : getPreBuiltTokenFilters().entrySet()) {
             String name = entry.getKey();
             Class<?> luceneFactory = entry.getValue();
@@ -473,9 +478,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                 luceneFactory = TokenFilterFactory.lookupClass(toCamelCase(name));
             }
             assertTrue(TokenFilterFactory.class.isAssignableFrom(luceneFactory));
-            PreBuiltTokenFilterSpec spec = preBuiltTokenFilters.get(name);
-            assertNotNull("test claims pre built token filter [" + name + "] should be available but it wasn't", spec);
-            if (spec.shouldUseFilterForMultitermQueries()) {
+            PreConfiguredTokenFilter filter = preBuiltTokenFilters.get(name);
+            assertNotNull("test claims pre built token filter [" + name + "] should be available but it wasn't", filter);
+            if (filter.shouldUseFilterForMultitermQueries()) {
                 actual.add("token filter [" + name + "]");
             }
             if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {

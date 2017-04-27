@@ -43,6 +43,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -75,7 +76,7 @@ public final class AnalysisRegistry implements Closeable {
                             Map<String, AnalysisProvider<TokenizerFactory>> tokenizers,
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers,
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers,
-                            Map<String, PreBuiltTokenFilterSpec> preBuiltTokenFilters) {
+                            List<PreConfiguredTokenFilter> preBuiltTokenFilters) {
         this.environment = environment;
         this.charFilters = unmodifiableMap(charFilters);
         this.tokenFilters = unmodifiableMap(tokenFilters);
@@ -398,7 +399,7 @@ public final class AnalysisRegistry implements Closeable {
         final Map<String, AnalysisProvider<TokenFilterFactory>> tokenFilterFactories;
         final Map<String, AnalysisModule.AnalysisProvider<CharFilterFactory>> charFilterFactories;
 
-        private PrebuiltAnalysis(Map<String, PreBuiltTokenFilterSpec> preBuiltTokenFilters) {
+        private PrebuiltAnalysis(List<PreConfiguredTokenFilter> preBuiltTokenFilters) {
             Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
             Map<String, PreBuiltTokenizerFactoryFactory> tokenizerFactories = new HashMap<>();
             Map<String, AnalysisProvider<TokenFilterFactory>> tokenFilterFactories = new HashMap<>();
@@ -422,9 +423,8 @@ public final class AnalysisRegistry implements Closeable {
 
 
             // Token filters
-            for (Map.Entry<String, PreBuiltTokenFilterSpec> preBuiltTokenFilter : preBuiltTokenFilters.entrySet()) {
-                tokenFilterFactories.put(preBuiltTokenFilter.getKey(),
-                        new PreBuiltTokenFilterFactoryProvider(preBuiltTokenFilter.getKey(), preBuiltTokenFilter.getValue()));
+            for (PreConfiguredTokenFilter preBuiltTokenFilter : preBuiltTokenFilters) {
+                tokenFilterFactories.put(preBuiltTokenFilter.getName(), preBuiltTokenFilter);
             }
 
             // Char Filters

@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -41,10 +42,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.List;
 
-import static java.util.Collections.singletonMap;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -54,9 +54,8 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
      */
     public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {
         @Override
-        public Map<String, PreBuiltTokenFilterSpec> getPreBuiltTokenFilters() {
-            return singletonMap("mock_other_lowercase", new PreBuiltTokenFilterSpec(true, CachingStrategy.ONE, (input, version) ->
-                    new MockLowerCaseFilter(input)));
+        public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
+            return singletonList(new PreConfiguredTokenFilter("mock_other_lowercase", true, CachingStrategy.ONE, MockLowerCaseFilter::new));
         }
     };
 

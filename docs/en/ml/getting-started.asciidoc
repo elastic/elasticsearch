@@ -12,7 +12,7 @@ This tutorial is focuses on an anomaly detection scenario in single time series.
 Ready to get some hands-on experience with the {xpack} {ml} features? This
 tutorial shows you how to:
 
-* Load a sample data set into Elasticsearch
+* Load a sample data set into {es}
 * Create a {ml} job
 * Use the results to identify possible anomalies in the data
 
@@ -32,18 +32,17 @@ You might also be interested in these video tutorials:
 To follow the steps in this tutorial, you will need the following
 components of the Elastic Stack:
 
-* Elasticsearch {version}, which stores the data and the analysis results
-* {xpack} {version}, which includes the beta {ml} features for both Elasticsearch and Kibana
-* Kibana {version}, which provides a helpful user interface for creating and
+* {es} {version}, which stores the data and the analysis results
+* {xpack} {version}, which includes the beta {ml} features for both {es} and {kib}
+* {kib} {version}, which provides a helpful user interface for creating and
 viewing jobs +
 
-All {ml} features are available to use as an API, however this tutorial 
-will focus on using the {ml} tab in the Kibana UI.
+//ll {ml} features are available to use as an API, however this tutorial
+//will focus on using the {ml} tab in the {kib} UI.
 
 WARNING: The {xpack} {ml} features are in beta and subject to change.
-Beta features are not subject to the same support SLA as GA features, 
-and deployment in production is at your own risk. 
-// Warning was supplied by Steve K (deleteme)
+Beta features are not subject to the same support SLA as GA features,
+and deployment in production is at your own risk.
 
 See the https://www.elastic.co/support/matrix[Elastic Support Matrix] for
 information about supported operating systems.
@@ -51,12 +50,12 @@ information about supported operating systems.
 See {stack-ref}/installing-elastic-stack.html[Installing the Elastic Stack] for
 information about installing each of the components.
 
-NOTE: To get started, you can install Elasticsearch and Kibana on a
-single VM or even on your laptop (requires 64-bit OS). 
+NOTE: To get started, you can install {es} and {kib} on a
+single VM or even on your laptop (requires 64-bit OS).
 As you add more data and your traffic grows,
-you'll want to replace the single Elasticsearch instance with a cluster.
+you'll want to replace the single {es} instance with a cluster.
 
-When you install {xpack} into Elasticsearch and Kibana, the {ml} features are
+When you install {xpack} into {es} and {kib}, the {ml} features are
 enabled by default. If you have multiple nodes in your cluster, you can
 optionally dedicate nodes to specific purposes. If you want to control which
 nodes are _machine learning nodes_ or limit which nodes run resource-intensive
@@ -83,31 +82,31 @@ For more information, see <<built-in-roles>> and <<privileges-list-cluster>>.
 [[ml-gs-data]]
 === Identifying Data for Analysis
 
-For the purposes of this tutorial, we provide sample data that you can play with.
-This data will be available to search in Elasticsearch. 
-When you consider your own data, however, it's important to take a moment
-and think about where the {xpack} {ml} features will be most impactful.
+For the purposes of this tutorial, we provide sample data that you can play with
+and search in {es}. When you consider your own data, however, it's important to
+take a moment and think about where the {xpack} {ml} features will be most
+impactful.
 
-The first consideration is that it must be time series data as
-the {ml} features are designed to model and detect anomalies in time series data.
+The first consideration is that it must be time series data. The {ml} features
+are designed to model and detect anomalies in time series data.
 
 The second consideration, especially when you are first learning to use {ml},
 is the importance of the data and how familiar you are with it. Ideally, it is
 information that contains key performance indicators (KPIs) for the health,
 security, or success of your business or system. It is information that you need
-to monitor and act on when anomalous behavior occurs. You might even have Kibana
+to monitor and act on when anomalous behavior occurs. You might even have {kib}
 dashboards that you're already using to watch this data. The better you know the
 data, the quicker you will be able to create {ml} jobs that generate useful
 insights.
 
-The final consideration is where the data is located. This guide assumes that
-your data is stored in Elasticsearch, and will guide you through the steps
-required to create a _data feed_ that will pass data to the job. If your data
-is outside of Elasticsearch, then analysis is still possible via a POST _data_.
+The final consideration is where the data is located. This tutorial assumes that
+your data is stored in {es}. It guides you through the steps required to create
+a _data feed_ that passes data to a job. If your own data is outside of {es},
+analysis is still possible by using a post data API.
 
-IMPORTANT: If you want to create {ml} jobs in Kibana, you must use data feeds.
-That is to say, you must store your input data in Elasticsearch. When you create
-a job, you select an existing index pattern and Kibana configures the data feed
+IMPORTANT: If you want to create {ml} jobs in {kib}, you must use data feeds.
+That is to say, you must store your input data in {es}. When you create
+a job, you select an existing index pattern and {kib} configures the data feed
 for you under the covers.
 
 
@@ -115,8 +114,8 @@ for you under the covers.
 [[ml-gs-sampledata]]
 ==== Obtaining a Sample Data Set
 
-In this step we will upload some sample data to Elasticsearch. This is standard
-Elasticsearch functionality, and is needed to set the stage for using {ml}.
+In this step we will upload some sample data to {es}. This is standard
+{es} functionality, and is needed to set the stage for using {ml}.
 
 The sample data for this tutorial contains information about the requests that
 are received by various applications and services in a system. A system
@@ -165,13 +164,13 @@ Each document in the server-metrics data set has the following schema:
 
 TIP: The sample data sets include summarized data. For example, the `total`
 value is a sum of the requests that were received by a specific service at a
-particular time. If your data is stored in Elasticsearch, you can generate
+particular time. If your data is stored in {es}, you can generate
 this type of sum or average by using aggregations. One of the benefits of
-summarizing data this way is that Elasticsearch automatically distributes
+summarizing data this way is that {es} automatically distributes
 these calculations across your cluster. You can then feed this summarized data
 into {xpack} {ml} instead of raw results, which reduces the volume
 of data that must be considered while detecting anomalies. For the purposes of
-this tutorial, however, these summary values are stored in Elasticsearch,
+this tutorial, however, these summary values are stored in {es},
 rather than created using the {ref}/search-aggregations.html[_aggregations framework_].
 //TBD link to working with aggregations page
 
@@ -253,7 +252,7 @@ This mapping specifies the following qualities for the data set:
 * The _host
 ////
 
-You can then use the Elasticsearch `bulk` API to load the data set. The
+You can then use the {es} `bulk` API to load the data set. The
 `upload_server-metrics.sh` script runs commands similar to the following
 example, which loads the four JSON files:
 
@@ -273,7 +272,7 @@ curl -u elastic:elasticpassword -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_4.json"
 ----------------------------------
 
-TIP: This will upload 200MB of data. This is split into 4 files as there is a 
+TIP: This will upload 200MB of data. This is split into 4 files as there is a
 maximum 100MB limit when using the `_bulk` API.
 
 These commands might take some time to run, depending on the computing resources
@@ -298,7 +297,7 @@ green  open   server-metrics ... 1 0 907200  0  136.2mb  ...
 
 Next, you must define an index pattern for this data set:
 
-. Open Kibana in your web browser and log in. If you are running Kibana
+. Open {kib} in your web browser and log in. If you are running {kib}
 locally, go to `http://localhost:5601/`.
 
 . Click the **Management** tab, then **Index Patterns**.
@@ -314,7 +313,7 @@ loaded will work. For example, enter `server-metrics*` as the index pattern.
 
 . Click **Create**.
 
-This data set can now be analyzed in {ml} jobs in Kibana.
+This data set can now be analyzed in {ml} jobs in {kib}.
 
 
 [[ml-gs-jobs]]
@@ -324,20 +323,20 @@ Machine learning jobs contain the configuration information and metadata
 necessary to perform an analytical task. They also contain the results of the
 analytical task.
 
-NOTE: This tutorial uses Kibana to create jobs and view results, but you can
+NOTE: This tutorial uses {kib} to create jobs and view results, but you can
 alternatively use APIs to accomplish these tasks.
 For API reference information, see <<ml-apis>>.
 
-To work with jobs in Kibana:
+To work with jobs in {kib}:
 
-. Open Kibana in your web browser and log in. If you are running Kibana
-locally, go to `http://localhost:5601/`.
+. Open {kib} in your web browser and log in. If you are running {kib} locally,
+go to `http://localhost:5601/`.
 
 . Click **Machine Learning** in the side navigation:
 image::images/ml-kibana.jpg["Job Management"]
 
 You can choose to create single metric, multi-metric, or advanced jobs in
-Kibana. In this tutorial, the goal is to detect anomalies in the total requests
+{kib}. In this tutorial, the goal is to detect anomalies in the total requests
 received by your applications and services. The sample data contains a single
 key performance indicator to track this, which is the total requests over time.
 It is therefore logical to start by creating a single metric job for this KPI.
@@ -356,7 +355,7 @@ A single metric job contains a single _detector_. A detector defines the type of
 analysis that will occur (for example, `max`, `average`, or `rare` analytical
 functions) and the fields that will be analyzed.
 
-To create a single metric job in Kibana:
+To create a single metric job in {kib}:
 
 . Click **Machine Learning** in the side navigation,
 then click **Create new job**.
@@ -416,15 +415,15 @@ in time.
 
 The bucket span has a significant impact on the analysis. When you're trying to
 determine what value to use, take into account the granularity at which you
-want to perform the analysis, the frequency of the input data, the duration of typical anomalies
-and the frequency at which alerting is required.
+want to perform the analysis, the frequency of the input data, the duration of
+typical anomalies and the frequency at which alerting is required.
 --
 
 . Determine whether you want to process all of the data or only part of it. If
 you want to analyze all of the existing data, click
 **Use full transaction_counts data**. If you want to see what happens when you
 stop and start data feeds and process additional data over time, click the time
-picker in the Kibana toolbar. Since the sample data spans a period of time
+picker in the {kib} toolbar. Since the sample data spans a period of time
 between March 26, 2017 and April 22, 2017, click **Absolute**. Set the start
 time to March 26, 2017 and the end time to April 1, 2017, for example. Once
 you've got the time range set up, click the **Go** button.
@@ -442,10 +441,8 @@ job.
 image::images/ml-gs-job1.jpg["A graph of the total number of requests over time"]
 
 As the job is created, the graph is updated to give a visual representation of
-the progress of {ml} as the data is processed. This view is only available whilst the 
-job is running. 
-//To explore the results, click **View Results**.
-//TBD: image::images/ml-gs-job1-results.jpg["The total-requests job is created"]
+the progress of {ml} as the data is processed. This view is only available whilst the
+job is running.
 
 TIP: The `create_single_metic.sh` script creates a similar job and data feed by
 using the {ml} APIs. For API reference information, see <<ml-apis>>.
@@ -468,15 +465,9 @@ The optional description of the job.
 Processed records::
 The number of records that have been processed by the job.
 
-
-// NOTE: Depending on how you send data to the job, the number of processed
-// records is not always equal to the number of input records. For more information,
-// see the `processed_record_count` description in <<ml-datacounts,Data Counts Objects>>.
-// TBD delete for this getting started guide, but should be in the datacounts objects
-
 Memory status::
 The status of the mathematical models. When you create jobs by using the APIs or
-by using the advanced options in Kibana, you can specify a `model_memory_limit`.
+by using the advanced options in {kib}, you can specify a `model_memory_limit`.
 That value is the maximum amount of memory, in MiB, that the mathematical models
 can use. Once that limit is approached, data pruning becomes more aggressive.
 Upon exceeding that limit, new entities are not modeled.
@@ -504,8 +495,8 @@ If the data feed can be corrected, the job can be closed and then re-opened.
 Datafeed state::
 The status of the data feed, which can be one of the following values: +
 started::: The data feed is actively receiving data.
-stopped::: The data feed is stopped and will not receive data until it is re-started.
-//TBD: How to restart data feeds in Kibana? 
+stopped::: The data feed is stopped and will not receive data until it is
+re-started.
 
 Latest timestamp::
 The timestamp of the last processed record.
@@ -523,7 +514,7 @@ the job or data feed, and clone or delete the job, for example.
 ==== Managing Data Feeds
 
 A data feed can be started and stopped multiple times throughout its lifecycle.
-If you want to retrieve more data from Elasticsearch and the data feed is
+If you want to retrieve more data from {es} and the data feed is
 stopped, you must restart it.
 
 For example, if you did not use the full data when you created the job, you can
@@ -535,8 +526,8 @@ image::images/ml-start-feed.jpg["Start data feed"]
 
 . Choose a start time and end time. For example,
 click **Continue from 2017-04-01** and **2017-04-30**, then click **Start**.
-The date picker will default to the latest timestamp of processed data. 
-Be careful not to leave any gaps in the analysis otherwise you may miss anoamlies.
+The date picker defaults to the latest timestamp of processed data. Be careful
+not to leave any gaps in the analysis, otherwise you might miss anomalies.
 image::images/ml-gs-job1-datafeed.jpg["Restarting a data feed"]
 
 The data feed state changes to `started`, the job state changes to `opened`,
@@ -544,14 +535,15 @@ and the number of processed records increases as the new data is analyzed. The
 latest timestamp information also increases. For example:
 image::images/ml-gs-job1-manage2.jpg["Job opened and data feed started"]
 
+TIP: If your data is being loaded continuously, you can continue running the job
+in real time. For this, start your data feed and select **No end time**.
+
 If you want to stop the data feed at this point, you can click the following
 button:
 image::images/ml-stop-feed.jpg["Stop data feed"]
 
 Now that you have processed all the data, let's start exploring the job results.
 
-TIP: If your data is being loaded continuously, you can continue running the job in real time.
-For this, start your data feed and select **No end time**.
 
 [[ml-gs-jobresults]]
 === Exploring Job Results
@@ -560,18 +552,19 @@ The {xpack} {ml} features analyze the input stream of data, model its behavior,
 and perform analysis based on the detectors you defined in your job. When an
 event occurs outside of the model, that event is identified as an anomaly.
 
-Result records for each anomaly are stored in `.ml-anomalies-*` indices in Elasticsearch. 
-By default, the name of the index where {ml} results are stored is labelled `shared`, 
-which corresponds to the `.ml-anomalies-shared` index.
+Result records for each anomaly are stored in `.ml-anomalies-*` indices in {es}.
+By default, the name of the index where {ml} results are stored is labelled
+`shared`, which corresponds to the `.ml-anomalies-shared` index.
 
-You can use the **Anomaly Explorer** or the **Single Metric Viewer** in Kibana
-to view the analysis results.
+You can use the **Anomaly Explorer** or the **Single Metric Viewer** in {kib} to
+view the analysis results.
 
 Anomaly Explorer::
-  This view contains swimlanes showing the maximum anomaly score over time.
-  There is an overall swimlane which shows the overall score for the job, and
-  also swimlanes for each influencer. By selecting a block in a swimlane, the
-  anomaly details are displayed along side the original source data (where applicable).
+  This view contains swim lanes showing the maximum anomaly score over time.
+  There is an overall swim lane that shows the overall score for the job, and
+  also swim lanes for each influencer. By selecting a block in a swim lane, the
+  anomaly details are displayed alongside the original source data (where
+  applicable).
 //TBD: Are they swimlane blocks, tiles, segments or cards? hmmm
 //TBD: Do the time periods in the heat map correspond to buckets? hmmm is it a heat map?
 //As time is the x-axis, and the block sizes stay the same, it feels more intuitive call it a swimlane.
@@ -579,26 +572,23 @@ Anomaly Explorer::
 //granularity is a bucket, but if you have a big time range selected, then they will span many buckets
 
 Single Metric Viewer::
-  This view contains a chart that represents the actual and expected values over time. 
-  This is only available for jobs which analyze a single time series
-  and where `model_plot_config` is enabled.
-  As in the **Anomaly Explorer**, anomalous data points are shown in
-  different colors depending on their score.
+  This view contains a chart that represents the actual and expected values over
+  time. This is only available for jobs that analyze a single time series and
+  where `model_plot_config` is enabled. As in the **Anomaly Explorer**, anomalous
+  data points are shown in different colors depending on their score.
 
 [float]
 [[ml-gs-job1-analyze]]
 ==== Exploring Single Metric Job Results
 
-By default when you view the results for a single metric job,
-the **Single Metric Viewer** opens:
+By default when you view the results for a single metric job, the
+**Single Metric Viewer** opens:
 image::images/ml-gs-job1-analysis.jpg["Single Metric Viewer for total-requests job"]
 
-The blue line in the chart represents the actual data values. 
-The shaded blue area represents the bounds for the expected values. 
-The area between the upper and lower bounds are the most likely values for the model. 
-If a value is outside of this area then it can be said to be anomalous.
-//TBD: What is meant by "95% prediction bounds"? Because we are using probability 
-//to "predict" the values.. 
+The blue line in the chart represents the actual data values. The shaded blue
+area represents the bounds for the expected values. The area between the upper
+and lower bounds are the most likely values for the model. If a value is outside
+of this area then it can be said to be anomalous.
 
 If you slide the time selector from the beginning of the data to the end of the
 data, you can see how the model improves as it processes more data. At the
@@ -619,22 +609,23 @@ The highly anomalous values are shown in red and the low scored values are
 indicated in blue. An interval with a high anomaly score is significant and
 requires investigation.
 
-Slide the time selector to a section of the time series that contains a red anomaly data
-point. If you hover over the point, you can see more information about that
-data point. You can also see details in the **Anomalies** section of the viewer.
-For example:
+Slide the time selector to a section of the time series that contains a red
+anomaly data point. If you hover over the point, you can see more information
+about that data point. You can also see details in the **Anomalies** section
+of the viewer. For example:
 
 image::images/ml-gs-job1-anomalies.jpg["Single Metric Viewer Anomalies for total-requests job"]
 
 For each anomaly you can see key details such as the time, the actual and
 expected ("typical") values, and their probability.
 
-You can see the same information in a different format by using the **Anomaly Explorer**:
+You can see the same information in a different format by using the
+**Anomaly Explorer**:
 
 image::images/ml-gs-job1-explorer.jpg["Anomaly Explorer for total-requests job"]
 
-Click one of the red blocks in the swimlane to see details about the anomalies that occured in
-that time interval. For example:
+Click one of the red blocks in the swim lane to see details about the anomalies
+that occurred in that time interval. For example:
 
 image::images/ml-gs-job1-explorer-anomaly.jpg["Anomaly Explorer details for total-requests job"]
 

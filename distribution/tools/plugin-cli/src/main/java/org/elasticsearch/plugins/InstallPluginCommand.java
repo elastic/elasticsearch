@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLDecoder;
@@ -214,18 +215,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** Downloads the plugin and returns the file it was downloaded to. */
     private Path download(Terminal terminal, String pluginId, Path tmpDir) throws Exception {
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
-            final String version = Version.CURRENT.toString();
-            final String url;
-            final String stagingHash = System.getProperty(PROPERTY_STAGING_ID);
-            if (stagingHash != null) {
-                url = String.format(Locale.ROOT,
-                    "https://staging.elastic.co/%3$s-%1$s/downloads/elasticsearch-plugins/%2$s/%2$s-%3$s.zip",
-                    stagingHash, pluginId, version);
-            } else {
-                url = String.format(Locale.ROOT,
-                    "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%1$s/%1$s-%2$s.zip",
-                    pluginId, version);
-            }
+            final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, pluginId, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from elastic");
             return downloadZipAndChecksum(terminal, url, tmpDir);
         }
@@ -233,8 +223,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         // now try as maven coordinates, a valid URL would only have a colon and slash
         String[] coordinates = pluginId.split(":");
         if (coordinates.length == 3 && pluginId.contains("/") == false) {
-            String mavenUrl = String.format(Locale.ROOT, "https://repo1.maven.org/maven2/%1$s/%2$s/%3$s/%2$s-%3$s.zip",
-                    coordinates[0].replace(".", "/") /* groupId */, coordinates[1] /* artifactId */, coordinates[2] /* version */);
+            String mavenUrl = getMavenUrl(terminal, coordinates, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from maven central");
             return downloadZipAndChecksum(terminal, mavenUrl, tmpDir);
         }
@@ -251,6 +240,60 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
         terminal.println("-> Downloading " + URLDecoder.decode(pluginId, "UTF-8"));
         return downloadZip(terminal, pluginId, tmpDir);
+    }
+
+    // pkg private so tests can override
+    String getStagingHash() {
+        return System.getProperty(PROPERTY_STAGING_ID);
+    }
+
+    /** Returns the url for an official elasticsearch plugin. */
+    private String getElasticUrl(Terminal terminal, String stagingHash, Version version,
+                                        String pluginId, String platform) throws IOException {
+        final String baseUrl;
+        if (stagingHash != null) {
+            baseUrl = String.format(Locale.ROOT,
+                "https://staging.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s", version, stagingHash, pluginId);
+        } else {
+            baseUrl = String.format(Locale.ROOT,
+                "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
+        }
+        final String platformUrl = String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, pluginId, platform, version);
+        if (urlExists(terminal, platformUrl)) {
+            return platformUrl;
+        }
+        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, version);
+    }
+
+    /** Returns the url for an elasticsearch plugin in maven. */
+    private String getMavenUrl(Terminal terminal, String[] coordinates, String platform) throws IOException {
+        final String groupId = coordinates[0].replace(".", "/");
+        final String artifactId = coordinates[1];
+        final String version = coordinates[2];
+        final String baseUrl = String.format(Locale.ROOT, "https://repo1.maven.org/maven2/%s/%s/%s", groupId, artifactId, version);
+        final String platformUrl = String.format(Locale.ROOT, "%s/%s-%s-%s.zip", baseUrl, artifactId, platform, version);
+        if (urlExists(terminal, platformUrl)) {
+            return platformUrl;
+        }
+        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, artifactId, version);
+    }
+
+    /**
+     * Returns {@code true} if the given url exists, and {@code false} otherwise.
+     *
+     * The given url must be {@code https} and existing means a {@code HEAD} request returns 200.
+     */
+    // pkg private for tests to manipulate
+    @SuppressForbidden(reason = "Make HEAD request using URLConnection.connect()")
+    boolean urlExists(Terminal terminal, String urlString) throws IOException {
+        terminal.println(VERBOSE, "Checking if url exists: " + urlString);
+        URL url = new URL(urlString);
+        assert "https".equals(url.getProtocol()) : "Only http urls can be checked";
+        HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+        urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
+        urlConnection.setRequestMethod("HEAD");
+        urlConnection.connect();
+        return urlConnection.getResponseCode() == 200;
     }
 
     /** Returns all the official plugin names that look similar to pluginId. **/
@@ -318,8 +361,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /** Downloads a zip from the url, as well as a SHA1 checksum, and checks the checksum. */
+    // pkg private for tests
     @SuppressForbidden(reason = "We use openStream to download plugins")
-    private Path downloadZipAndChecksum(Terminal terminal, String urlString, Path tmpDir) throws Exception {
+    Path downloadZipAndChecksum(Terminal terminal, String urlString, Path tmpDir) throws Exception {
         Path zip = downloadZip(terminal, urlString, tmpDir);
         pathsToDeleteOnShutdown.add(zip);
         URL checksumUrl = new URL(urlString + ".sha1");

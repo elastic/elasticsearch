@@ -207,7 +207,7 @@ buildRestTests.setups['ledger'] = '''
   - do:
         bulk:
           index: ledger
-          type: item
+          type: sale
           refresh: true
           body: |
             {"index":{}}

@@ -94,7 +94,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
      */
     private final List<ConstructorArgInfo> constructorArgInfos = new ArrayList<>();
     private final ObjectParser<Target, Context> objectParser;
-    private final Function<Object[], Value> builder;
+    private final BiFunction<Object[], Context, Value> builder;
     /**
      * The number of fields on the targetObject. This doesn't include any constructor arguments and is the size used for the array backing
      * the field queue.
@@ -130,8 +130,27 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
      *        allocations.
      */
     public ConstructingObjectParser(String name, boolean ignoreUnknownFields, Function<Object[], Value> builder) {
+        this(name, ignoreUnknownFields, (args, context) -> builder.apply(args));
+    }
+
+    /**
+     * Build the parser.
+     *
+     * @param name The name given to the delegate ObjectParser for error identification. Use what you'd use if the object worked with
+     *        ObjectParser.
+     * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing responses
+     *        from external systems, never when parsing requests from users.
+     * @param builder A binary function that builds the object from an array of Objects and the parser context.  Declare this inline with
+     *        the parser, casting the elements of the array to the arguments so they work with your favorite constructor. The objects in
+     *        the array will be in the same order that you declared the {{@link #constructorArg()}s and none will be null. The second
+     *        argument is the value of the context provided to the {@link #parse(XContentParser, Object) parse function}. If any of the
+     *        constructor arguments aren't defined in the XContent then parsing will throw an error. We use an array here rather than a
+     *        {@code Map<String, Object>} to save on allocations.
+     */
+    public ConstructingObjectParser(String name, boolean ignoreUnknownFields, BiFunction<Object[], Context, Value> builder) {
         objectParser = new ObjectParser<>(name, ignoreUnknownFields, null);
         this.builder = builder;
+
     }
 
     /**
@@ -148,7 +167,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
 
     @Override
     public Value parse(XContentParser parser, Context context) throws IOException {
-        return objectParser.parse(parser, new Target(parser), context).finish();
+        return objectParser.parse(parser, new Target(parser, context), context).finish();
     }
 
     /**
@@ -334,6 +353,12 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
          * location of each field so that we can give a useful error message when replaying the queue.
          */
         private final XContentParser parser;
+
+        /**
+         * The parse context that is used for this invocation. Stored here so that it can be passed to the {@link #builder}.
+         */
+        private Context context;
+
         /**
          * How many of the constructor parameters have we collected? We keep track of this so we don't have to count the
          * {@link #constructorArgs} array looking for nulls when we receive another constructor parameter. When this is equal to the size of
@@ -358,8 +383,9 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
          */
         private Value targetObject;
 
-        Target(XContentParser parser) {
+        Target(XContentParser parser, Context context) {
             this.parser = parser;
+            this.context = context;
         }
 
         /**
@@ -433,7 +459,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
 
         private void buildTarget() {
             try {
-                targetObject = builder.apply(constructorArgs);
+                targetObject = builder.apply(constructorArgs, context);
                 if (queuedOrderedModeCallback != null) {
                     queuedOrderedModeCallback.accept(targetObject);
                 }

@@ -8,6 +8,9 @@ fields to an existing type:
 --------------------------------------------------
 PUT twitter <1>
 {
+  "settings": {
+    "mapping.single_type": false
+  },
   "mappings": {
     "tweet": {
       "properties": {
@@ -147,6 +150,9 @@ For example, this fails:
 -----------------------------------
 PUT my_index
 {
+  "settings": {
+    "mapping.single_type": false
+  },
   "mappings": {
     "type_one": {
       "properties": {

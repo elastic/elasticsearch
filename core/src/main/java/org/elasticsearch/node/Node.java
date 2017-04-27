@@ -168,7 +168,7 @@ import static java.util.stream.Collectors.toList;
 public class Node implements Closeable {
 
 
-    public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING =
+    public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
     public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
     public static final Setting<Boolean> NODE_MASTER_SETTING =
@@ -727,13 +727,7 @@ public class Node implements Closeable {
             injector.getInstance(HttpServerTransport.class).start();
         }
 
-        // start nodes now, after the http server, because it may take some time
-        tribeService.startNodes();
-        // starts connecting to remote clusters if any cluster is configured
-        SearchTransportService searchTransportService = injector.getInstance(SearchTransportService.class);
-        searchTransportService.start();
-
-        if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
+        if (WRITE_PORTS_FILE_SETTING.get(settings)) {
             if (NetworkModule.HTTP_ENABLED.get(settings)) {
                 HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
                 writePortsFile("http", http.boundAddress());
@@ -741,6 +735,12 @@ public class Node implements Closeable {
             TransportService transport = injector.getInstance(TransportService.class);
             writePortsFile("transport", transport.boundAddress());
         }
+
+        // start nodes now, after the http server, because it may take some time
+        tribeService.startNodes();
+        // starts connecting to remote clusters if any cluster is configured
+        SearchTransportService searchTransportService = injector.getInstance(SearchTransportService.class);
+        searchTransportService.start();
 
         logger.info("started");
 

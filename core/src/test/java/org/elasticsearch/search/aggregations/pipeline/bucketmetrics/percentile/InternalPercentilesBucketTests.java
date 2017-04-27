@@ -20,24 +20,51 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class InternalPercentilesBucketTests extends ESTestCase {
+import static org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesTestCase.randomPercents;
+
+public class InternalPercentilesBucketTests extends InternalAggregationTestCase<InternalPercentilesBucket> {
+
+    @Override
+    protected InternalPercentilesBucket createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
+                                                           Map<String, Object> metaData) {
+        return createTestInstance(name, pipelineAggregators, metaData, randomPercents());
+    }
 
     private static InternalPercentilesBucket createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, double[] percents) {
+                                                                Map<String, Object> metaData, double[] percents) {
         final double[] percentiles = new double[percents.length];
         for (int i = 0; i < percents.length; ++i) {
             percentiles[i] = frequently() ? randomDouble() : Double.NaN;
         }
         return new InternalPercentilesBucket(name, percents, percentiles, DocValueFormat.RAW, pipelineAggregators, metaData);
+    }
+
+    @Override
+    protected final void assertFromXContent(InternalPercentilesBucket aggregation, ParsedAggregation parsedAggregation) {
+        assertTrue(parsedAggregation instanceof ParsedPercentilesBucket);
+        ParsedPercentilesBucket parsedPercentiles = (ParsedPercentilesBucket) parsedAggregation;
+
+        for (Percentile percentile : aggregation) {
+            Double percent = percentile.getPercent();
+            assertEquals(aggregation.percentile(percent), parsedPercentiles.percentile(percent), 0);
+            // we cannot ensure we get the same as_string output for Double.NaN values since they are rendered as
+            // null and we don't have a formatted string representation in the rest output
+            if (Double.isNaN(aggregation.percentile(percent)) == false) {
+                assertEquals(aggregation.percentileAsString(percent), parsedPercentiles.percentileAsString(percent));
+            }
+        }
     }
 
     /**
@@ -62,5 +89,15 @@ public class InternalPercentilesBucketTests extends ESTestCase {
                 percentiles, DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap()));
         assertEquals("The number of provided percents and percentiles didn't match. percents: [0.1, 0.2, 0.3], percentiles: [0.1, 0.2]",
                 e.getMessage());
+    }
+
+    public void testParsedAggregationIteratorOrder() throws IOException {
+        final InternalPercentilesBucket aggregation = createTestInstance();
+        final Iterable<Percentile> parsedAggregation = parseAndAssert(aggregation, false);
+        Iterator<Percentile> it = aggregation.iterator();
+        Iterator<Percentile> parsedIt = parsedAggregation.iterator();
+        while (it.hasNext()) {
+            assertEquals(it.next(), parsedIt.next());
+        }
     }
 }

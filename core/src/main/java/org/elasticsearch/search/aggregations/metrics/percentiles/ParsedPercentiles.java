@@ -33,8 +33,8 @@ import java.util.Map;
 
 public abstract class ParsedPercentiles extends ParsedAggregation implements Iterable<Percentile>  {
 
-    private final Map<Double, Double> percentiles = new LinkedHashMap<>();
-    private final Map<Double, String> percentilesAsString = new HashMap<>();
+    protected final Map<Double, Double> percentiles = new LinkedHashMap<>();
+    protected final Map<Double, String> percentilesAsString = new HashMap<>();
 
     private boolean keyed;
 
@@ -130,7 +130,6 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
                     if (token.isValue()) {
                         if (token == XContentParser.Token.VALUE_NUMBER) {
                             aggregation.addPercentile(Double.valueOf(parser.currentName()), parser.doubleValue());
-
                         } else if (token == XContentParser.Token.VALUE_STRING) {
                             int i = parser.currentName().indexOf("_as_string");
                             if (i > 0) {
@@ -140,6 +139,8 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
                                 aggregation.addPercentile(Double.valueOf(parser.currentName()), Double.valueOf(parser.text()));
                             }
                         }
+                    } else if (token == XContentParser.Token.VALUE_NULL) {
+                        aggregation.addPercentile(Double.valueOf(parser.currentName()), Double.NaN);
                     }
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
@@ -162,6 +163,8 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
                             } else if (CommonFields.VALUE_AS_STRING.getPreferredName().equals(currentFieldName)) {
                                 valueAsString = parser.text();
                             }
+                        } else if (token == XContentParser.Token.VALUE_NULL) {
+                            value = Double.NaN;
                         }
                     }
                     if (key != null) {

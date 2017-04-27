@@ -16,7 +16,6 @@ tutorial shows you how to:
 * Create a {ml} job
 * Use the results to identify possible anomalies in the data
 
-
 At the end of this tutorial, you should have a good idea of what {ml} is and
 will hopefully be inspired to use it to detect anomalies in your own data.
 
@@ -34,15 +33,17 @@ To follow the steps in this tutorial, you will need the following
 components of the Elastic Stack:
 
 * Elasticsearch {version}, which stores the data and the analysis results
-* {xpack} {version}, which provides the beta {ml} features
+* {xpack} {version}, which includes the beta {ml} features for both Elasticsearch and Kibana
 * Kibana {version}, which provides a helpful user interface for creating and
 viewing jobs +
 
+All {ml} features are available to use as an API, however this tutorial 
+will focus on using the {ml} tab in the Kibana UI.
+
 WARNING: The {xpack} {ml} features are in beta and subject to change.
-The design and code are considered to be less mature than official GA features.
-Elastic will take a best effort approach to fix any issues, but beta features
-are not subject to the support SLA of official GA features. Exercise caution if
-you use these features in production environments.
+Beta features are not subject to the same support SLA as GA features, 
+and deployment in production is at your own risk. 
+// Warning was supplied by Steve K (deleteme)
 
 See the https://www.elastic.co/support/matrix[Elastic Support Matrix] for
 information about supported operating systems.
@@ -51,7 +52,8 @@ See {stack-ref}/installing-elastic-stack.html[Installing the Elastic Stack] for
 information about installing each of the components.
 
 NOTE: To get started, you can install Elasticsearch and Kibana on a
-single VM or even on your laptop. As you add more data and your traffic grows,
+single VM or even on your laptop (requires 64-bit OS). 
+As you add more data and your traffic grows,
 you'll want to replace the single Elasticsearch instance with a cluster.
 
 When you install {xpack} into Elasticsearch and Kibana, the {ml} features are
@@ -70,7 +72,7 @@ make it easier to control which users have authority to view and manage the jobs
 data feeds, and results.
 
 By default, you can perform all of the steps in this tutorial by using the
-built-in `elastic` user. If you are performing these steps in a production
+built-in `elastic` super user. If you are performing these steps in a production
 environment, take extra care because that user has the `superuser` role and you
 could inadvertently make significant changes to the system. You can
 alternatively assign the `machine_learning_admin` and `kibana_user` roles to a
@@ -82,14 +84,12 @@ For more information, see <<built-in-roles>> and <<privileges-list-cluster>>.
 === Identifying Data for Analysis
 
 For the purposes of this tutorial, we provide sample data that you can play with.
+This data will be available to search in Elasticsearch. 
 When you consider your own data, however, it's important to take a moment
 and think about where the {xpack} {ml} features will be most impactful.
 
-The first consideration is that it must be time series data.
-Generally, it's best to use data that is in chronological order. When the data
-feed occurs in ascending time order, the statistical models and calculations are
-very efficient and occur in real-time.
-//TBD: Talk about handling out of sequence data?
+The first consideration is that it must be time series data as
+the {ml} features are designed to model and detect anomalies in time series data.
 
 The second consideration, especially when you are first learning to use {ml},
 is the importance of the data and how familiar you are with it. Ideally, it is
@@ -100,44 +100,23 @@ dashboards that you're already using to watch this data. The better you know the
 data, the quicker you will be able to create {ml} jobs that generate useful
 insights.
 
-////
-* Working with out of sequence data:
-** In the typical case where data arrives in ascending time order,
-each new record pushes the time forward. When a record is received that belongs
-to a new bucket, the current bucket is considered to be completed.
-At this point, the model is updated and final results are calculated for the
-completed bucket and the new bucket is created.
-** Expecting data to be in time sequence means that modeling and results
-calculations can be performed very efficiently and in real-time.
-As a direct consequence of this approach, out-of-sequence records are ignored.
-** When data is expected to arrive out-of-sequence, a latency window can be
-specified in the job configuration (does not apply to data feeds?). (If we're
-using a data feed in the sample, perhaps this discussion can be deferred for
-future more-advanced scenario.)
-//See http://www.prelert.com/docs/behavioral_analytics/latest/concepts/outofsequence.html
-////
-
-The final consideration is where the data is located. If the data that you want
-to analyze is stored in Elasticsearch, you can define a _data feed_ that
-provides data to the job in real time. When you have both the input data and the
-analytical results in Elasticsearch, this data gravity provides performance
-benefits.
+The final consideration is where the data is located. This guide assumes that
+your data is stored in Elasticsearch, and will guide you through the steps
+required to create a _data feed_ that will pass data to the job. If your data
+is outside of Elasticsearch, then analysis is still possible via a POST _data_.
 
 IMPORTANT: If you want to create {ml} jobs in Kibana, you must use data feeds.
 That is to say, you must store your input data in Elasticsearch. When you create
 a job, you select an existing index pattern and Kibana configures the data feed
 for you under the covers.
 
-If your data is not stored in Elasticsearch, you can create jobs by using
-the <<ml-put-job,create job API>> and upload batches of data to the job by
-using the <<ml-post-data,post data API>>. That scenario is not covered in
-this tutorial, however.
-
-//TBD: The data must be provided in JSON format?
 
 [float]
 [[ml-gs-sampledata]]
 ==== Obtaining a Sample Data Set
+
+In this step we will upload some sample data to Elasticsearch. This is standard
+Elasticsearch functionality, and is needed to set the stage for using {ml}.
 
 The sample data for this tutorial contains information about the requests that
 are received by various applications and services in a system. A system
@@ -187,13 +166,14 @@ Each document in the server-metrics data set has the following schema:
 TIP: The sample data sets include summarized data. For example, the `total`
 value is a sum of the requests that were received by a specific service at a
 particular time. If your data is stored in Elasticsearch, you can generate
-this type of sum or average by using search queries. One of the benefits of
+this type of sum or average by using aggregations. One of the benefits of
 summarizing data this way is that Elasticsearch automatically distributes
 these calculations across your cluster. You can then feed this summarized data
-into the {xpack} {ml} features instead of raw results, which reduces the volume
+into {xpack} {ml} instead of raw results, which reduces the volume
 of data that must be considered while detecting anomalies. For the purposes of
-this tutorial, however, these summary values are provided directly in the JSON
-source files. They are not generated by Elasticsearch queries.
+this tutorial, however, these summary values are stored in Elasticsearch,
+rather than created using the {ref}/search-aggregations.html[_aggregations framework_].
+//TBD link to working with aggregations page
 
 Before you load the data set, you need to set up {ref}/mapping.html[_mappings_]
 for the fields. Mappings divide the documents in the index into logical groups
@@ -293,6 +273,9 @@ curl -u elastic:elasticpassword -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_4.json"
 ----------------------------------
 
+TIP: This will upload 200MB of data. This is split into 4 files as there is a 
+maximum 100MB limit when using the `_bulk` API.
+
 These commands might take some time to run, depending on the computing resources
 available.
 
@@ -342,7 +325,7 @@ necessary to perform an analytical task. They also contain the results of the
 analytical task.
 
 NOTE: This tutorial uses Kibana to create jobs and view results, but you can
-alternatively use APIs to accomplish most tasks.
+alternatively use APIs to accomplish these tasks.
 For API reference information, see <<ml-apis>>.
 
 To work with jobs in Kibana:
@@ -359,12 +342,9 @@ received by your applications and services. The sample data contains a single
 key performance indicator to track this, which is the total requests over time.
 It is therefore logical to start by creating a single metric job for this KPI.
 
-TIP: In general, if you are using summarized data that is generated from
-Elasticsearch queries, you should create an advanced job. You can then identify
-the fields that were summarized, the count of events that were summarized, and
-in some cases, the associated function. The {ml} algorithms use those details
-to make the best possible use of summarized data. Since we are not using
-Elasticsearch queries to generate the summarized data in this tutorial, however,
+TIP: If you are using aggregated data, you can create an advanced job
+and configure it to use a `summary_count_field`. The {ml} algorithms will
+make the best possible use of summarized data in this case. For simplicity in this tutorial
 we will not make use of that advanced functionality.
 
 
@@ -413,12 +393,12 @@ the detector uses in the function.
 NOTE: Some functions such as `count` and `rare` do not require fields.
 --
 
-.. For the **Bucket span**, enter `600s`. This value specifies the size of the
+.. For the **Bucket span**, enter `10m`. This value specifies the size of the
 interval that the analysis is aggregated into.
 +
 --
-The {xpack} {ml} features use the concept of a bucket to divide up a continuous
-stream of data into batches for processing. For example, if you are monitoring
+The {xpack} {ml} features use the concept of a bucket to divide up the time series
+into batches for processing. For example, if you are monitoring
 the total number of requests in the system,
 //and receive a data point every 10 minutes
 using a bucket span of 1 hour would mean that at the end of each hour, it
@@ -436,13 +416,8 @@ in time.
 
 The bucket span has a significant impact on the analysis. When you're trying to
 determine what value to use, take into account the granularity at which you
-want to perform the analysis, the frequency of the input data, and the frequency
-at which alerting is required.
-//TBD: Talk about overlapping buckets? "To avoid this, you can use overlapping
-//buckets (how/where?). We analyze the data points in two buckets simultaneously,
-//one starting half a bucket span later than the other. Overlapping buckets are
-//only beneficial for aggregating functions, and should not be used for
-//non-aggregating functions.
+want to perform the analysis, the frequency of the input data, the duration of typical anomalies
+and the frequency at which alerting is required.
 --
 
 . Determine whether you want to process all of the data or only part of it. If
@@ -467,7 +442,8 @@ job.
 image::images/ml-gs-job1.jpg["A graph of the total number of requests over time"]
 
 As the job is created, the graph is updated to give a visual representation of
-the {ml} that occurs as the data is processed.
+the progress of {ml} as the data is processed. This view is only available whilst the 
+job is running. 
 //To explore the results, click **View Results**.
 //TBD: image::images/ml-gs-job1-results.jpg["The total-requests job is created"]
 
@@ -492,9 +468,11 @@ The optional description of the job.
 Processed records::
 The number of records that have been processed by the job.
 
-NOTE: Depending on how you send data to the job, the number of processed
-records is not always equal to the number of input records. For more information,
-see the `processed_record_count` description in <<ml-datacounts,Data Counts Objects>>.
+
+// NOTE: Depending on how you send data to the job, the number of processed
+// records is not always equal to the number of input records. For more information,
+// see the `processed_record_count` description in <<ml-datacounts,Data Counts Objects>>.
+// TBD delete for this getting started guide, but should be in the datacounts objects
 
 Memory status::
 The status of the mathematical models. When you create jobs by using the APIs or
@@ -527,11 +505,11 @@ Datafeed state::
 The status of the data feed, which can be one of the following values: +
 started::: The data feed is actively receiving data.
 stopped::: The data feed is stopped and will not receive data until it is re-started.
-//TBD: How to restart data feeds in Kibana?
+//TBD: How to restart data feeds in Kibana? 
 
 Latest timestamp::
 The timestamp of the last processed record.
-//TBD: Is that right?
+
 
 If you click the arrow beside the name of job, you can show or hide additional
 information, such as the settings, configuration information, or messages for
@@ -556,7 +534,9 @@ button to start the data feed:
 image::images/ml-start-feed.jpg["Start data feed"]
 
 . Choose a start time and end time. For example,
-click **Continue from 2017-04-01** and **No end time**, then click **Start**.
+click **Continue from 2017-04-01** and **2017-04-30**, then click **Start**.
+The date picker will default to the latest timestamp of processed data. 
+Be careful not to leave any gaps in the analysis otherwise you may miss anoamlies.
 image::images/ml-gs-job1-datafeed.jpg["Restarting a data feed"]
 
 The data feed state changes to `started`, the job state changes to `opened`,
@@ -570,6 +550,9 @@ image::images/ml-stop-feed.jpg["Stop data feed"]
 
 Now that you have processed all the data, let's start exploring the job results.
 
+TIP: If your data is being loaded continuously, you can continue running the job in real time.
+For this, start your data feed and select **No end time**.
+
 [[ml-gs-jobresults]]
 === Exploring Job Results
 
@@ -577,24 +560,30 @@ The {xpack} {ml} features analyze the input stream of data, model its behavior,
 and perform analysis based on the detectors you defined in your job. When an
 event occurs outside of the model, that event is identified as an anomaly.
 
-Result records for each anomaly are stored in `.ml-notifications` and
-`.ml-anomalies*` indices in Elasticsearch. By default, the name of the
-index where {ml} results are stored is `shared`, which corresponds to
-the `.ml-anomalies-shared` index.
+Result records for each anomaly are stored in `.ml-anomalies-*` indices in Elasticsearch. 
+By default, the name of the index where {ml} results are stored is labelled `shared`, 
+which corresponds to the `.ml-anomalies-shared` index.
 
 You can use the **Anomaly Explorer** or the **Single Metric Viewer** in Kibana
 to view the analysis results.
 
 Anomaly Explorer::
-  This view contains heatmap charts, where the color for each section of the
-  timeline is determined by the maximum anomaly score in that period.
-//TBD: Do the time periods in the heat map correspond to buckets?
+  This view contains swimlanes showing the maximum anomaly score over time.
+  There is an overall swimlane which shows the overall score for the job, and
+  also swimlanes for each influencer. By selecting a block in a swimlane, the
+  anomaly details are displayed along side the original source data (where applicable).
+//TBD: Are they swimlane blocks, tiles, segments or cards? hmmm
+//TBD: Do the time periods in the heat map correspond to buckets? hmmm is it a heat map?
+//As time is the x-axis, and the block sizes stay the same, it feels more intuitive call it a swimlane.
+//The swimlane bucket intervals depends on the time range selected. Their smallest possible
+//granularity is a bucket, but if you have a big time range selected, then they will span many buckets
 
 Single Metric Viewer::
-  This view contains a time series chart that represents the actual and expected
-  values over time.
+  This view contains a chart that represents the actual and expected values over time. 
+  This is only available for jobs which analyze a single time series
+  and where `model_plot_config` is enabled.
   As in the **Anomaly Explorer**, anomalous data points are shown in
-  different colors depending on their probability.
+  different colors depending on their score.
 
 [float]
 [[ml-gs-job1-analyze]]
@@ -604,9 +593,12 @@ By default when you view the results for a single metric job,
 the **Single Metric Viewer** opens:
 image::images/ml-gs-job1-analysis.jpg["Single Metric Viewer for total-requests job"]
 
-The blue line in the chart represents the actual data values. The shaded blue area
-represents the expected behavior that was calculated by the model.
-//TBD: What is meant by "95% prediction bounds"?
+The blue line in the chart represents the actual data values. 
+The shaded blue area represents the bounds for the expected values. 
+The area between the upper and lower bounds are the most likely values for the model. 
+If a value is outside of this area then it can be said to be anomalous.
+//TBD: What is meant by "95% prediction bounds"? Because we are using probability 
+//to "predict" the values.. 
 
 If you slide the time selector from the beginning of the data to the end of the
 data, you can see how the model improves as it processes more data. At the
@@ -627,7 +619,7 @@ The highly anomalous values are shown in red and the low scored values are
 indicated in blue. An interval with a high anomaly score is significant and
 requires investigation.
 
-Slide the time selector to a section of the time series that contains a red data
+Slide the time selector to a section of the time series that contains a red anomaly data
 point. If you hover over the point, you can see more information about that
 data point. You can also see details in the **Anomalies** section of the viewer.
 For example:
@@ -641,8 +633,8 @@ You can see the same information in a different format by using the **Anomaly Ex
 
 image::images/ml-gs-job1-explorer.jpg["Anomaly Explorer for total-requests job"]
 
-Click one of the red areas in the heatmap to see details about that anomaly. For
-example:
+Click one of the red blocks in the swimlane to see details about the anomalies that occured in
+that time interval. For example:
 
 image::images/ml-gs-job1-explorer-anomaly.jpg["Anomaly Explorer details for total-requests job"]
 

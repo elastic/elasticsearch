@@ -331,9 +331,12 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
     }
 
     /**
-     * Map containing pre-built token filters that should be available after installing this plugin. The map is from the name of the token
-     * filter to the class of the Lucene {@link TokenFilterFactory} that it is emulating. If the Lucene filter factory is {@code null} then
-     * the test will look it up for you from the name. If there is no Lucene {@linkplain TokenFilterFactory} then the right hand side should
+     * Map containing pre-configured token filters that should be available
+     * after installing this plugin. The map is from the name of the token
+     * filter to the class of the Lucene {@link TokenFilterFactory} that it
+     * is emulating. If the Lucene filter factory is {@code null} then the
+     * test will look it up for you from the name. If there is no Lucene
+     * {@linkplain TokenFilterFactory} then the right hand side should
      * be {@link Void}.
      */
     protected Map<String, Class<?>> getPreConfiguredTokenFilters() {

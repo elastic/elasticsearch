@@ -205,7 +205,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         }
     }
 
-    public void testPreBuiltTokenFiltersAreCached() throws IOException {
+    public void testPreConfiguredTokenFiltersAreCached() throws IOException {
         AtomicBoolean built = new AtomicBoolean(false);
         PreConfiguredTokenFilter assertsBuiltOnce = new PreConfiguredTokenFilter("asserts_built_once", false,
                 PreBuiltCacheFactory.CachingStrategy.ONE, (tokens, version) -> {

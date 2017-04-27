@@ -109,40 +109,6 @@ public interface AnalysisPlugin {
     }
 
     /**
-     * Specification for a pre-built token filter that is shared between multiple indices.
-     */
-    class PreBuiltTokenFilterSpec { // NOCOMMIT remove me
-        private final boolean useFilterForMultitermQueries;
-        private final PreBuiltCacheFactory.CachingStrategy cachingStrategy;
-        private final BiFunction<TokenStream, Version, TokenStream> create;
-
-        /**
-         * Setup the spec.
-         * @param useFilterForMultitermQueries use the pre-built token filter for multiterm queries.
-         * @param cachingStrategy caching strategy the pre-built token filter should use
-         * @param create function to create the token filter
-         */
-        public PreBuiltTokenFilterSpec(boolean useFilterForMultitermQueries, PreBuiltCacheFactory.CachingStrategy cachingStrategy,
-                BiFunction<TokenStream, Version, TokenStream> create) {
-            this.useFilterForMultitermQueries = useFilterForMultitermQueries;
-            this.cachingStrategy = cachingStrategy;
-            this.create = create;
-        }
-
-        public boolean shouldUseFilterForMultitermQueries() {
-            return useFilterForMultitermQueries;
-        }
-
-        public PreBuiltCacheFactory.CachingStrategy getCachingStrategy() {
-            return cachingStrategy;
-        }
-
-        public BiFunction<TokenStream, Version, TokenStream> getCreate() {
-            return create;
-        }
-    }
-
-    /**
      * Mark an {@link AnalysisProvider} as requiring the index's settings.
      */
     static <T> AnalysisProvider<T> requriesAnalysisSettings(AnalysisProvider<T> provider) {

@@ -15,6 +15,9 @@ roles are passed to the remote clusters. A remote cluster checks the user's
 roles against its local role definitions to determine which indices the user
 is allowed to access.
 
+NOTE: For the moment, cross cluster search with security enabled does not
+support using wildcards for either cluster or index names.
+
 To use cross cluster search with secured clusters:
 
 * Install {xpack} on every node in each connected cluster.
@@ -113,19 +116,17 @@ POST /_xpack/security/role/cluster_two_logs
   "indices": [
     {
       "names": [
-        "two:logs-*", <1>
-        "logs-*" <1>
+        "logs-*"
       ],
       "privileges": [
         "read",
         "read_cross_cluster",
-        "manage"
+        "view_index_metadata"
       ]
     }
   ]
 }
 -----------------------------------------------------------
-<1> The index pattern needs to be specified with and without the cluster alias.
 
 Finally, create a user on cluster `one` and apply the `cluster_two_logs` role:
 
@@ -146,10 +147,11 @@ cluster `two` as follows:
 
 [source,js]
 -----------------------------------------------------------
-GET two:logs-*/_search
+GET two:logs-2017.04/_search <1>
 {
   "query": {
     "match_all": {}
   }
 }
 -----------------------------------------------------------
+

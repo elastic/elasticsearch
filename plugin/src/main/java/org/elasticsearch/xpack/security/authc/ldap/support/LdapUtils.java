@@ -299,10 +299,9 @@ public final class LdapUtils {
         );
     }
 
-    public static Filter createFilter(String filterTemplate, String... arguments)
-            throws LDAPException {
+    public static Filter createFilter(String filterTemplate, String... arguments) throws LDAPException {
         return Filter.create(new MessageFormat(filterTemplate, Locale.ROOT)
-                .format((Object[]) encodeFilterValues(arguments), new StringBuffer(), null)
+                .format(encodeFilterValues(arguments), new StringBuffer(), null)
                 .toString());
     }
 

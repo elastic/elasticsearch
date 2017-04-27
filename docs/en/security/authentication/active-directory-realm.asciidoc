@@ -194,6 +194,21 @@ operation are supported: failover and load balancing
                                           must be a valid LDAP user search filter, for example
                                           `(&(objectClass=user)(sAMAccountName={0}))`. For more
                                           information, see https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
+| `user_search.upn_filter`   | no       | Specifies a filter to use to lookup a user given a user principal name.
+                                          The default filter looks up `user` objects with either
+                                          a matching `userPrincipalName` or a `sAMAccountName` matching the account
+                                          portion of the user principal name. If specified, this
+                                          must be a valid LDAP user search filter, for example
+                                          `(&(objectClass=user)(sAMAccountName={0}))`. `{0}` is the value
+                                          preceding the `@` sign in the user principal name and `{1}` is
+                                          the full user principal name provided by the user. For more
+                                          information, see https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
+| `user_search.down_level_filter` | no  | Specifies a filter to use to lookup a user given a down level logon name (DOMAIN\user).
+                                          The default filter looks up `user` objects with a matching
+                                          `sAMAccountName` in the domain provided. If specified, this
+                                          must be a valid LDAP user search filter, for example
+                                          `(&(objectClass=user)(sAMAccountName={0}))`. For more
+                                          information, see https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
 | `group_search.base_dn`     | no       | Specifies the context to search for groups in which the user
                                           has membership. Defaults to the root of the Active Directory
                                           domain.

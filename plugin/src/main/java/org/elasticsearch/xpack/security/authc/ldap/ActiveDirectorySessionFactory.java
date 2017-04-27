@@ -53,12 +53,14 @@ class ActiveDirectorySessionFactory extends SessionFactory {
     static final String AD_GROUP_SEARCH_SCOPE_SETTING = "group_search.scope";
     static final String AD_USER_SEARCH_BASEDN_SETTING = "user_search.base_dn";
     static final String AD_USER_SEARCH_FILTER_SETTING = "user_search.filter";
+    static final String AD_UPN_USER_SEARCH_FILTER_SETTING = "user_search.upn_filter";
+    static final String AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING = "user_search.down_level_filter";
     static final String AD_USER_SEARCH_SCOPE_SETTING = "user_search.scope";
     private static final String NETBIOS_NAME_FILTER_TEMPLATE = "(netbiosname={0})";
 
-    private final DefaultADAuthenticator defaultADAuthenticator;
-    private final DownLevelADAuthenticator downLevelADAuthenticator;
-    private final UpnADAuthenticator upnADAuthenticator;
+    final DefaultADAuthenticator defaultADAuthenticator;
+    final DownLevelADAuthenticator downLevelADAuthenticator;
+    final UpnADAuthenticator upnADAuthenticator;
 
     ActiveDirectorySessionFactory(RealmConfig config, SSLService sslService) {
         super(config, sslService);
@@ -124,6 +126,8 @@ class ActiveDirectorySessionFactory extends SessionFactory {
         settings.add(Setting.simpleString(AD_GROUP_SEARCH_SCOPE_SETTING, Setting.Property.NodeScope));
         settings.add(Setting.simpleString(AD_USER_SEARCH_BASEDN_SETTING, Setting.Property.NodeScope));
         settings.add(Setting.simpleString(AD_USER_SEARCH_FILTER_SETTING, Setting.Property.NodeScope));
+        settings.add(Setting.simpleString(AD_UPN_USER_SEARCH_FILTER_SETTING, Setting.Property.NodeScope));
+        settings.add(Setting.simpleString(AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING, Setting.Property.NodeScope));
         settings.add(Setting.simpleString(AD_USER_SEARCH_SCOPE_SETTING, Setting.Property.NodeScope));
         return settings;
     }
@@ -145,15 +149,18 @@ class ActiveDirectorySessionFactory extends SessionFactory {
         final GroupsResolver groupsResolver;
         final String userSearchDN;
         final LdapSearchScope userSearchScope;
+        final String userSearchFilter;
 
         ADAuthenticator(Settings settings, TimeValue timeout, boolean ignoreReferralErrors,
-                        Logger logger, GroupsResolver groupsResolver, String domainDN) {
+                        Logger logger, GroupsResolver groupsResolver, String domainDN, String userSearchFilterSetting,
+                        String defaultUserSearchFilter) {
             this.timeout = timeout;
             this.ignoreReferralErrors = ignoreReferralErrors;
             this.logger = logger;
             this.groupsResolver = groupsResolver;
             userSearchDN = settings.get(AD_USER_SEARCH_BASEDN_SETTING, domainDN);
             userSearchScope = LdapSearchScope.resolve(settings.get(AD_USER_SEARCH_SCOPE_SETTING), LdapSearchScope.SUB_TREE);
+            userSearchFilter = settings.get(userSearchFilterSetting, defaultUserSearchFilter);
         }
 
         final void authenticate(LDAPConnection connection, String username, SecureString password,
@@ -189,6 +196,11 @@ class ActiveDirectorySessionFactory extends SessionFactory {
             return username;
         }
 
+        // pkg-private for testing
+        final String getUserSearchFilter() {
+            return userSearchFilter;
+        }
+
         abstract void searchForDN(LDAPConnection connection, String username, SecureString password, int timeLimitSeconds,
                                   ActionListener<SearchResultEntry> listener);
     }
@@ -200,15 +212,13 @@ class ActiveDirectorySessionFactory extends SessionFactory {
      */
     static class DefaultADAuthenticator extends ADAuthenticator {
 
-        final String userSearchFilter;
-
         final String domainName;
+
         DefaultADAuthenticator(Settings settings, TimeValue timeout, boolean ignoreReferralErrors,
                                Logger logger, GroupsResolver groupsResolver, String domainDN) {
-            super(settings, timeout, ignoreReferralErrors, logger, groupsResolver, domainDN);
+            super(settings, timeout, ignoreReferralErrors, logger, groupsResolver, domainDN, AD_USER_SEARCH_FILTER_SETTING,
+                    "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@" + settings.get(AD_DOMAIN_NAME_SETTING) + ")))");
             domainName = settings.get(AD_DOMAIN_NAME_SETTING);
-            userSearchFilter = settings.get(AD_USER_SEARCH_FILTER_SETTING, "(&(objectClass=user)(|(sAMAccountName={0})" +
-                    "(userPrincipalName={0}@" + domainName + ")))");
         }
 
         @Override
@@ -235,6 +245,7 @@ class ActiveDirectorySessionFactory extends SessionFactory {
      * this class contains the logic necessary to authenticate this form of a username
      */
     static class DownLevelADAuthenticator extends ADAuthenticator {
+        static final String DOWN_LEVEL_FILTER = "(&(objectClass=user)(sAMAccountName={0}))";
         Cache<String, String> domainNameCache = CacheBuilder.<String, String>builder().setMaximumWeight(100).build();
 
         final String domainDN;
@@ -246,8 +257,8 @@ class ActiveDirectorySessionFactory extends SessionFactory {
                                  boolean ignoreReferralErrors, Logger logger,
                                  GroupsResolver groupsResolver, String domainDN,
                                  SSLService sslService) {
-            super(config.settings(), timeout, ignoreReferralErrors, logger, groupsResolver,
-                    domainDN);
+            super(config.settings(), timeout, ignoreReferralErrors, logger, groupsResolver, domainDN,
+                    AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING, DOWN_LEVEL_FILTER);
             this.domainDN = domainDN;
             this.settings = config.settings();
             this.sslService = sslService;
@@ -269,7 +280,7 @@ class ActiveDirectorySessionFactory extends SessionFactory {
                 } else {
                     try {
                         searchForEntry(connection, domainDN, LdapSearchScope.SUB_TREE.scope(),
-                                createFilter("(&(objectClass=user)(sAMAccountName={0}))",
+                                createFilter(userSearchFilter,
                                         accountName), timeLimitSeconds, ignoreReferralErrors,
                                 listener, attributesToSearchFor(groupsResolver.attributes()));
                     } catch (LDAPException e) {
@@ -375,11 +386,12 @@ class ActiveDirectorySessionFactory extends SessionFactory {
 
     static class UpnADAuthenticator extends ADAuthenticator {
 
-        private static final String UPN_USER_FILTER = "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={1})))";
+        static final String UPN_USER_FILTER = "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={1})))";
 
         UpnADAuthenticator(Settings settings, TimeValue timeout, boolean ignoreReferralErrors,
                            Logger logger, GroupsResolver groupsResolver, String domainDN) {
-            super(settings, timeout, ignoreReferralErrors, logger, groupsResolver, domainDN);
+            super(settings, timeout, ignoreReferralErrors, logger, groupsResolver, domainDN,
+                    AD_UPN_USER_SEARCH_FILTER_SETTING, UPN_USER_FILTER);
         }
 
         void searchForDN(LDAPConnection connection, String username, SecureString password, int timeLimitSeconds,

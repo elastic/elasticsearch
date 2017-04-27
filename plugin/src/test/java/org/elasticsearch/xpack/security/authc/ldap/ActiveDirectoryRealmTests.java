@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory.DownLevelADAuthenticator;
+import org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory.UpnADAuthenticator;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -269,7 +271,8 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                 .put(ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))
                 .put("load_balance.type", loadBalanceType)
                 .build());
-        RealmConfig config = new RealmConfig("testRealmUsageStats", settings, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("testRealmUsageStats", settings, globalSettings, new Environment(globalSettings),
+                new ThreadContext(globalSettings));
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService);
         DnRoleMapper roleMapper = new DnRoleMapper(LdapRealm.AD_TYPE, config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealm.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
@@ -281,6 +284,31 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         assertThat(stats, hasEntry("size", 0));
         assertThat(stats, hasEntry("ssl", false));
         assertThat(stats, hasEntry("load_balance_type", loadBalanceType));
+    }
+
+    public void testDefaultSearchFilters() throws Exception {
+        Settings settings = settings();
+        RealmConfig config = new RealmConfig("testDefaultSearchFilters", settings, globalSettings, new Environment(globalSettings),
+                new ThreadContext(globalSettings));
+        ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService);
+        assertEquals("(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@ad.test.elasticsearch.com)))",
+                sessionFactory.defaultADAuthenticator.getUserSearchFilter());
+        assertEquals(UpnADAuthenticator.UPN_USER_FILTER, sessionFactory.upnADAuthenticator.getUserSearchFilter());
+        assertEquals(DownLevelADAuthenticator.DOWN_LEVEL_FILTER, sessionFactory.downLevelADAuthenticator.getUserSearchFilter());
+    }
+
+    public void testCustomSearchFilters() throws Exception {
+        Settings settings = settings(Settings.builder()
+                .put(ActiveDirectorySessionFactory.AD_USER_SEARCH_FILTER_SETTING, "(objectClass=default)")
+                .put(ActiveDirectorySessionFactory.AD_UPN_USER_SEARCH_FILTER_SETTING, "(objectClass=upn)")
+                .put(ActiveDirectorySessionFactory.AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING, "(objectClass=down level)")
+                .build());
+        RealmConfig config = new RealmConfig("testDefaultSearchFilters", settings, globalSettings, new Environment(globalSettings),
+                new ThreadContext(globalSettings));
+        ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService);
+        assertEquals("(objectClass=default)", sessionFactory.defaultADAuthenticator.getUserSearchFilter());
+        assertEquals("(objectClass=upn)", sessionFactory.upnADAuthenticator.getUserSearchFilter());
+        assertEquals("(objectClass=down level)", sessionFactory.downLevelADAuthenticator.getUserSearchFilter());
     }
 
     private Settings settings() throws Exception {

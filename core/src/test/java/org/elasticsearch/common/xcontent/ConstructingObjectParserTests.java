@@ -303,6 +303,18 @@ public class ConstructingObjectParserTests extends ESTestCase {
         assertEquals(s.test, "foo");
     }
 
+    public void testConstructObjectUsingContext() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+            "{\n"
+                + "  \"animal\": \"dropbear\",\n"
+                + "  \"mineral\": -8\n"
+                + "}");
+        HasCtorArguments parsed = HasCtorArguments.PARSER_INT_CONTEXT.apply(parser, 42);
+        assertEquals(Integer.valueOf(42), parsed.vegetable);
+        assertEquals("dropbear", parsed.animal);
+        assertEquals(-8, parsed.mineral);
+    }
+
     private static class HasCtorArguments implements ToXContent {
         @Nullable
         final String animal;
@@ -381,8 +393,11 @@ public class ConstructingObjectParserTests extends ESTestCase {
         public static final ConstructingObjectParser<HasCtorArguments, Void> PARSER = buildParser(true, true);
         public static final ConstructingObjectParser<HasCtorArguments, Void> PARSER_VEGETABLE_OPTIONAL = buildParser(true, false);
         public static final ConstructingObjectParser<HasCtorArguments, Void> PARSER_ALL_OPTIONAL = buildParser(false, false);
+
         public static final List<ConstructingObjectParser<HasCtorArguments, Void>> ALL_PARSERS = unmodifiableList(
                 Arrays.asList(PARSER, PARSER_VEGETABLE_OPTIONAL, PARSER_ALL_OPTIONAL));
+
+        public static final ConstructingObjectParser<HasCtorArguments, Integer> PARSER_INT_CONTEXT = buildContextParser();
 
         private static ConstructingObjectParser<HasCtorArguments, Void> buildParser(boolean animalRequired,
                 boolean vegetableRequired) {
@@ -390,13 +405,25 @@ public class ConstructingObjectParserTests extends ESTestCase {
                     "has_required_arguments", a -> new HasCtorArguments((String) a[0], (Integer) a[1]));
             parser.declareString(animalRequired ? constructorArg() : optionalConstructorArg(), new ParseField("animal"));
             parser.declareInt(vegetableRequired ? constructorArg() : optionalConstructorArg(), new ParseField("vegetable"));
+            declareSetters(parser);
+            return parser;
+        }
+
+        private static ConstructingObjectParser<HasCtorArguments, Integer> buildContextParser() {
+            ConstructingObjectParser<HasCtorArguments, Integer> parser = new ConstructingObjectParser<>(
+                    "has_required_arguments", false, (args, ctx) -> new HasCtorArguments((String) args[0], ctx));
+            parser.declareString(constructorArg(), new ParseField("animal"));
+            declareSetters(parser);
+            return parser;
+        }
+
+        private static void declareSetters(ConstructingObjectParser<HasCtorArguments, ?> parser) {
             parser.declareInt(HasCtorArguments::setMineral, new ParseField("mineral"));
             parser.declareInt(HasCtorArguments::setFruit, new ParseField("fruit"));
             parser.declareString(HasCtorArguments::setA, new ParseField("a"));
             parser.declareString(HasCtorArguments::setB, new ParseField("b"));
             parser.declareString(HasCtorArguments::setC, new ParseField("c"));
             parser.declareBoolean(HasCtorArguments::setD, new ParseField("d"));
-            return parser;
         }
     }
 

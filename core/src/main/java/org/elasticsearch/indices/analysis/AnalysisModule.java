@@ -148,7 +148,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
 
 /**
@@ -176,7 +178,7 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
 
-        List<PreConfiguredTokenFilter> preBuiltTokenFilters = setupPreBuiltTokenFilters(plugins);
+        Map<String, PreConfiguredTokenFilter> preBuiltTokenFilters = setupPreBuiltTokenFilters(plugins);
 
         analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers
             .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry(), preBuiltTokenFilters);
@@ -267,8 +269,7 @@ public final class AnalysisModule {
         return tokenFilters;
     }
 
-    static List<PreConfiguredTokenFilter> setupPreBuiltTokenFilters(List<AnalysisPlugin> plugins) {
-        // Use NamedRegistry for the duplicate detection
+    static Map<String, PreConfiguredTokenFilter> setupPreBuiltTokenFilters(List<AnalysisPlugin> plugins) {
         NamedRegistry<PreConfiguredTokenFilter> preBuiltTokenFilters = new NamedRegistry<>("pre-configured token_filter");
 
         // Add filters available in lucene-core
@@ -299,7 +300,7 @@ public final class AnalysisModule {
                 preBuiltTokenFilters.register(filter.getName(), filter);
             }
         }
-        return new ArrayList<>(preBuiltTokenFilters.getRegistry().values());
+        return unmodifiableMap(preBuiltTokenFilters.getRegistry());
     }
 
     private NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {

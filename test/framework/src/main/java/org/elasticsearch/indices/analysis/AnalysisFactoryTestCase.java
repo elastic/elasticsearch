@@ -91,7 +91,6 @@ import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.AnalysisPlugin.PreBuiltTokenFilterSpec;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
@@ -103,10 +102,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 
@@ -465,9 +462,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                 expected.add(tokenizer);
             }
         }
-        Map<String, PreConfiguredTokenFilter> preBuiltTokenFilters =
-                AnalysisModule.setupPreBuiltTokenFilters(singletonList(plugin)).stream()
-                    .collect(Collectors.toMap(PreConfiguredTokenFilter::getName, Function.identity()));
+        Map<String, PreConfiguredTokenFilter> preBuiltTokenFilters = AnalysisModule.setupPreBuiltTokenFilters(singletonList(plugin));
         for (Map.Entry<String, Class<?>> entry : getPreBuiltTokenFilters().entrySet()) {
             String name = entry.getKey();
             Class<?> luceneFactory = entry.getValue();

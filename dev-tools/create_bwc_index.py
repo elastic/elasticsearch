@@ -291,7 +291,7 @@ def generate_index(client, version, index_name):
       'settings': settings,
       'mappings': mappings
   })
-  health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
+  health = client.cluster.health(wait_for_status='green')
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
   num_docs = random.randint(2000, 3000)

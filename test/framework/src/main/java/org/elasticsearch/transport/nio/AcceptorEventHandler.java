@@ -21,13 +21,11 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.channel.SKUtils;
+import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 
 import java.io.IOException;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class AcceptorEventHandler extends EventHandler {
@@ -42,7 +40,7 @@ public class AcceptorEventHandler extends EventHandler {
     }
 
     public void serverChannelRegistered(NioServerSocketChannel nioServerSocketChannel) {
-        SKUtils.setAcceptInterested(nioServerSocketChannel);
+        SelectionKeyUtils.setAcceptInterested(nioServerSocketChannel);
         openChannels.serverChannelOpened(nioServerSocketChannel);
     }
 

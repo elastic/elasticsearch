@@ -22,9 +22,9 @@ package org.elasticsearch.transport.nio.channel;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
 
-public final class SKUtils {
+public final class SelectionKeyUtils {
 
-    private SKUtils() {}
+    private SelectionKeyUtils() {}
 
     public static void setWriteInterested(NioChannel channel) throws CancelledKeyException {
         SelectionKey selectionKey = channel.getSelectionKey();

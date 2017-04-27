@@ -58,8 +58,7 @@ public class ChannelFactory {
         configureSocketChannel(rawChannel);
         PrivilegedSocketAccess.connect(rawChannel, remoteAddress);
         NioSocketChannel channel = new NioSocketChannel(NioChannel.CLIENT, rawChannel);
-        channel.setReadContext(new TcpReadContext(channel, handler));
-        channel.setWriteContext(new TcpWriteContext(channel));
+        channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
         return channel;
     }
 
@@ -68,8 +67,7 @@ public class ChannelFactory {
         SocketChannel rawChannel = PrivilegedSocketAccess.accept(serverSocketChannel);
         configureSocketChannel(rawChannel);
         NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel);
-        channel.setReadContext(new TcpReadContext(channel, handler));
-        channel.setWriteContext(new TcpWriteContext(channel));
+        channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
         return channel;
     }
 

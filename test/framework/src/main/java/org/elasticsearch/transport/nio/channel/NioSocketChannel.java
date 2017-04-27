@@ -83,20 +83,17 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     public int read(ByteBuffer buffer) throws IOException {
         return socketChannel.read(buffer);
     }
+    public void setContexts(TcpReadContext readContext, TcpWriteContext writeContext) {
+        this.readContext = readContext;
+        this.writeContext = writeContext;
+    }
+
     public WriteContext getWriteContext() {
         return writeContext;
     }
 
-    public void setReadContext(TcpReadContext readContext) {
-        this.readContext = readContext;
-    }
-
     public ReadContext getReadContext() {
         return readContext;
-    }
-
-    public void setWriteContext(TcpWriteContext writeContext) {
-        this.writeContext = writeContext;
     }
 
     public InetSocketAddress getRemoteAddress() {

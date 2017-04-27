@@ -31,20 +31,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This is a basic channel abstraction used by the {@link org.elasticsearch.transport.nio.NioTransport}.
- *
+ * <p>
  * A channel is open once it is constructed. The channel remains open and {@link #isOpen()} will return
  * true until the channel is explicitly closed.
- *
+ * <p>
  * A channel lifecycle has four stages:
- *
- * 1. UNREGISTERED - When a channel is created and prior to it being registered with a selector.
- * 2. REGISTERED - When a channel has been registered with a selector. This is the state of a channel that
+ * <ol>
+ * <li>UNREGISTERED - When a channel is created and prior to it being registered with a selector.
+ * <li>REGISTERED - When a channel has been registered with a selector. This is the state of a channel that
  * can perform normal operations.
- * 3. CLOSING - When a channel has been marked for closed, but is not yet closed. {@link #isOpen()} will
+ * <li>CLOSING - When a channel has been marked for closed, but is not yet closed. {@link #isOpen()} will
  * still return true. Normal operations should be rejected. The most common scenario for a channel to be
  * CLOSING is when channel that was REGISTERED has {@link #closeAsync()} called, but the selector thread
  * has not yet closed the channel.
- * 4. CLOSED - The channel has been closed.
+ * <li>CLOSED - The channel has been closed.
+ * </ol>
  *
  * @param <S> the type of raw channel this AbstractNioChannel uses
  */
@@ -87,21 +88,21 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
 
     /**
      * Registers a channel to be closed by the selector event loop with which it is registered.
-     *
+     * <p>
      * If the current state is UNREGISTERED, the call will attempt to transition the state from UNREGISTERED
      * to CLOSING. If this transition is successful, the channel can no longer be registered with an event
      * loop and the channel will be synchronously closed in this method call. If the channel
-     *
+     * <p>
      * If the channel is REGISTERED and the state can be transitioned to CLOSING, the close operation will
      * be scheduled with the event loop.
-     *
+     * <p>
      * If the channel is CLOSING or CLOSED, nothing will be done.
      *
      * @return future that will be complete when the channel is closed
      */
     @Override
     public CloseFuture closeAsync() {
-        for (;;) {
+        for (; ; ) {
             int state = this.state.get();
             if (state == UNREGISTERED && this.state.compareAndSet(UNREGISTERED, CLOSING)) {
                 close0();
@@ -119,12 +120,12 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     /**
      * Closes the channel synchronously. This method should only be called from the selector thread. If it is
      * called on an UNREGISTERED channel or from a non-selector thread an exception will be thrown.
-     *
+     * <p>
      * Once this method returns, the channel will be closed.
      */
     @Override
     public void closeFromSelector() {
-        for (;;) {
+        for (; ; ) {
             int state = this.state.get();
             if (state == UNREGISTERED) {
                 throw new IllegalStateException("Cannot close() an unregistered channel. Use closeAsync()");

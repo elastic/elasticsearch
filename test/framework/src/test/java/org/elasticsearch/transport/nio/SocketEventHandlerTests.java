@@ -25,7 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.DoNotRegisterChannel;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.channel.SKUtils;
+import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.channel.TcpReadContext;
 import org.elasticsearch.transport.nio.channel.TcpWriteContext;
 import org.junit.Before;
@@ -61,8 +61,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         readContext = mock(TcpReadContext.class);
         when(rawChannel.finishConnect()).thenReturn(true);
 
-        channel.setReadContext(readContext);
-        channel.setWriteContext(new TcpWriteContext(channel));
+        channel.setContexts(readContext, new TcpWriteContext(channel));
         channel.register(socketSelector);
         channel.finishConnect();
 
@@ -81,7 +80,7 @@ public class SocketEventHandlerTests extends ESTestCase {
     }
 
     public void testConnectRemovesOP_CONNECTInterest() throws IOException {
-        SKUtils.setConnectAndReadInterested(channel);
+        SelectionKeyUtils.setConnectAndReadInterested(channel);
         handler.handleConnect(channel);
         assertEquals(SelectionKey.OP_READ, channel.getSelectionKey().interestOps());
     }
@@ -157,9 +156,9 @@ public class SocketEventHandlerTests extends ESTestCase {
     }
 
     private void setWriteAndRead(NioChannel channel) {
-        SKUtils.setConnectAndReadInterested(channel);
-        SKUtils.removeConnectInterested(channel);
-        SKUtils.setWriteInterested(channel);
+        SelectionKeyUtils.setConnectAndReadInterested(channel);
+        SelectionKeyUtils.removeConnectInterested(channel);
+        SelectionKeyUtils.setWriteInterested(channel);
     }
 
     public void testWriteExceptionCallsExceptionHandler() throws IOException {

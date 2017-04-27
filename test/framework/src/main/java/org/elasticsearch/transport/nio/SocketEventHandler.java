@@ -21,7 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.channel.SKUtils;
+import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.channel.WriteContext;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ public class SocketEventHandler extends EventHandler {
     }
 
     public void handleRegistration(NioSocketChannel channel) {
-        SKUtils.setConnectAndReadInterested(channel);
+        SelectionKeyUtils.setConnectAndReadInterested(channel);
     }
 
     public void registrationException(NioSocketChannel channel, Exception e) {
@@ -48,7 +48,7 @@ public class SocketEventHandler extends EventHandler {
     }
 
     public void handleConnect(NioSocketChannel channel) {
-        SKUtils.removeConnectInterested(channel);
+        SelectionKeyUtils.removeConnectInterested(channel);
     }
 
     public void connectException(NioSocketChannel channel, Exception e) {
@@ -73,9 +73,9 @@ public class SocketEventHandler extends EventHandler {
         WriteContext channelContext = channel.getWriteContext();
         channelContext.flushChannel();
         if (channelContext.hasQueuedWriteOps()) {
-            SKUtils.setWriteInterested(channel);
+            SelectionKeyUtils.setWriteInterested(channel);
         } else {
-            SKUtils.removeWriteInterested(channel);
+            SelectionKeyUtils.removeWriteInterested(channel);
         }
     }
 

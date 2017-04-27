@@ -21,7 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.channel.SKUtils;
+import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.channel.WriteContext;
 
 import java.io.IOException;
@@ -100,7 +100,7 @@ public class SocketSelector extends ESSelector {
         NioSocketChannel channel = writeOperation.getChannel();
         WriteContext context = channel.getWriteContext();
         try {
-            SKUtils.setWriteInterested(channel);
+            SelectionKeyUtils.setWriteInterested(channel);
             context.queueWriteOperations(writeOperation);
         } catch (Exception e) {
             writeOperation.getListener().onFailure(e);

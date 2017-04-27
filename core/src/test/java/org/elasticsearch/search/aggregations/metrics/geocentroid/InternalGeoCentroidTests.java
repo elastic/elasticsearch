@@ -42,8 +42,11 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         centroid.resetLon(GeoEncodingUtils.decodeLongitude(encodedLon));
         int encodedLat = GeoEncodingUtils.encodeLatitude(centroid.lat());
         centroid.resetLat(GeoEncodingUtils.decodeLatitude(encodedLat));
-
-        return new InternalGeoCentroid("_name", centroid, 1, Collections.emptyList(), Collections.emptyMap());
+        long count = randomIntBetween(0, 1000);
+        if (count == 0) {
+            centroid = null;
+        }
+        return new InternalGeoCentroid("_name", centroid, count, Collections.emptyList(), Collections.emptyMap());
     }
 
     @Override
@@ -53,14 +56,18 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
 
     @Override
     protected void assertReduced(InternalGeoCentroid reduced, List<InternalGeoCentroid> inputs) {
-        GeoPoint expected = new GeoPoint(0, 0);
-        int i = 0;
+        double lonSum = 0;
+        double latSum = 0;
+        int totalCount = 0;
         for (InternalGeoCentroid input : inputs) {
-            expected.reset(expected.lat() + (input.centroid().lat() - expected.lat()) / (i+1),
-                    expected.lon() + (input.centroid().lon() - expected.lon()) / (i+1));
-            i++;
+            if (input.count() > 0) {
+                lonSum += (input.count() * input.centroid().getLon());
+                latSum += (input.count() * input.centroid().getLat());
+            }
+            totalCount += input.count();
         }
-        assertEquals(expected.getLat(), reduced.centroid().getLat(), 1E-5D);
-        assertEquals(expected.getLon(), reduced.centroid().getLon(), 1E-5D);
+        assertEquals(latSum/totalCount, reduced.centroid().getLat(), 1E-5D);
+        assertEquals(lonSum/totalCount, reduced.centroid().getLon(), 1E-5D);
+        assertEquals(totalCount, reduced.count());
     }
 }

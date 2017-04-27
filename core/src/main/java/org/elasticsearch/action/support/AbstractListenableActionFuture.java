@@ -51,8 +51,8 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
 
     public void internalAddListener(ActionListener<T> listener) {
         listener = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener, false);
-        boolean executeImmediate = false;
-        synchronized (this) {
+            boolean executeImmediate = false;
+            synchronized (this) {
             if (executedListeners) {
                 executeImmediate = true;
             } else {

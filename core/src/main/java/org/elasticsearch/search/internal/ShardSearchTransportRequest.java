@@ -44,7 +44,7 @@ import java.io.IOException;
  * the shards where the query needs to be executed. Holds the same info as {@link org.elasticsearch.search.internal.ShardSearchLocalRequest}
  * but gets sent over the transport and holds also the indices coming from the original request that generated it, plus its headers and context.
  */
-public class ShardSearchTransportRequest extends TransportRequest implements ShardSearchRequest, IndicesRequest.Replaceable {
+public class ShardSearchTransportRequest extends TransportRequest implements ShardSearchRequest, IndicesRequest {
 
     private OriginalIndices originalIndices;
 
@@ -175,12 +175,5 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public String getDescription() {
         // Shard id is enough here, the request itself can be found by looking at the parent task description
         return "shardId[" + shardSearchLocalRequest.shardId() + "]";
-    }
-
-    @Override
-    public ShardSearchTransportRequest indices(String... indices) {
-        // on remote cluster searches we need to replace the indices since we pass on wildcards to the remote clusters
-        originalIndices = new OriginalIndices(indices, originalIndices.indicesOptions());
-        return this;
     }
 }

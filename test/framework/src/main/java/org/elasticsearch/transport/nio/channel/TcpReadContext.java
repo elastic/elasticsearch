@@ -57,10 +57,6 @@ public class TcpReadContext implements ReadContext {
     @Override
     public int read() throws IOException {
         bytesRead = 0;
-//        BytesReference ref = new PagedBytesReference(selector.getBigArrays(),
-// selector.getBigArrays().newByteArray(messageLength), messageLength);
-//        BytesRef ref1 = ref.toBytesRef();
-//        ByteBuffer messageBuffer = ByteBuffer.wrap(ref1.bytes,ref1.offset, ref1.length - ref1.offset);
 
         try {
             if (headerBytesRemaining > 0) {

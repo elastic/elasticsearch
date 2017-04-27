@@ -57,15 +57,18 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
@@ -80,13 +83,14 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -108,6 +112,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -221,6 +226,18 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(deleteRequest, deleteShardActions);
+    }
+
+    // for delete index throws an IndexNotFoundException if the index does not exist or create the index if external version is used
+    public void testDeleteAction() throws InterruptedException, ExecutionException {
+        expectThrows(IndexNotFoundException.class, () -> client().prepareDelete("foo", "type", "id").execute().actionGet());
+        expectThrows(IndexNotFoundException.class,
+                () -> client().prepareDelete("foo_internal", "type", "id").setVersionType(VersionType.INTERNAL).execute().actionGet());
+
+        client().prepareDelete("foo_external", "type", "id").setVersionType(VersionType.EXTERNAL).setVersion(0).execute().get();
+        assertFalse(client().prepareGet("foo_external", "type", "id").execute().get().isExists());
+        client().prepareDelete("foo_external_gte", "type", "id").setVersionType(VersionType.EXTERNAL_GTE).setVersion(0).execute().get();
+        assertFalse(client().prepareGet("foo_external_gte", "type", "id").execute().get().isExists());
     }
 
     public void testUpdate() {

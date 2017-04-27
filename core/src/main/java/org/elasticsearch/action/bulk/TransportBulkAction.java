@@ -31,6 +31,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction.OpType;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
@@ -54,6 +55,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.ingest.IngestService;
@@ -144,6 +146,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // Attempt to create all the indices that we're going to need during the bulk before we start.
             // Step 1: collect all the indices in the request
             final Set<String> indices = bulkRequest.requests.stream()
+                .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE 
+                        || request.versionType() == VersionType.EXTERNAL 
+                        || request.versionType() == VersionType.EXTERNAL_GTE)
                 .map(DocWriteRequest::index)
                 .collect(Collectors.toSet());
             /* Step 2: filter that to indices that don't exist and we can create. At the same time build a map of indices we can't create

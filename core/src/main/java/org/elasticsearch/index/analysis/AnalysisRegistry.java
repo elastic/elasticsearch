@@ -37,13 +37,11 @@ import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
 import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
-import org.elasticsearch.plugins.AnalysisPlugin.PreBuiltTokenFilterSpec;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -400,7 +398,7 @@ public final class AnalysisRegistry implements Closeable {
         final Map<String, ? extends AnalysisProvider<TokenFilterFactory>> tokenFilterFactories;
         final Map<String, AnalysisModule.AnalysisProvider<CharFilterFactory>> charFilterFactories;
 
-        private PrebuiltAnalysis(Map<String, PreConfiguredTokenFilter> preBuiltTokenFilters) {
+        private PrebuiltAnalysis(Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters) {
             Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
             Map<String, PreBuiltTokenizerFactoryFactory> tokenizerFactories = new HashMap<>();
             Map<String, PreBuiltCharFilterFactoryFactory> charFilterFactories = new HashMap<>();
@@ -432,7 +430,7 @@ public final class AnalysisRegistry implements Closeable {
             this.analyzerProviderFactories = Collections.unmodifiableMap(analyzerProviderFactories);
             this.charFilterFactories = Collections.unmodifiableMap(charFilterFactories);
             this.tokenizerFactories = Collections.unmodifiableMap(tokenizerFactories);
-            tokenFilterFactories = preBuiltTokenFilters;
+            tokenFilterFactories = preConfiguredTokenFilters;
         }
 
         public AnalysisModule.AnalysisProvider<CharFilterFactory> getCharFilterFactory(String name) {

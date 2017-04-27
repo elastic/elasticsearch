@@ -145,7 +145,6 @@ import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -178,10 +177,10 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
 
-        Map<String, PreConfiguredTokenFilter> preBuiltTokenFilters = setupPreBuiltTokenFilters(plugins);
+        Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
 
         analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers
-            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry(), preBuiltTokenFilters);
+            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry(), preConfiguredTokenFilters);
     }
 
     HunspellService getHunspellService() {
@@ -269,13 +268,13 @@ public final class AnalysisModule {
         return tokenFilters;
     }
 
-    static Map<String, PreConfiguredTokenFilter> setupPreBuiltTokenFilters(List<AnalysisPlugin> plugins) {
-        NamedRegistry<PreConfiguredTokenFilter> preBuiltTokenFilters = new NamedRegistry<>("pre-configured token_filter");
+    static Map<String, PreConfiguredTokenFilter> setupPreConfiguredTokenFilters(List<AnalysisPlugin> plugins) {
+        NamedRegistry<PreConfiguredTokenFilter> preConfiguredTokenFilters = new NamedRegistry<>("pre-configured token_filter");
 
         // Add filters available in lucene-core
-        preBuiltTokenFilters.register("lowercase",
+        preConfiguredTokenFilters.register("lowercase",
                 new PreConfiguredTokenFilter("lowercase", true, CachingStrategy.LUCENE, LowerCaseFilter::new));
-        preBuiltTokenFilters.register("standard",
+        preConfiguredTokenFilters.register("standard",
                 new PreConfiguredTokenFilter("standard", false, CachingStrategy.LUCENE, StandardFilter::new));
         /* Note that "stop" is available in lucene-core but it's pre-built
          * version uses a set of English stop words that are in
@@ -290,17 +289,17 @@ public final class AnalysisModule {
                 continue;
             default:
                 String name = preBuilt.name().toLowerCase(Locale.ROOT);
-                preBuiltTokenFilters.register(name,
+                preConfiguredTokenFilters.register(name,
                         new PreConfiguredTokenFilter(name, preBuilt.isMultiTermAware(), preBuilt.getCachingStrategy(), preBuilt::create));
             }
         }
 
         for (AnalysisPlugin plugin: plugins) {
             for (PreConfiguredTokenFilter filter : plugin.getPreConfiguredTokenFilters()) {
-                preBuiltTokenFilters.register(filter.getName(), filter);
+                preConfiguredTokenFilters.register(filter.getName(), filter);
             }
         }
-        return unmodifiableMap(preBuiltTokenFilters.getRegistry());
+        return unmodifiableMap(preConfiguredTokenFilters.getRegistry());
     }
 
     private NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {

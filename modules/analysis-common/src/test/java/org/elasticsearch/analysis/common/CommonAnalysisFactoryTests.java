@@ -64,8 +64,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     }
 
     @Override
-    protected Map<String, Class<?>> getPreBuiltTokenFilters() {
-        Map<String, Class<?>> filters = new TreeMap<>(super.getPreBuiltTokenFilters());
+    protected Map<String, Class<?>> getPreConfiguredTokenFilters() {
+        Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenFilters());
         filters.put("asciifolding", null);
         filters.put("classic", null);
         filters.put("common_grams", null);

@@ -336,7 +336,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
      * the test will look it up for you from the name. If there is no Lucene {@linkplain TokenFilterFactory} then the right hand side should
      * be {@link Void}.
      */
-    protected Map<String, Class<?>> getPreBuiltTokenFilters() {
+    protected Map<String, Class<?>> getPreConfiguredTokenFilters() {
         Map<String, Class<?>> filters = new HashMap<>();
         filters.put("standard", null);
         filters.put("lowercase", null);
@@ -462,8 +462,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                 expected.add(tokenizer);
             }
         }
-        Map<String, PreConfiguredTokenFilter> preBuiltTokenFilters = AnalysisModule.setupPreBuiltTokenFilters(singletonList(plugin));
-        for (Map.Entry<String, Class<?>> entry : getPreBuiltTokenFilters().entrySet()) {
+        Map<String, PreConfiguredTokenFilter> preBuiltTokenFilters = AnalysisModule.setupPreConfiguredTokenFilters(singletonList(plugin));
+        for (Map.Entry<String, Class<?>> entry : getPreConfiguredTokenFilters().entrySet()) {
             String name = entry.getKey();
             Class<?> luceneFactory = entry.getValue();
             if (luceneFactory == Void.class) {

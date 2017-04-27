@@ -62,6 +62,7 @@ import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;

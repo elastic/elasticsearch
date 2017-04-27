@@ -73,7 +73,6 @@ public class JobDataDeleter {
 
         RangeQueryBuilder timeRange = QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName());
         timeRange.gte(cutoffEpochMs);
-        timeRange.lt(new Date().getTime());
 
         RepeatingSearchScrollListener scrollSearchListener = new RepeatingSearchScrollListener(index, listener);
 

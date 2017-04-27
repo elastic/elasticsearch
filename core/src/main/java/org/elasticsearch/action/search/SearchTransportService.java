@@ -86,9 +86,7 @@ public class SearchTransportService extends AbstractLifecycleComponent {
         this.transportService = transportService;
         this.remoteClusterService = new RemoteClusterService(settings, transportService);
         if (connectToRemote) {
-            clusterSettings.addAffixUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS, remoteClusterService::updateRemoteCluster,
-                (namespace, value) -> {
-                });
+            remoteClusterService.listenForUpdates(clusterSettings);
         }
     }
 

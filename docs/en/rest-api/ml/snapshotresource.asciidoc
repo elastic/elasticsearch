@@ -14,7 +14,6 @@ When choosing a new value, consider the following:
 * Persistence enables snapshots to be reverted.
 * The time taken to persist a job is proportional to the size of the model in memory.
 //* The smallest allowed value is 3600 (1 hour).
-////
 
 A model snapshot resource has the following properties:
 
@@ -34,7 +33,8 @@ A model snapshot resource has the following properties:
   (object) Summary information describing the model. See <<ml-snapshot-stats,Model Size Statistics>>.
 
 `retain`::
-  (boolean) If true, this snapshot will not be deleted during automatic cleanup of snapshots older than `model_snapshot_retention_days`.
+  (boolean) If true, this snapshot will not be deleted during automatic cleanup of snapshots 
+  older than `model_snapshot_retention_days`.
   However, this snapshot will be deleted when the job is deleted.
   The default value is false.
 
@@ -89,4 +89,4 @@ The `model_size_stats` object has the following properties:
 
 `total_partition_field_count`::
   (long) The number of _partition_ field values analyzed.
-////
+

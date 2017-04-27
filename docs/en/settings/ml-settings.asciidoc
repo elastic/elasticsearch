@@ -1,6 +1,6 @@
 [[ml-settings]]
 == Machine Learning Settings
-You do not need to configure any settings to use {ml}.
+You do not need to configure any settings to use {ml}. It is enabled by default.
 
 [float]
 [[general-ml-settings]]

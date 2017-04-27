@@ -12,14 +12,14 @@ Use machine learning to detect anomalies in time series data.
 [[ml-api-datafeed-endpoint]]
 === Data Feeds
 
-* <<ml-put-datafeed,Create data feeds>>
-* <<ml-delete-datafeed,Delete data feeds>>
-* <<ml-get-datafeed,Get data feeds>>
+* <<ml-put-datafeed,Create data feed>>
+* <<ml-delete-datafeed,Delete data feed>>
+* <<ml-get-datafeed,Get data feed info>>
 * <<ml-get-datafeed-stats,Get data feed statistics>>
-* <<ml-preview-datafeed,Preview data feeds>>
-* <<ml-start-datafeed,Start data feeds>>
-* <<ml-stop-datafeed,Stop data feeds>>
-* <<ml-update-datafeed,Update data feeds>>
+* <<ml-preview-datafeed,Preview data feed>>
+* <<ml-start-datafeed,Start data feed>>
+* <<ml-stop-datafeed,Stop data feed>>
+* <<ml-update-datafeed,Update data feed>>
 
 include::ml/put-datafeed.asciidoc[]
 include::ml/delete-datafeed.asciidoc[]
@@ -35,15 +35,15 @@ include::ml/update-datafeed.asciidoc[]
 
 You can use APIs to perform the following activities:
 
-* <<ml-close-job,Close jobs>>
-* <<ml-put-job,Create jobs>>
-* <<ml-delete-job,Delete jobs>>
-* <<ml-get-job,Get jobs>>
+* <<ml-close-job,Close job>>
+* <<ml-put-job,Create job>>
+* <<ml-delete-job,Delete job>>
+* <<ml-get-job,Get job info>>
 * <<ml-get-job-stats,Get job statistics>>
-* <<ml-flush-job,Flush jobs>>
-* <<ml-open-job,Open jobs>>
-* <<ml-post-data,Post data to jobs>>
-* <<ml-update-job,Update jobs>>
+* <<ml-flush-job,Flush job>>
+* <<ml-open-job,Open job>>
+* <<ml-post-data,Post data to job>>
+* <<ml-update-job,Update job>>
 * <<ml-valid-detector,Validate detectors>>
 * <<ml-valid-job,Validate job>>
 
@@ -62,10 +62,10 @@ include::ml/validate-job.asciidoc[]
 [[ml-api-snapshot-endpoint]]
 === Model Snapshots
 
-* <<ml-delete-snapshot,Delete model snapshots>>
-* <<ml-get-snapshot,Get model snapshots>>
-* <<ml-revert-snapshot,Revert model snapshots>>
-* <<ml-update-snapshot,Update model snapshots>>
+* <<ml-delete-snapshot,Delete model snapshot>>
+* <<ml-get-snapshot,Get model snapshot info>>
+* <<ml-revert-snapshot,Revert model snapshot>>
+* <<ml-update-snapshot,Update model snapshot>>
 
 include::ml/delete-snapshot.asciidoc[]
 include::ml/get-snapshot.asciidoc[]
@@ -91,7 +91,7 @@ include::ml/get-record.asciidoc[]
 * <<ml-datafeed-resource,Data feeds>>
 * <<ml-datafeed-counts,Data feed counts>>
 * <<ml-job-resource,Jobs>>
-* <<ml-jobstats,Job Stats>>
+* <<ml-jobstats,Job statistics>>
 * <<ml-snapshot-resource,Model snapshots>>
 * <<ml-results-resource,Results>>
 

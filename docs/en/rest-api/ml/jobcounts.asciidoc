@@ -118,14 +118,8 @@ necessarily a cause for concern.
   This value includes records with missing fields, since they are nonetheless
   analyzed. +
   If you use data feeds and have aggregations in your search query,
-  the `processed_record_count` differs from the `input_record_count`. +
-  If you use the <<ml-post-data,post data API>> to provide data to the job,
-  the following records are not processed: +
-+
---
-* Records not in chronological order and outside the latency window
-* Records with invalid timestamp
---
+  the `processed_record_count` will be the number of aggregated records
+  processed, not the number of {es} documents. 
 
 `sparse_bucket_count`::
   (long) The number of buckets that contained few data points compared to the
@@ -167,12 +161,12 @@ The `model_size_stats` object has the following properties:
   (string) For internal use. The type of result.
 
 `total_by_field_count`::
-  (long) The number of `by` field values that were analyzed by the models.
+  (long) The number of `by` field values that were analyzed by the models.+
 
 NOTE: The `by` field values are counted separately for each detector and partition.
 
 `total_over_field_count`::
-  (long) The number of `over` field values that were analyzed by the models.
+  (long) The number of `over` field values that were analyzed by the models.+
 
 NOTE: The `over` field values are counted separately for each detector and partition.
 
@@ -196,12 +190,10 @@ This information is available only for open jobs.
   (string) The node name.
 
 `ephemeral_id`::
-
+  (string) The ephemeral id of the node.
 
 `transport_address`::
   (string) The host and port where transport HTTP connections are accepted.
 
 `attributes`::
-  (object) {ml} attributes.
-  `max_running_jobs`::: The maximum number of concurrently open jobs that are
-  allowed per node.
+  (object) For example, {"max_running_jobs": "10"}.

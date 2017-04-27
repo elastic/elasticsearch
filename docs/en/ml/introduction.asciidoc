@@ -19,8 +19,8 @@ science-related configurations in order to get the benefits of {ml}.
 === Integration with the Elastic Stack
 
 Machine learning is tightly integrated with the Elastic Stack.
-Data is pulled from {es} for analysis and anomaly results are displayed in
-{kb} dashboards.
+Data is pulled from {es} for analysis and anomaly results are displayed in {kb} 
+dashboards.
 
 [float]
 [[ml-concepts]]
@@ -36,23 +36,25 @@ Jobs::
   with a job, see <<ml-job-resource, Job Resources>>.
 
 Data feeds::
-  Jobs can analyze either a batch of data from a data store or a stream of data
-  in real-time. The latter involves data that is retrieved from {es} and is
-  referred to as a data feed.
+  Jobs can analyze either a one-off batch of data or continuously in real-time. 
+  Data feeds retrieve data from {es} for analysis. Alternatively you can 
+  <<ml-post-data],POST data>> from any source directly to an API. 
 
 Detectors::
   Part of the configuration information associated with a job, detectors define
   the type of analysis that needs to be done (for example, max, average, rare).
   They also specify which fields to analyze. You can have more than one detector
   in a job, which is more efficient than running multiple jobs against the same
-  data stream. For a list of the properties associated with detectors, see
+  data. For a list of the properties associated with detectors, see
   <<ml-detectorconfig, Detector Configuration Objects>>.
 
 Buckets::
   Part of the configuration information associated with a job, the _bucket span_
-  defines the time interval across which the job analyzes. When setting the
+  defines the time interval used to summarize and model the data. This is typically
+  between 5 minutes to 1 hour, and it depends on your data characteristics. When setting the
   bucket span, take into account the granularity at which you want to analyze,
-  the frequency of the input data, and the frequency at which alerting is required.
+  the frequency of the input data, the typical duration of the anomalies
+  and the frequency at which alerting is required.
 
 Machine learning nodes::
   A {ml} node is a node that has `xpack.ml.enabled` and `node.ml` set to `true`,

@@ -10,11 +10,11 @@ All {ml} endpoints have the following base:
 
 The main {ml} resources can be accessed with a variety of endpoints:
 
-* <<ml-api-jobs,+/anomaly_detectors/+>>: Create and manage {ml} jobs.
-* <<ml-api-datafeeds,+/datafeeds/+>>: Update data to be analyzed.
-* <<ml-api-results,+/results/+>>: Access the results of a {ml} job.
-* <<ml-api-snapshots,+/model_snapshots/+>>: Manage model snapshots.
-* <<ml-api-validate,+/validate/+>>: Validate subsections of job configurations.
+* <<ml-api-jobs,+/anomaly_detectors/+>>: Create and manage {ml} jobs
+* <<ml-api-datafeeds,+/datafeeds/+>>: Select data from {es} to be analyzed
+* <<ml-api-results,+/results/+>>: Access the results of a {ml} job
+* <<ml-api-snapshots,+/model_snapshots/+>>: Manage model snapshots
+* <<ml-api-validate,+/validate/+>>: Validate subsections of job configurations
 
 [float]
 [[ml-api-jobs]]

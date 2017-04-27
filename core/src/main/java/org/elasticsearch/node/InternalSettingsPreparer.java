@@ -23,6 +23,8 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
@@ -106,6 +108,11 @@ public class InternalSettingsPreparer {
         if (foundSuffixes.size() > 1) {
             throw new SettingsException("multiple settings files found with suffixes: "
                 + Strings.collectionToDelimitedString(foundSuffixes, ","));
+        }
+        if (foundSuffixes.contains(".yml") || foundSuffixes.contains(".json")) {
+            final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(InternalSettingsPreparer.class));
+            deprecationLogger.deprecated("elasticsearch{} is deprecated; rename your configuration file to elasticsearch.yaml",
+                                         foundSuffixes.iterator().next());
         }
 
         // re-initialize settings now that the config file has been loaded

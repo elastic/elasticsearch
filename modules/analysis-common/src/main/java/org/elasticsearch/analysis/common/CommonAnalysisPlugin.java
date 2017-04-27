@@ -75,7 +75,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
         // TODO we should revisit the caching strategies.
         List<PreConfiguredTokenFilter> filters = new ArrayList<>();
-        filters.add(new PreConfiguredTokenFilter("asciifolding", true, CachingStrategy.ONE, ASCIIFoldingFilter::new));
+        filters.add(new PreConfiguredTokenFilter("asciifolding", true, CachingStrategy.ONE, input -> new ASCIIFoldingFilter(input)));
         filters.add(new PreConfiguredTokenFilter("classic", false, CachingStrategy.ONE, ClassicFilter::new));
         filters.add(new PreConfiguredTokenFilter("common_grams", false, CachingStrategy.LUCENE, input ->
                 new CommonGramsFilter(input, CharArraySet.EMPTY_SET)));
@@ -91,14 +91,14 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         // TODO deprecate nGram
         filters.add(new PreConfiguredTokenFilter("nGram", false, CachingStrategy.LUCENE, NGramTokenFilter::new));
         filters.add(new PreConfiguredTokenFilter("porter_stem", false, CachingStrategy.ONE, PorterStemFilter::new));
-        filters.add(new PreConfiguredTokenFilter("reverse", false, CachingStrategy.LUCENE, ReverseStringFilter::new));
+        filters.add(new PreConfiguredTokenFilter("reverse", false, CachingStrategy.LUCENE, input -> new ReverseStringFilter(input)));
         // The stop filter is in lucene-core but the English stop words set is in lucene-analyzers-common
         filters.add(new PreConfiguredTokenFilter("stop", false, CachingStrategy.LUCENE, input ->
                 new StopFilter(input, StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
         filters.add(new PreConfiguredTokenFilter("trim", false, CachingStrategy.LUCENE, TrimFilter::new));
         filters.add(new PreConfiguredTokenFilter("truncate", false, CachingStrategy.ONE, input ->
                 new TruncateTokenFilter(input, 10)));
-        filters.add(new PreConfiguredTokenFilter("unique", false, CachingStrategy.ONE, UniqueTokenFilter::new));
+        filters.add(new PreConfiguredTokenFilter("unique", false, CachingStrategy.ONE, input -> new UniqueTokenFilter(input)));
         filters.add(new PreConfiguredTokenFilter("uppercase", true, CachingStrategy.LUCENE, UpperCaseFilter::new));
         filters.add(new PreConfiguredTokenFilter("word_delimiter", false, CachingStrategy.ONE, input ->
                 new WordDelimiterFilter(input,

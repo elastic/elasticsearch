@@ -109,7 +109,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
             .put(Environment.PATH_LOGS_SETTING.getKey(), resolve)
             .put(TransportSettings.PORT.getKey(), 0)
-            .put(Node.WRITE_PORTS_FIELD_SETTING.getKey(), "true")
+            .put(Node.WRITE_PORTS_FILE_SETTING.getKey(), "true")
             .put(AzureComputeService.Management.ENDPOINT_SETTING.getKey(), "https://" + InetAddress.getLoopbackAddress().getHostAddress() +
                 ":" + httpsServer.getAddress().getPort())
             .put(Environment.PATH_CONF_SETTING.getKey(), keyStoreFile.getParent().toAbsolutePath())

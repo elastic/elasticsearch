@@ -369,11 +369,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public String getTargetAllocationId() {
-        return indexShard().routingEntry().allocationId().getId();
-    }
-
-    @Override
     public void ensureClusterStateVersion(long clusterStateVersion) {
         ensureClusterStateVersionCallback.handle(clusterStateVersion);
     }

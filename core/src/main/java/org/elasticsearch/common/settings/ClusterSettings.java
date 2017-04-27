@@ -61,7 +61,6 @@ import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexingMemoryController;
@@ -345,7 +344,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.DEFAULT_KEEPALIVE_SETTING,
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
                     SearchService.LOW_LEVEL_CANCELLATION_SETTING,
-                    Node.WRITE_PORTS_FIELD_SETTING,
+                    Node.WRITE_PORTS_FILE_SETTING,
                     Node.NODE_NAME_SETTING,
                     Node.NODE_DATA_SETTING,
                     Node.NODE_MASTER_SETTING,

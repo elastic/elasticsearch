@@ -103,7 +103,8 @@ public class GraphTests extends XPackSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(ScriptedTimeoutPlugin.class, XPackPlugin.class);
     }
-    
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/918")
     public void testSignificanceQueryCrawl() {
         GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
         Hop hop1 = grb.createNextHop(QueryBuilders.termQuery("description", "beatles"));

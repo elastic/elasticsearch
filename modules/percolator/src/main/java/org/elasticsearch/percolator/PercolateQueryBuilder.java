@@ -23,16 +23,22 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -51,6 +57,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -62,6 +70,8 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -412,12 +422,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             docSearcher.setQueryCache(null);
         }
 
-        Version indexVersionCreated = context.getIndexSettings().getIndexVersionCreated();
         boolean mapUnmappedFieldsAsString = context.getIndexSettings()
                 .getValue(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
-        // We have to make a copy of the QueryShardContext here so we can have a unfrozen version for parsing the legacy
-        // percolator queries
-        QueryShardContext percolateShardContext = new QueryShardContext(context);
+        QueryShardContext percolateShardContext = wrap(context);
         MappedFieldType fieldType = context.fieldMapper(field);
         if (fieldType == null) {
             throw new QueryShardException(context, "field [" + field + "] does not exist");
@@ -500,6 +507,38 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     return null;
                 }
             };
+        };
+    }
+
+    static QueryShardContext wrap(QueryShardContext shardContext) {
+        return new QueryShardContext(shardContext) {
+
+            @Override
+            public BitSetProducer bitsetFilter(Query query) {
+                return context -> {
+                    final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
+                    final IndexSearcher searcher = new IndexSearcher(topLevelContext);
+                    searcher.setQueryCache(null);
+                    final Weight weight = searcher.createNormalizedWeight(query, false);
+                    final Scorer s = weight.scorer(context);
+
+                    if (s != null) {
+                        return new BitDocIdSet(BitSet.of(s.iterator(), context.reader().maxDoc())).bits();
+                    } else {
+                        return null;
+                    }
+                };
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder();
+                IndexFieldDataCache cache = new IndexFieldDataCache.None();
+                CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
+                return (IFD) builder.build(shardContext.getIndexSettings(), fieldType, cache, circuitBreaker,
+                        shardContext.getMapperService());
+            }
         };
     }
 

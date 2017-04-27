@@ -22,7 +22,6 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -32,8 +31,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 
-final class SearchQueryThenFetchAsyncAction
-        extends AbstractSearchAsyncAction<SearchPhaseResult> {
+final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
     private final SearchPhaseController searchPhaseController;
 
@@ -47,7 +45,7 @@ final class SearchQueryThenFetchAsyncAction
             final Executor executor,
             final SearchRequest request,
             final ActionListener<SearchResponse> listener,
-            final GroupShardsIterator shardsIts,
+            final GroupShardsIterator<SearchShardIterator> shardsIts,
             final TransportSearchAction.SearchTimeProvider timeProvider,
             long clusterStateVersion,
             SearchTask task) {
@@ -70,7 +68,7 @@ final class SearchQueryThenFetchAsyncAction
     }
 
     protected void executePhaseOnShard(
-            final ShardIterator shardIt,
+            final SearchShardIterator shardIt,
             final ShardRouting shard,
             final SearchActionListener<SearchPhaseResult> listener) {
         getSearchTransport().sendExecuteQuery(

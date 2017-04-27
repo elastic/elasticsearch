@@ -26,6 +26,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -913,13 +914,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 try {
                     final Repository repository = repositoriesService.repository(snapshot.getRepository());
                     logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
-                    ArrayList<ShardSearchFailure> failures = new ArrayList<>();
                     ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
                     for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
                         ShardId shardId = shardStatus.key;
                         ShardSnapshotStatus status = shardStatus.value;
                         if (status.state().failed()) {
-                            failures.add(new ShardSearchFailure(status.reason(), new SearchShardTarget(status.nodeId(), shardId)));
                             shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
                         }
                     }

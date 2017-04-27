@@ -639,7 +639,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
-                .setSettings(Settings.builder().put("index.refresh_interval", -1))
+                .setSettings("index.refresh_interval", -1)
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("my-type2", jsonBuilder()
                         .startObject()
                             .startObject("my-type2")
@@ -871,6 +872,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     public void testLoadMetadata() throws Exception {
         assertAcked(prepareCreate("test")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("my-type1", "_parent", "type=parent"));
 

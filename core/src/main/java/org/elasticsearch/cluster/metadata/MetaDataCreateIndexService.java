@@ -598,7 +598,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         indexSettingsBuilder
             // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
             // once we are allocated.
-            .put("index.routing.allocation.initial_recovery._id",
+            .put(IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id",
                 Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
             // we only try once and then give up with a shrink index
             .put("index.allocation.max_retries", 1)

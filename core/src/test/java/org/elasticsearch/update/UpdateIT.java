@@ -728,7 +728,9 @@ public class UpdateIT extends ESIntegTestCase {
     }
 
     public void testContextVariables() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+        assertAcked(prepareCreate("test")
+                        .setSettings("index.mapping.single_type", false)
+                        .addAlias(new Alias("alias"))
                         .addMapping("type1", XContentFactory.jsonBuilder()
                                 .startObject()
                                 .startObject("type1")

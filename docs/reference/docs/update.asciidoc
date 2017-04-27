@@ -75,7 +75,7 @@ We can also add a new field to the document:
 --------------------------------------------------
 POST test/type1/1/_update
 {
-    "script" : "ctx._source.new_field = \"value_of_new_field\""
+    "script" : "ctx._source.new_field = 'value_of_new_field'"
 }
 --------------------------------------------------
 // CONSOLE
@@ -87,7 +87,7 @@ Or remove a field from the document:
 --------------------------------------------------
 POST test/type1/1/_update
 {
-    "script" : "ctx._source.remove(\"new_field\")"
+    "script" : "ctx._source.remove('new_field')"
 }
 --------------------------------------------------
 // CONSOLE
@@ -102,7 +102,7 @@ the doc if the `tags` field contain `green`, otherwise it does nothing
 POST test/type1/1/_update
 {
     "script" : {
-        "inline": "if (ctx._source.tags.contains(params.tag)) { ctx.op = \"delete\" } else { ctx.op = \"none\" }",
+        "inline": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
         "lang": "painless",
         "params" : {
             "tag" : "green"
@@ -242,6 +242,9 @@ POST sessions/session/dh3sgudg8gsrgl/_update
     "upsert" : {}
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[s/"id": "my_web_session_summariser"/"inline": "ctx._source.page_view_event = params.pageViewEvent"/]
+// TEST[continued]
 
 [float]
 ==== `doc_as_upsert`
@@ -262,7 +265,6 @@ POST test/type1/1/_update
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
-
 
 [float]
 === Parameters

@@ -826,6 +826,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testAliasesFilterWithHasChildQuery() throws Exception {
         assertAcked(prepareCreate("my-index")
+                        .setSettings("index.mapping.single_type", false)
                         .addMapping("parent")
                         .addMapping("child", "_parent", "type=parent")
         );

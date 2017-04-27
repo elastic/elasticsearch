@@ -544,7 +544,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTypeFilter() throws Exception {
-        assertAcked(prepareCreate("test"));
+        assertAcked(prepareCreate("test").setSettings("index.mapping.single_type", false));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
@@ -1180,7 +1180,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testBasicQueryById() throws Exception {
-        createIndex("test");
+        assertAcked(prepareCreate("test").setSettings("index.mapping.single_type", false));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
         client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
@@ -1447,6 +1447,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testSimpleDFSQuery() throws IOException {
         assertAcked(prepareCreate("test")
+                .setSettings("index.mapping.single_type", false)
             .addMapping("s", jsonBuilder()
                 .startObject()
                 .startObject("s")
@@ -1642,7 +1643,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testQueryStringWithSlopAndFields() {
-        createIndex("test");
+        assertAcked(prepareCreate("test").setSettings("index.mapping.single_type", false));
 
         client().prepareIndex("test", "customer", "1").setSource("desc", "one two three").get();
         client().prepareIndex("test", "product", "2").setSource("desc", "one two three").get();

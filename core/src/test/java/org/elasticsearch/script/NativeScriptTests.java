@@ -52,8 +52,9 @@ public class NativeScriptTests extends ESTestCase {
         List<Setting<?>> scriptSettings = scriptModule.getSettings();
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
 
-        ExecutableScript executable = scriptModule.getScriptService().executable(
-                new Script(ScriptType.INLINE, NativeScriptEngineService.NAME, "my", Collections.emptyMap()), ScriptContext.Standard.SEARCH);
+        Script script = new Script(ScriptType.INLINE, NativeScriptEngineService.NAME, "my", Collections.emptyMap());
+        CompiledScript compiledScript = scriptModule.getScriptService().compile(script, ScriptContext.Standard.SEARCH);
+        ExecutableScript executable = scriptModule.getScriptService().executable(compiledScript, script.getParams());
         assertThat(executable.run().toString(), equalTo("test"));
     }
 

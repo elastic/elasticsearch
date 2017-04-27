@@ -136,8 +136,12 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         getMultiSortDocs(builders);
 
+        assertAcked(client().admin().indices().prepareCreate("high_card_idx")
+                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
+                        MULTI_VALUED_FIELD_NAME, "type=keyword",
+                        "tag", "type=keyword").get());
         for (int i = 0; i < 100; i++) {
-            builders.add(client().prepareIndex("idx", "high_card_type").setSource(
+            builders.add(client().prepareIndex("high_card_idx", "type").setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val" + Strings.padStart(i + "", 3, '0'))
                             .startArray(MULTI_VALUED_FIELD_NAME).value("val" + Strings.padStart(i + "", 3, '0'))
                             .value("val" + Strings.padStart((i + 1) + "", 3, '0')).endArray().endObject()));
@@ -203,26 +207,26 @@ public class StringTermsIT extends AbstractTermsTestCase {
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
                         "tag", "type=keyword").get());
         for (int i = 1; i <= 3; i++) {
-            builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(
+            builders.add(client().prepareIndex("sort_idx", "type").setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val1").field("l", 1).field("d", i).endObject()));
-            builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(
+            builders.add(client().prepareIndex("sort_idx", "type").setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val2").field("l", 2).field("d", i).endObject()));
         }
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val3").field("l", 3).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val3").field("l", 3).field("d", 2).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val4").field("l", 3).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val4").field("l", 3).field("d", 3).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val5").field("l", 5).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val5").field("l", 5).field("d", 2).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val6").field("l", 5).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val7").field("l", 5).field("d", 1).endObject()));
     }
 
@@ -234,8 +238,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
     public void testSizeIsZero() {
         final int minDocCount = randomInt(1);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> client()
-                .prepareSearch("idx")
-                .setTypes("high_card_type")
+                .prepareSearch("high_card_idx")
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values())).minDocCount(minDocCount).size(0)).execute()
@@ -302,8 +305,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         // we should be left with: val000, val001, val002, val003, val004, val005, val006, val007, val008, val009
 
         SearchResponse response = client()
-                .prepareSearch("idx")
-                .setTypes("high_card_type")
+                .prepareSearch("high_card_idx")
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())).includeExclude(new IncludeExclude("val00.+", null)))
@@ -327,8 +329,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         // we should be left with: val002, val003, val004, val005, val006, val007, val008, val009
 
         response = client()
-                .prepareSearch("idx")
-                .setTypes("high_card_type")
+                .prepareSearch("high_card_idx")
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -353,8 +354,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         // we should be left with: val000, val001, val002, val003, val004, val005, val006, val007, val008, val009
 
         response = client()
-                .prepareSearch("idx")
-                .setTypes("high_card_type")
+                .prepareSearch("high_card_idx")
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -380,8 +380,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         // include without exclude
         String incVals[] = { "val000", "val001", "val002", "val003", "val004", "val005", "val006", "val007", "val008", "val009" };
         SearchResponse response = client()
-                .prepareSearch("idx")
-                .setTypes("high_card_type")
+                .prepareSearch("high_card_idx")
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())).includeExclude(new IncludeExclude(incVals, null)))
@@ -408,8 +407,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         String excVals[] = { "val000", "val001" };
 
         response = client()
-                .prepareSearch("idx")
-                .setTypes("high_card_type")
+                .prepareSearch("high_card_idx")
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())).includeExclude(new IncludeExclude(incVals, excVals)))
@@ -432,8 +430,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         // Check case with only exact term exclude clauses
         response = client()
-                .prepareSearch("idx")
-                .setTypes("high_card_type")
+                .prepareSearch("high_card_idx")
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())).includeExclude(new IncludeExclude(null, excVals)))
@@ -500,8 +497,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValueFieldWithMaxSize() throws Exception {
         SearchResponse response = client()
-                .prepareSearch("idx")
-                .setTypes("high_card_type")
+                .prepareSearch("high_card_idx")
                 .addAggregation(
                         terms("terms")
                                 .executionHint(randomExecutionHint())
@@ -1505,7 +1501,6 @@ public class StringTermsIT extends AbstractTermsTestCase {
     private void assertMultiSortResponse(String[] expectedKeys, Terms.Order... order) {
         SearchResponse response = client()
                 .prepareSearch("sort_idx")
-                .setTypes("multi_sort_type")
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values())).order(Terms.Order.compound(order))

@@ -113,7 +113,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        createIndex("idx", "high_card_idx");
         IndexRequestBuilder[] lowCardBuilders = new IndexRequestBuilder[NUM_DOCS];
         for (int i = 0; i < lowCardBuilders.length; i++) {
             lowCardBuilders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
@@ -123,10 +123,10 @@ public class LongTermsIT extends AbstractTermsTestCase {
                     .field("num_tag", i < lowCardBuilders.length / 2 + 1 ? 1 : 0) // used to test order by single-bucket sub agg
                     .endObject());
         }
-        indexRandom(randomBoolean(), lowCardBuilders);
+        indexRandom(true, lowCardBuilders);
         IndexRequestBuilder[] highCardBuilders = new IndexRequestBuilder[100]; // TODO randomize the size?
         for (int i = 0; i < highCardBuilders.length; i++) {
-           highCardBuilders[i] = client().prepareIndex("idx", "high_card_type").setSource(jsonBuilder()
+           highCardBuilders[i] = client().prepareIndex("high_card_idx", "type").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, i)
                     .startArray(MULTI_VALUED_FIELD_NAME).value(i).value(i + 1).endArray()
@@ -268,7 +268,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
     public void testSizeIsZero() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> client().prepareSearch("idx").setTypes("high_card_type")
+                () -> client().prepareSearch("high_card_idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -279,7 +279,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -317,7 +317,8 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     private void testIncludeExcludeResults(int minDocCount, long[] includes, long[] excludes,
                                            long[] expectedWithCounts, long[] expectedZeroCounts) {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx", "high_card_idx")
+                .setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("_index", "high_card_idx")))
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .includeExclude(new IncludeExclude(includes, excludes))
@@ -355,7 +356,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     private void runTestFieldWithPartitionedFiltering(String field) throws Exception {
         // Find total number of unique terms
-        SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
+        SearchResponse allResponse = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field(field).collectMode(randomFrom(SubAggCollectionMode.values()))).execute().actionGet();
         assertSearchResponse(allResponse);
         Terms terms = allResponse.getAggregations().get("terms");
@@ -367,7 +368,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         final int numPartitions = randomIntBetween(2, 4);
         Set<Number> foundTerms = new HashSet<>();
         for (int partition = 0; partition < numPartitions; partition++) {
-            SearchResponse response = client().prepareSearch("idx").setTypes("type")
+            SearchResponse response = client().prepareSearch("idx")
                     .addAggregation(
                             terms("terms").field(field).includeExclude(new IncludeExclude(partition, numPartitions))
                                     .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -386,7 +387,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
 
     public void testSingleValueFieldWithMaxSize() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
+        SearchResponse response = client().prepareSearch("high_card_idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .size(20)
@@ -412,7 +413,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValueFieldOrderedByTermAsc() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -436,7 +437,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValueFieldOrderedByTermDesc() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -462,7 +463,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValuedFieldWithSubAggregation() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -496,7 +497,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValuedFieldWithValueScript() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -521,7 +522,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -549,7 +550,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testMultiValuedFieldWithValueScript() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -578,7 +579,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testMultiValuedFieldWithValueScriptNotUnique() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -622,7 +623,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         Script script =
             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
 
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .script(script))
@@ -649,7 +650,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         Script script =
             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']", Collections.emptyMap());
 
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .script(script))
@@ -677,7 +678,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .size(randomIntBetween(1, 5))
@@ -694,7 +695,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -718,7 +719,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmappedWithFormat() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -764,7 +765,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAsc() throws Exception {
         boolean asc = true;
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -793,7 +794,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscWithTermsSubAgg() throws Exception {
         boolean asc = true;
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -837,7 +838,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleBucketSubAggregationAsc() throws Exception {
         boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("num_tags")
                         .field("num_tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -874,7 +875,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySubAggregationAscMultiHierarchyLevels() throws Exception {
         boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("tags")
                         .field("num_tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -929,7 +930,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldOrderedByMissingSubAggregation() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
-                client().prepareSearch(index).setTypes("type")
+                client().prepareSearch(index)
                         .addAggregation(terms("terms")
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -947,7 +948,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldOrderedByNonMetricsOrMultiBucketSubAggregation() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
-                client().prepareSearch(index).setTypes("type")
+                client().prepareSearch(index)
                         .addAggregation(terms("terms")
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -967,7 +968,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldOrderedByMultiValuedSubAggregationWithUknownMetric() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
-                client().prepareSearch(index).setTypes("type")
+                client().prepareSearch(index)
                         .addAggregation(terms("terms")
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -987,7 +988,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldOrderedByMultiValuedSubAggregationWithoutMetric() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
-                client().prepareSearch(index).setTypes("type")
+                client().prepareSearch(index)
                         .addAggregation(terms("terms")
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -1006,7 +1007,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationDesc() throws Exception {
         boolean asc = false;
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -1038,7 +1039,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValueSubAggregationAsc() throws Exception {
         boolean asc = true;
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -1068,7 +1069,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValueSubAggregationDesc() throws Exception {
         boolean asc = false;
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -1098,7 +1099,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValueExtendedStatsAsc() throws Exception {
         boolean asc = true;
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))

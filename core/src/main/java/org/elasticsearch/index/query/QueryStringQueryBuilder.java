@@ -981,7 +981,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             }
             qpSettings.lenient(lenient == null ? context.queryStringLenient() : lenient);
         }
-        qpSettings.fieldsAndWeights(resolvedFields);
+        if (fieldsAndWeights.isEmpty() == false || resolvedFields.isEmpty() == false) {
+            // We set the fields and weight only if we have explicit fields to query
+            // Otherwise we set it to null and fallback to the default field.
+            qpSettings.fieldsAndWeights(resolvedFields);
+        }
         qpSettings.defaultOperator(defaultOperator.toQueryParserOperator());
 
         if (analyzer == null) {

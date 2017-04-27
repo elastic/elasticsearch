@@ -13,3 +13,9 @@ providing the source in bytes or as a string.
 In previous versions of Elasticsearch, delete by query requests without an explicit query
 were accepted, match_all was used as the default query and all documents were deleted
 as a result. From version 6.0.0, a `DeleteByQueryRequest` requires an explicit query be set.
+
+=== `InternalStats` and `Stats` getCountAsString() method removed
+
+The `count` value in the stats aggregation represents a doc count that shouldnn't require a formatted 
+version. This method was deprecated in 5.4 in favour of just using
+`String.valueOf(getCount())` if needed

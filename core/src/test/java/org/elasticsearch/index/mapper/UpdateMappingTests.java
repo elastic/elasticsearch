@@ -42,15 +42,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
-    private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {
-        IndexService indexService = createIndex("test", Settings.builder().build(), "type", mapping);
-        // simulate like in MetaDataMappingService#putMapping
-        indexService.mapperService().merge("type", new CompressedXContent(mappingUpdate.bytes()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        // make sure mappings applied
-        CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
-        assertThat(mappingAfterUpdate.toString(), equalTo(expectedMapping.string()));
-    }
-
     public void testConflictFieldsMapping(String fieldName) throws Exception {
         //test store, ... all the parameters that are not to be changed just like in other fields
         XContentBuilder mapping = XContentFactory.jsonBuilder()
@@ -159,7 +150,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("foo").field("type", "long").endObject()
                 .endObject().endObject().endObject();
         XContentBuilder mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject();
-        MapperService mapperService = createIndex("test", Settings.builder().build()).mapperService();
+        MapperService mapperService = createIndex("test", Settings.builder().put("mapping.single_type", false).build()).mapperService();
 
         mapperService.merge("type1", new CompressedXContent(mapping1.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapperService.merge("type2", new CompressedXContent(mapping2.string()), MapperService.MergeReason.MAPPING_UPDATE, false);

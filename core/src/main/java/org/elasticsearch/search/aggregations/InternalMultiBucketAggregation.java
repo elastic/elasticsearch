@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -81,7 +82,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
         }
     }
 
-    public abstract static class InternalBucket implements Bucket {
+    public abstract static class InternalBucket implements Bucket, Writeable {
 
         public Object getProperty(String containingAggName, List<String> path) {
             if (path.isEmpty()) {

@@ -77,9 +77,10 @@ complete and for the elected node to accept its mastership. The same setting con
 active master eligible nodes that should be a part of any active cluster. If this requirement is not met the
 active master node will step down and a new master election will begin.
 
-This setting must be set to a quorum of your master eligible nodes. It is recommended to avoid
-having only two master eligible nodes, since a quorum of two is two. Therefore, a loss
-of either master eligible node will result in an inoperable cluster.
+This setting must be set to a <<minimum_master_nodes,quorum>> of your master
+eligible nodes. It is recommended to avoid having only two master eligible
+nodes, since a quorum of two is two. Therefore, a loss of either master
+eligible node will result in an inoperable cluster.
 
 [float]
 [[fault-detection]]

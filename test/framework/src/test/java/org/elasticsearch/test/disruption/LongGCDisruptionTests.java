@@ -62,7 +62,7 @@ public class LongGCDisruptionTests extends ESTestCase {
             }
 
             @Override
-            protected long getStoppingTimeoutInMillis() {
+            protected long getSuspendingTimeoutInMillis() {
                 return 100;
             }
         };
@@ -99,7 +99,7 @@ public class LongGCDisruptionTests extends ESTestCase {
             // make sure some threads are under lock
             underLock.await();
             RuntimeException e = expectThrows(RuntimeException.class, disruption::startDisrupting);
-            assertThat(e.getMessage(), containsString("stopping node threads took too long"));
+            assertThat(e.getMessage(), containsString("suspending node threads took too long"));
         } finally {
             stop.set(true);
             pauseUnderLock.countDown();

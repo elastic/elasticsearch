@@ -21,10 +21,8 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -116,11 +114,7 @@ public class StartRecoveryRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
-            targetAllocationId = in.readString();
-        } else {
-            targetAllocationId = null;
-        }
+        targetAllocationId = in.readString();
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
         metadataSnapshot = new Store.MetadataSnapshot(in);
@@ -137,9 +131,7 @@ public class StartRecoveryRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
-            out.writeString(targetAllocationId);
-        }
+        out.writeString(targetAllocationId);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
         metadataSnapshot.writeTo(out);

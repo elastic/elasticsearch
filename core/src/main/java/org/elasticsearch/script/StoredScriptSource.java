@@ -34,7 +34,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -52,7 +52,7 @@ import java.util.Objects;
  * {@link StoredScriptSource} represents user-defined parameters for a script
  * saved in the {@link ClusterState}.
  */
-public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContent {
+public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContentObject {
 
     /**
      * Standard {@link ParseField} for outer level of stored script source.
@@ -123,10 +123,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
          * Appends the user-defined compiler options with the internal compiler options.
          */
         private void setOptions(Map<String, String> options) {
-            if (options.containsKey(Script.CONTENT_TYPE_OPTION)) {
-                throw new IllegalArgumentException(Script.CONTENT_TYPE_OPTION + " cannot be user-specified");
-            }
-
             this.options.putAll(options);
         }
 
@@ -266,8 +262,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                         //this is really for search templates, that need to be converted to json format
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             builder.copyCurrentStructure(parser);
-                            return new StoredScriptSource(lang, builder.string(),
-                                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+                            return new StoredScriptSource(lang, builder.string(), Collections.emptyMap());
                         }
                     }
 
@@ -283,8 +278,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     token = parser.nextToken();
 
                     if (token == Token.VALUE_STRING) {
-                        return new StoredScriptSource(lang, parser.text(),
-                            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+                        return new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
                     }
                 }
 
@@ -297,8 +291,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                         builder.copyCurrentStructure(parser);
                     }
 
-                    return new StoredScriptSource(lang, builder.string(),
-                        Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+                    return new StoredScriptSource(lang, builder.string(), Collections.emptyMap());
                 }
             }
         } catch (IOException ioe) {
@@ -431,11 +424,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         builder.endObject();
 
         return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     /**

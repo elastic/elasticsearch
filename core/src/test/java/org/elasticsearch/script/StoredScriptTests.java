@@ -20,7 +20,6 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -198,8 +197,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             builder.startObject().field("template", "code").endObject();
 
             StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", "code",
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
+            StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
@@ -214,8 +212,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             }
 
             StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", code,
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
+            StoredScriptSource source = new StoredScriptSource("lang", code, Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
@@ -230,8 +227,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             }
 
             StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", code,
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
+            StoredScriptSource source = new StoredScriptSource("lang", code, Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
@@ -246,8 +242,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             }
 
             StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", code,
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
+            StoredScriptSource source = new StoredScriptSource("lang", code, Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
@@ -327,16 +322,6 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
                 StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
             assertThat(iae.getMessage(), equalTo("illegal compiler options [{option=option}] specified"));
-        }
-
-        // check for illegal use of content type option
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code")
-                .startObject("options").field("content_type", "option").endObject().endObject().endObject();
-
-            ParsingException pe = expectThrows(ParsingException.class, () ->
-                StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
-            assertThat(pe.getRootCause().getMessage(), equalTo("content_type cannot be user-specified"));
         }
     }
 

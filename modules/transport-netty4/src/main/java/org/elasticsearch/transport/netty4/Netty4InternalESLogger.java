@@ -161,7 +161,7 @@ class Netty4InternalESLogger extends AbstractInternalLogger {
 
     @Override
     public void error(String msg) {
-        logger.equals(msg);
+        logger.error(msg);
     }
 
     @Override

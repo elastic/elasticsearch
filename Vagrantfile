@@ -104,6 +104,12 @@ SOURCE_PROMPT
 source /etc/profile.d/elasticsearch_prompt.sh
 SOURCE_PROMPT
       SHELL
+      # Creates a file to mark the machine as created by vagrant. Tests check
+      # for this file and refuse to run if it is not present so that they can't
+      # be run unexpectedly.
+      config.vm.provision "markerfile", type: "shell", inline: <<-SHELL
+        touch /etc/is_vagrant_vm
+      SHELL
     end
     config.config_procs.push ['2', set_prompt]
   end
@@ -263,7 +269,7 @@ def provision(config,
       echo "==> Installing Gradle"
       curl -sS -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
       unzip /tmp/gradle.zip -d /opt
-      rm -rf /tmp/gradle.zip 
+      rm -rf /tmp/gradle.zip
       ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle
       # make nfs mounted gradle home dir writeable
       chown vagrant:vagrant /home/vagrant/.gradle

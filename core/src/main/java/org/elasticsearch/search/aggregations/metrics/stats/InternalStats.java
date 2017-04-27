@@ -113,11 +113,6 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public String getCountAsString() {
-        return valueAsString(Metrics.count.name());
-    }
-
-    @Override
     public String getMinAsString() {
         return valueAsString(Metrics.min.name());
     }

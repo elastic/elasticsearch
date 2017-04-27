@@ -19,15 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.lucene.util.IOUtils;
@@ -37,6 +28,16 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.env.Environment;
+
+import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
@@ -101,19 +102,32 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         }
 
         terminal.println(VERBOSE, "removing [" + pluginDir + "]");
-        final Path tmpPluginDir = env.pluginsFile().resolve(".removing-" + pluginName);
-        try {
-            Files.move(pluginDir, tmpPluginDir, StandardCopyOption.ATOMIC_MOVE);
-        } catch (final AtomicMoveNotSupportedException e) {
-            /*
-             * On a union file system if the plugin that we are removing is not installed on the
-             * top layer then atomic move will not be supported. In this case, we fall back to a
-             * non-atomic move.
-             */
-            Files.move(pluginDir, tmpPluginDir);
+         /*
+         * We are going to create a marker file in the plugin directory that indicates that this plugin is a state of removal. If the
+         * removal fails, the existence of this marker file indicates that the plugin is in a garbage state. We check for existence of this
+         * marker file during startup so that we do not startup with plugins in such a garbage state.
+         */
+        final Path removing = pluginDir.resolve(".removing-" + pluginName);
+        /*
+         * Add the contents of the plugin directory before creating the marker file and adding it to the list of paths to be deleted so
+         * that the marker file is the last file to be deleted.
+         */
+        try (Stream<Path> paths = Files.list(pluginDir)) {
+            pluginPaths.addAll(paths.collect(Collectors.toList()));
         }
-        pluginPaths.add(tmpPluginDir);
-
+        try {
+            Files.createFile(removing);
+        } catch (final FileAlreadyExistsException e) {
+            /*
+             * We need to suppress the marker file already existing as we could be in this state if a previous removal attempt failed and
+             * the user is attempting to remove the plugin again.
+             */
+            terminal.println(VERBOSE, "marker file [" + removing + "] already exists");
+        }
+        // now add the marker file
+        pluginPaths.add(removing);
+        // finally, add the plugin directory
+        pluginPaths.add(pluginDir);
         IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
 
         /*
@@ -124,8 +138,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         if (Files.exists(pluginConfigDir)) {
             final String message = String.format(
                     Locale.ROOT,
-                    "-> preserving plugin config files [%s] in case of upgrade; "
-                            + "delete manually if not needed",
+                    "-> preserving plugin config files [%s] in case of upgrade; delete manually if not needed",
                     pluginConfigDir);
             terminal.println(message);
         }

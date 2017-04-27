@@ -53,7 +53,7 @@ public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricA
 
     private Script randomScript(String script) {
         if (randomBoolean()) {
-            return new Script(script);
+            return mockScript(script);
         } else {
             ScriptType type = randomFrom(ScriptType.values());
             return new Script(

@@ -155,4 +155,11 @@ class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.Featu
   boolean overloadedStatic()
   boolean overloadedStatic(boolean)
   Object twoFunctionsOfX(Function,Function)
+  void listInput(List)
+}
+
+class org.elasticsearch.search.lookup.FieldLookup -> org.elasticsearch.search.lookup.FieldLookup extends Object {
+  def getValue()
+  List getValues()
+  boolean isEmpty()
 }

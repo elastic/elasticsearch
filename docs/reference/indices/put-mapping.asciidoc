@@ -59,7 +59,7 @@ It has the following format:
 PUT /{index}/_mapping/{type}
 { body }
 --------------------------------------------------
-
+// NOTCONSOLE
 * `{index}` accepts <<multi-index,multiple index names>> and wildcards.
 * `{type}` is the name of the type to update.
 * `{body}` contains the mapping changes that should be applied.

@@ -290,13 +290,13 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
     public void testIndexSortWithNestedFields() throws IOException {
         Settings settings = Settings.builder()
-            .put("index.sort.field", "_type")
+            .put("index.sort.field", "foo")
             .build();
         IllegalArgumentException invalidNestedException = expectThrows(IllegalArgumentException.class,
-           () -> createIndex("test", settings, "t", "nested_field", "type=nested"));
+           () -> createIndex("test", settings, "t", "nested_field", "type=nested", "foo", "type=keyword"));
         assertThat(invalidNestedException.getMessage(),
             containsString("cannot have nested fields when index sort is activated"));
-        IndexService indexService =  createIndex("test", settings, "t");
+        IndexService indexService =  createIndex("test", settings, "t", "foo", "type=keyword");
         CompressedXContent nestedFieldMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
             .startObject("nested_field")

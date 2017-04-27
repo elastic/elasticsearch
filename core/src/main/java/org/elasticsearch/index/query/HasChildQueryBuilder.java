@@ -338,10 +338,10 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
 
         // wrap the query with type query
-        innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter());
+        innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter(context));
 
         final ParentChildIndexFieldData parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
-        return new LateParsingQuery(parentDocMapper.typeFilter(), innerQuery, minChildren(), maxChildren(),
+        return new LateParsingQuery(parentDocMapper.typeFilter(context), innerQuery, minChildren(), maxChildren(),
                                     parentType, scoreMode, parentChildIndexFieldData, context.getSearchSimilarity());
     }
 

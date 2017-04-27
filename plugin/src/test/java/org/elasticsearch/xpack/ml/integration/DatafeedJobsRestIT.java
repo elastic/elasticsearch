@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DatafeedJobIT extends ESRestTestCase {
+public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE_ELASTIC =
             basicAuthHeaderValue("elastic", new SecureString("changeme".toCharArray()));

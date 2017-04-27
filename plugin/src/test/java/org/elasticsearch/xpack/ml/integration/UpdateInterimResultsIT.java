@@ -80,17 +80,13 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
 
         // We might need to retry this while waiting for a refresh
         assertBusy(() -> {
-            try {
-                List<Bucket> firstInterimBuckets = getInterimResults(job.getId());
-                assertThat(firstInterimBuckets.size(), equalTo(2));
-                assertThat(firstInterimBuckets.get(0).getTimestamp().getTime(), equalTo(1400039000000L));
-                assertThat(firstInterimBuckets.get(0).getRecordCount(), equalTo(0));
-                assertThat(firstInterimBuckets.get(1).getTimestamp().getTime(), equalTo(1400040000000L));
-                assertThat(firstInterimBuckets.get(1).getRecordCount(), equalTo(1));
-                assertThat(firstInterimBuckets.get(1).getRecords().get(0).getActual().get(0), equalTo(16.0));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            List<Bucket> firstInterimBuckets = getInterimResults(job.getId());
+            assertThat(firstInterimBuckets.size(), equalTo(2));
+            assertThat(firstInterimBuckets.get(0).getTimestamp().getTime(), equalTo(1400039000000L));
+            assertThat(firstInterimBuckets.get(0).getRecordCount(), equalTo(0));
+            assertThat(firstInterimBuckets.get(1).getTimestamp().getTime(), equalTo(1400040000000L));
+            assertThat(firstInterimBuckets.get(1).getRecordCount(), equalTo(1));
+            assertThat(firstInterimBuckets.get(1).getRecords().get(0).getActual().get(0), equalTo(16.0));
         });
 
         // push 1 more record, flush (with interim), check same interim result
@@ -99,16 +95,12 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
         flushJob(job.getId(), true);
 
         assertBusy(() -> {
-            try {
-                List<Bucket> secondInterimBuckets = getInterimResults(job.getId());
-                assertThat(secondInterimBuckets.get(0).getTimestamp().getTime(), equalTo(1400039000000L));
-                assertThat(secondInterimBuckets.get(0).getRecordCount(), equalTo(0));
-                assertThat(secondInterimBuckets.get(1).getTimestamp().getTime(), equalTo(1400040000000L));
-                assertThat(secondInterimBuckets.get(1).getRecordCount(), equalTo(1));
-                assertThat(secondInterimBuckets.get(1).getRecords().get(0).getActual().get(0), equalTo(16.0));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            List<Bucket> secondInterimBuckets = getInterimResults(job.getId());
+            assertThat(secondInterimBuckets.get(0).getTimestamp().getTime(), equalTo(1400039000000L));
+            assertThat(secondInterimBuckets.get(0).getRecordCount(), equalTo(0));
+            assertThat(secondInterimBuckets.get(1).getTimestamp().getTime(), equalTo(1400040000000L));
+            assertThat(secondInterimBuckets.get(1).getRecordCount(), equalTo(1));
+            assertThat(secondInterimBuckets.get(1).getRecords().get(0).getActual().get(0), equalTo(16.0));
         });
 
         // push rest of data, close, verify no interim results
@@ -136,11 +128,11 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
         return data.toString();
     }
 
-    private List<Bucket> getInterimResults(String jobId) throws Exception {
+    private List<Bucket> getInterimResults(String jobId) {
         GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
         request.setExpand(true);
         request.setPageParams(new PageParams(0, 1500));
-        GetBucketsAction.Response response = client().execute(GetBucketsAction.INSTANCE, request).get();
+        GetBucketsAction.Response response = client().execute(GetBucketsAction.INSTANCE, request).actionGet();
         assertThat(response.getBuckets().count(), lessThan(1500L));
         List<Bucket> buckets = response.getBuckets().results();
         assertThat(buckets.size(), greaterThan(0));

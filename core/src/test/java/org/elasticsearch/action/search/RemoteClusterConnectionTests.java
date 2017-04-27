@@ -382,7 +382,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                             failReference.set(x);
                             responseLatch.countDown();
                         });
-                    connection.fetchSearchShards(request, Arrays.asList("test-index"), shardsListener);
+                    connection.fetchSearchShards(request, new String[]{"test-index"}, shardsListener);
                     responseLatch.await();
                     assertNull(failReference.get());
                     assertNotNull(reference.get());

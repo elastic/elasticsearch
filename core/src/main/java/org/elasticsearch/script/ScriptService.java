@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
@@ -56,6 +57,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.template.CompiledTemplate;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -320,6 +322,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
+    /** Compiles a template. Note this will be moved to a separate TemplateService in the future. */
+    public CompiledTemplate compileTemplate(Script script, ScriptContext scriptContext) {
+        CompiledScript compiledScript = compile(script, scriptContext);
+        return params -> (BytesReference)executable(compiledScript, params).run();
+    }
+
     /**
      * Check whether there have been too many compilations within the last minute, throwing a circuit breaking exception if so.
      * This is a variant of the token bucket algorithm: https://en.wikipedia.org/wiki/Token_bucket
@@ -467,13 +475,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         } else {
             return null;
         }
-    }
-
-    /**
-     * Compiles (or retrieves from cache) and executes the provided script
-     */
-    public ExecutableScript executable(Script script, ScriptContext scriptContext) {
-        return executable(compile(script, scriptContext), script.getParams());
     }
 
     /**

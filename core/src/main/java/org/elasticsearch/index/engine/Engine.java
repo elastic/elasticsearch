@@ -705,6 +705,7 @@ public abstract class Engine implements Closeable {
                 }
                 final SegmentReader segmentReader = segmentReader(reader.reader());
                 segment.memoryInBytes = segmentReader.ramBytesUsed();
+                segment.segmentSort = info.info.getIndexSort();
                 if (verbose) {
                     segment.ramTree = Accountables.namedAccountable("root", segmentReader);
                 }
@@ -1413,6 +1414,14 @@ public abstract class Engine implements Closeable {
      * Reverses a previous {@link #activateThrottling} call.
      */
     public abstract void deactivateThrottling();
+
+    /**
+     * Fills up the local checkpoints history with no-ops until the local checkpoint
+     * and the max seen sequence ID are identical.
+     * @param primaryTerm the shards primary term this engine was created for
+     * @return the number of no-ops added
+     */
+    public abstract int fillSequenceNumberHistory(long primaryTerm) throws IOException;
 
     /**
      * Performs recovery from the transaction log.

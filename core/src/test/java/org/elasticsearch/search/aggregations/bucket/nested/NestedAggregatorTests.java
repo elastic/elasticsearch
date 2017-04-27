@@ -65,7 +65,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 // intentionally not writing any docs
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                     NESTED_OBJECT);
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME)
@@ -75,7 +75,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, true, true),
+                Nested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
 
                 assertEquals(NESTED_AGG, nested.getName());
@@ -112,7 +112,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 }
                 iw.commit();
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                     NESTED_OBJECT);
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME)
@@ -122,7 +122,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, true, true),
+                Nested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
@@ -160,7 +160,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 }
                 iw.commit();
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                     NESTED_OBJECT + "." + NESTED_OBJECT2);
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME)
@@ -171,7 +171,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, true, true),
+                Nested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
@@ -213,7 +213,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 iw.addDocuments(documents);
                 iw.commit();
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                     NESTED_OBJECT);
                 SumAggregationBuilder sumAgg = new SumAggregationBuilder(SUM_AGG_NAME)
@@ -223,7 +223,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, true, true),
+                Nested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
@@ -292,7 +292,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 iw.commit();
                 iw.close();
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
 
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                     "nested_field");
@@ -304,7 +304,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 bq.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
                 bq.add(new TermQuery(new Term(UidFieldMapper.NAME, "type#2")), BooleanClause.Occur.MUST_NOT);
 
-                Nested nested = search(newSearcher(indexReader, true, true),
+                Nested nested = search(newSearcher(indexReader, false, true),
                     new ConstantScoreQuery(bq.build()), nestedBuilder, fieldType);
 
                 assertEquals(NESTED_AGG, nested.getName());

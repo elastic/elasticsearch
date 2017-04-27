@@ -20,8 +20,6 @@
 package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
@@ -36,7 +34,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -45,21 +42,19 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -309,6 +304,19 @@ public class PluginsService extends AbstractComponent {
                 } catch (IOException e) {
                     throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
                         + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
+                }
+                /*
+                 * Check for the existence of a marker file that indicates the plugin is in a garbage state from a failed attempt to remove
+                 * the plugin.
+                 */
+                final Path removing = plugin.resolve(".removing-" + info.getName());
+                if (Files.exists(removing)) {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "found file [%s] from a failed attempt to remove the plugin [%s]; execute [elasticsearch-plugin remove %2$s]",
+                            removing,
+                            info.getName());
+                    throw new IllegalStateException(message);
                 }
 
                 Set<URL> urls = new LinkedHashSet<>();

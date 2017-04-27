@@ -544,7 +544,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTypeFilter() throws Exception {
-        assertAcked(prepareCreate("test"));
+        assertAcked(prepareCreate("test").setSettings("index.mapping.single_type", false));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
@@ -1180,7 +1180,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testBasicQueryById() throws Exception {
-        createIndex("test");
+        assertAcked(prepareCreate("test").setSettings("index.mapping.single_type", false));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
         client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
@@ -1447,6 +1447,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testSimpleDFSQuery() throws IOException {
         assertAcked(prepareCreate("test")
+                .setSettings("index.mapping.single_type", false)
             .addMapping("s", jsonBuilder()
                 .startObject()
                 .startObject("s")
@@ -1605,33 +1606,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2);
     }
 
-    // see #3898
-    public void testCustomWordDelimiterQueryString() {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings("analysis.analyzer.my_analyzer.type", "custom",
-                        "analysis.analyzer.my_analyzer.tokenizer", "whitespace",
-                        "analysis.analyzer.my_analyzer.filter", "custom_word_delimiter",
-                        "analysis.filter.custom_word_delimiter.type", "word_delimiter",
-                        "analysis.filter.custom_word_delimiter.generate_word_parts", "true",
-                        "analysis.filter.custom_word_delimiter.generate_number_parts", "false",
-                        "analysis.filter.custom_word_delimiter.catenate_numbers", "true",
-                        "analysis.filter.custom_word_delimiter.catenate_words", "false",
-                        "analysis.filter.custom_word_delimiter.split_on_case_change", "false",
-                        "analysis.filter.custom_word_delimiter.split_on_numerics", "false",
-                        "analysis.filter.custom_word_delimiter.stem_english_possessive", "false")
-                .addMapping("type1", "field1", "type=text,analyzer=my_analyzer", "field2", "type=text,analyzer=my_analyzer"));
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "foo bar baz", "field2", "not needed").get();
-        refresh();
-
-        SearchResponse response = client()
-                .prepareSearch("test")
-                .setQuery(
-                        queryStringQuery("foo.baz").useDisMax(false).defaultOperator(Operator.AND)
-                                .field("field1").field("field2")).get();
-        assertHitCount(response, 1L);
-    }
-
     // see #3797
     public void testMultiMatchLenientIssue3797() {
         createIndex("test");
@@ -1669,7 +1643,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testQueryStringWithSlopAndFields() {
-        createIndex("test");
+        assertAcked(prepareCreate("test").setSettings("index.mapping.single_type", false));
 
         client().prepareIndex("test", "customer", "1").setSource("desc", "one two three").get();
         client().prepareIndex("test", "product", "2").setSource("desc", "one two three").get();

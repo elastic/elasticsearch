@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -34,10 +35,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.template.CompiledTemplate;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -71,9 +74,8 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         try {
             Script script = new Script(request.getScriptType(), TEMPLATE_LANG, request.getScript(),
                 request.getScriptParams() == null ? Collections.emptyMap() : request.getScriptParams());
-            ExecutableScript executable = scriptService.executable(script, SEARCH);
-
-            BytesReference source = (BytesReference) executable.run();
+            CompiledTemplate compiledScript = scriptService.compileTemplate(script, SEARCH);
+            BytesReference source = compiledScript.run(script.getParams());
             response.setSource(source);
 
             if (request.isSimulate()) {

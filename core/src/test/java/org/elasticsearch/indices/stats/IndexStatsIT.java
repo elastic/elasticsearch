@@ -383,7 +383,8 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testSimpleStats() throws Exception {
-        createIndex("test1", "test2");
+        assertAcked(prepareCreate("test1").setSettings("index.mapping.single_type", false));
+        createIndex("test2");
         ensureGreen();
 
         client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
@@ -512,7 +513,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testMergeStats() {
-        createIndex("test1");
+        assertAcked(prepareCreate("test1").setSettings("index.mapping.single_type", false));
 
         ensureGreen();
 
@@ -548,7 +549,8 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testSegmentsStats() {
-        assertAcked(prepareCreate("test1", 2, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        assertAcked(prepareCreate("test1")
+                .setSettings(SETTING_NUMBER_OF_REPLICAS, between(0, 1), "index.mapping.single_type", false));
         ensureGreen();
 
         NumShards test1 = getNumShards("test1");
@@ -573,7 +575,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testAllFlags() throws Exception {
         // rely on 1 replica for this tests
-        createIndex("test1");
+        assertAcked(prepareCreate("test1").setSettings("index.mapping.single_type", false));
         createIndex("test2");
 
         ensureGreen();
@@ -695,7 +697,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testMultiIndex() throws Exception {
-        createIndex("test1");
+        assertAcked(prepareCreate("test1").setSettings("index.mapping.single_type", false));
         createIndex("test2");
 
         ensureGreen();
@@ -735,6 +737,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testFieldDataFieldsParam() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test1")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("type", "bar", "type=text,fielddata=true",
                         "baz", "type=text,fielddata=true").get());
 
@@ -782,6 +785,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testCompletionFieldsParam() throws Exception {
         assertAcked(prepareCreate("test1")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping(
                         "bar",
                         "{ \"properties\": { \"bar\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}},\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}", XContentType.JSON));

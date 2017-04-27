@@ -25,7 +25,6 @@ import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.ASCIIFoldingTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.ApostropheFilterFactory;
@@ -70,7 +69,6 @@ import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.GreekAnalyzerProvider;
 import org.elasticsearch.index.analysis.HindiAnalyzerProvider;
 import org.elasticsearch.index.analysis.HindiNormalizationFilterFactory;
-import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
 import org.elasticsearch.index.analysis.HungarianAnalyzerProvider;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.IndicNormalizationFilterFactory;
@@ -90,7 +88,6 @@ import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
 import org.elasticsearch.index.analysis.LithuanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.LowerCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
-import org.elasticsearch.index.analysis.MappingCharFilterFactory;
 import org.elasticsearch.index.analysis.MinHashTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
@@ -98,7 +95,6 @@ import org.elasticsearch.index.analysis.NorwegianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PathHierarchyTokenizerFactory;
 import org.elasticsearch.index.analysis.PatternAnalyzerProvider;
 import org.elasticsearch.index.analysis.PatternCaptureGroupTokenFilterFactory;
-import org.elasticsearch.index.analysis.PatternReplaceCharFilterFactory;
 import org.elasticsearch.index.analysis.PatternReplaceTokenFilterFactory;
 import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianAnalyzerProvider;
@@ -140,14 +136,14 @@ import org.elasticsearch.index.analysis.UniqueTokenFilterFactory;
 import org.elasticsearch.index.analysis.UpperCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
-import org.elasticsearch.index.analysis.WordDelimiterGraphTokenFilterFactory;
-import org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
 
 /**
  * Sets up {@link AnalysisRegistry}.
@@ -187,9 +183,6 @@ public final class AnalysisModule {
 
     private NamedRegistry<AnalysisProvider<CharFilterFactory>> setupCharFilters(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<CharFilterFactory>> charFilters = new NamedRegistry<>("char_filter");
-        charFilters.register("html_strip", HtmlStripCharFilterFactory::new);
-        charFilters.register("pattern_replace", requriesAnalysisSettings(PatternReplaceCharFilterFactory::new));
-        charFilters.register("mapping", requriesAnalysisSettings(MappingCharFilterFactory::new));
         charFilters.extractAndRegister(plugins, AnalysisPlugin::getCharFilters);
         return charFilters;
     }
@@ -205,7 +198,6 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = new NamedRegistry<>("token_filter");
         tokenFilters.register("stop", StopTokenFilterFactory::new);
         tokenFilters.register("reverse", ReverseTokenFilterFactory::new);
-        tokenFilters.register("asciifolding", ASCIIFoldingTokenFilterFactory::new);
         tokenFilters.register("length", LengthTokenFilterFactory::new);
         tokenFilters.register("lowercase", LowerCaseTokenFilterFactory::new);
         tokenFilters.register("uppercase", UpperCaseTokenFilterFactory::new);
@@ -225,8 +217,6 @@ public final class AnalysisModule {
         tokenFilters.register("common_grams", requriesAnalysisSettings(CommonGramsTokenFilterFactory::new));
         tokenFilters.register("snowball", SnowballTokenFilterFactory::new);
         tokenFilters.register("stemmer", StemmerTokenFilterFactory::new);
-        tokenFilters.register("word_delimiter", WordDelimiterTokenFilterFactory::new);
-        tokenFilters.register("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
         tokenFilters.register("delimited_payload_filter", DelimitedPayloadTokenFilterFactory::new);
         tokenFilters.register("elision", ElisionTokenFilterFactory::new);
         tokenFilters.register("flatten_graph", FlattenGraphTokenFilterFactory::new);
@@ -346,19 +336,6 @@ public final class AnalysisModule {
         return normalizers;
     }
 
-    private static <T> AnalysisModule.AnalysisProvider<T> requriesAnalysisSettings(AnalysisModule.AnalysisProvider<T> provider) {
-        return new AnalysisModule.AnalysisProvider<T>() {
-            @Override
-            public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
-                return provider.get(indexSettings, environment, name, settings);
-            }
-
-            @Override
-            public boolean requiresAnalysisSettings() {
-                return true;
-            }
-        };
-    }
 
     /**
      * The basic factory interface for analysis components.

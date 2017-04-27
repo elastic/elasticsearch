@@ -4,35 +4,8 @@
 The Azure Repository plugin adds support for using Azure as a repository for
 {ref}/modules-snapshots.html[Snapshot/Restore].
 
-[[repository-azure-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install repository-azure
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/repository-azure/repository-azure-{version}.zip.
-
-[[repository-azure-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove repository-azure
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: repository-azure
+include::install_remove.asciidoc[]
 
 [[repository-azure-usage]]
 ==== Azure Repository

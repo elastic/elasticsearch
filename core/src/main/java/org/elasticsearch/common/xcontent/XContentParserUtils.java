@@ -20,8 +20,10 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -106,5 +108,38 @@ public final class XContentParserUtils {
             throwUnknownToken(token, parser.getTokenLocation());
         }
         return value;
+    }
+
+    /**
+     * This method expects that the current token is a {@code XContentParser.Token.FIELD_NAME} and
+     * that the current field name is the concatenation of a type, delimiter and name (ex: terms#foo
+     * where "terms" refers to the type of a registered {@link NamedXContentRegistry.Entry}, "#" is
+     * the delimiter and "foo" the name of the object to parse).
+     *
+     * The method splits the field's name to extract the type and name and then parses the object
+     * using the {@link XContentParser#namedObject(Class, String, Object)} method.
+     *
+     * @param parser      the current {@link XContentParser}
+     * @param delimiter   the delimiter to use to splits the field's name
+     * @param objectClass the object class of the object to parse
+     * @param <T>         the type of the object to parse
+     * @return the parsed object
+     * @throws IOException if anything went wrong during parsing or if the type or name cannot be derived
+     *                     from the field's name
+     */
+    public static <T> T parseTypedKeysObject(XContentParser parser, String delimiter, Class<T> objectClass) throws IOException {
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        String currentFieldName = parser.currentName();
+        if (Strings.hasLength(currentFieldName)) {
+            int position = currentFieldName.indexOf(delimiter);
+            if (position > 0) {
+                String type = currentFieldName.substring(0, position);
+                String name = currentFieldName.substring(position + 1);
+                return parser.namedObject(objectClass, type, name);
+            }
+        }
+        throw new ParsingException(parser.getTokenLocation(), "Cannot parse object of class [" + objectClass.getSimpleName()
+                + "] without type information. Set [" + RestSearchAction.TYPED_KEYS_PARAM + "] parameter on the request to ensure the"
+                + " type information is added to the response output");
     }
 }

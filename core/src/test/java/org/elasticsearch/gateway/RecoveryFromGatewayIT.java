@@ -318,6 +318,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         // clean two nodes
         internalCluster().startNodes(2, Settings.builder().put("gateway.recover_after_nodes", 2).build());
 
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings("index.mapping.single_type", false));
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         client().admin().indices().prepareFlush().execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();

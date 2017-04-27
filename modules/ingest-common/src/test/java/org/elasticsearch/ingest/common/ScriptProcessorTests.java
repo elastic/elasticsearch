@@ -24,6 +24,7 @@ import java.util.Map;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -44,9 +45,9 @@ public class ScriptProcessorTests extends ESTestCase {
         int randomBytesTotal = randomBytesIn + randomBytesOut;
 
         ScriptService scriptService = mock(ScriptService.class);
-        Script script = new Script("_script");
+        Script script = mockScript("_script");
         ExecutableScript executableScript = mock(ExecutableScript.class);
-        when(scriptService.executable(any(Script.class), any())).thenReturn(executableScript);
+        when(scriptService.executable(any(CompiledScript.class), any())).thenReturn(executableScript);
 
         Map<String, Object> document = new HashMap<>();
         document.put("bytes_in", randomInt());

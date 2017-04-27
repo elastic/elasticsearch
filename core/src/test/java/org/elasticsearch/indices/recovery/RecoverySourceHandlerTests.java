@@ -99,6 +99,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         final StartRecoveryRequest request = new StartRecoveryRequest(
             shardId,
+            null,
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             null,
@@ -155,6 +156,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final long startingSeqNo = randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomIntBetween(0, 16);
         final StartRecoveryRequest request = new StartRecoveryRequest(
             shardId,
+            null,
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             null,
@@ -223,6 +225,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request =
             new StartRecoveryRequest(
                 shardId,
+                null,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 null,
@@ -292,6 +295,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request =
             new StartRecoveryRequest(
                 shardId,
+                null,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 null,
@@ -358,6 +362,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request =
             new StartRecoveryRequest(
                 shardId,
+                null,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 null,
@@ -393,7 +398,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            void prepareTargetForTranslog(final int totalTranslogOps, final long maxUnsafeAutoIdTimestamp) throws IOException {
+            void prepareTargetForTranslog(final int totalTranslogOps) throws IOException {
                 prepareTargetForTranslogCalled.set(true);
             }
 
@@ -417,6 +422,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request =
             new StartRecoveryRequest(
                 shardId,
+                null,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 null,
@@ -483,7 +489,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            void prepareTargetForTranslog(final int totalTranslogOps, final long maxUnsafeAutoIdTimestamp) throws IOException {
+            void prepareTargetForTranslog(final int totalTranslogOps) throws IOException {
                 prepareTargetForTranslogCalled.set(true);
             }
 

@@ -329,6 +329,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         request = new StartRecoveryRequest(
             recoveryTarget.shardId(),
+            recoveryTarget.indexShard().routingEntry().allocationId().getId(),
             recoveryTarget.sourceNode(),
             clusterService.localNode(),
             metadataSnapshot,
@@ -377,7 +378,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.target().prepareForTranslogOperations(request.totalTranslogOps(), request.getMaxUnsafeAutoIdTimestamp());
+                recoveryRef.target().prepareForTranslogOperations(request.totalTranslogOps());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

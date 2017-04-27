@@ -1,0 +1,107 @@
+[[index-modules-index-sorting]]
+== Index Sorting
+
+experimental[]
+
+When creating a new index in elasticsearch it is possible to configure how the Segments
+inside each Shard will be sorted. By default Lucene does not apply any sort.
+The `index.sort.*` settings define which fields should be used to sort the documents inside each Segment.
+
+[WARNING]
+nested fields are not compatible with index sorting because they rely on the assumption
+that nested documents are stored in contiguous doc ids, which can be broken by index sorting.
+An error will be thrown if index sorting is activated on an index that contains nested fields.
+
+For instance the following example shows how to define a sort on a single field:
+
+[source,js]
+--------------------------------------------------
+PUT twitter
+{
+    "settings" : {
+        "index" : {
+            "sort.field" : "date", <1>
+            "sort.order" : "desc" <2>
+        }
+    },
+    "mappings": {
+        "tweet": {
+            "properties": {
+                "date": {
+                    "type": "date"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> This index is sorted by the `date` field
+<2> ... in descending order.
+
+It is also possible to sort the index by more than one field:
+
+[source,js]
+--------------------------------------------------
+PUT twitter
+{
+    "settings" : {
+        "index" : {
+            "sort.field" : ["username", "date"], <1>
+            "sort.order" : ["asc", "desc"] <2>
+        }
+    },
+    "mappings": {
+        "tweet": {
+            "properties": {
+                "username": {
+                    "type": "keyword",
+                    "doc_values": true
+                },
+                "date": {
+                    "type": "date"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> This index is sorted by `username` first then by `date`
+<2> ... in ascending order for the `username` field and in descending order for the `date` field.
+
+
+Index sorting supports the following settings:
+
+`index.sort.field`::
+
+    The list of fields used to sort the index.
+    Only `boolean`, `numeric`, `date` and `keyword` fields with `doc_values` are allowed here.
+
+`index.sort.order`::
+
+    The sort order to use for each field.
+    The order option can have the following values:
+        * `asc`:  For ascending order
+        * `desc`: For descending order.
+
+`index.sort.mode`::
+
+    Elasticsearch supports sorting by multi-valued fields.
+    The mode option controls what value is picked to sort the document.
+    The mode option can have the following values:
+        * `min`: 	Pick the lowest value.
+        * `max`: 	Pick the highest value.
+
+`index.sort.missing`::
+
+    The missing parameter specifies how docs which are missing the field should be treated.
+     The missing value can have the following values:
+        * `_last`: Documents without value for the field are sorted last.
+        * `_first`: Documents without value for the field are sorted first.
+
+[WARNING]
+Index sorting can be defined only once at index creation. It is not allowed to add or update
+a sort on an existing index.

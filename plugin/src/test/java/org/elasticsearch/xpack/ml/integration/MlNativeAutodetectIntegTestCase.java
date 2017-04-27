@@ -260,7 +260,8 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
                     PersistentTasksCustomMetaData::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, StartDatafeedAction.TASK_NAME,
                     StartDatafeedAction.DatafeedParams::new));
-            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, OpenJobAction.TASK_NAME, OpenJobAction.JobParams::new));
+            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, OpenJobAction.TASK_NAME,
+                    OpenJobAction.JobParams::new));
             entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME,
                     PersistentTasksNodeService.Status::new));
             entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, JobTaskStatus.NAME, JobTaskStatus::new));

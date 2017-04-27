@@ -319,9 +319,9 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
 
     public void testNumberFiltering() {
         createIndex("test1", Settings.EMPTY, "type", "value", "type=long");
-        client().prepareIndex("test1", "test").setSource("value", 1L).get();
+        client().prepareIndex("test1", "type").setSource("value", 1L).get();
         createIndex("test2", Settings.EMPTY, "type", "value", "type=long");
-        client().prepareIndex("test2", "test").setSource("value", 3L).get();
+        client().prepareIndex("test2", "type").setSource("value", 3L).get();
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse response = client().prepareFieldStats()
@@ -426,10 +426,10 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         String dateTime2Str = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().print(dateTime2);
 
         createIndex("test1", Settings.EMPTY, "type", "value", "type=date", "value2", "type=date,index=false");
-        client().prepareIndex("test1", "test")
+        client().prepareIndex("test1", "type")
             .setSource("value", dateTime1Str, "value2", dateTime1Str).get();
         createIndex("test2", Settings.EMPTY, "type", "value", "type=date");
-        client().prepareIndex("test2", "test").setSource("value", dateTime2Str).get();
+        client().prepareIndex("test2", "type").setSource("value", dateTime2Str).get();
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse response = client().prepareFieldStats()

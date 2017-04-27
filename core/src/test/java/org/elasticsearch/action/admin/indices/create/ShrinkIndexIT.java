@@ -143,7 +143,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .put("index.version.created", version)
         ).get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source", randomFrom("t1", "t2", "t3"))
+            client().prepareIndex("source", "type")
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
@@ -179,7 +179,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         }
 
         for (int i = 20; i < 40; i++) {
-            client().prepareIndex("target", randomFrom("t1", "t2", "t3"))
+            client().prepareIndex("target", "type")
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         flushAndRefresh();
@@ -197,7 +197,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .put("number_of_shards", randomIntBetween(2, 7))
             .put("number_of_replicas", 0)).get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source", randomFrom("t1", "t2", "t3"))
+            client().prepareIndex("source", "type")
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
@@ -275,10 +275,10 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                     .put("number_of_shards", 8)
                     .put("number_of_replicas", 0)
             )
-            .addMapping("t1", "id", "type=keyword,doc_values=true")
+            .addMapping("type", "id", "type=keyword,doc_values=true")
             .get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source", "t1", Integer.toString(i))
+            client().prepareIndex("source", "type", Integer.toString(i))
                 .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON).get();
         }
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
@@ -326,7 +326,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         // ... and that the index sort is also applied to updates
         for (int i = 20; i < 40; i++) {
-            client().prepareIndex("target", randomFrom("t1", "t2", "t3"))
+            client().prepareIndex("target", "type")
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         flushAndRefresh();

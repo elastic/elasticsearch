@@ -383,7 +383,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .get();
 
         assertAcked(prepareCreate("test_index")
-                        .addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
+                .setSettings("index.mapping.single_type", false)
+                .addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
         ensureGreen();
 
         client().prepareIndex("test_index", "type1", "1").setSource("field", "A value").get();
@@ -439,7 +440,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         "}"), XContentType.JSON).get();
 
 
-        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2"));
+        assertAcked(prepareCreate("test_index")
+                .setSettings("index.mapping.single_type", false)
+                .addMapping("type1").addMapping("type2"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
@@ -474,7 +477,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         "        \"alias3\" : { \"routing\" : \"1\" }" +
                         "    }\n").get();
 
-        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2"));
+        assertAcked(prepareCreate("test_index")
+                .setSettings("index.mapping.single_type", false)
+                .addMapping("type1").addMapping("type2"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();

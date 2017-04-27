@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -311,6 +310,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             containsString("cannot have nested fields when index sort is activated"));
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/pull/24317#issuecomment-297624290")
     public void testForbidMultipleTypes() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         MapperService mapperService = createIndex("test").mapperService();

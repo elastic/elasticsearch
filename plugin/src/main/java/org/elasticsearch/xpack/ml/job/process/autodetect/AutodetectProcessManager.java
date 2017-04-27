@@ -334,17 +334,17 @@ public class AutodetectProcessManager extends AbstractComponent {
      * @param reason  The reason for closing the job
      */
     public void closeJob(JobTask jobTask, boolean restart, String reason) {
-        logger.debug("Attempting to close job [{}], because [{}]", jobTask, reason);
+        logger.debug("Attempting to close job [{}], because [{}]", jobTask.getJobId(), reason);
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobTask.getAllocationId());
         if (communicator == null) {
-            logger.debug("Cannot close: no active autodetect process for job {}", jobTask);
+            logger.debug("Cannot close: no active autodetect process for job {}", jobTask.getJobId());
             return;
         }
 
         if (reason == null) {
-            logger.info("Closing job [{}]", jobTask);
+            logger.info("Closing job [{}]", jobTask.getJobId());
         } else {
-            logger.info("Closing job [{}], because [{}]", jobTask, reason);
+            logger.info("Closing job [{}], because [{}]", jobTask.getJobId(), reason);
         }
 
         try {

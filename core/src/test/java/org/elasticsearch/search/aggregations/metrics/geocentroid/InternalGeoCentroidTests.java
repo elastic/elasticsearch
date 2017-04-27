@@ -22,6 +22,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -69,5 +70,14 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         assertEquals(latSum/totalCount, reduced.centroid().getLat(), 1E-5D);
         assertEquals(lonSum/totalCount, reduced.centroid().getLon(), 1E-5D);
         assertEquals(totalCount, reduced.count());
+    }
+
+    @Override
+    protected void assertFromXContent(InternalGeoCentroid aggregation, ParsedAggregation parsedAggregation) {
+        assertTrue(parsedAggregation instanceof ParsedGeoCentroid);
+        ParsedGeoCentroid parsed = (ParsedGeoCentroid) parsedAggregation;
+
+        assertEquals(aggregation.centroid(), parsed.centroid());
+        assertEquals(aggregation.count(), parsed.count());
     }
 }

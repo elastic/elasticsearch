@@ -149,17 +149,13 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
 
     static class Fields {
         static final ParseField CENTROID = new ParseField("location");
+        static final ParseField COUNT = new ParseField("count");
         static final ParseField CENTROID_LAT = new ParseField("lat");
         static final ParseField CENTROID_LON = new ParseField("lon");
-        static final ParseField COUNT = new ParseField("count");
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return renderXContent(builder, params, centroid, count);
-    }
-
-    static XContentBuilder renderXContent(XContentBuilder builder, Params params, GeoPoint centroid, long count) throws IOException {
         if (centroid != null) {
             builder.startObject(Fields.CENTROID.getPreferredName());
             {

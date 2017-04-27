@@ -18,6 +18,7 @@ An `avg_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 .`avg_bucket` Parameters
 |===

@@ -34,6 +34,7 @@ A `moving_avg` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 .`moving_avg` Parameters
 |===
@@ -58,12 +59,12 @@ POST /_search
     "aggs": {
         "my_date_histo":{                <1>
             "date_histogram":{
-                "field":"timestamp",
-                "interval":"day"
+                "field":"date",
+                "interval":"1M"
             },
             "aggs":{
                 "the_sum":{
-                    "sum":{ "field": "lemmings" } <2>
+                    "sum":{ "field": "price" } <2>
                 },
                 "the_movavg":{
                     "moving_avg":{ "buckets_path": "the_sum" } <3>
@@ -74,6 +75,7 @@ POST /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:sales]
 
 <1> A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-day intervals
 <2> A `sum` metric is used to calculate the sum of a field.  This could be any metric (sum, min, max, etc)
@@ -83,6 +85,57 @@ Moving averages are built by first specifying a `histogram` or `date_histogram` 
 add normal metrics, such as a `sum`, inside of that histogram.  Finally, the `moving_avg` is embedded inside the histogram.
 The `buckets_path` parameter is then used to "point" at one of the sibling metrics inside of the histogram (see
 <<buckets-path-syntax>> for a description of the syntax for `buckets_path`.
+
+An example response from the above aggregation may look like:
+
+[source,js]
+--------------------------------------------------
+{
+   "took": 11,
+   "timed_out": false,
+   "_shards": ...,
+   "hits": ...,
+   "aggregations": {
+      "my_date_histo": {
+         "buckets": [
+             {
+                 "key_as_string": "2015/01/01 00:00:00",
+                 "key": 1420070400000,
+                 "doc_count": 3,
+                 "the_sum": {
+                    "value": 550.0
+                 }
+             },
+             {
+                 "key_as_string": "2015/02/01 00:00:00",
+                 "key": 1422748800000,
+                 "doc_count": 2,
+                 "the_sum": {
+                    "value": 60.0
+                 },
+                 "the_movavg": {
+                    "value": 550.0
+                 }
+             },
+             {
+                 "key_as_string": "2015/03/01 00:00:00",
+                 "key": 1425168000000,
+                 "doc_count": 2,
+                 "the_sum": {
+                    "value": 375.0
+                 },
+                 "the_movavg": {
+                    "value": 305.0
+                 }
+             }
+         ]
+      }
+   }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 11/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 
 ==== Models
@@ -112,6 +165,7 @@ the values from a `simple` moving average tend to "lag" behind the real data.
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 A `simple` model has no special settings to configure
 
@@ -147,6 +201,7 @@ the "lag" behind the data's mean, since older points have less influence.
         }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 A `linear` model has no special settings to configure
 
@@ -191,6 +246,7 @@ The EWMA model can be <<movavg-minimizer, Minimized>>
         }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 
 
@@ -234,6 +290,7 @@ The Holt-Linear model can be <<movavg-minimizer, Minimized>>
         }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 In practice, the `alpha` value behaves very similarly in `holt` as `ewma`: small values produce more smoothing
 and more lag, while larger values produce closer tracking and less lag.  The value of `beta` is often difficult
@@ -307,6 +364,7 @@ The additive Holt-Winters model can be <<movavg-minimizer, Minimized>>
         }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 
 [[holt_winters_add]]
@@ -351,6 +409,7 @@ you can disable this behavior with `pad: false`
         }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ==== Prediction
 
@@ -373,6 +432,7 @@ as your buckets:
         }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 The `simple`, `linear` and `ewma` models all produce "flat" predictions: they essentially converge on the mean
 of the last value in the series, producing a flat:
@@ -436,6 +496,8 @@ Minimization is enabled/disabled via the `minimize` parameter:
         }
 }
 --------------------------------------------------
+// NOTCONSOLE
+
 <1> Minimization is enabled with the `minimize` parameter
 
 When enabled, minimization will find the optimal values for `alpha`, `beta` and `gamma`.  The user should still provide

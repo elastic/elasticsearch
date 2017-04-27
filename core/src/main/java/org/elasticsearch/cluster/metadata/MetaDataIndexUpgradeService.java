@@ -35,8 +35,10 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.UpgraderPlugin;
 
 import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -54,14 +56,16 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
+    private final Collection<UpgraderPlugin> upgraderPlugins;
 
     @Inject
     public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-            IndexScopedSettings indexScopedSettings) {
+                                       IndexScopedSettings indexScopedSettings, Collection<UpgraderPlugin> upgraderPlugins) {
         super(settings);
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
+        this.upgraderPlugins = upgraderPlugins;
     }
 
     /**
@@ -84,6 +88,10 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         newMetaData = archiveBrokenIndexSettings(newMetaData);
         // only run the check with the upgraded settings!!
         checkMappingsCompatibility(newMetaData);
+        // apply plugin checks
+        for (UpgraderPlugin upgraderPlugin : upgraderPlugins) {
+            newMetaData = upgraderPlugin.getIndexMetaDataUpgrader().apply(newMetaData);
+        }
         return markAsUpgraded(newMetaData);
     }
 

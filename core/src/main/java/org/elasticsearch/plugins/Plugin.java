@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
@@ -51,8 +50,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.function.UnaryOperator;
 
 /**
  * An extension point allowing to plug in custom functionality. This class has a number of extension points that are available to all
@@ -68,6 +65,7 @@ import java.util.function.UnaryOperator;
  * <li>{@link RepositoryPlugin}
  * <li>{@link ScriptPlugin}
  * <li>{@link SearchPlugin}
+ * <li>{@link UpgraderPlugin}
  * </ul>
  * <p>In addition to extension points this class also declares some {@code @Deprecated} {@code public final void onModule} methods. These
  * methods should cause any extensions of {@linkplain Plugin} that used the pre-5.x style extension syntax to fail to build and point the
@@ -148,18 +146,6 @@ public abstract class Plugin implements Closeable {
      * Returns a list of additional settings filter for this plugin
      */
     public List<String> getSettingsFilter() { return Collections.emptyList(); }
-
-    /**
-     * Provides a function to modify global custom meta data on startup.
-     * <p>
-     * Plugins should return the input custom map via {@link UnaryOperator#identity()} if no upgrade is required.
-     * @return Never {@code null}. The same or upgraded {@code MetaData.Custom} map.
-     * @throws IllegalStateException if the node should not start because at least one {@code MetaData.Custom}
-     *         is unsupported
-     */
-    public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
-        return UnaryOperator.identity();
-    }
 
     /**
      * Provides the list of this plugin's custom thread pools, empty if

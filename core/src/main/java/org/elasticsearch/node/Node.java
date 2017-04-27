@@ -115,6 +115,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.UpgraderPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
@@ -402,14 +403,11 @@ public class Node implements Closeable {
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
                                                  scriptModule.getScriptService(), xContentRegistry).stream())
                 .collect(Collectors.toList());
-            Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders =
-                pluginsService.filterPlugins(Plugin.class).stream()
-                .map(Plugin::getCustomMetaDataUpgrader)
-                .collect(Collectors.toList());
+            Collection<UpgraderPlugin> upgraderPlugins = pluginsService.filterPlugins(UpgraderPlugin.class);
             final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
                     threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, restController);
-            final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders);
+            final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(upgraderPlugins);
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
@@ -464,7 +462,7 @@ public class Node implements Closeable {
                     b.bind(NetworkService.class).toInstance(networkService);
                     b.bind(UpdateHelper.class).toInstance(new UpdateHelper(settings, scriptModule.getScriptService()));
                     b.bind(MetaDataIndexUpgradeService.class).toInstance(new MetaDataIndexUpgradeService(settings,
-                        xContentRegistry, indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
+                        xContentRegistry, indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), upgraderPlugins));
                     b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
                     b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
                     {

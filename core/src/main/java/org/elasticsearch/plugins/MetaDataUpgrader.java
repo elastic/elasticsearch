@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 
 import java.util.Collection;
@@ -32,13 +33,23 @@ import java.util.function.UnaryOperator;
 public class MetaDataUpgrader {
     public final UnaryOperator<Map<String, MetaData.Custom>> customMetaDataUpgraders;
 
-    public MetaDataUpgrader(Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders) {
+    public final UnaryOperator<Map<String, IndexTemplateMetaData>> indexTemplateMetaDataUpgraders;
+
+    public MetaDataUpgrader(Collection<UpgraderPlugin> upgraderPlugins) {
         this.customMetaDataUpgraders = customs -> {
             Map<String, MetaData.Custom> upgradedCustoms = new HashMap<>(customs);
-            for (UnaryOperator<Map<String, MetaData.Custom>> customMetaDataUpgrader : customMetaDataUpgraders) {
-                upgradedCustoms = customMetaDataUpgrader.apply(upgradedCustoms);
+            for (UpgraderPlugin upgraderPlugin : upgraderPlugins) {
+                upgradedCustoms = upgraderPlugin.getCustomMetaDataUpgrader().apply(upgradedCustoms);
             }
             return upgradedCustoms;
+        };
+
+        this.indexTemplateMetaDataUpgraders = templates -> {
+            Map<String, IndexTemplateMetaData> upgradedTemplates = new HashMap<>(templates);
+            for (UpgraderPlugin upgraderPlugin : upgraderPlugins) {
+                upgradedTemplates = upgraderPlugin.getIndexTemplateMetaDataUpgrader().apply(upgradedTemplates);
+            }
+            return upgradedTemplates;
         };
     }
 }

@@ -145,7 +145,8 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
      *        argument is the value of the context provided to the {@link #parse(XContentParser, Object) parse function}. If any of the
      *        constructor arguments aren't defined in the XContent then parsing will throw an error. We use an array here rather than a
      *        {@code Map<String, Object>} to save on allocations.
-     */    public ConstructingObjectParser(String name, boolean ignoreUnknownFields, BiFunction<Object[], Context, Value> builder) {
+     */
+    public ConstructingObjectParser(String name, boolean ignoreUnknownFields, BiFunction<Object[], Context, Value> builder) {
         objectParser = new ObjectParser<>(name, ignoreUnknownFields, null);
         this.builder = builder;
 

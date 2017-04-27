@@ -30,7 +30,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -96,6 +95,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
         Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Boolean> INDEX_MAPPING_SINGLE_TYPE_SETTING =
+        Setting.boolSetting("index.mapping.single_type", false, Property.IndexScope, Property.Final);
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
@@ -457,6 +458,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 if (results.containsKey(updatedDocumentMapper.type())) {
                     results.put(updatedDocumentMapper.type(), updatedDocumentMapper);
                 }
+            }
+        }
+
+        if (indexSettings.getValue(INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+            Set<String> actualTypes = new HashSet<>(mappers.keySet());
+            actualTypes.remove(DEFAULT_MAPPING);
+            if (actualTypes.size() > 1) {
+                throw new IllegalArgumentException(
+                        "Rejecting mapping update to [" + index().getName() + "] as the final mapping would have more than 1 type: " + actualTypes);
             }
         }
 

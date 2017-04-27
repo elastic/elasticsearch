@@ -29,8 +29,8 @@ data feed to each job.
   For more information, see <<ml-datafeed-resource>>.
 
 `chunking_config`::
-  (object) The chunking configuration, which specifies how data searches are
-  chunked. See <<ml-datafeed-chunking-config>>.
+  (object) Specifies how data searches are split into time chunks.
+  See <<ml-datafeed-chunking-config>>.
 
 `frequency`::
   (time units) The interval at which scheduled queries are made while the data
@@ -45,21 +45,19 @@ data feed to each job.
  (string) A numerical character string that uniquely identifies the job.
 
 `query`::
-  (object) The Elasticsearch query domain-specific language (DSL). This value
-  corresponds to the query object in an Elasticsearch search POST body. All the
-  options that are supported by Elasticsearch can be used, as this object is
-  passed verbatim to Elasticsearch. By default, this property has the following
-  value: `{"match_all": {"boost": 1}}`. If this property is not specified, the
-  default value is `“match_all”: {}`.
+  (object) The {es} query domain-specific language (DSL). This value
+  corresponds to the query object in an {es} search POST body. All the
+  options that are supported by {Es} can be used, as this object is
+  passed verbatim to {es}. By default, this property has the following
+  value: `{"match_all": {"boost": 1}}`.
 
 `query_delay`::
-  (time units) The number of seconds behind real-time that data is queried. For
-  example, if data from 10:04 a.m. might not be searchable in Elasticsearch
-  until 10:06 a.m., set this property to 120 seconds. The default value is 60
-  seconds. For example: "60s".
+  (time units) The number of seconds behind real time that data is queried. For
+  example, if data from 10:04 a.m. might not be searchable in {es} until
+  10:06 a.m., set this property to 120 seconds. The default value is `60s`.
 
 `scroll_size`::
-  (unsigned integer) The `size` parameter that is used in Elasticsearch searches.
+  (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
 `types` (required)::

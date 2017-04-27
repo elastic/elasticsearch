@@ -13,10 +13,10 @@ The job must have been opened prior to sending data.
 
 ===== Description
 
-File sizes are limited to 100 Mb, so if your file is larger,
-then split it into multiple files and upload each one separately in sequential time order.
-When running in real-time, it is generally recommended to perform
-many small uploads, rather than queueing data to upload larger files.
+File sizes are limited to 100 Mb, so if your file is larger, then split it into
+multiple files and upload each one separately in sequential time order. When
+running in real time, it is generally recommended to perform many small uploads,
+rather than queueing data to upload larger files.
 
 When uploading data, check the <<ml-datacounts,job data counts>> for progress.
 The following records will not be processed:
@@ -26,10 +26,10 @@ The following records will not be processed:
 
 //TBD link to Working with Out of Order timeseries concept doc
 
-IMPORTANT:  Data can only be accepted from a single connection.
-Use a single connection synchronously to send data, close, flush, or delete a single job.
+IMPORTANT:  Data can only be accepted from a single connection. Use a single
+connection synchronously to send data, close, flush, or delete a single job.
 It is not currently possible to post data to multiple jobs using wildcards
-or a comma separated list.
+or a comma-separated list.
 
 
 ===== Path Parameters

@@ -19,7 +19,7 @@ science-related configurations in order to get the benefits of {ml}.
 === Integration with the Elastic Stack
 
 Machine learning is tightly integrated with the Elastic Stack.
-Data is pulled from {es} for analysis and anomaly results are displayed in {kb} 
+Data is pulled from {es} for analysis and anomaly results are displayed in {kib}
 dashboards.
 
 [float]
@@ -36,9 +36,9 @@ Jobs::
   with a job, see <<ml-job-resource, Job Resources>>.
 
 Data feeds::
-  Jobs can analyze either a one-off batch of data or continuously in real-time. 
-  Data feeds retrieve data from {es} for analysis. Alternatively you can 
-  <<ml-post-data],POST data>> from any source directly to an API. 
+  Jobs can analyze either a one-off batch of data or continuously in real time.
+  Data feeds retrieve data from {es} for analysis. Alternatively you can
+  <<ml-post-data,POST data>> from any source directly to an API.
 
 Detectors::
   Part of the configuration information associated with a job, detectors define

@@ -7,15 +7,15 @@ A data feed resource has the following properties:
 `aggregations`::
   (object) If set, the data feed performs aggregation searches.
   For syntax information, see {ref}/search-aggregations.html[Aggregations].
-  Support for aggregations is limited and should only be used with 
-  low cardinality data: 
+  Support for aggregations is limited and should only be used with
+  low cardinality data.
   For example:
   `{"@timestamp": {"histogram": {"field": "@timestamp",
   "interval": 30000,"offset": 0,"order": {"_key": "asc"},"keyed": false,
   "min_doc_count": 0}, "aggregations": {"events_per_min": {"sum": {
   "field": "events_per_min"}}}}}`.
-  //TBD link to a Working with aggregations page
 
+//TBD link to a Working with aggregations page
 `chunking_config`::
   (object) Specifies how data searches are split into time chunks.
   See <<ml-datafeed-chunking-config>>.
@@ -37,19 +37,19 @@ A data feed resource has the following properties:
  (string) The unique identifier for the job to which the data feed sends data.
 
 `query`::
-  (object) The Elasticsearch query domain-specific language (DSL). This value
-  corresponds to the query object in an Elasticsearch search POST body. All the
-  options that are supported by Elasticsearch can be used, as this object is
-  passed verbatim to Elasticsearch. By default, this property has the following
-  value: `{"match_all": {"boost": 1}}`. 
+  (object) The {es} query domain-specific language (DSL). This value
+  corresponds to the query object in an {es} search POST body. All the
+  options that are supported by {es} can be used, as this object is
+  passed verbatim to {es}. By default, this property has the following
+  value: `{"match_all": {"boost": 1}}`.
 
 `query_delay`::
-  (time units) The number of seconds behind real-time that data is queried. For
-  example, if data from 10:04 a.m. might not be searchable in Elasticsearch
-  until 10:06 a.m., set this property to 120 seconds. The default value is `60s`.
+  (time units) The number of seconds behind real time that data is queried. For
+  example, if data from 10:04 a.m. might not be searchable in {es} until
+  10:06 a.m., set this property to 120 seconds. The default value is `60s`.
 
 `scroll_size`::
-  (unsigned integer) The `size` parameter that is used in Elasticsearch searches.
+  (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
 `types` (required)::
@@ -59,7 +59,7 @@ A data feed resource has the following properties:
 [[ml-datafeed-chunking-config]]
 ===== Chunking Configuration Objects
 
-Data feeds may be required to search over long time periods, for several months
+Data feeds might be required to search over long time periods, for several months
 or years. This search is split into time chunks in order to ensure the load
 on {es} is managed. Chunking configuration controls how the size of these time
 chunks are calculated and is an advanced configuration option.
@@ -68,7 +68,7 @@ A chunking configuration object has the following properties:
 
 `mode` (required)::
   There are three available modes: +
-  `auto`::: The chunk size will be dynamically calculated. This is the default 
+  `auto`::: The chunk size will be dynamically calculated. This is the default
   and recommended value.
   `manual`::: Chunking will be applied according to the specified `time_span`.
   `off`::: No chunking will be applied.
@@ -86,21 +86,25 @@ The get data feed statistics API provides information about the operational
 progress of a data feed. For example:
 
 `assignment_explanation`::
-  (string) For started data feeds only, contains messages relating to the selection
-  of a node.
+  (string) For started data feeds only, contains messages relating to the
+  selection of a node.
 
 `datafeed_id`::
  (string) A numerical character string that uniquely identifies the data feed.
 
 `node`::
-  (object) The node upon which the data feed is started. The data feed and job will be on the same node.
-  `id`::: The unique identifier of the node. For example, "0-o0tOoRTwKFZifatTWKNw".
+  (object) The node upon which the data feed is started. The data feed and
+  job will be on the same node.
+  `id`::: The unique identifier of the node. For example,
+  "0-o0tOoRTwKFZifatTWKNw".
   `name`::: The node name. For example, "0-o0tOo".
-  `ephemeral_id`::: The node ephemeral id.
-  `transport_address`::: The host and port where transport HTTP connections are accepted. For example, "127.0.0.1:9300".
+  `ephemeral_id`::: The node ephemeral ID.
+  `transport_address`::: The host and port where transport HTTP connections are
+  accepted. For example, "127.0.0.1:9300".
   `attributes`::: For example, {"max_running_jobs": "10"}.
 
 `state`::
   (string) The status of the data feed, which can be one of the following values: +
   `started`::: The data feed is actively receiving data.
-  `stopped`::: The data feed is stopped and will not receive data until it is re-started.
+  `stopped`::: The data feed is stopped and will not receive data until it is
+  re-started.

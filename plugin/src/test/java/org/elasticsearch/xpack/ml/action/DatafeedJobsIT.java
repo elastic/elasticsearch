@@ -165,6 +165,8 @@ public class DatafeedJobsIT extends SecurityIntegTestCase {
             GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
             assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
         }, 60, TimeUnit.SECONDS);
+
+        waitUntilJobIsClosed(job.getId());
     }
 
     public void testRealtime() throws Exception {
@@ -228,4 +230,15 @@ public class DatafeedJobsIT extends SecurityIntegTestCase {
         });
     }
 
+    private void waitUntilJobIsClosed(String jobId) throws Exception {
+        assertBusy(() -> {
+            try {
+                GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
+                GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).get();
+                assertThat(response.getResponse().results().get(0).getState(), equalTo(JobState.CLOSED));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
 }

@@ -248,7 +248,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (dateHistogram.dateHistogramInterval() != null) {
             return validateAndGetCalendarInterval(dateHistogram.dateHistogramInterval().toString());
         } else {
-            return (long) dateHistogram.interval();
+            return dateHistogram.interval();
         }
     }
 

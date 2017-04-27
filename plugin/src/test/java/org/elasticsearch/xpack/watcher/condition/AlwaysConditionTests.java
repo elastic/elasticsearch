@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.condition;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -53,7 +52,7 @@ public class AlwaysConditionTests extends ESTestCase {
         String type = randomFrom(ScriptCondition.TYPE, AlwaysCondition.TYPE, CompareCondition.TYPE, ArrayCompareCondition.TYPE);
         switch (type) {
             case ScriptCondition.TYPE:
-                return new ScriptCondition(new Script("_script"), scriptService);
+                return new ScriptCondition(mockScript("_script"), scriptService);
             case CompareCondition.TYPE:
                 return new CompareCondition("_path", randomFrom(CompareCondition.Op.values()), randomFrom(5, "3"),
                         Clock.systemUTC());

@@ -78,7 +78,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
             // When using the MockScriptPlugin we can map File scripts to inline scripts:
             // the name of the file script is used in test method while the source of the file script
             // must match a predefined script from CustomScriptPlugin.pluginScripts() method
-            Files.write(scripts.resolve("my-script.painless"), "['key3' : ctx.payload.key1 + ctx.payload.key2]".getBytes("UTF-8"));
+            Files.write(scripts.resolve("my-script.mockscript"), "['key3' : ctx.payload.key1 + ctx.payload.key2]".getBytes("UTF-8"));
         } catch (IOException ex) {
             throw new RuntimeException("Failed to create scripts", ex);
         }
@@ -111,29 +111,24 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
             return scripts;
         }
-
-        @Override
-        public String pluginScriptLang() {
-            return WATCHER_LANG;
-        }
     }
 
     public void testScriptTransform() throws Exception {
         final Script script;
         if (randomBoolean()) {
             logger.info("testing script transform with an inline script");
-            script = new Script("['key3' : ctx.payload.key1 + ctx.payload.key2]");
+            script = mockScript("['key3' : ctx.payload.key1 + ctx.payload.key2]");
         } else if (randomBoolean()) {
             logger.info("testing script transform with an indexed script");
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setId("my-script")
-                    .setLang("painless")
+                    .setLang("mockscript")
                     .setContent(new BytesArray("{\"script\" : \"['key3' : ctx.payload.key1 + ctx.payload.key2]\"}"), XContentType.JSON)
                     .get());
-            script = new Script(ScriptType.STORED, "painless", "my-script", Collections.emptyMap());
+            script = new Script(ScriptType.STORED, "mockscript", "my-script", Collections.emptyMap());
         } else {
             logger.info("testing script transform with a file script");
-            script = new Script(ScriptType.FILE, "painless", "my-script", Collections.emptyMap());
+            script = new Script(ScriptType.FILE, "mockscript", "my-script", Collections.emptyMap());
         }
 
         // put a watch that has watch level transform:
@@ -227,8 +222,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
     }
 
     public void testChainTransform() throws Exception {
-        Script script1 = new Script("['key3' : ctx.payload.key1 + ctx.payload.key2]");
-        Script script2 = new Script("['key4' : ctx.payload.key3 + 10]");
+        Script script1 = mockScript("['key3' : ctx.payload.key1 + ctx.payload.key2]");
+        Script script2 = mockScript("['key4' : ctx.payload.key3 + 10]");
 
         // put a watch that has watch level transform:
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id1")

@@ -9,7 +9,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -53,7 +52,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             int scriptsSize = randomInt(3);
             List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
             for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
-                scriptFields.add(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10), new Script(randomAlphaOfLength(10)),
+                scriptFields.add(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10), mockScript(randomAlphaOfLength(10)),
                         randomBoolean()));
             }
             builder.setScriptFields(scriptFields);
@@ -126,7 +125,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         update.setQueryDelay(TimeValue.timeValueSeconds(42));
         update.setFrequency(TimeValue.timeValueSeconds(142));
         update.setQuery(QueryBuilders.termQuery("a", "b"));
-        update.setScriptFields(Arrays.asList(new SearchSourceBuilder.ScriptField("a", new Script("b"), false)));
+        update.setScriptFields(Arrays.asList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false)));
         update.setScrollSize(8000);
         update.setSource(true);
         update.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
@@ -141,7 +140,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         assertThat(updatedDatafeed.getQuery(), equalTo(QueryBuilders.termQuery("a", "b")));
         assertThat(updatedDatafeed.hasAggregations(), is(false));
         assertThat(updatedDatafeed.getScriptFields(),
-                equalTo(Arrays.asList(new SearchSourceBuilder.ScriptField("a", new Script("b"), false))));
+                equalTo(Arrays.asList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false))));
         assertThat(updatedDatafeed.getScrollSize(), equalTo(8000));
         assertThat(updatedDatafeed.isSource(), is(true));
         assertThat(updatedDatafeed.getChunkingConfig(), equalTo(ChunkingConfig.newManual(TimeValue.timeValueHours(1))));

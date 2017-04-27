@@ -9,7 +9,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
@@ -107,11 +106,6 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
 
             return scripts;
         }
-
-        @Override
-        public String pluginScriptLang() {
-            return WATCHER_LANG;
-        }
     }
 
     public void testVars() throws Exception {
@@ -121,15 +115,16 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                 .trigger(schedule(cron("0/1 * * * * ?")))
                 .input(simpleInput("value", 5))
                 .condition(new ScriptCondition(
-                        new Script("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;")))
-                .transform(scriptTransform("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;"))
+                        mockScript("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;")))
+                .transform(
+                        scriptTransform(mockScript("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;")))
                 .addAction(
                         "a1",
-                        scriptTransform("transform a1"),
+                        scriptTransform(mockScript("transform a1")),
                         loggingAction("_text"))
                 .addAction(
                         "a2",
-                        scriptTransform("transform a2"),
+                        scriptTransform(mockScript("transform a2")),
                         loggingAction("_text")))
                 .get();
 
@@ -184,15 +179,16 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                 .trigger(schedule(cron("0/1 * * * * ? 2020")))
                 .input(simpleInput("value", 5))
                 .condition(new ScriptCondition(
-                        new Script("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;")))
-                .transform(scriptTransform("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;"))
+                        mockScript("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;")))
+                .transform(
+                        scriptTransform(mockScript("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;")))
                 .addAction(
                         "a1",
-                        scriptTransform("transform a1"),
+                        scriptTransform(mockScript("transform a1")),
                         loggingAction("_text"))
                 .addAction(
                         "a2",
-                        scriptTransform("transform a2"),
+                        scriptTransform(mockScript("transform a2")),
                         loggingAction("_text")))
                 .get();
 

@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -55,7 +55,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             int scriptsSize = randomInt(3);
             List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
             for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
-                scriptFields.add(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10), new Script(randomAlphaOfLength(10)),
+                scriptFields.add(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10), mockScript(randomAlphaOfLength(10)),
                         randomBoolean()));
             }
             builder.setScriptFields(scriptFields);
@@ -192,7 +192,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         datafeed.setIndexes(Arrays.asList("my_index"));
         datafeed.setTypes(Arrays.asList("my_type"));
         datafeed.setScriptFields(Arrays.asList(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10),
-                new Script(randomAlphaOfLength(10)), randomBoolean())));
+                mockScript(randomAlphaOfLength(10)), randomBoolean())));
         datafeed.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("foo")));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> datafeed.build());

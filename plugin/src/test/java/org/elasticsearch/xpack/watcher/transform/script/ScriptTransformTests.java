@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -161,7 +162,7 @@ public class ScriptTransformTests extends ESTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
         ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
-        assertThat(transform.transform().getScript(), equalTo(new Script("_script")));
+        assertEquals(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "_script", emptyMap()), transform.transform().getScript());
     }
 
     public void testScriptConditionParserBadScript() throws Exception {

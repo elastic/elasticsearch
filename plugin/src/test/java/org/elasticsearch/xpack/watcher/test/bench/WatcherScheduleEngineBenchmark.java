@@ -21,11 +21,13 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingLevel;
@@ -34,7 +36,6 @@ import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -44,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -110,7 +112,11 @@ public class WatcherScheduleEngineBenchmark {
                             .setSource(new WatchSourceBuilder()
                                             .trigger(schedule(interval(interval + "s")))
                                             .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))
-                                            .condition(new ScriptCondition(new Script("ctx.payload.hits.total > 0")))
+                                            .condition(new ScriptCondition(new Script(
+                                                    ScriptType.INLINE,
+                                                    Script.DEFAULT_SCRIPT_LANG,
+                                                    "ctx.payload.hits.total > 0",
+                                                    emptyMap())))
                                             .addAction("logging", ActionBuilders.loggingAction("test").setLevel(LoggingLevel.TRACE))
                                             .buildAsBytes(XContentType.JSON), XContentType.JSON
                             ).get();
@@ -182,8 +188,11 @@ public class WatcherScheduleEngineBenchmark {
                         }
                     }
                     client.admin().indices().prepareRefresh(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").get();
-                    Script script = new Script("doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule" +
-                            ".scheduled_time'].value");
+                    Script script = new Script(
+                            ScriptType.INLINE,
+                            Script.DEFAULT_SCRIPT_LANG,
+                            "doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule.scheduled_time'].value",
+                            emptyMap());
                     SearchResponse searchResponse = client.prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*")
                             .setQuery(QueryBuilders.rangeQuery("trigger_event.schedule.scheduled_time").gte(startTime).lte(endTime))
                             .addAggregation(terms("state").field("state"))

@@ -433,7 +433,7 @@ public class WatchTests extends ESTestCase {
         DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
         switch (type) {
             case ScriptTransform.TYPE:
-                return new ExecutableScriptTransform(new ScriptTransform(new Script("_script")), logger, scriptService);
+                return new ExecutableScriptTransform(new ScriptTransform(mockScript("_script")), logger, scriptService);
             case SearchTransform.TYPE:
                 SearchTransform transform = new SearchTransform(
                         templateRequest(searchSource()), timeout, timeZone);
@@ -441,14 +441,14 @@ public class WatchTests extends ESTestCase {
             default: // chain
                 SearchTransform searchTransform = new SearchTransform(
                         templateRequest(searchSource()), timeout, timeZone);
-                ScriptTransform scriptTransform = new ScriptTransform(new Script("_script"));
+                ScriptTransform scriptTransform = new ScriptTransform(mockScript("_script"));
 
                 ChainTransform chainTransform = new ChainTransform(Arrays.asList(searchTransform, scriptTransform));
                 return new ExecutableChainTransform(chainTransform, logger, Arrays.<ExecutableTransform>asList(
                         new ExecutableSearchTransform(new SearchTransform(
                                 templateRequest(searchSource()), timeout, timeZone),
                                 logger, client, searchTemplateService, null),
-                        new ExecutableScriptTransform(new ScriptTransform(new Script("_script")),
+                        new ExecutableScriptTransform(new ScriptTransform(mockScript("_script")),
                             logger, scriptService)));
         }
     }

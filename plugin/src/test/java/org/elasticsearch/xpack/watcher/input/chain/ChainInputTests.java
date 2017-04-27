@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
@@ -153,7 +152,7 @@ public class ChainInputTests extends ESTestCase {
         watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(chainedInputBuilder)
-                .condition(new ScriptCondition(new Script("ctx.payload.hits.total == 1")))
+                .condition(new ScriptCondition(mockScript("ctx.payload.hits.total == 1")))
                 .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched"))
                 .toXContent(builder, ToXContent.EMPTY_PARAMS);
 

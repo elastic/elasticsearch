@@ -12,12 +12,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.script.Script;
 import org.junit.Before;
 
 import java.io.BufferedReader;
@@ -34,6 +35,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -278,9 +280,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
     public void testDomainSplitScriptField() throws IOException {
 
         SearchSourceBuilder.ScriptField withoutSplit = new SearchSourceBuilder.ScriptField(
-                "script1", new Script("return 1+1;"), false);
+                "script1", mockScript("return 1+1;"), false);
         SearchSourceBuilder.ScriptField withSplit = new SearchSourceBuilder.ScriptField(
-                "script2", new Script("return domainSplit('foo.com', params);"), false);
+                "script2", new Script(ScriptType.INLINE, "painless", "return domainSplit('foo.com', params);", emptyMap()), false);
 
         List<SearchSourceBuilder.ScriptField> sFields = Arrays.asList(withoutSplit, withSplit);
         ScrollDataExtractorContext context =  new ScrollDataExtractorContext(jobId, extractedFields, indexes,
@@ -317,7 +319,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(searchRequest, containsString("\"stored_fields\":\"_none_\""));
 
         // Check for the scripts
-        assertThat(searchRequest, containsString("{\"script\":{\"inline\":\"return 1 + 1;\",\"lang\":\"painless\"}"
+        assertThat(searchRequest, containsString("{\"script\":{\"inline\":\"return 1 + 1;\",\"lang\":\"mockscript\"}"
                 .replaceAll("\\s", "")));
         assertThat(searchRequest, containsString("List domainSplit(String host, Map params)".replaceAll("\\s", "")));
         assertThat(searchRequest, containsString("String replaceDots(String input) {".replaceAll("\\s", "")));

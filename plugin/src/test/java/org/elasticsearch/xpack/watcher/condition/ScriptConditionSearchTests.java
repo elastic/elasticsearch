@@ -12,14 +12,13 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -65,11 +64,6 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
 
             return scripts;
         }
-
-        @Override
-        public String pluginScriptLang() {
-            return WATCHER_LANG;
-        }
     }
 
     public void testExecuteWithAggs() throws Exception {
@@ -86,7 +80,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
 
         ScriptService scriptService = internalCluster().getInstance(ScriptService.class);
         ScriptCondition condition = new ScriptCondition(
-                new Script("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5"),
+                mockScript("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5"),
                 scriptService);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
@@ -106,7 +100,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
     public void testExecuteAccessHits() throws Exception {
         ScriptService scriptService = internalCluster().getInstance(ScriptService.class);
         ScriptCondition condition = new ScriptCondition(
-                new Script("ctx.payload.hits?.hits[0]?._score == 1.0"), scriptService);
+                mockScript("ctx.payload.hits?.hits[0]?._score == 1.0"), scriptService);
         SearchHit hit = new SearchHit(0, "1", new Text("type"), null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new Index("a", "testUUID"), 0));

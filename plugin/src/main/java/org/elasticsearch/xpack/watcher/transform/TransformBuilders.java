@@ -6,10 +6,13 @@
 package org.elasticsearch.xpack.watcher.transform;
 
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.transform.chain.ChainTransform;
 import org.elasticsearch.xpack.watcher.transform.script.ScriptTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
+
+import static java.util.Collections.emptyMap;
 
 public final class TransformBuilders {
 
@@ -21,7 +24,7 @@ public final class TransformBuilders {
     }
 
     public static ScriptTransform.Builder scriptTransform(String script) {
-        return scriptTransform(new Script(script));
+        return scriptTransform(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, script, emptyMap()));
     }
 
     public static ScriptTransform.Builder scriptTransform(Script script) {

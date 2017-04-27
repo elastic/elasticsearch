@@ -123,6 +123,8 @@ import org.elasticsearch.xpack.security.bootstrap.DefaultPasswordBootstrapCheck;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
+import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
+import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
 import org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestDeleteRoleAction;
@@ -577,7 +579,9 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
                 new RestDeleteRoleAction(settings, restController),
                 new RestChangePasswordAction(settings, restController, securityContext.get()),
                 new RestSetEnabledAction(settings, restController),
-                new RestHasPrivilegesAction(settings, restController, securityContext.get()));
+                new RestHasPrivilegesAction(settings, restController, securityContext.get()),
+                new RestGetTokenAction(settings, licenseState, restController),
+                new RestInvalidateTokenAction(settings, licenseState, restController));
     }
 
     @Override

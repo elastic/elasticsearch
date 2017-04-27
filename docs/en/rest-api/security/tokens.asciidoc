@@ -1,0 +1,91 @@
+[[security-api-tokens]]
+=== Token Management APIs
+
+The `token` API enables you to create and invalidate bearer tokens for access
+without requiring basic authentication. The get token API takes the same
+parameters as a typical OAuth 2.0 token API except for the use of a JSON
+request body.
+
+[[security-api-get-token]]
+To obtain a token, submit a POST request to the `/_xpack/security/oauth2/token`
+endpoint.
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/security/oauth2/token
+{
+  "grant_type" : "password",
+  "username" : "elastic",
+  "password" : "changeme"
+}
+--------------------------------------------------
+// CONSOLE
+
+.Token Request Fields
+[cols="4,^2,10"]
+|=======================
+| Name        | Required  | Description
+| `username`  | yes       | The username that identifies the user.
+| `password`  | yes       | The user's password.
+| `grant_type`| yes       | The type of grant. Currently only the `password`
+                            grant type is supported.
+| `scope`     | no        | The scope of the token. Currently tokens are only
+                            issued for a scope of `FULL` regardless of the value
+                            sent with the request.
+|=======================
+
+A successful call returns a JSON structure that contains the access token, the
+amount of time (seconds) that the token expires in, the type, and the scope if
+available.
+
+[source,js]
+--------------------------------------------------
+{
+  "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
+  "type" : "Bearer",
+  "expires_in" : 1200
+}
+--------------------------------------------------
+// TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
+
+A successful call returns a JSON structure that shows whether the user has been
+created or updated.
+
+The token returned by this API can be used by sending a request with a
+`Authorization` header with a value having the prefix `Bearer ` followed
+by the value of the `access_token`.
+
+[source,shell]
+--------------------------------------------------
+curl -H "Authorization: Bearer dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==" http://localhost:9200/_cluster/health
+--------------------------------------------------
+
+[[security-api-invalidate-token]]
+The tokens returned from this API have a finite period of time for which they
+are valid and after that time period, they can no longer be used. However, if
+a token must be invalidated immediately, you can do so by submitting a DELETE
+request to `/_xpack/security/oauth2/token`.
+
+[source,js]
+--------------------------------------------------
+DELETE /_xpack/security/oauth2/token
+{
+  "token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
+// TEST[continued]
+
+A successful call returns a JSON structure that indicates whether the token
+has already been invalidated.
+
+[source,js]
+--------------------------------------------------
+{
+  "created" : true <1>
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+<1> When a token has already been invalidated, `created` is set to false.

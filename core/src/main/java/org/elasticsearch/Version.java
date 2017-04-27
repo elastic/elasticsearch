@@ -316,9 +316,11 @@ public class Version {
     public static final int V_2_4_4_ID = 2040499;
     public static final Version V_2_4_4 = new Version(V_2_4_4_ID, false, org.apache.lucene.util.Version.LUCENE_5_5_2);
     public static final int V_2_4_5_ID = 2040599;
-    public static final Version V_2_4_5 = new Version(V_2_4_5_ID, true, org.apache.lucene.util.Version.LUCENE_5_5_4);
+    public static final Version V_2_4_5 = new Version(V_2_4_5_ID, false, org.apache.lucene.util.Version.LUCENE_5_5_4);
+    public static final int V_2_4_6_ID = 2040699;
+    public static final Version V_2_4_6 = new Version(V_2_4_6_ID, true, org.apache.lucene.util.Version.LUCENE_5_5_4);
 
-    public static final Version CURRENT = V_2_4_5;
+    public static final Version CURRENT = V_2_4_6;
 
     static {
         assert CURRENT.luceneVersion.equals(Lucene.VERSION) : "Version must be upgraded to [" + Lucene.VERSION + "] is still set to [" + CURRENT.luceneVersion + "]";
@@ -330,6 +332,8 @@ public class Version {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_2_4_6_ID:
+                return V_2_4_6;
             case V_2_4_5_ID:
                 return V_2_4_5;
             case V_2_4_4_ID:

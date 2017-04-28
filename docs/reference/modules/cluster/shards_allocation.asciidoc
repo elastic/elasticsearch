@@ -49,7 +49,8 @@ one of the active allocation ids in the cluster state.
     an unassigned primary after node restart uses data from the local disk.
     These should be fast so more initial primary recoveries can happen in
     parallel on the same node.  Defaults to `4`.
-
+   
+The following _static_ settings may be used to control shard allocation and recovery:
 
 `cluster.routing.allocation.same_shard.host`::
 

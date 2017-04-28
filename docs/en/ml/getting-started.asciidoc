@@ -122,22 +122,21 @@ In this step we will upload some sample data to {es}. This is standard
 
 The sample data for this tutorial contains information about the requests that
 are received by various applications and services in a system. A system
-administrator might use this type of information to track the the total
-number of requests across all of the infrastructure. If the number of requests
-increases or decreases unexpectedly, for example, this might be an indication
-that there is a problem or that resources need to be redistributed. By using
-the {xpack} {ml} features to model the behavior of this data, it is easier to
-identify anomalies and take appropriate action.
+administrator might use this type of information to track the total number of
+requests across all of the infrastructure. If the number of requests increases
+or decreases unexpectedly, for example, this might be an indication that there
+is a problem or that resources need to be redistributed. By using the {xpack}
+{ml} features to model the behavior of this data, it is easier to identify
+anomalies and take appropriate action.
 
-Download this sample data from: https://github.com/elastic/examples
-//Download this data set by clicking here:
-//See  https://download.elastic.co/demos/kibana/gettingstarted/shakespeare.json[shakespeare.json].
+Download this sample data by clicking here:
+https://download.elastic.co/demos/machine_learning/gettingstarted/server_metrics.tar.gz[server_metrics.tar.gz]
 
 Use the following commands to extract the files:
 
 [source,shell]
 ----------------------------------
-tar xvf server_metrics.tar.gz
+tar -zxvf server_metrics.tar.gz
 ----------------------------------
 
 Each document in the server-metrics data set has the following schema:
@@ -183,9 +182,10 @@ and specify a field's characteristics, such as the field's searchability or
 whether or not it's _tokenized_, or broken up into separate words.
 
 The sample data includes an `upload_server-metrics.sh` script, which you can use
-to create the mappings and load the data set. Before you run it, however, you
-must edit the USERNAME and PASSWORD variables with your actual user ID and
-password.
+to create the mappings and load the data set. You can download it by clicking
+here: https://download.elastic.co/demos/machine_learning/gettingstarted/upload_server-metrics.sh[upload_server-metrics.sh]
+Before you run it, however, you must edit the USERNAME and PASSWORD variables
+with your actual user ID and password.
 
 The script runs a command similar to the following example, which sets up a
 mapping for the data set:
@@ -456,7 +456,9 @@ the progress of {ml} as the data is processed. This view is only available whils
 job is running.
 
 TIP: The `create_single_metic.sh` script creates a similar job and data feed by
-using the {ml} APIs. For API reference information, see <<ml-apis>>.
+using the {ml} APIs. You can download that script by clicking
+here: https://download.elastic.co/demos/machine_learning/gettingstarted/create_single_metric.sh[create_single_metric.sh]
+For API reference information, see <<ml-apis>>.
 
 [[ml-gs-job1-manage]]
 === Managing Jobs

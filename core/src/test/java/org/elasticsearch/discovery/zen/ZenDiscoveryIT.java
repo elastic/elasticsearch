@@ -260,6 +260,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 "}";
 
         internalCluster().startNode();
+        ensureGreen(); // ensures that all events are processed (in particular state recovery fully completed)
 
         logger.info("--> request node discovery stats");
         NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setDiscovery(true).get();

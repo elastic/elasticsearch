@@ -570,7 +570,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                                 final ZenDiscovery zenDiscovery = (ZenDiscovery) discovery;
                                 assertBusy(() -> {
                                     final ClusterState[] states = zenDiscovery.pendingClusterStates();
-                                    assertThat(zenDiscovery.localNode().getName() + " still having pending states:\n" +
+                                    assertThat(zenDiscovery.clusterState().nodes().getLocalNode().getName() +
+                                            " still having pending states:\n" +
                                             Stream.of(states).map(ClusterState::toString).collect(Collectors.joining("\n")),
                                         states, emptyArray());
                                 });

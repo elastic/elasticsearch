@@ -143,23 +143,22 @@ Each document in the server-metrics data set has the following schema:
 
 [source,js]
 ----------------------------------
-
 {
   "index":
   {
     "_index":"server-metrics",
     "_type":"metric",
-    "_id":"AVuQL1eekrHQ5a9V5qre"
+    "_id":"1177"
   }
 }
 {
-  "deny":1783,
-  "service":"app_0",
-  "@timestamp":"2017-03-26T06:47:28.684926",
-  "accept":24465,
-  "host":"server_1",
-  "total":26248,
-  "response":1.8242486553275024
+  "@timestamp":"2017-03-23T13:00:00",
+  "accept":36320,
+  "deny":4156,
+  "host":"server_2",
+  "response":2.4558210155,
+  "service":"app_3",
+  "total":40476
 }
 ----------------------------------
 
@@ -195,50 +194,37 @@ mapping for the data set:
 
 curl -u elastic:changeme -X PUT -H 'Content-Type: application/json'
 http://localhost:9200/server-metrics -d '{
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 0
-  },
-  "mappings": {
-      "metric": {
-        "properties": {
-          "@timestamp": {
-            "type": "date"
-          },
-          "accept": {
-            "type": "long"
-          },
-          "deny": {
-            "type": "long"
-          },
-          "host": {
-            "type": "text",
-            "fields": {
-              "keyword": {
-                "type": "keyword",
-                "ignore_above": 256
-              }
+   "settings":{
+      "number_of_shards":1,
+      "number_of_replicas":0
+   },
+   "mappings":{
+      "metric":{
+         "properties":{
+            "@timestamp":{
+               "type":"date"
+            },
+            "accept":{
+               "type":"long"
+            },
+            "deny":{
+               "type":"long"
+            },
+            "host":{
+               "type":"keyword"
+            },
+            "response":{
+               "type":"float"
+            },
+            "service":{
+               "type":"keyword"
+            },
+            "total":{
+               "type":"long"
             }
-          },
-          "response": {
-            "type": "float"
-          },
-          "service": {
-            "type": "text",
-            "fields": {
-              "keyword": {
-                "type": "keyword",
-                "ignore_above": 256
-              }
-            }
-          },
-          "total": {
-            "type": "long"
-          }
-        }
+         }
       }
-    }
-  }
+   }
 }'
 ----------------------------------
 

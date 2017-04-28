@@ -30,15 +30,17 @@ def box = "krb5kdc"
 def defaultPrincipals = [ "elasticsearch" ]
 
 task update(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
+    command 'box'
+    subcommand 'update'
     boxName box
     environmentVars vagrantEnvVars
-    args 'box', 'update', box
 }
 
 task up(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    boxName = box
-    environmentVars = vagrantEnvVars
-    args = [ "up", box, '--provision', '--provider', 'virtualbox' ]
+    command 'up'
+    args '--provision', '--provider', 'virtualbox'
+    boxName box
+    environmentVars vagrantEnvVars
     dependsOn update
 }
 
@@ -47,24 +49,27 @@ task addDefaultPrincipals {
 }
 
 for (String principal : defaultPrincipals) {
-    def addTask = project.tasks.create("addPrincipal#${principal}", Exec) {
-        environment vagrantEnvVars
-        commandLine 'vagrant', 'ssh', box, '--command', "sudo bash /elasticsearch/src/main/resources/provision/addprinc.sh $principal"
+    def addTask = project.tasks.create("addPrincipal#${principal}", org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
+        command 'ssh'
+        args '--command', "sudo bash /elasticsearch/src/main/resources/provision/addprinc.sh $principal"
+        boxName box
+        environmentVars vagrantEnvVars
         dependsOn up
     }
     addDefaultPrincipals.dependsOn(addTask)
 }
 
 task halt(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    boxName = box
-    environmentVars = vagrantEnvVars
-    args = [ "halt", box ]
+    command 'halt'
+    boxName box
+    environmentVars vagrantEnvVars
 }
 
 task destroy(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    boxName = box
-    environmentVars = vagrantEnvVars
-    args = [ "destroy", box, "-f"]
+    command 'destroy'
+    args '-f'
+    boxName box
+    environmentVars vagrantEnvVars
     dependsOn halt
 }
 

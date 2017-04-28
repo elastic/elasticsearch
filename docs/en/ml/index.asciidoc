@@ -20,4 +20,3 @@ include::getting-started.asciidoc[]
 include::api-quickref.asciidoc[]
 
 //include::troubleshooting.asciidoc[]  Referenced from x-pack/docs/public/xpack-troubleshooting.asciidoc
-//include::release-notes.asciidoc[] Referenced from x-pack/docs/public/xpack-release-notes.asciidoc

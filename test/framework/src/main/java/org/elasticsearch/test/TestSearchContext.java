@@ -85,6 +85,7 @@ public class TestSearchContext extends SearchContext {
     ContextIndexSearcher searcher;
     int size;
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
+    private boolean earlyTerminate = false;
     private SearchContextAggregations aggregations;
 
     private final long originNanoTime = System.nanoTime();
@@ -316,6 +317,16 @@ public class TestSearchContext extends SearchContext {
     @Override
     public void terminateAfter(int terminateAfter) {
         this.terminateAfter = terminateAfter;
+    }
+
+    @Override
+    public boolean earlyTerminate() {
+        return earlyTerminate;
+    }
+
+    @Override
+    public void earlyTerminate(boolean value) {
+        this.earlyTerminate = value;
     }
 
     @Override

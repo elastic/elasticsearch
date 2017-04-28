@@ -100,6 +100,7 @@ final class DefaultSearchContext extends SearchContext {
     private TimeValue timeout;
     // terminate after count
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
+    private boolean earlyTerminate = false;
     private List<String> groupStats;
     private ScrollContext scrollContext;
     private boolean explain;
@@ -512,6 +513,16 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void terminateAfter(int terminateAfter) {
         this.terminateAfter = terminateAfter;
+    }
+
+    @Override
+    public boolean earlyTerminate() {
+        return earlyTerminate;
+    }
+
+    @Override
+    public void earlyTerminate(boolean value) {
+        this.earlyTerminate = value;
     }
 
     @Override

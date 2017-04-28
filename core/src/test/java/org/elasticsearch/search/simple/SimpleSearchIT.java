@@ -51,6 +51,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleSearchIT extends ESIntegTestCase {
 
@@ -286,6 +287,42 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
         assertHitCount(searchResponse, max);
         assertFalse(searchResponse.isTerminatedEarly());
+    }
+
+    public void testSimpleSortedEarlyTerminate() throws Exception {
+        prepareCreate("test")
+            .setSettings(Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.sort.field", "rank")
+            )
+            .addMapping("type1", "rank", "type=integer")
+            .get();
+        ensureGreen();
+        int max = randomIntBetween(3, 29);
+        List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
+
+        for (int i = max-1; i >= 0; i--) {
+            String id = String.valueOf(i);
+            docbuilders.add(client().prepareIndex("test", "type1", id).setSource("rank", i));
+        }
+
+        indexRandom(true, docbuilders);
+        ensureGreen();
+        refresh();
+
+        SearchResponse searchResponse;
+
+        for (int i = 1; i < max; i++) {
+            searchResponse = client().prepareSearch("test")
+                .addDocValueField("rank")
+                .setEarlyTerminate(true).setSize(i).execute().actionGet();
+            assertThat(searchResponse.getHits().getHits().length, equalTo(i));
+            for (int j = 0; j < i; j++) {
+                assertThat(searchResponse.getHits().getAt(j).field("rank").getValue(),
+                    equalTo((long) j));
+            }
+        }
     }
 
     public void testInsaneFromAndSize() throws Exception {

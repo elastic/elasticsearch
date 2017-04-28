@@ -93,6 +93,14 @@ And here is a sample response:
     the query execution has actually terminated_early. Defaults to no
     terminate_after.
 
+`early_terminate`::
+
+    Set to `true` to limit the search to the first `size` documents per segment.
+    This option can only be used when the index is sorted using the same sort than
+    the request. It is also possible to omit `sort` in the request which will cause
+    the documents to be sorted by the index sort automatically in the response.
+    See <<index-modules-index-sorting,`index-sorting`>> for more.
+
 
 Out of the above, the `search_type` and the `request_cache` must be passed as
 query-string parameters. The rest of the search request should be passed

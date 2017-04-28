@@ -220,6 +220,10 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract void terminateAfter(int terminateAfter);
 
+    public abstract boolean earlyTerminate();
+
+    public abstract void earlyTerminate(boolean value);
+
     /**
      * Indicates if the current index should perform frequent low level search cancellation check.
      *

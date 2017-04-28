@@ -124,6 +124,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -174,7 +175,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final TranslogConfig translogConfig;
     private final IndexEventListener indexEventListener;
     private final QueryCachingPolicy cachingPolicy;
-    private final Supplier<Sort> indexSortSupplier;
+    private final Supplier<SortAndFormats> indexSortSupplier;
 
     /**
      * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
@@ -230,7 +231,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RefreshListeners refreshListeners;
 
     public IndexShard(ShardRouting shardRouting, IndexSettings indexSettings, ShardPath path, Store store,
-                      Supplier<Sort> indexSortSupplier, IndexCache indexCache, MapperService mapperService, SimilarityService similarityService,
+                      Supplier<SortAndFormats> indexSortSupplier, IndexCache indexCache, MapperService mapperService, SimilarityService similarityService,
                       IndexFieldDataService indexFieldDataService, @Nullable EngineFactory engineFactory,
                       IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, ThreadPool threadPool, BigArrays bigArrays,
                       Engine.Warmer warmer, Runnable globalCheckpointSyncer, List<SearchOperationListener> searchOperationListener, List<IndexingOperationListener> listeners) throws IOException {
@@ -297,7 +298,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Return the sort order of this index, or null if the index has no sort.
      */
-    public Sort getIndexSort() {
+    public SortAndFormats getIndexSort() {
         return indexSortSupplier.get();
     }
     /**
@@ -1818,11 +1819,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
         final IndexShardRecoveryPerformer translogRecoveryPerformer = new IndexShardRecoveryPerformer(shardId, mapperService, logger);
-        Sort indexSort = indexSortSupplier.get();
+        final SortAndFormats indexSort = indexSortSupplier.get();
         return new EngineConfig(openMode, shardId,
             threadPool, indexSettings, warmer, store, deletionPolicy, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig,
-            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()), refreshListeners, indexSort);
+            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()), refreshListeners,
+            indexSort == null ? null : indexSort.sort);
     }
 
     /**

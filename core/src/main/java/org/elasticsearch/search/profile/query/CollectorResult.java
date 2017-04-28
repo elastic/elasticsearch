@@ -47,6 +47,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
     public static final String REASON_SEARCH_COUNT = "search_count";
     public static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
     public static final String REASON_SEARCH_TERMINATE_AFTER_COUNT = "search_terminate_after_count";
+    public static final String REASON_SEARCH_SORTING_EARLY_TERMINATION = "search_sorting_early_terminate";
     public static final String REASON_SEARCH_POST_FILTER = "search_post_filter";
     public static final String REASON_SEARCH_MIN_SCORE = "search_min_score";
     public static final String REASON_SEARCH_MULTI = "search_multi";

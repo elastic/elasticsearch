@@ -104,4 +104,82 @@ Index sorting supports the following settings:
 
 [WARNING]
 Index sorting can be defined only once at index creation. It is not allowed to add or update
-a sort on an existing index.
+a sort on an existing index. Index sorting also has a cost in terms of indexing throughput since
+documents must be sorted at flush and merge time. You should test the impact on your application
+before activating this feature.
+
+[float]
+[[early-terminate]]
+=== Early termination of search request
+
+By default in elasticsearch a search request must visit every document that match a query to
+retrieve the top documents sorted by a specified sort.
+Though when the index sort and the search sort are the same it is possible to limit
+the number of documents that should be visited per segment to retrieve the N top ranked documents.
+Since each segment is sorted in the index we only need to visit the N first documents per segment
+to retrieve the final N documents of that shard.
+For example, let's say we have an index that contains events sorted by a timestamp field:
+
+[source,js]
+--------------------------------------------------
+PUT events
+{
+    "settings" : {
+        "index" : {
+            "sort.field" : "timestamp",
+            "sort.order" : "desc" <2>
+        }
+    },
+    "mappings": {
+        "doc": {
+            "properties": {
+                "timestamp": {
+                    "type": "date"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> This index is sorted by timestamp in descending order (most recent first)
+
+You can search for the last 10 events with:
+
+[source,js]
+--------------------------------------------------
+GET /events/_search
+{
+    "size": 10,
+    "sort": [
+        { "timestamp": "desc" }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+... but this will search the entire index.
+If you're only looking for the last 10 events and have no interest in
+the total number of documents that match the query you can use `early_terminate`
+to restrict the search to the first 10 documents per segment:
+
+[source,js]
+--------------------------------------------------
+GET /events/_search
+{
+    "size": 10,
+    "early_terminate": true  <1>
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> The index sort will be used to rank the top documents and each segment will early terminate the collection after the first 10 matches.
+
+[WARNING]
+Aggregations should not be used when `early_terminate` is set because only the top ranked documents are going
+to be collected resulting in partial results in the buckets. Similarly the total number of documents returned by
+a request with `early_terminate` set to true does not take all the documents into account.
+

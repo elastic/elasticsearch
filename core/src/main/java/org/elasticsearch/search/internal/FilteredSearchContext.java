@@ -287,6 +287,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean earlyTerminate() {
+        return in.earlyTerminate();
+    }
+
+    @Override
+    public void earlyTerminate(boolean value) {
+        in.earlyTerminate(value);
+    }
+
+    @Override
     public boolean lowLevelCancellation() {
         return in.lowLevelCancellation();
     }

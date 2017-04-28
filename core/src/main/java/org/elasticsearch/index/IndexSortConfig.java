@@ -28,7 +28,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.Collections;
@@ -175,13 +177,14 @@ public final class IndexSortConfig {
      * Builds the {@link Sort} order from the settings for this index
      * or returns null if this index has no sort.
      */
-    public Sort buildIndexSort(Function<String, MappedFieldType> fieldTypeLookup,
-                               Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+    public SortAndFormats buildIndexSort(Function<String, MappedFieldType> fieldTypeLookup,
+                                         Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
         if (hasIndexSort() == false) {
             return null;
         }
 
         final SortField[] sortFields = new SortField[sortSpecs.length];
+        final DocValueFormat[] docValueFormats = new DocValueFormat[sortSpecs.length];
         for (int i = 0; i < sortSpecs.length; i++) {
             FieldSortSpec sortSpec = sortSpecs[i];
             final MappedFieldType ft = fieldTypeLookup.apply(sortSpec.field);
@@ -203,9 +206,10 @@ public final class IndexSortConfig {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");
             }
             sortFields[i] = fieldData.sortField(sortSpec.missingValue, mode, null, reverse);
+            docValueFormats[i] = ft.docValueFormat(null, null);
             validateIndexSortField(sortFields[i]);
         }
-        return new Sort(sortFields);
+        return new SortAndFormats(new Sort(sortFields), docValueFormats);
     }
 
     private void validateIndexSortField(SortField sortField) {

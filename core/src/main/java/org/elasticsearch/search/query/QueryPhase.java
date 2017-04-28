@@ -42,7 +42,6 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
@@ -265,6 +264,7 @@ public class QueryPhase implements SearchPhase {
             }
 
             final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
+            final boolean earlyTerminateSet = searchContext.earlyTerminate();
             if (terminateAfterSet) {
                 final Collector child = collector;
                 // throws Lucene.EarlyTerminationException when given count is reached
@@ -272,6 +272,14 @@ public class QueryPhase implements SearchPhase {
                 if (doProfile) {
                     collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT,
                             Collections.singletonList((InternalProfileCollector) child));
+                }
+            } else if (earlyTerminateSet) {
+                assert searchContext.sort() != null;
+                final Collector child = collector;
+                collector = Lucene.wrapCountBasedEarlyTerminatingSortingCollector(collector, searchContext.sort().sort, numDocs);
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_SORTING_EARLY_TERMINATION,
+                        Collections.singletonList((InternalProfileCollector) child));
                 }
             }
 

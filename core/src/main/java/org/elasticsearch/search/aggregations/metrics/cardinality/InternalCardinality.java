@@ -22,23 +22,35 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
+public class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
     private final HyperLogLogPlusPlus counts;
+    transient private Long cardinalityValue;
 
     InternalCardinality(String name, HyperLogLogPlusPlus counts, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.counts = counts;
+    }
+
+    private InternalCardinality(String name, long cardinalityValue, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
+        this.counts = null;
+        this.cardinalityValue = cardinalityValue;
     }
 
     /**
@@ -77,8 +89,13 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     public long getValue() {
-        return counts == null ? 0 : counts.cardinality(0);
+        if (cardinalityValue == null) {
+            cardinalityValue = counts == null ? 0 : counts.cardinality(0);
+        }
+        return cardinalityValue;
     }
+
+
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
@@ -126,5 +143,23 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     HyperLogLogPlusPlus getState() {
         return counts;
+    }
+    private static final ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>(
+            "internal_cardinality", true, () -> new HashMap<>());
+
+    static {
+        declareCommonField(PARSER);
+        PARSER.declareLong((map, value) -> map.put(CommonFields.VALUE.getPreferredName(), value),
+                CommonFields.VALUE);
+    }
+
+    public static InternalCardinality parseXContentBody(final String name, XContentParser parser) {
+        Map<String, Object> map = PARSER.apply(parser, null);
+        final long cardinalityValue = (Long) map.getOrDefault(CommonFields.VALUE.getPreferredName(),
+                Double.POSITIVE_INFINITY);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> metaData = (Map<String, Object>) map
+                .get(CommonFields.META.getPreferredName());
+        return new InternalCardinality(name, cardinalityValue, Collections.emptyList(), metaData);
     }
 }

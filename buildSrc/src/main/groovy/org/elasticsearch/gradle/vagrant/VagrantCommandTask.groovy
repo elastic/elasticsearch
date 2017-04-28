@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.vagrant
 import org.apache.commons.io.output.TeeOutputStream
 import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import org.gradle.internal.logging.progress.ProgressLoggerFactory
 
@@ -35,7 +36,7 @@ public class VagrantCommandTask extends LoggedExec {
     @Input
     String command
 
-    @Input
+    @Input @Optional
     String subcommand
 
     @Input
@@ -51,7 +52,6 @@ public class VagrantCommandTask extends LoggedExec {
             // It'd be nice if --machine-readable were, well, nice
             standardOutput = new TeeOutputStream(standardOutput, createLoggerOutputStream())
             if (environmentVars != null) {
-                println "$name Passing Env..."
                 environment environmentVars
             }
 

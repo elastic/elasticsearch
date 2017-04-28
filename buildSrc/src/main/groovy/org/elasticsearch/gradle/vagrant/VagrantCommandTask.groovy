@@ -44,6 +44,7 @@ public class VagrantCommandTask extends LoggedExec {
             // It'd be nice if --machine-readable were, well, nice
             standardOutput = new TeeOutputStream(standardOutput, createLoggerOutputStream())
             if (environmentVars != null) {
+                println "$name Passing Env..."
                 environment environmentVars
             }
         }

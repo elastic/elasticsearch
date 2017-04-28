@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
@@ -102,27 +101,23 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
             return false;
         }
         final AtomicBoolean stopped = new AtomicBoolean(false);
-        clusterService.submitStateUpdateTask("service_disruption_delay", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
-
-            @Override
-            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
-                long count = duration.millis() / 200;
-                // wait while checking for a stopped
-                for (; count > 0 && !stopped.get(); count--) {
-                    Thread.sleep(200);
+        clusterService.getClusterApplierService().runOnApplierThread("service_disruption_delay",
+            currentState -> {
+                try {
+                    long count = duration.millis() / 200;
+                    // wait while checking for a stopped
+                    for (; count > 0 && !stopped.get(); count--) {
+                        Thread.sleep(200);
+                    }
+                    if (!stopped.get()) {
+                        Thread.sleep(duration.millis() % 200);
+                    }
+                    countDownLatch.countDown();
+                } catch (InterruptedException e) {
+                    ExceptionsHelper.reThrowIfNotNull(e);
                 }
-                if (!stopped.get()) {
-                    Thread.sleep(duration.millis() % 200);
-                }
-                countDownLatch.countDown();
-                return unchanged();
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                countDownLatch.countDown();
-            }
-        });
+            }, (source, e) -> countDownLatch.countDown(),
+            Priority.IMMEDIATE);
         try {
             countDownLatch.await();
         } catch (InterruptedException e) {

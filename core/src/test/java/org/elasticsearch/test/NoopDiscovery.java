@@ -19,26 +19,14 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
 
 public class NoopDiscovery implements Discovery {
-
-
-    @Override
-    public DiscoveryNode localNode() {
-        return null;
-    }
-
-    @Override
-    public String nodeDescription() {
-        return null;
-    }
 
     @Override
     public void setAllocationService(AllocationService allocationService) {
@@ -51,12 +39,17 @@ public class NoopDiscovery implements Discovery {
     }
 
     @Override
-    public DiscoveryStats stats() {
+    public ClusterState getInitialClusterState() {
         return null;
     }
 
     @Override
-    public DiscoverySettings getDiscoverySettings() {
+    public ClusterState clusterState() {
+        return null;
+    }
+
+    @Override
+    public DiscoveryStats stats() {
         return null;
     }
 

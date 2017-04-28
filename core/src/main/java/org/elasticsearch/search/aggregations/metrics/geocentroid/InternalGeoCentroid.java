@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,8 +37,8 @@ import java.util.Objects;
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
  */
 public class InternalGeoCentroid extends InternalAggregation implements GeoCentroid {
-    protected final GeoPoint centroid;
-    protected final long count;
+    private final GeoPoint centroid;
+    private final long count;
 
     public static long encodeLatLon(double lat, double lon) {
         return (Integer.toUnsignedLong(GeoEncodingUtils.encodeLatitude(lat)) << 32) | Integer.toUnsignedLong(GeoEncodingUtils.encodeLongitude(lon));
@@ -136,6 +137,8 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
                     return centroid.lat();
                 case "lon":
                     return centroid.lon();
+                case "count":
+                    return count;
                 default:
                     throw new IllegalArgumentException("Found unknown path element [" + coordinate + "] in [" + getName() + "]");
             }
@@ -145,14 +148,27 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     static class Fields {
-        static final String CENTROID = "location";
+        static final ParseField CENTROID = new ParseField("location");
+        static final ParseField CENTROID_LAT = new ParseField("lat");
+        static final ParseField CENTROID_LON = new ParseField("lon");
+        static final ParseField COUNT = new ParseField("count");
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        return renderXContent(builder, params, centroid, count);
+    }
+
+    static XContentBuilder renderXContent(XContentBuilder builder, Params params, GeoPoint centroid, long count) throws IOException {
         if (centroid != null) {
-            builder.startObject(Fields.CENTROID).field("lat", centroid.lat()).field("lon", centroid.lon()).endObject();
+            builder.startObject(Fields.CENTROID.getPreferredName());
+            {
+                builder.field(Fields.CENTROID_LAT.getPreferredName(), centroid.lat());
+                builder.field(Fields.CENTROID_LON.getPreferredName(), centroid.lon());
+            }
+            builder.endObject();
         }
+        builder.field(Fields.COUNT.getPreferredName(), count);
         return builder;
     }
 

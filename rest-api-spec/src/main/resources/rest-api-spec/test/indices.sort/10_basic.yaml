@@ -56,28 +56,28 @@
         index: test
         type:  test
         id:    "5"
-        body:  { "rank": 7 }
+        body:  { "rank": 8 }
 
   - do:
       index:
         index: test
         type:  test
         id:    "6"
-        body:  { "rank": 5 }
+        body:  { "rank": 6 }
 
   - do:
       index:
         index: test
         type:  test
         id:    "7"
-        body:  { "rank": 4 }
+        body:  { "rank": 5 }
 
   - do:
       index:
         index: test
         type:  test
         id:    "8"
-        body:  { "rank": 6 }
+        body:  { "rank": 7 }
 
   - do:
       indices.refresh:

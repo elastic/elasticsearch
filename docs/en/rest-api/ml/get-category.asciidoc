@@ -26,12 +26,10 @@ about the categories in the results for a job.
 
 ===== Request Body
 
-//TBD: Test these properties, since they didn't work on older build.
-
-`from`::
+`page`::
+`from`:::
   (integer) Skips the specified number of categories.
-
-`size`::
+`size`:::
   (integer) Specifies the maximum number of categories to obtain.
 
 
@@ -55,16 +53,22 @@ roles provide these privileges. For more information, see
 
 ===== Examples
 
-The following example gets category information for the `it_ops_new_logs` job:
+The following example gets information about one category for the
+`it_ops_new_logs` job:
 
 [source,js]
 --------------------------------------------------
 GET _xpack/ml/anomaly_detectors/it_ops_new_logs/results/categories
+{
+  "page":{
+    "size": 1
+  }
+}
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]
 
-In this example, the API returns the following information for each category:
+In this example, the API returns the following information:
 [source,js]
 ----
 {
@@ -73,18 +77,13 @@ In this example, the API returns the following information for each category:
     {
       "job_id": "it_ops_new_logs",
       "category_id": 1,
-      "terms": "Actual Transaction Already Voided Reversed hostname
-      dbserver.acme.com physicalhost esxserver1.acme.com vmhost app1.acme.com",
-      "regex": ".*?Actual.+?Transaction.+?Already.+?Voided.+?Reversed.+?hostname.
-      +?dbserver.acme.com.+?physicalhost.+?esxserver1.acme.com.+?vmhost.
-      +?app1.acme.com.*",
+      "terms": "Actual Transaction Already Voided Reversed hostname dbserver.acme.com physicalhost esxserver1.acme.com vmhost app1.acme.com",
+      "regex": ".*?Actual.+?Transaction.+?Already.+?Voided.+?Reversed.+?hostname.+?dbserver.acme.com.+?physicalhost.+?esxserver1.acme.com.+?vmhost.+?app1.acme.com.*",
       "max_matching_length": 137,
       "examples": [
-        "Actual Transaction Already Voided / Reversed;hostname=dbserver.acme.com;
-        physicalhost=esxserver1.acme.com;vmhost=app1.acme.com"
+        "Actual Transaction Already Voided / Reversed;hostname=dbserver.acme.com;physicalhost=esxserver1.acme.com;vmhost=app1.acme.com"
       ]
-    },
-  ...
+    }
   ]
 }
 ----

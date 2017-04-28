@@ -32,7 +32,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -40,17 +39,17 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.MappingCharFilterFactory;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.PatternReplaceCharFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
@@ -72,7 +71,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class AnalysisModuleTests extends ModuleTestCase {
+public class AnalysisModuleTests extends ESTestCase {
 
     public IndexAnalyzers getIndexAnalyzers(Settings settings) throws IOException {
         return getIndexAnalyzers(getNewRegistry(settings), settings);
@@ -89,6 +88,11 @@ public class AnalysisModuleTests extends ModuleTestCase {
                 @Override
                 public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
                     return singletonMap("myfilter", MyFilterTokenFilterFactory::new);
+                }
+
+                @Override
+                public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
+                    return AnalysisPlugin.super.getCharFilters();
                 }
             })).getAnalysisRegistry();
         } catch (IOException e) {
@@ -184,28 +188,11 @@ public class AnalysisModuleTests extends ModuleTestCase {
         StopTokenFilterFactory stop1 = (StopTokenFilterFactory) custom1.tokenFilters()[0];
         assertThat(stop1.stopWords().size(), equalTo(1));
 
-        analyzer = indexAnalyzers.get("custom2").analyzer();
-        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
-
         // verify position increment gap
         analyzer = indexAnalyzers.get("custom6").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom6 = (CustomAnalyzer) analyzer;
         assertThat(custom6.getPositionIncrementGap("any_string"), equalTo(256));
-
-        // verify characters  mapping
-        analyzer = indexAnalyzers.get("custom5").analyzer();
-        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
-        CustomAnalyzer custom5 = (CustomAnalyzer) analyzer;
-        assertThat(custom5.charFilters()[0], instanceOf(MappingCharFilterFactory.class));
-
-        // check custom pattern replace filter
-        analyzer = indexAnalyzers.get("custom3").analyzer();
-        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
-        CustomAnalyzer custom3 = (CustomAnalyzer) analyzer;
-        PatternReplaceCharFilterFactory patternReplaceCharFilterFactory = (PatternReplaceCharFilterFactory) custom3.charFilters()[0];
-        assertThat(patternReplaceCharFilterFactory.getPattern().pattern(), equalTo("sample(.*)"));
-        assertThat(patternReplaceCharFilterFactory.getReplacement(), equalTo("replacedSample $1"));
 
         // check custom class name (my)
         analyzer = indexAnalyzers.get("custom4").analyzer();

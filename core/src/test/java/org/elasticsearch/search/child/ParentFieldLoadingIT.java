@@ -60,6 +60,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                     // We never want merges in this test to ensure we have two segments for the last validation
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            .put("index.mapping.single_type", false)
             .build();
 
     public void testEagerParentFieldLoading() throws Exception {

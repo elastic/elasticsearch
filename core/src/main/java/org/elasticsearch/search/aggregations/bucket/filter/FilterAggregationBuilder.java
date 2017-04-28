@@ -102,4 +102,8 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     public String getType() {
         return NAME;
     }
+
+    public QueryBuilder getFilter() {
+        return filter;
+    }
 }

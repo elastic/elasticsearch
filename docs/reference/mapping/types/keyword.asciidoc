@@ -91,11 +91,6 @@ The following parameters are accepted by `keyword` fields:
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
 
-<<search-analyzer,`search_analyzer`>>::
-
-    The <<analyzer,`analyzer`>> that should be used at search time on
-    <<mapping-index,`analyzed`>> fields. Defaults to the `analyzer` setting.
-
 <<similarity,`similarity`>>::
 
     Which scoring algorithm or _similarity_ should be used. Defaults

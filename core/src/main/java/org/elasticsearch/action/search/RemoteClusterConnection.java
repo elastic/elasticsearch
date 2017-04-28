@@ -162,7 +162,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     /**
      * Fetches all shards for the search request from this remote connection. This is used to later run the search on the remote end.
      */
-    public void fetchSearchShards(SearchRequest searchRequest, final List<String> indices,
+    public void fetchSearchShards(SearchRequest searchRequest, final String[] indices,
                                   ActionListener<ClusterSearchShardsResponse> listener) {
         if (connectedNodes.isEmpty()) {
             // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
@@ -176,10 +176,10 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         }
     }
 
-    private void fetchShardsInternal(SearchRequest searchRequest, List<String> indices,
+    private void fetchShardsInternal(SearchRequest searchRequest, String[] indices,
                                      final ActionListener<ClusterSearchShardsResponse> listener) {
         final DiscoveryNode node = nodeSupplier.get();
-        ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices.toArray(new String[indices.size()]))
+        ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
             .indicesOptions(searchRequest.indicesOptions()).local(true).preference(searchRequest.preference())
             .routing(searchRequest.routing());
         transportService.sendRequest(node, ClusterSearchShardsAction.NAME, searchShardsRequest,

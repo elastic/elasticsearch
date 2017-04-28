@@ -139,7 +139,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
         }
         for (int i = 0; i < 100; i++) {
-            builders.add(client().prepareIndex("idx", "high_card_type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex("high_card_idx", "type").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, (double) i)
                     .startArray(MULTI_VALUED_FIELD_NAME).value((double)i).value(i + 1d).endArray()
@@ -279,14 +279,14 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     public void testSizeIsZero() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> client()
-                        .prepareSearch("idx").setTypes("high_card_type").addAggregation(terms("terms").field(SINGLE_VALUED_FIELD_NAME)
+                        .prepareSearch("high_card_idx").addAggregation(terms("terms").field(SINGLE_VALUED_FIELD_NAME)
                                 .minDocCount(randomInt(1)).size(0).collectMode(randomFrom(SubAggCollectionMode.values())))
                         .execute().actionGet());
         assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [terms]"));
     }
 
     public void testSingleValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -310,7 +310,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValueFieldWithMaxSize() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
+        SearchResponse response = client().prepareSearch("high_card_idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .size(20)
@@ -345,7 +345,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     private void testIncludeExcludeResults(double[] includes, double[] excludes, double[] expecteds) {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .includeExclude(new IncludeExclude(includes, excludes))
@@ -374,7 +374,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     
     private void runTestFieldWithPartitionedFiltering(String field) throws Exception {
         // Find total number of unique terms
-        SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
+        SearchResponse allResponse = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field(field).size(10000).collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
         assertSearchResponse(allResponse);
@@ -387,7 +387,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         final int numPartitions = randomIntBetween(2, 4);
         Set<Number> foundTerms = new HashSet<>();
         for (int partition = 0; partition < numPartitions; partition++) {
-            SearchResponse response = client().prepareSearch("idx").setTypes("type").addAggregation(terms("terms").field(field)
+            SearchResponse response = client().prepareSearch("idx").addAggregation(terms("terms").field(field)
                     .includeExclude(new IncludeExclude(partition, numPartitions)).collectMode(randomFrom(SubAggCollectionMode.values())))
                     .execute().actionGet();
             assertSearchResponse(response);
@@ -402,7 +402,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }   
 
     public void testSingleValueFieldOrderedByTermAsc() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -428,7 +428,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValueFieldOrderedByTermDesc() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -454,7 +454,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValuedFieldWithSubAggregation() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -489,7 +489,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValuedFieldWithValueScript() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -514,7 +514,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -542,7 +542,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testMultiValuedFieldWithValueScript() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -571,7 +571,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testMultiValuedFieldWithValueScriptNotUnique() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -614,7 +614,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     public void testScriptSingleValue() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(
                         terms("terms")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -641,7 +640,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     public void testScriptMultiValued() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(
                         terms("terms")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -670,7 +668,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .size(randomIntBetween(1, 5))
@@ -687,7 +685,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -711,7 +709,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmappedWithFormat() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -759,7 +757,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         boolean asc = true;
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(
                         terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(Terms.Order.aggregation("avg_i", asc)).subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME)))
@@ -788,7 +785,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         boolean asc = true;
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(
                         terms("terms")
                                 .field(SINGLE_VALUED_FIELD_NAME)
@@ -833,7 +829,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         boolean asc = randomBoolean();
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(
                         terms("num_tags").field("num_tag").collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(Terms.Order.aggregation("filter", asc))
@@ -870,7 +865,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         boolean asc = randomBoolean();
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(
                         terms("tags")
                                 .field("num_tag")
@@ -927,7 +921,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
-                        .setTypes("type")
                         .addAggregation(
                                 terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                         .order(Terms.Order.aggregation("avg_i", true))).execute().actionGet();
@@ -944,7 +937,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
-                        .setTypes("type")
                         .addAggregation(
                                 terms("terms")
                                         .field(SINGLE_VALUED_FIELD_NAME)
@@ -966,7 +958,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
-                        .setTypes("type")
                         .addAggregation(
                                 terms("terms").field(SINGLE_VALUED_FIELD_NAME + "2").collectMode(randomFrom(SubAggCollectionMode.values()))
                                         .order(Terms.Order.aggregation("stats.foo", true))
@@ -985,7 +976,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
-                        .setTypes("type")
                         .addAggregation(
                                 terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                         .order(Terms.Order.aggregation("stats", true))
@@ -1004,7 +994,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         boolean asc = false;
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(
                         terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(Terms.Order.aggregation("avg_i", asc)).subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME)))
@@ -1035,7 +1024,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         boolean asc = true;
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(
                         terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(Terms.Order.aggregation("stats.avg", asc))
@@ -1064,7 +1052,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         boolean asc = false;
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(
                         terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(Terms.Order.aggregation("stats.avg", asc))
@@ -1093,7 +1080,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         boolean asc = true;
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(
                         terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .order(Terms.Order.aggregation("stats.variance", asc))
@@ -1128,7 +1114,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .setQuery(functionScoreQuery(scriptFunction(scoringScript)))
                 .addAggregation(
                         terms("terms")

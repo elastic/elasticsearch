@@ -77,9 +77,4 @@ public interface RecoveryTargetHandler {
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                         boolean lastChunk, int totalTranslogOps) throws IOException;
 
-    /***
-     * @return the allocation id of the target shard.
-     */
-    String getTargetAllocationId();
-
 }

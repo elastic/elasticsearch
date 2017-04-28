@@ -40,7 +40,7 @@ public class BucketScriptTests extends BasePipelineAggregationTestCase<BucketScr
         }
         Script script;
         if (randomBoolean()) {
-            script = new Script("script");
+            script = mockScript("script");
         } else {
             Map<String, Object> params = new HashMap<>();
             if (randomBoolean()) {

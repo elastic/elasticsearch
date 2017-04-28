@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +36,7 @@ public class ScriptSettings {
     private static final Map<ScriptType, Setting<Boolean>> SCRIPT_TYPE_SETTING_MAP;
 
     static {
-        Map<ScriptType, Setting<Boolean>> scriptTypeSettingMap = new HashMap<>();
+        Map<ScriptType, Setting<Boolean>> scriptTypeSettingMap = new EnumMap<>(ScriptType.class);
         for (ScriptType scriptType : ScriptType.values()) {
             scriptTypeSettingMap.put(scriptType, Setting.boolSetting(
                 ScriptModes.sourceKey(scriptType),

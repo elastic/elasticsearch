@@ -14,7 +14,7 @@
             number_of_replicas: 1
             index.sort.field: rank
           mappings:
-            t:
+            test:
               properties:
                 rank:
                   type:     integer

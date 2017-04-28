@@ -168,7 +168,7 @@ import static java.util.stream.Collectors.toList;
 public class Node implements Closeable {
 
 
-    public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING =
+    public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
     public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
     public static final Setting<Boolean> NODE_MASTER_SETTING =
@@ -260,7 +260,7 @@ public class Node implements Closeable {
                 nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
                 resourcesToClose.add(nodeEnvironment);
             } catch (IOException ex) {
-                throw new IllegalStateException("Failed to created node environment", ex);
+                throw new IllegalStateException("Failed to create node environment", ex);
             }
             final boolean hadPredefinedNodeName = NODE_NAME_SETTING.exists(tmpSettings);
             Logger logger = Loggers.getLogger(Node.class, tmpSettings);
@@ -336,8 +336,7 @@ public class Node implements Closeable {
             resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(settings,
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class)));
-            final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool,
-                localNodeFactory::getNode);
+            final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.addListener(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
@@ -428,12 +427,13 @@ public class Node implements Closeable {
                 };
                 httpServerTransport = null;
             }
-            final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService,
-                namedWriteableRegistry, networkService, clusterService, pluginsService.filterPlugins(DiscoveryPlugin.class));
+
+            final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService, namedWriteableRegistry,
+                networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
+                clusterService.getClusterSettings(), pluginsService.filterPlugins(DiscoveryPlugin.class));
             NodeService nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter());
-
             modules.add(b -> {
                     b.bind(NodeService.class).toInstance(nodeService);
                     b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
@@ -523,15 +523,21 @@ public class Node implements Closeable {
 
         boolean clean = true;
         for (final String defaultPathData : Environment.DEFAULT_PATH_DATA_SETTING.get(settings)) {
-            final Path nodeDirectory = NodeEnvironment.resolveNodePath(getPath(defaultPathData), nodeEnv.getNodeLockId());
-            if (Files.exists(nodeDirectory) == false) {
+            final Path defaultNodeDirectory = NodeEnvironment.resolveNodePath(getPath(defaultPathData), nodeEnv.getNodeLockId());
+            if (Files.exists(defaultNodeDirectory) == false) {
                 continue;
             }
-            final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(nodeDirectory);
+
+            if (isDefaultPathDataInPathData(nodeEnv, defaultNodeDirectory)) {
+                continue;
+            }
+
+            final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(defaultNodeDirectory);
             final Set<String> availableIndexFolders = nodeEnv.availableIndexFoldersForPath(nodePath);
             if (availableIndexFolders.isEmpty()) {
                 continue;
             }
+
             clean = false;
             logger.error("detected index data in default.path.data [{}] where there should not be any", nodePath.indicesPath);
             for (final String availableIndexFolder : availableIndexFolders) {
@@ -552,6 +558,15 @@ public class Node implements Closeable {
                 "detected index data in default.path.data %s where there should not be any; check the logs for details",
                 Environment.DEFAULT_PATH_DATA_SETTING.get(settings));
         throw new IllegalStateException(message);
+    }
+
+    private static boolean isDefaultPathDataInPathData(final NodeEnvironment nodeEnv, final Path defaultNodeDirectory) throws IOException {
+        for (final NodeEnvironment.NodePath dataPath : nodeEnv.nodePaths()) {
+            if (Files.isSameFile(dataPath.path, defaultNodeDirectory)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @SuppressForbidden(reason = "read path that is not configured in environment")
@@ -647,9 +662,7 @@ public class Node implements Closeable {
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(GatewayService.class).start();
         Discovery discovery = injector.getInstance(Discovery.class);
-        clusterService.setDiscoverySettings(discovery.getDiscoverySettings());
-        clusterService.addInitialStateBlock(discovery.getDiscoverySettings().getNoMasterBlock());
-        clusterService.setClusterStatePublisher(discovery::publish);
+        clusterService.getMasterService().setClusterStatePublisher(discovery::publish);
 
         // start before the cluster service since it adds/removes initial Cluster state blocks
         final TribeService tribeService = injector.getInstance(TribeService.class);
@@ -659,18 +672,20 @@ public class Node implements Closeable {
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
         transportService.start();
+        assert localNodeFactory.getNode() != null;
+        assert transportService.getLocalNode().equals(localNodeFactory.getNode())
+            : "transportService has a different local node than the factory provided";
         validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress(), pluginsService.filterPlugins(Plugin.class).stream()
             .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
 
         clusterService.addStateApplier(transportService.getTaskManager());
+        clusterService.getMasterService().setClusterStateSupplier(discovery::clusterState);
+        clusterService.getClusterApplierService().setInitialState(discovery.getInitialClusterState());
+        // start after transport service so the local disco is known
         clusterService.start();
-        assert localNodeFactory.getNode() != null;
-        assert transportService.getLocalNode().equals(localNodeFactory.getNode())
-            : "transportService has a different local node than the factory provided";
+        discovery.start();
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
-        // start after cluster service so the local disco is known
-        discovery.start();
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
         // tribe nodes don't have a master so we shouldn't register an observer         s
@@ -712,13 +727,7 @@ public class Node implements Closeable {
             injector.getInstance(HttpServerTransport.class).start();
         }
 
-        // start nodes now, after the http server, because it may take some time
-        tribeService.startNodes();
-        // starts connecting to remote clusters if any cluster is configured
-        SearchTransportService searchTransportService = injector.getInstance(SearchTransportService.class);
-        searchTransportService.start();
-
-        if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
+        if (WRITE_PORTS_FILE_SETTING.get(settings)) {
             if (NetworkModule.HTTP_ENABLED.get(settings)) {
                 HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
                 writePortsFile("http", http.boundAddress());
@@ -726,6 +735,12 @@ public class Node implements Closeable {
             TransportService transport = injector.getInstance(TransportService.class);
             writePortsFile("transport", transport.boundAddress());
         }
+
+        // start nodes now, after the http server, because it may take some time
+        tribeService.startNodes();
+        // starts connecting to remote clusters if any cluster is configured
+        SearchTransportService searchTransportService = injector.getInstance(SearchTransportService.class);
+        searchTransportService.start();
 
         logger.info("started");
 

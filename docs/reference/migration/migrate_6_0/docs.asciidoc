@@ -5,3 +5,7 @@
 
 Document modification operations may no longer specify the `version_type` of
 `force` to override any previous version checks.
+
+==== <<upserts>> no longer support versions
+
+Adding a `version` to an upsert request is no longer supported.

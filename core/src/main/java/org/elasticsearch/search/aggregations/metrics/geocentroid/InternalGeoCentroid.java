@@ -156,10 +156,6 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return renderXContent(builder, params, centroid, count);
-    }
-
-    static XContentBuilder renderXContent(XContentBuilder builder, Params params, GeoPoint centroid, long count) throws IOException {
         if (centroid != null) {
             builder.startObject(Fields.CENTROID.getPreferredName());
             {

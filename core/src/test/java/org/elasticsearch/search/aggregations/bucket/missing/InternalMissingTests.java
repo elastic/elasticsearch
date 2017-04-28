@@ -20,14 +20,11 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -49,22 +46,7 @@ public class InternalMissingTests extends InternalSingleBucketAggregationTestCas
     }
 
     @Override
-    protected void assertFromXContent(InternalMissing aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedMissing);
-        ParsedMissing parsed = (ParsedMissing) parsedAggregation;
-
-        assertEquals(aggregation.getDocCount(), parsed.getDocCount());
-        InternalAggregations aggregations = aggregation.getAggregations();
-        Iterator<Aggregation> parsedAggregations = parsed.getAggregations().iterator();
-        for (Aggregation expectedAggregation : aggregations) {
-            assertTrue(parsedAggregations.hasNext());
-            Aggregation parsedAgg = parsedAggregations.next();
-            assertTrue(expectedAggregation instanceof InternalAggregation);
-            assertTrue(parsedAggregation instanceof ParsedAggregation);
-            assertEquals(expectedAggregation.getName(), parsedAgg.getName());
-            // TODO check aggregation equality, e.g. same xContent
-        }
-        assertFalse(parsedAggregations.hasNext());
+    protected Class<? extends ParsedSingleBucketAggregation> implementationClass() {
+        return ParsedMissing.class;
     }
-
 }

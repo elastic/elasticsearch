@@ -19,14 +19,18 @@
 
 package org.elasticsearch.search.aggregations.bucket.nested;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;
 import java.util.Map;
 
+@Repeat(iterations=1)
 public class InternalReverseNestedTests extends InternalSingleBucketAggregationTestCase<InternalReverseNested> {
     @Override
     protected InternalReverseNested createTestInstance(String name, long docCount, InternalAggregations aggregations,
@@ -42,5 +46,10 @@ public class InternalReverseNestedTests extends InternalSingleBucketAggregationT
     @Override
     protected Reader<InternalReverseNested> instanceReader() {
         return InternalReverseNested::new;
+    }
+
+    @Override
+    protected Class<? extends ParsedSingleBucketAggregation> implementationClass() {
+        return ParsedReverseNested.class;
     }
 }

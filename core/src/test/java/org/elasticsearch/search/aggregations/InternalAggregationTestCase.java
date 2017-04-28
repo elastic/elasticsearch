@@ -34,12 +34,26 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.children.ParsedChildren;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.ParsedGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.missing.ParsedMissing;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.ParsedNested;
+import org.elasticsearch.search.aggregations.bucket.nested.ParsedReverseNested;
+import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.ParsedUnmappedSampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.ParsedAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
@@ -130,6 +144,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         namedXContents.put(HistogramAggregationBuilder.NAME, (p, c) -> ParsedHistogram.fromXContent(p, (String) c));
         namedXContents.put(DateHistogramAggregationBuilder.NAME, (p, c) -> ParsedDateHistogram.fromXContent(p, (String) c));
         namedXContents.put(MissingAggregationBuilder.NAME, (p, c) -> ParsedMissing.fromXContent(p, (String) c));
+        namedXContents.put(NestedAggregationBuilder.NAME, (p, c) -> ParsedNested.fromXContent(p, (String) c));
+        namedXContents.put(ReverseNestedAggregationBuilder.NAME, (p, c) -> ParsedReverseNested.fromXContent(p, (String) c));
+        namedXContents.put(ChildrenAggregationBuilder.NAME, (p, c) -> ParsedChildren.fromXContent(p, (String) c));
+        namedXContents.put(GlobalAggregationBuilder.NAME, (p, c) -> ParsedGlobal.fromXContent(p, (String) c));
+        namedXContents.put(FilterAggregationBuilder.NAME, (p, c) -> ParsedFilter.fromXContent(p, (String) c));
+        namedXContents.put(InternalSampler.NAME, (p, c) -> ParsedSampler.fromXContent(p, (String) c));
+        namedXContents.put(UnmappedSampler.NAME, (p, c) -> ParsedUnmappedSampler.fromXContent(p, (String) c));
 
         return namedXContents.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))

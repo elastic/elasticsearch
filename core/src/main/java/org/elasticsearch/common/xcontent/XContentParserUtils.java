@@ -127,7 +127,6 @@ public final class XContentParserUtils {
      *                     from the field's name
      */
     public static <T> T parseTypedKeysObject(XContentParser parser, String delimiter, Class<T> objectClass) throws IOException {
-        //ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String currentFieldName = parser.currentName();
         if (Strings.hasLength(currentFieldName)) {
             int position = currentFieldName.indexOf(delimiter);

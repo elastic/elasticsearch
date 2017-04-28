@@ -335,16 +335,19 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         final DiscoveryNode localNode = newState.getNodes().getLocalNode();
         final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean processedOrFailed = new AtomicBoolean();
         publishClusterState.pendingStatesQueue().markAsCommitted(newState.stateUUID(),
             new PendingClusterStatesQueue.StateProcessedListener() {
                 @Override
                 public void onNewClusterStateProcessed() {
+                    processedOrFailed.set(true);
                     latch.countDown();
                     ackListener.onNodeAck(localNode, null);
                 }
 
                 @Override
                 public void onNewClusterStateFailed(Exception e) {
+                    processedOrFailed.set(true);
                     latch.countDown();
                     ackListener.onNodeAck(localNode, e);
                     logger.warn(
@@ -360,10 +363,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 throw new FailedToCommitClusterStateException("local state was mutated while CS update was published to other nodes");
             }
 
-            boolean processed = processNextCommittedClusterState("master " + newState.nodes().getMasterNode() +
+            boolean sentToApplier = processNextCommittedClusterState("master " + newState.nodes().getMasterNode() +
                 " committed version [" + newState.version() + "] source [" + clusterChangedEvent.source() + "]");
-            if (processed == false) {
-                assert false : "CS published to itself not processed";
+            if (sentToApplier == false && processedOrFailed.get() == false) {
+                assert false : "cluster state published locally neither processed nor failed: " + newState;
+                logger.warn("cluster state with version [{}] that is published locally has neither been processed nor failed",
+                    newState.version());
                 return;
             }
         }

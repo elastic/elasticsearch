@@ -34,11 +34,11 @@ import java.util.Objects;
 
 public class InternalGeoBounds extends InternalAggregation implements GeoBounds {
 
-    final static ParseField BOUNDS_FIELD = new ParseField("bounds");
-    final static ParseField TOP_LEFT_FIELD = new ParseField("top_left");
-    final static ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");
-    final static ParseField LAT_FIELD = new ParseField("lat");
-    final static ParseField LON_FIELD = new ParseField("lon");
+    static final ParseField BOUNDS_FIELD = new ParseField("bounds");
+    static final ParseField TOP_LEFT_FIELD = new ParseField("top_left");
+    static final ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");
+    static final ParseField LAT_FIELD = new ParseField("lat");
+    static final ParseField LON_FIELD = new ParseField("lon");
 
 
     final double top;

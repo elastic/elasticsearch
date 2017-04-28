@@ -1,0 +1,439 @@
+[[release-notes-5.4.0]]
+== 5.4.0 Release Notes
+
+See https://www.elastic.co/blog/multi-data-path-bug-in-elasticsearch-5-3-0[Multi data path bug in Elasticsearch 5.3.0].
+
+Also see <<breaking-changes-5.4>>.
+
+
+[[breaking-5.4.0]]
+[float]
+=== Breaking changes
+
+Settings::
+* Remove support for default settings {pull}24093[#24093] (issues: {issue}23981[#23981], {issue}24052[#24052], {issue}24074[#24074])
+
+
+
+[[breaking-java-5.4.0]]
+[float]
+=== Breaking Java changes
+
+Aggregations::
+* Move getProperty method out of MultiBucketsAggregation.Bucket interface {pull}23988[#23988]
+* Remove getProperty method from Aggregations interface and impl {pull}23972[#23972]
+* Move getProperty method out of Aggregation interface {pull}23949[#23949]
+
+Java API::
+* Fold InternalSearchHits and friends into their interfaces {pull}23042[#23042]
+
+
+
+[[deprecation-5.4.0]]
+[float]
+=== Deprecations
+
+Aggregations::
+* Deprecate Stats#getCountAsString {pull}24292[#24292]
+
+Java API::
+* Add BulkProcessor methods with XContentType parameter {pull}23078[#23078] (issue: {issue}22691[#22691])
+
+Network::
+* Deprecate Netty 3 {pull}23459[#23459] (issue: {issue}23411[#23411])
+
+Packaging::
+* Add deprecation warnings for $ES_USER and $ES_GROUP {pull}24190[#24190] (issue: {issue}23989[#23989])
+
+Plugin Delete By Query::
+* Deprecate delete_by_query requests without an explicit query {pull}23635[#23635]
+
+Plugin Repository Azure::
+* Deprecate global `repositories.azure` settings {pull}22856[#22856] (issue: {issue}22800[#22800])
+
+Plugin Repository S3::
+* Deprecate repositories.s3 settings {pull}23278[#23278] (issues: {issue}22800[#22800], {issue}23276[#23276])
+
+REST::
+* Deprecate ldjson support and document ndjson for bulk/msearch {pull}23051[#23051] (issues: {issue}23025[#23025], {issue}23049[#23049])
+
+Stats::
+* Deprecate `_field_stats` endpoint {pull}23914[#23914]
+
+
+
+[[feature-5.4.0]]
+[float]
+=== New features
+
+Analysis::
+* Adds pattern keyword marker filter support {pull}23600[#23600] (issue: {issue}4877[#4877])
+* Expose WordDelimiterGraphTokenFilter {pull}23327[#23327] (issue: {issue}23104[#23104])
+
+Index APIs::
+* Add FieldCapabilities (`_field_caps`) API {pull}23007[#23007] (issue: {issue}22438[#22438])
+
+Search::
+* Introduce incremental reduction of TopDocs {pull}23946[#23946]
+
+Similarities::
+* Adds boolean similarity to Elasticsearch {pull}23637[#23637] (issue: {issue}6731[#6731])
+
+
+
+[[enhancement-5.4.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Add BucketMetricValue interface {pull}24188[#24188]
+* Move aggs CommonFields and TYPED_KEYS_DELIMITER from InternalAggregation to Aggregation {pull}23987[#23987]
+* Use ParseField for aggs CommonFields rather than String {pull}23717[#23717]
+* Share XContent rendering code in terms aggs {pull}23680[#23680]
+* Add unit tests for ParentToChildAggregator {pull}23305[#23305] (issue: {issue}22278[#22278])
+* First step towards incremental reduction of query responses {pull}23253[#23253]
+
+Allocation::
+* Trigger replica recovery restarts by master when primary relocation completes {pull}23926[#23926] (issue: {issue}23904[#23904])
+* Makes the same_shard host dynamically updatable {pull}23397[#23397] (issue: {issue}22992[#22992])
+
+Analysis::
+* Support Keyword type in Analyze API {pull}23161[#23161]
+
+Cluster::
+* Prevent nodes from joining if newer indices exist in the cluster {pull}23843[#23843]
+
+Core::
+* Detect remnants of path.data/default.path.data bug {pull}24099[#24099] (issues: {issue}23981[#23981], {issue}24052[#24052], {issue}24074[#24074], {issue}24093[#24093])
+* Await termination after shutting down executors {pull}23889[#23889]
+* Add early-access check {pull}23743[#23743] (issue: {issue}23668[#23668])
+* Adapter action future should restore interrupts {pull}23618[#23618] (issue: {issue}23617[#23617])
+* Disable bootstrap checks for single-node discovery {pull}23598[#23598] (issues: {issue}23585[#23585], {issue}23595[#23595])
+* Enable explicitly enforcing bootstrap checks {pull}23585[#23585] (issue: {issue}21864[#21864])
+* Add equals/hashcode method to ReplicationResponse {pull}23215[#23215]
+
+Dates::
+* Improve error handling for epoch format parser with time zone (#22621) {pull}23689[#23689]
+
+Discovery::
+* Introduce single-node discovery {pull}23595[#23595]
+* UnicastZenPing shouldn't ping the address of the local node {pull}23567[#23567]
+* MasterFaultDetection can start after the initial cluster state has been processed {pull}23037[#23037] (issue: {issue}22828[#22828])
+
+Highlighting::
+* Add support for fragment_length in the unified highlighter {pull}23431[#23431]
+* Add BreakIteratorBoundaryScanner support {pull}23248[#23248]
+
+Index APIs::
+* Wildcard cluster names for cross cluster search {pull}23985[#23985] (issue: {issue}23893[#23893])
+
+Ingest::
+* Lazy load the geoip databases {pull}23337[#23337]
+
+Internal::
+* Add a dedicated TransportRemoteInfoAction for consistency {pull}24040[#24040] (issue: {issue}23969[#23969])
+* Simplify sorted top docs merging in SearchPhaseController {pull}23881[#23881]
+* Synchronized CollapseTopFieldDocs with lucenes relatives {pull}23854[#23854]
+* Cleanup SearchPhaseController interface {pull}23844[#23844]
+* Do not create String instances in 'Strings' methods accepting StringBuilder {pull}22907[#22907]
+
+Java API::
+* Added types options to DeleteByQueryRequest {pull}23265[#23265] (issue: {issue}21984[#21984])
+
+Java High Level REST Client::
+* Convert suggestion response parsing to use NamedXContentRegistry {pull}23355[#23355]
+* UpdateRequest implements ToXContent {pull}23289[#23289]
+* Add javadoc for DocWriteResponse.Builders {pull}23267[#23267]
+* Expose WriteRequest.RefreshPolicy string representation {pull}23106[#23106]
+* Use `typed_keys` parameter to prefix suggester names by type in search responses {pull}23080[#23080] (issue: {issue}22965[#22965])
+* Add parsing methods to BulkItemResponse {pull}22859[#22859]
+
+Logging::
+* Warn on not enough masters during election {pull}20063[#20063] (issue: {issue}8362[#8362])
+
+Mapping::
+* Improve error message for ipv6 on legacy ip fields {pull}23136[#23136] (issue: {issue}23126[#23126])
+
+Nested Docs::
+* Avoid adding unnecessary nested filters when ranges are used. {pull}23427[#23427]
+
+Network::
+* Adjust default Netty receive predictor size to 64k {pull}23542[#23542] (issue: {issue}23185[#23185])
+* Keep the pipeline handler queue small initially {pull}23335[#23335]
+* Set network receive predictor size to 32kb {pull}23284[#23284] (issue: {issue}23185[#23185])
+* TransportService.connectToNode should validate remote node ID {pull}22828[#22828] (issue: {issue}22194[#22194])
+
+Packaging::
+* Introduce Java version check {pull}23194[#23194] (issue: {issue}21102[#21102])
+* Cleanup some things after removal of joda-time hack {pull}18959[#18959]
+
+Percolator::
+* Allowing range queries with now ranges inside percolator queries {pull}23921[#23921] (issue: {issue}23859[#23859])
+* Add term extraction support for MultiPhraseQuery {pull}23176[#23176]
+
+Plugin Discovery EC2::
+* Settings: Migrate ec2 discovery sensitive settings to elasticsearch keystore {pull}23961[#23961] (issue: {issue}22475[#22475])
+
+Plugin Lang Painless::
+* Allow painless to load stored fields {pull}24290[#24290]
+* Start on custom whitelists for Painless {pull}23563[#23563]
+* Fix Painless's implementation of interfaces returning primitives {pull}23298[#23298] (issue: {issue}22983[#22983])
+* Allow painless to implement more interfaces {pull}22983[#22983]
+
+Plugin Repository Azure::
+* Add Backoff policy to azure repository {pull}23387[#23387] (issue: {issue}22728[#22728])
+
+Plugin Repository S3::
+* Removes the retry mechanism from the S3 blob store {pull}23952[#23952] (issue: {issue}22845[#22845])
+* S3 Repository: Eagerly load static settings {pull}23910[#23910]
+
+Plugins::
+* Modify permissions dialog for plugins {pull}23742[#23742]
+* Plugins: Add plugin cli specific exit codes {pull}23599[#23599] (issue: {issue}15295[#15295])
+* Plugins: Output better error message when existing plugin is incompatible {pull}23562[#23562] (issue: {issue}20691[#20691])
+
+Query DSL::
+* Make it possible to validate a query on all shards instead of a single random shard {pull}23697[#23697] (issue: {issue}18254[#18254])
+
+REST::
+* Validate top-level keys when parsing mget requests {pull}23746[#23746] (issue: {issue}23720[#23720])
+* Cluster stats should not render empty http/transport types {pull}23735[#23735]
+* Add parameter to prefix aggs name with type in search responses {pull}22965[#22965]
+
+Search::
+* Set shard count limit to unlimited {pull}24012[#24012]
+* Streamline shard index availability in all SearchPhaseResults {pull}23788[#23788]
+* Search took time should use a relative clock {pull}23662[#23662]
+* Prevent negative `from` parameter in SearchSourceBuilder {pull}23358[#23358] (issue: {issue}23324[#23324])
+* Remove unnecessary result sorting in SearchPhaseController {pull}23321[#23321]
+* Expose `batched_reduce_size` via `_search` {pull}23288[#23288] (issue: {issue}23253[#23253])
+* Adding fromXContent to Suggest and Suggestion class {pull}23226[#23226] (issue: {issue}23202[#23202])
+* Adding fromXContent to Suggestion.Entry and subclasses {pull}23202[#23202]
+* Add CollapseSearchPhase as a successor for the FetchSearchPhase {pull}23165[#23165]
+* Integrate IndexOrDocValuesQuery. {pull}23119[#23119]
+* Detach SearchPhases from AbstractSearchAsyncAction {pull}23118[#23118]
+* Fix GraphQuery expectation after Lucene upgrade to 6.5 {pull}23117[#23117] (issue: {issue}23102[#23102])
+* Nested queries should avoid adding unnecessary filters when possible. {pull}23079[#23079] (issue: {issue}20797[#20797])
+* Add xcontent parsing to completion suggestion option {pull}23071[#23071]
+* Add xcontent parsing to suggestion options {pull}23018[#23018]
+* Separate reduce (aggs, suggest and profile) from merging fetched hits {pull}23017[#23017]
+
+Settings::
+* Add secure file setting to keystore {pull}24001[#24001]
+* Add a setting which specifies a list of setting {pull}23883[#23883]
+* Add a property to mark setting as final {pull}23872[#23872]
+* Remove obsolete index setting `index.version.minimum_compatible`. {pull}23593[#23593]
+* Provide a method to retrieve a closeable char[] from a SecureString {pull}23389[#23389]
+* Update indices settings api to support CBOR and SMILE format {pull}23309[#23309] (issues: {issue}23242[#23242], {issue}23245[#23245])
+* Improve setting deprecation message {pull}23156[#23156] (issue: {issue}22849[#22849])
+
+Snapshot/Restore::
+* Change snapshot status error to use generic SnapshotException {pull}24355[#24355] (issue: {issue}24225[#24225])
+
+Stats::
+* Add cross-cluster search remote cluster info API {pull}23969[#23969] (issue: {issue}23925[#23925])
+
+Task Manager::
+* Allow task to be unregistered by ClusterStateApplier {pull}23931[#23931]
+* Limit IndexRequest toString() length {pull}22832[#22832]
+
+
+
+[[bug-5.4.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Align behavior HDR percentiles iterator with percentile() method {pull}24206[#24206]
+* The `filter` and `significant_terms` aggregations should parse the `filter` as a filter, not a query. {pull}23797[#23797]
+* Completion suggestion should also consider text if prefix/regex is missing {pull}23451[#23451] (issue: {issue}23340[#23340])
+* Fixes the per term error in the terms aggregation {pull}23399[#23399]
+* Fixes terms error count for multiple reduce phases {pull}23291[#23291] (issue: {issue}23286[#23286])
+* Restore support for the `include/pattern` syntax. {pull}23140[#23140] (issue: {issue}22933[#22933])
+
+Bulk::
+* Reject empty IDs {pull}24118[#24118] (issue: {issue}24116[#24116])
+
+CRUD::
+* Fix backport executing ops as single item bulk {pull}23083[#23083] (issues: {issue}21964[#21964], {issue}23069[#23069])
+
+Cluster::
+* Don't set local node on cluster state used for node join validation {pull}23311[#23311] (issues: {issue}21830[#21830], {issue}3[#3], {issue}4[#4], {issue}6[#6], {issue}9[#9])
+* Allow a cluster state applier to create an observer and wait for a better state {pull}23132[#23132] (issue: {issue}21817[#21817])
+* Cluster allocation explain to never return empty response body {pull}23054[#23054]
+
+Core::
+* Check for default.path.data included in path.data {pull}24285[#24285] (issue: {issue}24283[#24283])
+* Improve performance of extracting warning value {pull}24114[#24114] (issue: {issue}24018[#24018])
+* Reject duplicate settings on the command line {pull}24053[#24053]
+* Restrict build info loading to ES jar, not any jar {pull}24049[#24049] (issue: {issue}21955[#21955])
+
+Discovery::
+* ZenDiscovery - only validate min_master_nodes values if local node is master {pull}23915[#23915] (issue: {issue}23695[#23695])
+
+Index APIs::
+* Fixes restore of a shrunken index when initial recovery node is gone {pull}24322[#24322] (issue: {issue}24257[#24257])
+* Honor update request timeout {pull}23825[#23825]
+
+Ingest::
+* Improve missing ingest processor error {pull}23379[#23379] (issue: {issue}23392[#23392])
+* update _ingest.timestamp to use new ZonedDateTime {pull}23174[#23174] (issue: {issue}23168[#23168])
+
+Inner Hits::
+* Replace NestedChildrenQuery with ParentChildrenBlockJoinQuery {pull}24016[#24016] (issue: {issue}24009[#24009])
+* Changed DisMaxQueryBuilder to extract inner hits from leaf queries {pull}23512[#23512] (issue: {issue}23482[#23482])
+
+Internal::
+* Add infrastructure to mark contexts as system contexts {pull}23830[#23830]
+* Always restore the ThreadContext for operations delayed due to a block {pull}23349[#23349]
+
+Java High Level REST Client::
+* Correctly parse BulkItemResponse.Failure's status {pull}23432[#23432]
+
+Java REST Client::
+* Make buffer limit configurable in HeapBufferedConsumerFactory {pull}23970[#23970] (issue: {issue}23958[#23958])
+* RestClient asynchronous execution should not throw exceptions {pull}23307[#23307]
+
+Mapping::
+* Preserve response headers when creating an index {pull}23950[#23950] (issue: {issue}23947[#23947])
+* Improves disabled fielddata error message {pull}23841[#23841] (issue: {issue}22768[#22768])
+* Switch include_in_all in multifield to warning {pull}23656[#23656] (issues: {issue}21971[#21971], {issue}23654[#23654])
+* Fix MapperService StackOverflowError {pull}23605[#23605] (issue: {issue}23604[#23604])
+* Fix NPE with scaled floats stats when field is not indexed {pull}23528[#23528] (issue: {issue}23487[#23487])
+
+Network::
+* Fix possible hang in local transport when nodes get concurrently disconnected {pull}23962[#23962] (issue: {issue}23942[#23942])
+* Respect promises on pipelined responses {pull}23317[#23317] (issues: {issue}23310[#23310], {issue}23322[#23322])
+* Ensure that releasing listener is called {pull}23310[#23310]
+
+Packaging::
+* Fall back to non-atomic move when removing plugins {pull}23548[#23548] (issue: {issue}35[#35])
+
+Percolator::
+* Fix memory leak when percolator uses bitset or field data cache {pull}24115[#24115] (issue: {issue}24108[#24108])
+
+Plugin Ingest Attachment::
+* Remove support for Visio and potm files {pull}23214[#23214] (issues: {issue}22077[#22077], {issue}22079[#22079], {issue}22963[#22963])
+
+Plugin Lang Painless::
+* Fix painless's regex lexer and error messages {pull}23634[#23634]
+* Replace Painless's Cast with casting strategies {pull}23369[#23369]
+* Fix Bad Casts In Painless {pull}23282[#23282] (issue: {issue}23238[#23238])
+
+Plugin Repository Azure::
+* Azure blob store's readBlob() method first checks if the blob exists {pull}23483[#23483] (issue: {issue}23480[#23480])
+
+Plugin Repository S3::
+* Handle BlobPath's trailing separator case. Add test cases to BlobPathTests.java {pull}23091[#23091]
+
+Plugins::
+* Fix delete of plugin directory on remove plugin {pull}24266[#24266] (issue: {issue}24252[#24252])
+* Use a marker file when removing a plugin {pull}24252[#24252] (issue: {issue}24231[#24231])
+
+Query DSL::
+* FuzzyQueryBuilder should error when parsing array of values {pull}23762[#23762] (issue: {issue}23759[#23759])
+
+REST::
+* [API] change wait_for_completion default according to docs {pull}23672[#23672]
+* Deprecate request_cache for clear-cache {pull}23638[#23638] (issue: {issue}22748[#22748])
+* HTTP transport stashes the ThreadContext instead of the RestController {pull}23456[#23456]
+* Ensure we try to autodetect content type for handlers that support plain text {pull}23452[#23452]
+* Fix date format in warning headers {pull}23418[#23418] (issue: {issue}23275[#23275])
+* Align REST specs for HEAD requests {pull}23313[#23313] (issue: {issue}21125[#21125])
+* Correct warning header to be compliant {pull}23275[#23275] (issue: {issue}22986[#22986])
+* Fix get HEAD requests {pull}23186[#23186] (issue: {issue}21125[#21125])
+* Fix search scroll request with a plain text body {pull}23183[#23183] (issue: {issue}22691[#22691])
+* Handle bad HTTP requests {pull}23153[#23153] (issue: {issue}23034[#23034])
+* Fix get source HEAD requests {pull}23151[#23151] (issue: {issue}21125[#21125])
+* Properly encode location header {pull}23133[#23133] (issues: {issue}21057[#21057], {issue}23115[#23115])
+* Fix template HEAD requests {pull}23130[#23130] (issue: {issue}21125[#21125])
+* Fix index HEAD requests {pull}23112[#23112] (issue: {issue}21125[#21125])
+* Fix alias HEAD requests {pull}23094[#23094] (issue: {issue}21125[#21125])
+
+Recovery::
+* Provide target allocation id as part of start recovery request {pull}24333[#24333] (issue: {issue}24167[#24167])
+
+Reindex API::
+* Fix throttled reindex_from_remote {pull}23953[#23953] (issues: {issue}23828[#23828], {issue}23945[#23945])
+* Fix reindex with a remote source on a version before 2.0.0 {pull}23805[#23805]
+* Make reindex wait for cleanup before responding {pull}23677[#23677] (issue: {issue}23653[#23653])
+
+Scripting::
+* Remove unnecessary Groovy deprecation logging {pull}23410[#23410] (issue: {issue}23401[#23401])
+* Convert script/template objects to json format internally {pull}23308[#23308] (issue: {issue}23245[#23245])
+* Script: Fix value of `ctx._now` to be current epoch time in milliseconds {pull}23175[#23175] (issue: {issue}23169[#23169])
+
+Search::
+* Cross Cluster Search: propagate original indices per cluster {pull}24328[#24328]
+* Query string default field {pull}24214[#24214]
+* Speed up parsing of large `terms` queries. {pull}24210[#24210]
+* IndicesQueryCache should delegate the scorerSupplier method. {pull}24209[#24209]
+* Fork LRUQueryCache from Lucene to work around LUCENE-7749 {pull}24207[#24207]
+* Disable graph analysis at query time for shingle and cjk filters producing tokens of different size {pull}23920[#23920] (issue: {issue}23918[#23918])
+* Fix cross-cluster remote node gateway attributes {pull}23863[#23863]
+* Use a fixed seed for computing term hashCode in TermsSliceQuery {pull}23795[#23795]
+* Honor max concurrent searches in multi-search {pull}23538[#23538] (issue: {issue}23527[#23527])
+* Avoid stack overflow in multi-search {pull}23527[#23527] (issue: {issue}23523[#23523])
+* Fix query_string_query to transform "foo:*" in an exists query on the field name {pull}23433[#23433] (issue: {issue}23356[#23356])
+* Factor out filling of TopDocs in SearchPhaseController {pull}23380[#23380] (issues: {issue}19356[#19356], {issue}23357[#23357])
+* Replace blocking calls in ExpandCollapseSearchResponseListener by asynchronous requests {pull}23053[#23053] (issue: {issue}23048[#23048])
+
+Search Templates::
+* No longer add illegal content type option to stored search templates {pull}24251[#24251] (issue: {issue}24227[#24227])
+
+Settings::
+* Do not set path.data in environment if not set {pull}24132[#24132] (issue: {issue}24099[#24099])
+* Correct handling of default and array settings {pull}24074[#24074] (issues: {issue}23981[#23981], {issue}24052[#24052])
+* Fix merge scheduler config settings {pull}23391[#23391]
+* Settings: Fix keystore cli prompting for yes/no to handle console returning null {pull}23320[#23320]
+
+Similarities::
+* Fix similarity upgrade when "default" similarity is overridden {pull}23163[#23163]
+
+Snapshot/Restore::
+* Fixes maintaining the shards a snapshot is waiting on {pull}24289[#24289]
+* Fixes snapshot status on failed snapshots {pull}23833[#23833] (issue: {issue}23716[#23716])
+* Fixes snapshot deletion handling on in-progress snapshot failure {pull}23703[#23703] (issue: {issue}23663[#23663])
+* Prioritize listing index-N blobs over index.latest in reading snapshots {pull}23333[#23333]
+
+Stats::
+* Avoid overflow when computing total FS stats {pull}23641[#23641]
+* Handle existence of cgroup version 2 hierarchy {pull}23493[#23493] (issue: {issue}23486[#23486])
+* Handle long overflow when adding paths' totals {pull}23293[#23293] (issue: {issue}23093[#23093])
+* Fix control group pattern {pull}23219[#23219] (issue: {issue}23218[#23218])
+* Fix total disk bytes returning negative value {pull}23093[#23093]
+
+
+
+[[regression-5.4.0]]
+[float]
+=== Regressions
+
+Bulk::
+* Fix _bulk response when it can't create an index {pull}24048[#24048] (issues: {issue}22488[#22488], {issue}24028[#24028])
+
+
+
+[[upgrade-5.4.0]]
+[float]
+=== Upgrades
+
+Aggregations::
+* Upgrade HDRHistogram to 2.1.9 {pull}23254[#23254] (issue: {issue}23239[#23239])
+
+Core::
+* Upgrade to Lucene 6.5.0 {pull}23750[#23750]
+* Upgrade from JNA 4.2.2 to JNA 4.4.0 {pull}23636[#23636]
+* Upgrade to lucene-6.5.0-snapshot-d00c5ca {pull}23385[#23385]
+* Upgrade to lucene-6.5.0-snapshot-f919485. {pull}23087[#23087]
+
+Logging::
+* Upgrade to Log4j 2.8.2 {pull}23995[#23995]
+
+Network::
+* Upgrade to Netty 4.1.9 {pull}23540[#23540] (issues: {issue}23172[#23172], {issue}6308[#6308], {issue}6374[#6374])
+* Upgrade to Netty 4.1.8 {pull}23055[#23055]
+
+Plugin Repository Azure::
+* Update to Azure Storage 5.0.0 {pull}23517[#23517] (issue: {issue}23448[#23448])
+

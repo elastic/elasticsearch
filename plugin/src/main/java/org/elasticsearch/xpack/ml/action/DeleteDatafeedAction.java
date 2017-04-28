@@ -169,12 +169,12 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
 
                         @Override
                         public ClusterState execute(ClusterState currentState) throws Exception {
-                            MlMetadata currentMetadata = state.getMetaData().custom(MlMetadata.TYPE);
+                            MlMetadata currentMetadata = currentState.getMetaData().custom(MlMetadata.TYPE);
                             PersistentTasksCustomMetaData persistentTasks =
-                                    state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                                    currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                             MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
                                     .removeDatafeed(request.getDatafeedId(), persistentTasks).build();
-                            return ClusterState.builder(state).metaData(
+                            return ClusterState.builder(currentState).metaData(
                                     MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, newMetadata).build())
                                     .build();
                         }

@@ -160,9 +160,9 @@ public class UpdateDatafeedAction extends Action<UpdateDatafeedAction.Request, P
                         @Override
                         public ClusterState execute(ClusterState currentState) throws Exception {
                             DatafeedUpdate update = request.getUpdate();
-                            MlMetadata currentMetadata = state.getMetaData().custom(MlMetadata.TYPE);
+                            MlMetadata currentMetadata = currentState.getMetaData().custom(MlMetadata.TYPE);
                             PersistentTasksCustomMetaData persistentTasks =
-                                    state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                                    currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                             MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
                                     .updateDatafeed(update, persistentTasks).build();
                             updatedDatafeed = newMetadata.getDatafeed(update.getId());

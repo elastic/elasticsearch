@@ -454,6 +454,23 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         }
     }
 
+    public void testIndexTemplateValidation() throws Exception {
+        MetaData metaData = randomMetaData();
+        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.singletonList(
+            new UpgraderPlugin() {
+                @Override
+                public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+                    return customs -> {
+                        throw new IllegalStateException("template is incompatible");
+                    };
+                }
+            }
+        ));
+        String message = expectThrows(IllegalStateException.class,
+            () -> GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader)).getMessage();
+        assertThat(message, equalTo("template is incompatible"));
+    }
+
     private static class MockMetaDataIndexUpgradeService extends MetaDataIndexUpgradeService {
         private final boolean upgrade;
 

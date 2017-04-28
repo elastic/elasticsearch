@@ -71,7 +71,6 @@ public class SocketSelectorTests extends ESTestCase {
 
         this.socketSelector = new SocketSelector(eventHandler, BigArrays.NON_RECYCLING_INSTANCE, rawSelector);
         this.socketSelector.setThread();
-        this.socketSelector.state = 1;
 
         when(rawSelector.selectedKeys()).thenReturn(keySet);
         when(rawSelector.select(0)).thenReturn(1);
@@ -147,10 +146,9 @@ public class SocketSelectorTests extends ESTestCase {
     }
 
     public void testQueueWriteWhenNotRunning() throws Exception {
-        socketSelector.state = 2;
-        socketSelector.queueWrite(new WriteOperation(channel, new BytesArray(new byte[1]), listener));
+        socketSelector.close(false);
 
-        socketSelector.doSelect(0);
+        socketSelector.queueWrite(new WriteOperation(channel, new BytesArray(new byte[1]), listener));
 
         verify(listener).onFailure(any(ClosedSelectorException.class));
     }

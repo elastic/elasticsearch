@@ -41,7 +41,6 @@ public class ESSelectorTests extends ESTestCase {
         super.setUp();
         handler = mock(EventHandler.class);
         selector = new TestSelector(handler, BigArrays.NON_RECYCLING_INSTANCE);
-        selector.state = 1;
     }
 
     public void testQueueChannelForClosed() throws IOException {

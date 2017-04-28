@@ -85,7 +85,7 @@ public class SocketSelector extends ESSelector {
 
     public void queueWrite(WriteOperation writeOperation) {
         queuedWrites.offer(writeOperation);
-        if (isRunning() == false) {
+        if (isOpen() == false) {
             boolean wasRemoved = queuedWrites.remove(writeOperation);
             if (wasRemoved) {
                 writeOperation.getListener().onFailure(CLOSED_SELECTOR_EXCEPTION);

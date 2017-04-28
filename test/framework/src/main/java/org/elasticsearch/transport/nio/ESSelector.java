@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 
@@ -31,23 +30,21 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 
 public abstract class ESSelector implements Closeable {
 
-    protected static final int NOT_STARTED = 0;
-    protected static final int RUNNING = 1;
-    protected static final int STOPPED = 2;
-
-    protected Selector selector;
-    protected volatile int state = 0;
+    protected final Selector selector;
+    protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     protected final ConcurrentLinkedQueue<NioChannel> channelsToClose = new ConcurrentLinkedQueue<>();
     protected final Set<NioChannel> registeredChannels = Collections.newSetFromMap(new ConcurrentHashMap<NioChannel, Boolean>());
 
     private final EventHandler eventHandler;
     private final BigArrays bigArrays;
+    private final ReentrantLock runLock = new ReentrantLock();
     private volatile Thread thread;
-    private CountDownLatch shutdownLatch = new CountDownLatch(1);
+
     protected ESSelector(EventHandler eventHandler, BigArrays bigArrays) throws IOException {
         this(eventHandler, bigArrays, Selector.open());
     }
@@ -59,18 +56,21 @@ public abstract class ESSelector implements Closeable {
     }
 
     public void runLoop() {
-        setThread();
-        state = RUNNING;
-        try {
-            while (state == RUNNING) {
-                singleLoop();
-            }
-        } finally {
+        if (runLock.tryLock()) {
             try {
-                cleanup();
+                setThread();
+                while (isOpen()) {
+                    singleLoop();
+                }
             } finally {
-                shutdownLatch.countDown();
+                try {
+                    cleanup();
+                } finally {
+                    runLock.unlock();
+                }
             }
+        } else {
+            throw new IllegalStateException("selector is already running");
         }
     }
 
@@ -79,7 +79,7 @@ public abstract class ESSelector implements Closeable {
             closePendingChannels();
             doSelect(300);
         } catch (ClosedSelectorException e) {
-            if (state == RUNNING) {
+            if (isOpen()) {
                 throw e;
             }
         } catch (IOException e) {
@@ -114,19 +114,12 @@ public abstract class ESSelector implements Closeable {
     }
 
     public void close(boolean shouldInterrupt) throws IOException {
-        int currentState = this.state;
-        state = STOPPED;
-        selector.close();
-        if (shouldInterrupt && thread != null) {
-            thread.interrupt();
-        }
-        if (currentState == NOT_STARTED) {
-            shutdownLatch.countDown();
-        }
-        try {
-            shutdownLatch.await();
-        } catch (InterruptedException e) {
-            throw new ElasticsearchException(e);
+        if (isClosed.compareAndSet(false, true)) {
+            selector.close();
+            if (shouldInterrupt && thread != null) {
+                thread.interrupt();
+            }
+            runLock.lock(); // wait for the shutdown to complete
         }
     }
 
@@ -142,16 +135,6 @@ public abstract class ESSelector implements Closeable {
         }
     }
 
-    private void closeChannel(NioChannel channel) {
-        try {
-            eventHandler.handleClose(channel);
-        } catch (IOException e) {
-            eventHandler.closeException(channel, e);
-        } finally {
-            registeredChannels.remove(channel);
-        }
-    }
-
     protected abstract void cleanup();
 
     public BigArrays getBigArrays() {
@@ -162,7 +145,21 @@ public abstract class ESSelector implements Closeable {
         return selector;
     }
 
+    public boolean isOpen() {
+        return isClosed.get() == false;
+    }
+
     public boolean isRunning() {
-        return state == RUNNING;
+        return runLock.isLocked();
+    }
+
+    private void closeChannel(NioChannel channel) {
+        try {
+            eventHandler.handleClose(channel);
+        } catch (IOException e) {
+            eventHandler.closeException(channel, e);
+        } finally {
+            registeredChannels.remove(channel);
+        }
     }
 }

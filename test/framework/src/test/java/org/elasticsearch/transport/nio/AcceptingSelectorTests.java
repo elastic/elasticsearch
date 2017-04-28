@@ -57,7 +57,6 @@ public class AcceptingSelectorTests extends ESTestCase {
         Selector rawSelector = mock(Selector.class);
         selector = new AcceptingSelector(eventHandler, BigArrays.NON_RECYCLING_INSTANCE, rawSelector);
         this.selector.setThread();
-        this.selector.state = 1;
 
         selectionKey = new TestSelectionKey(0);
         selectionKey.attach(serverChannel);

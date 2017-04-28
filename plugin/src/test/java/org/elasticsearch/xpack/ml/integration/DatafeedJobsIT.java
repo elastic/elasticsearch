@@ -94,6 +94,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         indexDocs(logger, "data", numDocs1, lastWeek, now);
 
         Job.Builder job = createScheduledJob("realtime-job");
+        registerJob(job);
         assertTrue(putJob(job).isAcknowledged());
         openJob(job.getId());
         assertBusy(() -> {

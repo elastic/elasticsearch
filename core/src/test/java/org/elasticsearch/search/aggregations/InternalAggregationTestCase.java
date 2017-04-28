@@ -34,6 +34,8 @@ import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggr
 import org.elasticsearch.search.aggregations.metrics.cardinality.ParsedCardinality;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.geobounds.ParsedGeoBounds;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.ParsedGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.ParsedMax;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
@@ -107,6 +109,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         namedXContents.put(ExtendedStatsBucketPipelineAggregationBuilder.NAME,
                 (p, c) -> ParsedExtendedStatsBucket.fromXContent(p, (String) c));
         namedXContents.put(GeoBoundsAggregationBuilder.NAME, (p, c) -> ParsedGeoBounds.fromXContent(p, (String) c));
+        namedXContents.put(GeoCentroidAggregationBuilder.NAME, (p, c) -> ParsedGeoCentroid.fromXContent(p, (String) c));
 
         return namedXContents.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))

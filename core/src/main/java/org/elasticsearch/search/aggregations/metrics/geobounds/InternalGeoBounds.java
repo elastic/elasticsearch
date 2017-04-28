@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalGeoBounds extends InternalAggregation implements GeoBounds {
-    
+
     static final ParseField BOUNDS_FIELD = new ParseField("bounds");
     static final ParseField TOP_LEFT_FIELD = new ParseField("top_left");
     static final ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");

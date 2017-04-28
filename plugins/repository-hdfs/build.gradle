@@ -79,9 +79,6 @@ def vagrantEnvVars = [
         'VAGRANT_PROJECT_DIR'   : "${project(':test:fixtures:krb5kdc-fixture').projectDir}"
 ]
 
-//evaluationDependsOn(':test:fixtures:krb5kdc-fixture')
-//Task krb5update = project(':test:fixtures:krb5kdc-fixture').tasks.getByName("update")
-
 task krb5kdcUpdate(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
   boxName box
   environmentVars vagrantEnvVars
@@ -182,7 +179,8 @@ if (secureFixtureSupported) {
     def elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("elasticsearch.keytab").toAbsolutePath()
     def krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
 
-    project.integTestSecure.dependsOn(project.integTest)
+//    project.integTestSecure.dependsOn(project.integTest)
+    project.integTestSecureCluster.dependsOn(project.bundlePlugin)
     project.integTestSecure.clusterConfig.plugin(project.path)
     project.integTestSecure.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
     project.integTestSecure.clusterConfig.jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
@@ -196,7 +194,10 @@ if (secureFixtureSupported) {
   integTestSecure.mustRunAfter(project.integTest)
   project.check.dependsOn(integTestSecure)
   // Fixture dependencies
+  // The following line is the difference between the fixture executing correctly and not.
+  // Probably because it's forcing the evaluation of the fixture stop task, but the secure cluster does not...
   integTestSecure.dependsOn secureHdfsFixture, krb5kdcFixture
+  integTestSecureCluster.dependsOn secureHdfsFixture, krb5kdcFixture
   integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
 } else {
   logger.warn("secured hdfsFixture is unsupported, please install Vagrant 1.8.6+ to enable")

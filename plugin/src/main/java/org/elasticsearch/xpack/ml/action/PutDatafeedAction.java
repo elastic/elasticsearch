@@ -28,7 +28,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,10 +42,10 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.support.Exceptions;
 
@@ -223,14 +222,13 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
             // If security is enabled only create the datafeed if the user requesting creation has
             // permission to read the indices the datafeed is going to read from
             if (securityEnabled) {
-                String username = new SecurityContext(settings,
-                        threadPool.getThreadContext()).getUser().principal();
+                final String runAsUser = Authentication.getAuthentication(threadPool.getThreadContext()).getRunAsUser().principal();
                 ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                        r -> handlePrivsResponse(username, request, r, listener),
+                        r -> handlePrivsResponse(runAsUser, request, r, listener),
                         listener::onFailure);
 
                 HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
-                privRequest.username(username);
+                privRequest.username(runAsUser);
                 privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
                 // We just check for permission to use the search action.  In reality we'll also
                 // use the scroll action, but that's considered an implementation detail.

@@ -22,13 +22,18 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -127,4 +132,79 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     HyperLogLogPlusPlus getState() {
         return counts;
     }
+    private static final ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>(
+            "internal_cardinality", true, () -> new HashMap<>());
+
+    static {
+        declareCommonField(PARSER);
+        PARSER.declareLong((map, value) -> map.put(CommonFields.VALUE.getPreferredName(), value),
+                CommonFields.VALUE);
+    }
+
+    public static Cardinality parseXContentBody(final String name, XContentParser parser) {
+        Map<String, Object> map = PARSER.apply(parser, null);
+        final long cardinalityValue = (Long) map.getOrDefault(CommonFields.VALUE.getPreferredName(),
+                Double.POSITIVE_INFINITY);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> metaData = (Map<String, Object>) map
+                .get(CommonFields.META.getPreferredName());
+        return new ParsedCardinality(name, cardinalityValue, metaData);
+    }
+
+    private static class ParsedCardinality implements Aggregation, Cardinality, ToXContent {
+
+        private long cardinalityValue;
+        private String name;
+        private Map<String, Object> medadata;
+
+        ParsedCardinality(String name, long cardinality, Map<String, Object> metaData) {
+            this.cardinalityValue = cardinality;
+            this.name = name;
+            this.medadata = metaData;
+        }
+
+        @Override
+        public double value() {
+            return getValue();
+        }
+
+        @Override
+        public String getValueAsString() {
+            return DocValueFormat.RAW.format(value());
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public Object getProperty(String path) {
+            if (path.isEmpty()) {
+                return this;
+            } else if ("value".equals(path)) {
+                return value();
+            } else {
+                throw new IllegalArgumentException(
+                        "path not supported for [" + getName() + "]: " + path);
+            }
+        }
+
+        @Override
+        public Map<String, Object> getMetaData() {
+            return this.medadata;
+        }
+
+        @Override
+        public long getValue() {
+            return cardinalityValue;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(CommonFields.VALUE.getPreferredName(), cardinalityValue);
+            return builder;
+        }
+    }
 }
+

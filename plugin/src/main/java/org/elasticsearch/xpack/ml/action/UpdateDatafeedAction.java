@@ -147,7 +147,7 @@ public class UpdateDatafeedAction extends Action<UpdateDatafeedAction.Request, P
                 throws Exception {
             clusterService.submitStateUpdateTask("update-datafeed-" + request.getUpdate().getId(),
                     new AckedClusterStateUpdateTask<PutDatafeedAction.Response>(request, listener) {
-                        private DatafeedConfig updatedDatafeed;
+                        private volatile DatafeedConfig updatedDatafeed;
 
                         @Override
                         protected PutDatafeedAction.Response newResponse(boolean acknowledged) {

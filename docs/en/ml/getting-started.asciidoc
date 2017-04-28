@@ -327,9 +327,16 @@ Machine learning jobs contain the configuration information and metadata
 necessary to perform an analytical task. They also contain the results of the
 analytical task.
 
-NOTE: This tutorial uses {kib} to create jobs and view results, but you can
-alternatively use APIs to accomplish these tasks.
+[NOTE]
+--
+This tutorial uses {kib} to create jobs and view results, but you can
+alternatively use APIs to accomplish most tasks.
 For API reference information, see <<ml-apis>>.
+
+The {xpack} {ml} features in {kib} use pop-ups. You must configure your
+web browser so that it does not block pop-up windows or create an
+exception for your Kibana URL.
+--
 
 To work with jobs in {kib}:
 

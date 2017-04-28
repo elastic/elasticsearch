@@ -1,32 +1,124 @@
 [[ml-limitations]]
 == Machine Learning Limitations
 
+The following limitations and known problems apply to the {version} release of
+{xpack}:
+
 [float]
-=== Misleading High Missing Field Counts
+=== Pop-ups must be enabled in browsers
+//See x-pack-elasticsearch/#844
+
+The {xpack} {ml} features in Kibana use pop-ups. You must configure your
+web browser so that it does not block pop-up windows or create an
+exception for your Kibana URL.
+
+
+[float]
+=== Jobs must be re-created at GA
+//See x-pack-elasticsearch/#844
+
+The models that you create in the {xpack} {ml} Beta cannot be upgraded.
+After the {xpack} {ml} features become generally available, you must
+re-create your jobs. If you have data sets and job configurations that
+you work with extensively in the beta, make note of all the details so
+that you can re-create them successfully.
+
+
+[float]
+=== Anomaly Explorer omissions and limitations
+//See x-pack-elasticsearch/#844
+
+In Kibana, Anomaly Explorer charts are not displayed for anomalies
+that were due to categorization, `time_of_day` functions, or `time_of_week`
+functions. Those particular results do not display well as time series
+charts.
+
+The Anomaly Explorer charts can also look odd in circumstances where there
+is very little data to plot. For example, if there is only one data point, it is
+represented as a single dot. If there are only two data points, they are joined
+by a line.
+
+[float]
+=== Jobs close on the data feed end date
+//See x-pack-elasticsearch/#1037
+
+If you start a data feed and specify an end date, it will close the job when
+the data feed stops. This behavior avoids having numerous open one-time jobs.
+
+If you do not specify an end date when you start a data feed, the job
+remains open when you stop the data feed. This behavior avoids the overhead
+of closing and re-opening large jobs when there are pauses in the data feed.
+
+[float]
+=== Post data API requires JSON format
+
+The post data API enables you to send data to a job for analysis. The data that
+you send to the job must use the JSON format.
+
+For more information about this API, see <<ml-post-data>>.
+
+
+[float]
+=== Misleading high missing field counts
 //See x-pack-elasticsearch/#684
 
-One of the counts associated with a {ml} job is +missingFieldCount+,
+One of the counts associated with a {ml} job is `missing_field_count`,
 which indicates the number of records that are missing a configured field.
-This information is most useful when your job analyzes CSV data.  In this case,
-missing fields indicate data is not being analyzed and you might receive poor results.
+//This information is most useful when your job analyzes CSV data.  In this case,
+//missing fields indicate data is not being analyzed and you might receive poor results.
 
-If your job analyzes JSON data, the +missingFieldCount+ might be misleading.
-Missing fields might be expected due to the structure of the data and therefore do
-not generate poor results.
+Since jobs analyze JSON data, the `missing_field_count` might be misleading.
+Missing fields might be expected due to the structure of the data and therefore
+do not generate poor results.
+
+For more information about `missing_field_count`,
+see <<ml-datacounts,Data Counts Objects>>.
 
 
-//When you refer to a file script in a watch, the watch itself is not updated
-//if you change the script on the filesystem.
-
-//Currently, the only way to reload a file script in a watch is to delete
-//the watch and recreate it.
-
-//=== The _data Endpoint Requires Data to be in JSON Format
-
-//See x-pack-elasticsearch/#777
-
-//=== tBD
-
+[float]
+=== Terms aggregation size affects data analysis
 //See x-pack-elasticsearch/#601
-//When you use aggregations, you must ensure +size+ is configured correctly.
-//Otherwise, not all data will be analyzed.
+
+By default, the `terms` aggregation returns the buckets for the top ten terms.
+You can change this default behavior by setting the `size` parameter.
+
+If you are send pre-aggregated data to a job for analysis, you must ensure
+that the `size` is configured correctly. Otherwise, some data might not be
+analyzed.
+
+[float]
+=== Jobs created in {kib} use model plot config and pre-aggregated data
+//See x-pack-elasticsearch/#844
+
+If you create single or multi-metric jobs in {kib}, it might enable some
+options under the covers that you'd want to reconsider for large or
+long-running jobs.
+
+For example, when you create a single metric job in {kib}, it generally
+enables the `model_plot_config` advanced configuration option. That configuration
+option causes model information to be stored along with the results and provides
+a more detailed view into anomaly detection. It is specifically used by the
+**Single Metric Viewer** in {kib}. When this option is enabled, however, it can
+add considerable overhead to the performance of the system. If you have jobs
+with many entities, for example data from tens of thousands of servers, storing
+this additional model information for every bucket might be problematic. If you
+are not certain that you need this option or if you experience performance
+issues, edit your job configuration to disable this option.
+
+For more information, see <<ml-apimodelplotconfig,Model Plot Config>>.
+
+Likewise, when you create a single or multi-metric job in {kib}, in some cases
+it uses aggregations on the data that it retrieves from {es}. One of the
+benefits of summarizing data this way is that {es} automatically distributes
+these calculations across your cluster. This summarized data is then fed into
+{xpack} {ml} instead of raw results, which reduces the volume of data that must
+be considered while detecting anomalies.  However, if you have two jobs, one of
+which uses pre-aggregated data and another that does not, their results might
+differ. This difference is due to the difference in precision of the input data.
+The {ml} analytics are designed to be aggregation-aware and the likely increase
+in performance that is gained by pre-aggregating the data makes the potentially
+poorer precision worthwhile. If you want to view or change the aggregations
+that are used in your job, refer to the `aggregations` property in your data
+feed.
+
+For more information, see <<ml-datafeed-resource>>.

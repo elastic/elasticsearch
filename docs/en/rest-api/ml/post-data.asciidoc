@@ -3,7 +3,6 @@
 ==== Post Data to Jobs
 
 The post data API enables you to send data to an anomaly detection job for analysis.
-The job must have been opened prior to sending data.
 
 
 ===== Request
@@ -13,9 +12,13 @@ The job must have been opened prior to sending data.
 
 ===== Description
 
-File sizes are limited to 100 Mb, so if your file is larger, then split it into
-multiple files and upload each one separately in sequential time order. When
-running in real time, it is generally recommended to perform many small uploads,
+The job must have a state of `open` to receive and process the data.
+
+The data that you send to the job must use the JSON format.
+
+File sizes are limited to 100 Mb. If your file is larger, split it into multiple
+files and upload each one separately in sequential time order. When running in
+real time, it is generally recommended that you perform many small uploads,
 rather than queueing data to upload larger files.
 
 When uploading data, check the <<ml-datacounts,job data counts>> for progress.

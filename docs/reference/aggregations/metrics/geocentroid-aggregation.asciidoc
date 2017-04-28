@@ -62,7 +62,8 @@ The response for the above aggregation:
             "location": {
                 "lat": 51.009829603135586,
                 "lon": 3.966213036328554
-            }
+            },
+            "count": 6
         }
     }
 }
@@ -114,7 +115,8 @@ The response for the above aggregation:
                       "location": {
                          "lat": 52.371655656024814,
                          "lon": 4.909563269466162
-                      }
+                      },
+                      "count": 3
                    }
                },
                {
@@ -124,7 +126,8 @@ The response for the above aggregation:
                       "location": {
                          "lat": 48.86055544484407,
                          "lon": 2.331694420427084
-                      }
+                      },
+                      "count": 2
                    }
                 },
                 {
@@ -134,7 +137,8 @@ The response for the above aggregation:
                        "location": {
                           "lat": 51.222899928689,
                           "lon": 4.405199903994799
-                       }
+                       },
+                       "count": 1
                     }
                  }
             ]

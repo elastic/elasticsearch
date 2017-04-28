@@ -35,8 +35,8 @@ import java.util.Map;
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
  */
 public class InternalGeoCentroid extends InternalAggregation implements GeoCentroid {
-    protected final GeoPoint centroid;
-    protected final long count;
+    private final GeoPoint centroid;
+    private final long count;
 
     public InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
             pipelineAggregators, Map<String, Object> metaData) {
@@ -123,6 +123,8 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
                     return centroid.lat();
                 case "lon":
                     return centroid.lon();
+                case "count":
+                    return count;
                 default:
                     throw new IllegalArgumentException("Found unknown path element [" + coordinate + "] in [" + getName() + "]");
             }
@@ -133,6 +135,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
 
     static class Fields {
         public static final String CENTROID = "location";
+        public static final String COUNT = "count";
     }
 
     @Override
@@ -140,6 +143,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         if (centroid != null) {
             builder.startObject(Fields.CENTROID).field("lat", centroid.lat()).field("lon", centroid.lon()).endObject();
         }
+        builder.field(Fields.COUNT, count);
         return builder;
     }
 }

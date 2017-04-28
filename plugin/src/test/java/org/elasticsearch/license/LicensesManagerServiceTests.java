@@ -6,11 +6,13 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.XPackSingleNodeTestCase;
@@ -23,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
+@TestLogging("_root:DEBUG") // So we can get more logging for https://github.com/elastic/x-pack-elasticsearch/issues/222
 public class LicensesManagerServiceTests extends XPackSingleNodeTestCase {
 
     @Override
@@ -101,7 +104,11 @@ public class LicensesManagerServiceTests extends XPackSingleNodeTestCase {
         TestUtils.registerAndAckSignedLicenses(licenseService, tamperedLicense, LicensesStatus.INVALID);
 
         // ensure that the invalid license never made it to cluster state
-        LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
+        ClusterState state = clusterService.state();
+        assertNotNull(state);
+        assertNotNull(state.metaData());
+        assertNotNull(state.metaData().custom(LicensesMetaData.TYPE));
+        LicensesMetaData licensesMetaData = state.metaData().custom(LicensesMetaData.TYPE);
         assertThat(licensesMetaData.getLicense(), not(equalTo(tamperedLicense)));
     }
 

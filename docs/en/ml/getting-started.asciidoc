@@ -71,11 +71,14 @@ make it easier to control which users have authority to view and manage the jobs
 data feeds, and results.
 
 By default, you can perform all of the steps in this tutorial by using the
-built-in `elastic` super user. If you are performing these steps in a production
-environment, take extra care because that user has the `superuser` role and you
-could inadvertently make significant changes to the system. You can
-alternatively assign the `machine_learning_admin` and `kibana_user` roles to a
-user ID of your choice.
+built-in `elastic` super user. The default password for the `elastic` user is
+`changeme`. For information about how to change that password, see
+<<security-getting-started>>.
+
+If you are performing these steps in a production environment, take extra care
+because `elastic` has the `superuser` role and you could inadvertently make
+significant changes to the system. You can alternatively assign the
+`machine_learning_admin` and `kibana_user` roles to a user ID of your choice.
 
 For more information, see <<built-in-roles>> and <<privileges-list-cluster>>.
 
@@ -126,8 +129,7 @@ that there is a problem or that resources need to be redistributed. By using
 the {xpack} {ml} features to model the behavior of this data, it is easier to
 identify anomalies and take appropriate action.
 
-* TBD: Provide instructions for downloading the sample data after it's made
-available publicly on https://github.com/elastic/examples
+Download this sample data from: https://github.com/elastic/examples
 //Download this data set by clicking here:
 //See  https://download.elastic.co/demos/kibana/gettingstarted/shakespeare.json[shakespeare.json].
 
@@ -172,6 +174,7 @@ into {xpack} {ml} instead of raw results, which reduces the volume
 of data that must be considered while detecting anomalies. For the purposes of
 this tutorial, however, these summary values are stored in {es},
 rather than created using the {ref}/search-aggregations.html[_aggregations framework_].
+
 //TBD link to working with aggregations page
 
 Before you load the data set, you need to set up {ref}/mapping.html[_mappings_]
@@ -190,7 +193,7 @@ mapping for the data set:
 [source,shell]
 ----------------------------------
 
-curl -u elastic:elasticpassword -X PUT -H 'Content-Type: application/json'
+curl -u elastic:changeme -X PUT -H 'Content-Type: application/json'
 http://localhost:9200/server-metrics -d '{
   "settings": {
     "number_of_shards": 1,
@@ -239,7 +242,7 @@ http://localhost:9200/server-metrics -d '{
 }'
 ----------------------------------
 
-NOTE: If you run this command, you must replace `elasticpassword` with your
+NOTE: If you run this command, you must replace `changeme` with your
 actual password.
 
 ////
@@ -259,16 +262,16 @@ example, which loads the four JSON files:
 [source,shell]
 ----------------------------------
 
-curl -u elastic:elasticpassword -X POST -H "Content-Type: application/json"
+curl -u elastic:changeme -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_1.json"
 
-curl -u elastic:elasticpassword -X POST -H "Content-Type: application/json"
+curl -u elastic:changeme -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_2.json"
 
-curl -u elastic:elasticpassword -X POST -H "Content-Type: application/json"
+curl -u elastic:changeme -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_3.json"
 
-curl -u elastic:elasticpassword -X POST -H "Content-Type: application/json"
+curl -u elastic:changeme -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_4.json"
 ----------------------------------
 
@@ -283,7 +286,7 @@ You can verify that the data was loaded successfully with the following command:
 [source,shell]
 ----------------------------------
 
-curl 'http://localhost:9200/_cat/indices?v' -u elastic:elasticpassword
+curl 'http://localhost:9200/_cat/indices?v' -u elastic:changeme
 ----------------------------------
 
 You should see output similar to the following:
@@ -292,7 +295,7 @@ You should see output similar to the following:
 ----------------------------------
 
 health status index ... pri rep docs.count  docs.deleted  store.size ...
-green  open   server-metrics ... 1 0 907200  0  136.2mb  ...
+green  open   server-metrics ... 1 0 905940  0  120.5mb  ...
 ----------------------------------
 
 Next, you must define an index pattern for this data set:
@@ -302,7 +305,8 @@ locally, go to `http://localhost:5601/`.
 
 . Click the **Management** tab, then **Index Patterns**.
 
-. Click the plus sign (+) to define a new index pattern.
+. If you already have index patterns, click the plus sign (+) to define a new
+one. Otherwise, the **Configure an index pattern** wizard is already open.
 
 . For this tutorial, any pattern that matches the name of the index you've
 loaded will work. For example, enter `server-metrics*` as the index pattern.
@@ -421,11 +425,11 @@ typical anomalies and the frequency at which alerting is required.
 
 . Determine whether you want to process all of the data or only part of it. If
 you want to analyze all of the existing data, click
-**Use full transaction_counts data**. If you want to see what happens when you
+**Use full server-metrics* data**. If you want to see what happens when you
 stop and start data feeds and process additional data over time, click the time
 picker in the {kib} toolbar. Since the sample data spans a period of time
-between March 26, 2017 and April 22, 2017, click **Absolute**. Set the start
-time to March 26, 2017 and the end time to April 1, 2017, for example. Once
+between March 23, 2017 and April 22, 2017, click **Absolute**. Set the start
+time to March 23, 2017 and the end time to April 1, 2017, for example. Once
 you've got the time range set up, click the **Go** button.
 image:images/ml-gs-job1-time.jpg["Setting the time range for the data feed"]
 +
@@ -525,9 +529,10 @@ button to start the data feed:
 image::images/ml-start-feed.jpg["Start data feed"]
 
 . Choose a start time and end time. For example,
-click **Continue from 2017-04-01** and **2017-04-30**, then click **Start**.
-The date picker defaults to the latest timestamp of processed data. Be careful
-not to leave any gaps in the analysis, otherwise you might miss anomalies.
+click **Continue from 2017-04-01 23:59:00** and select **2017-04-30** as the
+search end time. Then click **Start**. The date picker defaults to the latest
+timestamp of processed data. Be careful not to leave any gaps in the analysis,
+otherwise you might miss anomalies.
 image::images/ml-gs-job1-datafeed.jpg["Restarting a data feed"]
 
 The data feed state changes to `started`, the job state changes to `opened`,
@@ -628,6 +633,7 @@ Click one of the red blocks in the swim lane to see details about the anomalies
 that occurred in that time interval. For example:
 
 image::images/ml-gs-job1-explorer-anomaly.jpg["Anomaly Explorer details for total-requests job"]
+
 
 After you have identified anomalies, often the next step is to try to determine
 the context of those situations. For example, are there other factors that are

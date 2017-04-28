@@ -27,11 +27,12 @@ import org.gradle.api.tasks.Input
 public class BatsOverVagrantTask extends VagrantCommandTask {
 
     @Input
-    String command
+    String remoteCommand
 
     BatsOverVagrantTask() {
         project.afterEvaluate {
-            args 'ssh', boxName, '--command', command
+            command 'ssh'
+            args '--command', remoteCommand
         }
     }
 

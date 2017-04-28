@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.vagrant
 import org.apache.commons.io.output.TeeOutputStream
 import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.TaskAction
 import org.gradle.internal.logging.progress.ProgressLoggerFactory
 
 import javax.inject.Inject
@@ -30,6 +31,12 @@ import javax.inject.Inject
  * formatter and defaults to `vagrant` as first part of commandLine.
  */
 public class VagrantCommandTask extends LoggedExec {
+
+    @Input
+    String command
+
+    @Input
+    String subcommand
 
     @Input
     String boxName
@@ -47,6 +54,12 @@ public class VagrantCommandTask extends LoggedExec {
                 println "$name Passing Env..."
                 environment environmentVars
             }
+
+            def vagrantCommand = [executable, command]
+            if (subcommand != null) {
+                vagrantCommand + subcommand
+            }
+            commandLine([*vagrantCommand, boxName, *args])
         }
     }
 

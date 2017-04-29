@@ -329,8 +329,12 @@ To work with jobs in {kib}:
 . Open {kib} in your web browser and log in. If you are running {kib} locally,
 go to `http://localhost:5601/`.
 
-. Click **Machine Learning** in the side navigation:
-image::images/ml-kibana.jpg["Job Management"]
+. Click **Machine Learning** in the side navigation: +
++
+--
+[role="screenshot"]
+image::images/ml-kibana.jpg[Job Management]
+--
 
 You can choose to create single metric, multi-metric, or advanced jobs in
 {kib}. In this tutorial, the goal is to detect anomalies in the total requests
@@ -357,17 +361,26 @@ To create a single metric job in {kib}:
 . Click **Machine Learning** in the side navigation,
 then click **Create new job**.
 
-. Click **Create single metric job**.
+. Click **Create single metric job**. +
++
+--
+[role="screenshot"]
 image::images/ml-create-jobs.jpg["Create a new job"]
+--
 
 . Click the `server-metrics` index. +
 +
 --
+[role="screenshot"]
 image::images/ml-gs-index.jpg["Select an index"]
 --
 
-. Configure the job by providing the following information:
+. Configure the job by providing the following information: +
++
+--
+[role="screenshot"]
 image::images/ml-gs-single-job.jpg["Create a new job from the server-metrics index"]
+--
 
 .. For the **Aggregation**, select `Sum`. This value specifies the analysis
 function that is used.
@@ -423,8 +436,12 @@ stop and start data feeds and process additional data over time, click the time
 picker in the {kib} toolbar. Since the sample data spans a period of time
 between March 23, 2017 and April 22, 2017, click **Absolute**. Set the start
 time to March 23, 2017 and the end time to April 1, 2017, for example. Once
-you've got the time range set up, click the **Go** button.
-image:images/ml-gs-job1-time.jpg["Setting the time range for the data feed"]
+you've got the time range set up, click the **Go** button. +
++
+--
+[role="screenshot"]
+image::images/ml-gs-job1-time.jpg["Setting the time range for the data feed"]
+--
 +
 --
 A graph is generated, which represents the total number of requests over time.
@@ -434,8 +451,12 @@ A graph is generated, which represents the total number of requests over time.
 be unique in your cluster. You can also optionally provide a description of the
 job.
 
-. Click **Create Job**.
+. Click **Create Job**. +
++
+--
+[role="screenshot"]
 image::images/ml-gs-job1.jpg["A graph of the total number of requests over time"]
+--
 
 As the job is created, the graph is updated to give a visual representation of
 the progress of {ml} as the data is processed. This view is only available whilst the
@@ -449,8 +470,9 @@ For API reference information, see <<ml-apis>>.
 [[ml-gs-job1-manage]]
 === Managing Jobs
 
-After you create a job, you can see its status in the **Job Management** tab:
+After you create a job, you can see its status in the **Job Management** tab: +
 
+[role="screenshot"]
 image::images/ml-gs-job1-manage1.jpg["Status information for the total-requests job"]
 
 The following information is provided for each job:
@@ -520,27 +542,31 @@ For example, if you did not use the full data when you created the job, you can
 now process the remaining data by restarting the data feed:
 
 . In the **Machine Learning** / **Job Management** tab, click the following
-button to start the data feed:
-image::images/ml-start-feed.jpg["Start data feed"]
+button to start the data feed: image:images/ml-start-feed.jpg["Start data feed"]
+
 
 . Choose a start time and end time. For example,
 click **Continue from 2017-04-01 23:59:00** and select **2017-04-30** as the
 search end time. Then click **Start**. The date picker defaults to the latest
 timestamp of processed data. Be careful not to leave any gaps in the analysis,
-otherwise you might miss anomalies.
+otherwise you might miss anomalies. +
++
+--
+[role="screenshot"]
 image::images/ml-gs-job1-datafeed.jpg["Restarting a data feed"]
+--
 
 The data feed state changes to `started`, the job state changes to `opened`,
 and the number of processed records increases as the new data is analyzed. The
 latest timestamp information also increases. For example:
+[role="screenshot"]
 image::images/ml-gs-job1-manage2.jpg["Job opened and data feed started"]
 
 TIP: If your data is being loaded continuously, you can continue running the job
 in real time. For this, start your data feed and select **No end time**.
 
 If you want to stop the data feed at this point, you can click the following
-button:
-image::images/ml-stop-feed.jpg["Stop data feed"]
+button: image:images/ml-stop-feed.jpg["Stop data feed"]
 
 Now that you have processed all the data, let's start exploring the job results.
 
@@ -583,7 +609,9 @@ Single Metric Viewer::
 
 By default when you view the results for a single metric job, the
 **Single Metric Viewer** opens:
+[role="screenshot"]
 image::images/ml-gs-job1-analysis.jpg["Single Metric Viewer for total-requests job"]
+
 
 The blue line in the chart represents the actual data values. The shaded blue
 area represents the bounds for the expected values. The area between the upper
@@ -613,22 +641,23 @@ Slide the time selector to a section of the time series that contains a red
 anomaly data point. If you hover over the point, you can see more information
 about that data point. You can also see details in the **Anomalies** section
 of the viewer. For example:
-
+[role="screenshot"]
 image::images/ml-gs-job1-anomalies.jpg["Single Metric Viewer Anomalies for total-requests job"]
+
 
 For each anomaly you can see key details such as the time, the actual and
 expected ("typical") values, and their probability.
 
 You can see the same information in a different format by using the
 **Anomaly Explorer**:
-
+[role="screenshot"]
 image::images/ml-gs-job1-explorer.jpg["Anomaly Explorer for total-requests job"]
+
 
 Click one of the red blocks in the swim lane to see details about the anomalies
 that occurred in that time interval. For example:
-
+[role="screenshot"]
 image::images/ml-gs-job1-explorer-anomaly.jpg["Anomaly Explorer details for total-requests job"]
-
 
 After you have identified anomalies, often the next step is to try to determine
 the context of those situations. For example, are there other factors that are

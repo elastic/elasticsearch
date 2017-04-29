@@ -57,7 +57,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
                 if (builder.hasTask(taskId)) {
                     throw new ResourceAlreadyExistsException("task with id {" + taskId + "} already exist");
                 }
-                validate(action, clusterService.state(), params);
+                validate(action, currentState, params);
                 final Assignment assignment;
                 assignment = getAssignement(action, currentState, params);
                 return update(currentState, builder.addTask(taskId, action, params, assignment));

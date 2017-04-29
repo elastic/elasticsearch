@@ -194,14 +194,13 @@ public final class LambdaBootstrap {
             String delegateMethodName,
             MethodType delegateMethodType)
             throws LambdaConversionException {
-        String lambdaClassName = Type.getInternalName(lookup.lookupClass()) +"$$Lambda" + COUNTER.getAndIncrement();
+        String lambdaClassName = Type.getInternalName(lookup.lookupClass()) + "$$Lambda" + COUNTER.getAndIncrement();
         Type lambdaClassType = Type.getObjectType(lambdaClassName);
         Type delegateClassType = Type.getObjectType(delegateClassName.replace('.', '/'));
 
         validateTypes(interfaceMethodType, delegateMethodType);
 
-        ClassWriter cw =
-            beginLambdaClass(lambdaClassName, factoryMethodType.returnType());
+        ClassWriter cw = beginLambdaClass(lambdaClassName, factoryMethodType.returnType());
         Capture[] captures = generateCaptureFields(cw, factoryMethodType);
         generateLambdaConstructor(cw, lambdaClassType, factoryMethodType, captures);
         

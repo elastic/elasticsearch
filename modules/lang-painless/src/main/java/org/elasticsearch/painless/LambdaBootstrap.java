@@ -203,14 +203,19 @@ public final class LambdaBootstrap {
         Capture[] captures = generateCaptureFields(cw, factoryMethodType);
         generateLambdaConstructor(cw, lambdaClassType, factoryMethodType, captures);
         
+        // Handles the special case where a method reference refers to a ctor (we need a static wrapper method):
         if (delegateInvokeType == H_NEWINVOKESPECIAL) {
-            generateStaticCtorDelegator(cw, delegateClassType, delegateInvokeType,
-                    delegateMethodName, delegateMethodType);
+            generateStaticCtorDelegator(cw, delegateClassType, delegateMethodName, delegateMethodType);
+            // replace the delegate with our static wrapper:
+            delegateMethodName = DELEGATED_CTOR_WRAPPER_NAME;
+            delegateClassType = lambdaClassType;
+            delegateInvokeType = H_INVOKESTATIC;
         }
 
         generateInterfaceMethod(cw, factoryMethodType, lambdaClassType, interfaceMethodName,
             interfaceMethodType, delegateClassType, delegateInvokeType,
             delegateMethodName, delegateMethodType, captures);
+        
         endLambdaClass(cw);
 
         Class<?> lambdaClass =
@@ -314,7 +319,7 @@ public final class LambdaBootstrap {
      * Generates a factory method to delegate to constructors using
      * {@code INVOKEDYNAMIC} using the {@link #delegateBootstrap} type converter.
      */
-    private static void generateStaticCtorDelegator(ClassWriter cw, Type delegateClassType, int delegateInvokeType, String delegateMethodName,
+    private static void generateStaticCtorDelegator(ClassWriter cw, Type delegateClassType, String delegateMethodName,
             MethodType delegateMethodType) {
         Method wrapperMethod = new Method(DELEGATED_CTOR_WRAPPER_NAME, delegateMethodType.toMethodDescriptorString());
         Method constructorMethod = new Method(delegateMethodName, delegateMethodType.changeReturnType(void.class).toMethodDescriptorString());
@@ -354,17 +359,6 @@ public final class LambdaBootstrap {
         GeneratorAdapter iface = new GeneratorAdapter(modifiers, lamMeth,
             cw.visitMethod(modifiers, interfaceMethodName, lamDesc, null, null));
         iface.visitCode();
-
-        // Handles the case where a reference method refers to a constructor:
-        // We convert the constructor call to a static method (that is created separately in this class).
-        // TODO: Investigate why it is not possible to call INVOKEDYNAMIC with a constant pool HANDLE
-        // pointing to a constructor!?!
-        // Example: StringBuilder::new
-        if (delegateInvokeType == H_NEWINVOKESPECIAL) {
-            delegateMethodName = DELEGATED_CTOR_WRAPPER_NAME;
-            delegateClassType = lambdaClassType;
-            delegateInvokeType = H_INVOKESTATIC;
-        }
         
         // Loads any captured variables onto the stack.
         for (int captureCount = 0; captureCount < captures.length; ++captureCount) {

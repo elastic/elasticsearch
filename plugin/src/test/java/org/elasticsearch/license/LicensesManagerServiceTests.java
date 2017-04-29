@@ -16,6 +16,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.XPackSingleNodeTestCase;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -48,6 +49,11 @@ public class LicensesManagerServiceTests extends XPackSingleNodeTestCase {
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
+    }
+
+    @Before
+    public void waitForTrialLicenseToBeGenerated() throws Exception {
+        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metaData().custom(LicensesMetaData.TYPE)));
     }
 
     public void testStoreAndGetLicenses() throws Exception {

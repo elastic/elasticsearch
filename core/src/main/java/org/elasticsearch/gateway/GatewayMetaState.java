@@ -252,22 +252,22 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
             upgradedMetaData.put(newMetaData, false);
         }
         // upgrade global custom meta data
-        if (applyPluginUpraders(metaData.getCustoms(), metaDataUpgrader.customMetaDataUpgraders,
+        if (applyPluginUpgraders(metaData.getCustoms(), metaDataUpgrader.customMetaDataUpgraders,
             upgradedMetaData::removeCustom,upgradedMetaData::putCustom)) {
             changed = true;
         }
         // upgrade current templates
-        if (applyPluginUpraders(metaData.getTemplates(), metaDataUpgrader.indexTemplateMetaDataUpgraders,
+        if (applyPluginUpgraders(metaData.getTemplates(), metaDataUpgrader.indexTemplateMetaDataUpgraders,
             upgradedMetaData::removeTemplate, (s, indexTemplateMetaData) -> upgradedMetaData.put(indexTemplateMetaData))) {
             changed = true;
         }
         return changed ? upgradedMetaData.build() : metaData;
     }
 
-    private static <Data> boolean applyPluginUpraders(ImmutableOpenMap<String, Data> existingData,
-                                               UnaryOperator<Map<String, Data>> upgrader,
-                                               Consumer<String> removeData,
-                                               BiConsumer<String, Data> putData) {
+    private static <Data> boolean applyPluginUpgraders(ImmutableOpenMap<String, Data> existingData,
+                                                       UnaryOperator<Map<String, Data>> upgrader,
+                                                       Consumer<String> removeData,
+                                                       BiConsumer<String, Data> putData) {
         // collect current data
         Map<String, Data> existingMap = new HashMap<>();
         for (ObjectObjectCursor<String, Data> customCursor : existingData) {

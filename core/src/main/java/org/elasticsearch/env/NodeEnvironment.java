@@ -94,9 +94,6 @@ public final class NodeEnvironment  implements Closeable {
         public final Path indicesPath;
         /** Cached FileStore from path */
         public final FileStore fileStore;
-        /** Cached result of Lucene's {@code IOUtils.spins} on path.  This is a trilean value: null means we could not determine it (we are
-         *  not running on Linux, or we hit an exception trying), True means the device possibly spins and False means it does not. */
-        public final Boolean spins;
 
         public final int majorDeviceNumber;
         public final int minorDeviceNumber;
@@ -106,11 +103,9 @@ public final class NodeEnvironment  implements Closeable {
             this.indicesPath = path.resolve(INDICES_FOLDER);
             this.fileStore = Environment.getFileStore(path);
             if (fileStore.supportsFileAttributeView("lucene")) {
-                this.spins = (Boolean) fileStore.getAttribute("lucene:spins");
                 this.majorDeviceNumber = (int) fileStore.getAttribute("lucene:major_device_number");
                 this.minorDeviceNumber = (int) fileStore.getAttribute("lucene:minor_device_number");
             } else {
-                this.spins = null;
                 this.majorDeviceNumber = -1;
                 this.minorDeviceNumber = -1;
             }
@@ -136,9 +131,13 @@ public final class NodeEnvironment  implements Closeable {
         public String toString() {
             return "NodePath{" +
                     "path=" + path +
-                    ", spins=" + spins +
+                    ", indicesPath=" + indicesPath +
+                    ", fileStore=" + fileStore +
+                    ", majorDeviceNumber=" + majorDeviceNumber +
+                    ", minorDeviceNumber=" + minorDeviceNumber +
                     '}';
         }
+
     }
 
     private final NodePath[] nodePaths;
@@ -304,15 +303,6 @@ public final class NodeEnvironment  implements Closeable {
             for (NodePath nodePath : nodePaths) {
                 sb.append('\n').append(" -> ").append(nodePath.path.toAbsolutePath());
 
-                String spinsDesc;
-                if (nodePath.spins == null) {
-                    spinsDesc = "unknown";
-                } else if (nodePath.spins) {
-                    spinsDesc = "possibly";
-                } else {
-                    spinsDesc = "no";
-                }
-
                 FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
                 sb.append(", free_space [")
                     .append(fsPath.getFree())
@@ -320,8 +310,6 @@ public final class NodeEnvironment  implements Closeable {
                     .append(fsPath.getAvailable())
                     .append("], total_space [")
                     .append(fsPath.getTotal())
-                    .append("], spins? [")
-                    .append(spinsDesc)
                     .append("], mount [")
                     .append(fsPath.getMount())
                     .append("], type [")
@@ -332,7 +320,6 @@ public final class NodeEnvironment  implements Closeable {
         } else if (logger.isInfoEnabled()) {
             FsInfo.Path totFSPath = new FsInfo.Path();
             Set<String> allTypes = new HashSet<>();
-            Set<String> allSpins = new HashSet<>();
             Set<String> allMounts = new HashSet<>();
             for (NodePath nodePath : nodePaths) {
                 FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
@@ -343,21 +330,13 @@ public final class NodeEnvironment  implements Closeable {
                     if (type != null) {
                         allTypes.add(type);
                     }
-                    Boolean spins = fsPath.getSpins();
-                    if (spins == null) {
-                        allSpins.add("unknown");
-                    } else if (spins.booleanValue()) {
-                        allSpins.add("possibly");
-                    } else {
-                        allSpins.add("no");
-                    }
                     totFSPath.add(fsPath);
                 }
             }
 
             // Just log a 1-line summary:
-            logger.info("using [{}] data paths, mounts [{}], net usable_space [{}], net total_space [{}], spins? [{}], types [{}]",
-                nodePaths.length, allMounts, totFSPath.getAvailable(), totFSPath.getTotal(), toString(allSpins), toString(allTypes));
+            logger.info("using [{}] data paths, mounts [{}], net usable_space [{}], net total_space [{}], types [{}]",
+                nodePaths.length, allMounts, totFSPath.getAvailable(), totFSPath.getTotal(), toString(allTypes));
         }
     }
 

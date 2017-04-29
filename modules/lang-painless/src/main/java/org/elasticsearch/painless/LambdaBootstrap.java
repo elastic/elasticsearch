@@ -33,7 +33,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.concurrent.atomic.AtomicLong;
@@ -473,9 +472,7 @@ public final class LambdaBootstrap {
         try {
             return new ConstantCallSite(MethodHandles.constant(
                 factoryMethodType.returnType(), constructor.newInstance()));
-        } catch (InstantiationException |
-            IllegalAccessException |
-            InvocationTargetException exception) {
+        } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("unable to create lambda class", exception);
         }
     }
@@ -492,7 +489,7 @@ public final class LambdaBootstrap {
             return new ConstantCallSite(
                 lookup.findConstructor(lambdaClass, factoryMethodType.changeReturnType(void.class))
                 .asType(factoryMethodType));
-        } catch (NoSuchMethodException | IllegalAccessException exception) {
+        } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("unable to create lambda factory class", exception);
         }
     }

@@ -168,9 +168,9 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
                     barrier.await();
                     for (int i = 0; i < 200 && stopped.get() == false; i++) {
                         final String fieldName = Integer.toString(i);
-                        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", 
-                                "test", 
-                                fieldName, 
+                        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test",
+                                "test",
+                                fieldName,
                                 new BytesArray("{ \"" + fieldName + "\" : \"test\" }"),
                                 XContentType.JSON));
                         Mapping update = doc.dynamicMappingsUpdate();
@@ -191,10 +191,10 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
             while(stopped.get() == false) {
                 final String fieldName = lastIntroducedFieldName.get();
                 final BytesReference source = new BytesArray("{ \"" + fieldName + "\" : \"test\" }");
-                ParsedDocument parsedDoc = documentMapper.parse(SourceToParse.source("test", 
-                        "test", 
-                        "random", 
-                        source, 
+                ParsedDocument parsedDoc = documentMapper.parse(SourceToParse.source("test",
+                        "test",
+                        "random",
+                        source,
                         XContentType.JSON));
                 if (parsedDoc.dynamicMappingsUpdate() != null) {
                     // not in the mapping yet, try again
@@ -234,5 +234,34 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
 
         assertNotNull(mapper.mappers().getMapper("foo"));
         assertFalse(mapper.sourceMapper().enabled());
+    }
+
+    public void testMergeChildType() throws IOException {
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        String initMapping = XContentFactory.jsonBuilder().startObject().startObject("child")
+            .startObject("_parent").field("type", "parent").endObject()
+            .endObject().endObject().string();
+        DocumentMapper initMapper = parser.parse("child", new CompressedXContent(initMapping));
+
+        String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("child")
+            .startObject("properties")
+            .startObject("name").field("type", "text").endObject()
+            .endObject().endObject().endObject().string();
+        DocumentMapper updatedMapper = parser.parse("child", new CompressedXContent(updatedMapping));
+        DocumentMapper mergedMapper = initMapper.merge(updatedMapper.mapping(), false);
+
+        assertThat(mergedMapper.mappers().getMapper("_parent"), notNullValue());
+        assertThat(mergedMapper.mappers().getMapper("name"), notNullValue());
+
+        String modParentMapping = XContentFactory.jsonBuilder().startObject().startObject("child")
+            .startObject("_parent").field("type", "new_parent").endObject()
+            .endObject().endObject().string();
+        DocumentMapper modParentMapper = parser.parse("child", new CompressedXContent(modParentMapping));
+        try {
+            initMapper.merge(modParentMapper.mapping(), false);
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("The _parent field's type option can't be changed:"));
+        }
     }
 }

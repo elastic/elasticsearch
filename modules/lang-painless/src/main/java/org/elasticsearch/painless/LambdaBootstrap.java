@@ -174,7 +174,7 @@ public final class LambdaBootstrap {
      * @param factoryMethodType The type of method to be linked to this CallSite; note that
      *                          captured types are based on the parameters for this method
      * @param interfaceMethodType The type of method representing the functional interface method
-     * @param delegateClassName The name of the Painless script class
+     * @param delegateClassName The name of the class to delegate method call to
      * @param delegateInvokeType The type of method call to be made
      *                           (static, virtual, interface, or constructor)
      * @param delegateMethodName The name of the method to be called in the Painless script class
@@ -194,29 +194,29 @@ public final class LambdaBootstrap {
             String delegateMethodName,
             MethodType delegateMethodType)
             throws LambdaConversionException {
-        String lambdaClassName = lookup.lookupClass().getName().replace('.', '/') +
-            "$$Lambda" + COUNTER.getAndIncrement();
-        Type lambdaClassType = Type.getType("L" + lambdaClassName + ";");
+        String lambdaClassName = Type.getInternalName(lookup.lookupClass()) +"$$Lambda" + COUNTER.getAndIncrement();
+        Type lambdaClassType = Type.getObjectType(lambdaClassName);
+        Type delegateClassType = Type.getObjectType(delegateClassName.replace('.', '/'));
 
         validateTypes(interfaceMethodType, delegateMethodType);
 
         ClassWriter cw =
-            beginLambdaClass(lambdaClassName, factoryMethodType.returnType().getName());
+            beginLambdaClass(lambdaClassName, factoryMethodType.returnType());
         Capture[] captures = generateCaptureFields(cw, factoryMethodType);
         generateLambdaConstructor(cw, lambdaClassType, factoryMethodType, captures);
         
         if (delegateInvokeType == H_NEWINVOKESPECIAL) {
-            generateStaticCtorDelegator(cw, delegateClassName, delegateInvokeType,
+            generateStaticCtorDelegator(cw, delegateClassType, delegateInvokeType,
                     delegateMethodName, delegateMethodType);
         }
 
-        generateInterfaceMethod(cw, factoryMethodType, lambdaClassName, lambdaClassType,
-            interfaceMethodName, interfaceMethodType, delegateClassName, delegateInvokeType,
+        generateInterfaceMethod(cw, factoryMethodType, lambdaClassType, interfaceMethodName,
+            interfaceMethodType, delegateClassType, delegateInvokeType,
             delegateMethodName, delegateMethodType, captures);
         endLambdaClass(cw);
 
         Class<?> lambdaClass =
-            createLambdaClass((Loader)lookup.lookupClass().getClassLoader(), cw, lambdaClassName);
+            createLambdaClass((Loader)lookup.lookupClass().getClassLoader(), cw, lambdaClassType);
 
         if (captures.length > 0) {
             return createCaptureCallSite(lookup, factoryMethodType, lambdaClass);
@@ -242,14 +242,13 @@ public final class LambdaBootstrap {
     /**
      * Creates the {@link ClassWriter} to be used for the lambda class generation.
      */
-    private static ClassWriter beginLambdaClass(String lambdaClassName, String lambdaInterface) {
+    private static ClassWriter beginLambdaClass(String lambdaClassName, Class<?> lambdaInterface) {
         String baseClass = Type.getInternalName(Object.class);
-        lambdaInterface = lambdaInterface.replace('.', '/');
         int modifiers = ACC_PUBLIC | ACC_STATIC | ACC_SUPER | ACC_FINAL | ACC_SYNTHETIC;
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         cw.visit(CLASS_VERSION,
-            modifiers, lambdaClassName, null, baseClass, new String[] {lambdaInterface});
+            modifiers, lambdaClassName, null, baseClass, new String[] { Type.getInternalName(lambdaInterface) });
 
         return cw;
     }
@@ -317,9 +316,8 @@ public final class LambdaBootstrap {
      * Generates a factory method to delegate to constructors using
      * {@code INVOKEDYNAMIC} using the {@link #delegateBootstrap} type converter.
      */
-    private static void generateStaticCtorDelegator(ClassWriter cw, String delegateClassName, int delegateInvokeType, String delegateMethodName,
+    private static void generateStaticCtorDelegator(ClassWriter cw, Type delegateClassType, int delegateInvokeType, String delegateMethodName,
             MethodType delegateMethodType) {
-        Type delegateType = Type.getObjectType(delegateClassName.replace('.', '/'));
         Method wrapperMethod = new Method(DELEGATED_CTOR_WRAPPER_NAME, delegateMethodType.toMethodDescriptorString());
         Method constructorMethod = new Method(delegateMethodName, delegateMethodType.changeReturnType(void.class).toMethodDescriptorString());
         int modifiers = ACC_PRIVATE | ACC_STATIC;
@@ -327,10 +325,10 @@ public final class LambdaBootstrap {
         GeneratorAdapter factory = new GeneratorAdapter(modifiers, wrapperMethod,
             cw.visitMethod(modifiers, DELEGATED_CTOR_WRAPPER_NAME, delegateMethodType.toMethodDescriptorString(), null, null));
         factory.visitCode();
-        factory.newInstance(delegateType);
+        factory.newInstance(delegateClassType);
         factory.dup();
         factory.loadArgs();
-        factory.invokeConstructor(delegateType, constructorMethod);
+        factory.invokeConstructor(delegateClassType, constructorMethod);
         factory.returnValue();
         factory.endMethod();
     }
@@ -341,11 +339,10 @@ public final class LambdaBootstrap {
     private static void generateInterfaceMethod(
             ClassWriter cw,
             MethodType factoryMethodType,
-            String lambdaClassName,
             Type lambdaClassType,
             String interfaceMethodName,
             MethodType interfaceMethodType,
-            String delegateClassName,
+            Type delegateClassType,
             int delegateInvokeType,
             String delegateMethodName,
             MethodType delegateMethodType,
@@ -353,7 +350,7 @@ public final class LambdaBootstrap {
             throws LambdaConversionException {
 
         String lamDesc = interfaceMethodType.toMethodDescriptorString();
-        Method lamMeth = new Method(lambdaClassName, lamDesc);
+        Method lamMeth = new Method(lambdaClassType.getInternalName(), lamDesc);
         int modifiers = ACC_PUBLIC;
 
         GeneratorAdapter iface = new GeneratorAdapter(modifiers, lamMeth,
@@ -367,7 +364,7 @@ public final class LambdaBootstrap {
         // Example: StringBuilder::new
         if (delegateInvokeType == H_NEWINVOKESPECIAL) {
             delegateMethodName = DELEGATED_CTOR_WRAPPER_NAME;
-            delegateClassName = lambdaClassName;
+            delegateClassType = lambdaClassType;
             delegateInvokeType = H_INVOKESTATIC;
         }
         
@@ -401,7 +398,7 @@ public final class LambdaBootstrap {
             // Example: Object::toString
             if (captures.length == 0) {
                 Class<?> clazz = delegateMethodType.parameterType(0);
-                delegateClassName = clazz.getName();
+                delegateClassType = Type.getType(clazz);
                 delegateMethodType = delegateMethodType.dropParameterTypes(0, 1);
             // Handles the case for a virtual or interface reference method with 'this'
             // captured. interfaceMethodType inserts the 'this' type into its
@@ -411,7 +408,7 @@ public final class LambdaBootstrap {
             // Example: something::toString
             } else if (captures.length == 1) {
                 Class<?> clazz = factoryMethodType.parameterType(0);
-                delegateClassName = clazz.getName();
+                delegateClassType = Type.getType(clazz);
                 interfaceMethodType = interfaceMethodType.insertParameterTypes(0, clazz);
             } else {
                 throw new LambdaConversionException(
@@ -423,7 +420,7 @@ public final class LambdaBootstrap {
         }
 
         Handle delegateHandle =
-            new Handle(delegateInvokeType, delegateClassName.replace('.', '/'),
+            new Handle(delegateInvokeType, delegateClassType.getInternalName(),
                 delegateMethodName, delegateMethodType.toMethodDescriptorString(),
                 delegateInvokeType == H_INVOKEINTERFACE);
         iface.invokeDynamic(delegateMethodName, Type.getMethodType(interfaceMethodType
@@ -448,13 +445,13 @@ public final class LambdaBootstrap {
     private static Class<?> createLambdaClass(
             Loader loader,
             ClassWriter cw,
-            String lambdaClassName) {
+            Type lambdaClassType) {
 
         byte[] classBytes = cw.toByteArray();
         // DEBUG:
         // new ClassReader(classBytes).accept(new TraceClassVisitor(new PrintWriter(System.out)), ClassReader.SKIP_DEBUG);
         return AccessController.doPrivileged((PrivilegedAction<Class<?>>)() ->
-            loader.defineLambda(lambdaClassName.replace('/', '.'), classBytes));
+            loader.defineLambda(lambdaClassType.getClassName(), classBytes));
     }
 
     /**

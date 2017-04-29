@@ -247,7 +247,7 @@ public final class LambdaBootstrap {
      */
     private static ClassWriter beginLambdaClass(String lambdaClassName, Class<?> lambdaInterface) {
         String baseClass = Type.getInternalName(Object.class);
-        int modifiers = ACC_PUBLIC | ACC_STATIC | ACC_SUPER | ACC_FINAL | ACC_SYNTHETIC;
+        int modifiers = ACC_PUBLIC | ACC_SUPER | ACC_FINAL | ACC_SYNTHETIC;
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         cw.visit(CLASS_VERSION,

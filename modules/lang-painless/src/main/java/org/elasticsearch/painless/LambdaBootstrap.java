@@ -408,7 +408,7 @@ public final class LambdaBootstrap {
                 delegateInvokeType == H_INVOKEINTERFACE);
         iface.invokeDynamic(delegateMethodName, Type.getMethodType(interfaceMethodType
                 .toMethodDescriptorString()).getDescriptor(), DELEGATE_BOOTSTRAP_HANDLE,
-            delegateHandle);
+                delegateHandle);
 
         iface.returnValue();
         iface.endMethod();

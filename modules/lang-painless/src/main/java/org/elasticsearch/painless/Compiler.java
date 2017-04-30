@@ -30,6 +30,7 @@ import java.security.CodeSource;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.BitSet;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 
@@ -66,6 +67,8 @@ final class Compiler {
      * A secure class loader used to define Painless scripts.
      */
     static final class Loader extends SecureClassLoader {
+        private final AtomicInteger lambdaCounter = new AtomicInteger(0);
+        
         /**
          * @param parent The parent ClassLoader.
          */
@@ -91,6 +94,14 @@ final class Compiler {
          */
         Class<?> defineLambda(String name, byte[] bytes) {
             return defineClass(name, bytes, 0, bytes.length);
+        }
+        
+        /**
+         * A counter used to generate a unique name for each lambda
+         * function/reference class in this classloader.
+         */
+        int newLambdaIdentifier() {
+            return lambdaCounter.getAndIncrement();
         }
     }
 

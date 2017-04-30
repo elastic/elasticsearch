@@ -32,10 +32,8 @@ import java.lang.invoke.LambdaConversionException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.lang.reflect.Constructor;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static java.lang.invoke.MethodHandles.Lookup;
 import static org.elasticsearch.painless.Compiler.Loader;
@@ -151,12 +149,6 @@ public final class LambdaBootstrap {
     }
 
     /**
-     * A counter used to generate a unique name
-     * for each lambda function/reference class.
-     */
-    private static final AtomicLong COUNTER = new AtomicLong(0);
-    
-    /**
      * This method name is used to generate a static wrapper method to handle delegation of ctors.
      */
     private static final String DELEGATED_CTOR_WRAPPER_NAME = "delegate$ctor";
@@ -193,7 +185,8 @@ public final class LambdaBootstrap {
             String delegateMethodName,
             MethodType delegateMethodType)
             throws LambdaConversionException {
-        String lambdaClassName = Type.getInternalName(lookup.lookupClass()) + "$$Lambda" + COUNTER.getAndIncrement();
+        Loader loader = (Loader)lookup.lookupClass().getClassLoader();
+        String lambdaClassName = Type.getInternalName(lookup.lookupClass()) + "$$Lambda" + loader.newLambdaIdentifier();
         Type lambdaClassType = Type.getObjectType(lambdaClassName);
         Type delegateClassType = Type.getObjectType(delegateClassName.replace('.', '/'));
 
@@ -218,9 +211,7 @@ public final class LambdaBootstrap {
         
         endLambdaClass(cw);
 
-        Class<?> lambdaClass =
-            createLambdaClass((Loader)lookup.lookupClass().getClassLoader(), cw, lambdaClassType);
-
+        Class<?> lambdaClass = createLambdaClass(loader, cw, lambdaClassType);
         if (captures.length > 0) {
             return createCaptureCallSite(lookup, factoryMethodType, lambdaClass);
         } else {
@@ -453,21 +444,12 @@ public final class LambdaBootstrap {
     private static CallSite createNoCaptureCallSite(
             MethodType factoryMethodType,
             Class<?> lambdaClass) {
-
-        Constructor<?> constructor = AccessController.doPrivileged(
-            (PrivilegedAction<Constructor<?>>)() -> {
-                try {
-                    return lambdaClass.getConstructor();
-                } catch (NoSuchMethodException nsme) {
-                    throw new IllegalStateException("unable to create lambda class", nsme);
-                }
-            });
-
+        
         try {
             return new ConstantCallSite(MethodHandles.constant(
-                factoryMethodType.returnType(), constructor.newInstance()));
+                factoryMethodType.returnType(), lambdaClass.getConstructor().newInstance()));
         } catch (ReflectiveOperationException exception) {
-            throw new IllegalStateException("unable to create lambda class", exception);
+            throw new IllegalStateException("unable to instantiate lambda class", exception);
         }
     }
 
@@ -484,7 +466,7 @@ public final class LambdaBootstrap {
                 lookup.findConstructor(lambdaClass, factoryMethodType.changeReturnType(void.class))
                 .asType(factoryMethodType));
         } catch (ReflectiveOperationException exception) {
-            throw new IllegalStateException("unable to create lambda factory class", exception);
+            throw new IllegalStateException("unable to create lambda class", exception);
         }
     }
 

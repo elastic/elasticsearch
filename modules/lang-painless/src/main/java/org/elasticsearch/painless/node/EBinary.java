@@ -291,7 +291,7 @@ public final class EBinary extends AExpression {
             } else if (sort == Sort.DOUBLE) {
                 constant = (double)left.constant + (double)right.constant;
             } else if (sort == Sort.STRING) {
-                constant = "" + left.constant + right.constant;
+                constant = String.valueOf(left.constant) + right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }

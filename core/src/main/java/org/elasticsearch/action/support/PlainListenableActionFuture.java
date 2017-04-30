@@ -19,17 +19,79 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.threadpool.ThreadPool;
 
-public class PlainListenableActionFuture<T> extends AbstractListenableActionFuture<T, T> {
+import java.util.ArrayList;
+import java.util.List;
 
-    public PlainListenableActionFuture(ThreadPool threadPool) {
-        super(threadPool);
+public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> implements ListenableActionFuture<T> {
+
+    volatile Object listeners;
+    boolean executedListeners = false;
+
+    @Override
+    public void addListener(final ActionListener<T> listener) {
+        internalAddListener(listener);
     }
 
     @Override
-    protected T convert(T response) {
-        return response;
+    protected void done() {
+        super.done();
+        synchronized (this) {
+            executedListeners = true;
+        }
+        Object listeners = this.listeners;
+        if (listeners != null) {
+            if (listeners instanceof List) {
+                List list = (List) listeners;
+                for (Object listener : list) {
+                    executeListener((ActionListener<T>) listener);
+                }
+            } else {
+                executeListener((ActionListener<T>) listeners);
+            }
+        }
     }
 
+    @Override
+    protected T convert(T listenerResponse) {
+        return listenerResponse;
+    }
+
+    private void internalAddListener(ActionListener<T> listener) {
+        boolean executeImmediate = false;
+        synchronized (this) {
+            if (executedListeners) {
+                executeImmediate = true;
+            } else {
+                Object listeners = this.listeners;
+                if (listeners == null) {
+                    listeners = listener;
+                } else if (listeners instanceof List) {
+                    ((List) this.listeners).add(listener);
+                } else {
+                    Object orig = listeners;
+                    listeners = new ArrayList<>(2);
+                    ((List) listeners).add(orig);
+                    ((List) listeners).add(listener);
+                }
+                this.listeners = listeners;
+            }
+        }
+        if (executeImmediate) {
+            executeListener(listener);
+        }
+    }
+
+    private void executeListener(final ActionListener<T> listener) {
+        try {
+            // we use a timeout of 0 to by pass assertion forbidding to call actionGet() (blocking) on a network thread.
+            // here we know we will never block
+            listener.onResponse(actionGet(0));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 }

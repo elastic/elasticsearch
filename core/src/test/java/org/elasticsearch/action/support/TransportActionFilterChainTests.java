@@ -97,7 +97,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             }
         }
 
-        PlainListenableActionFuture<TestResponse> future = new PlainListenableActionFuture<>(null);
+        DispatchingListenableActionFuture<TestResponse> future = new DispatchingListenableActionFuture<>(null);
         transportAction.execute(new TestRequest(), future);
         try {
             assertThat(future.get(), notNullValue());

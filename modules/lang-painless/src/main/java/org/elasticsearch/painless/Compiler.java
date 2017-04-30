@@ -93,7 +93,7 @@ final class Compiler {
          * @return A Class object.
          */
         Class<?> defineLambda(String name, byte[] bytes) {
-            return defineClass(name, bytes, 0, bytes.length);
+            return defineClass(name, bytes, 0, bytes.length, CODESOURCE);
         }
         
         /**

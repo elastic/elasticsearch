@@ -97,7 +97,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             }
         }
 
-        DispatchingListenableActionFuture<TestResponse> future = new DispatchingListenableActionFuture<>(null);
+        PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
         transportAction.execute(new TestRequest(), future);
         try {
             assertThat(future.get(), notNullValue());
@@ -110,12 +110,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         for (ActionFilter actionFilter : actionFilters.filters()) {
             testFiltersByLastExecution.add((RequestTestFilter) actionFilter);
         }
-        Collections.sort(testFiltersByLastExecution, new Comparator<RequestTestFilter>() {
-            @Override
-            public int compare(RequestTestFilter o1, RequestTestFilter o2) {
-                return Integer.compare(o1.executionToken, o2.executionToken);
-            }
-        });
+        Collections.sort(testFiltersByLastExecution, Comparator.comparingInt(o -> o.executionToken));
 
         ArrayList<RequestTestFilter> finalTestFilters = new ArrayList<>();
         for (ActionFilter filter : testFiltersByLastExecution) {

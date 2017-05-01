@@ -37,7 +37,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/metrics/percentile-aggregation.asciidoc',
   'reference/aggregations/metrics/percentile-rank-aggregation.asciidoc',
   'reference/aggregations/metrics/scripted-metric-aggregation.asciidoc',
-  'reference/aggregations/metrics/stats-aggregation.asciidoc',
   'reference/aggregations/metrics/tophits-aggregation.asciidoc',
   'reference/cat/snapshots.asciidoc',
   'reference/cat/templates.asciidoc',

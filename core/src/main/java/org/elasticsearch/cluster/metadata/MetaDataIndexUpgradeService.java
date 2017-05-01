@@ -61,15 +61,16 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
 
     @Inject
     public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                       IndexScopedSettings indexScopedSettings, Collection<Plugin> upgraderPlugins) {
+                                       IndexScopedSettings indexScopedSettings,
+                                       Collection<UnaryOperator<IndexMetaData>> indexMetaDataUpgraders) {
         super(settings);
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
         this.upgraders = indexMetaData -> {
             IndexMetaData newIndexMetaData = indexMetaData;
-            for (Plugin upgraderPlugin : upgraderPlugins) {
-                newIndexMetaData = upgraderPlugin.getIndexMetaDataUpgrader().apply(newIndexMetaData);
+            for (UnaryOperator<IndexMetaData> upgrader : indexMetaDataUpgraders) {
+                newIndexMetaData = upgrader.apply(newIndexMetaData);
             }
             return newIndexMetaData;
         };

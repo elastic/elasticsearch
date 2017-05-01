@@ -22,12 +22,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
-import java.util.function.UnaryOperator;
 
 public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
 
@@ -109,18 +107,12 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             Collections.singletonList(
-                new Plugin() {
-                    @Override
-                    public UnaryOperator<IndexMetaData> getIndexMetaDataUpgrader() {
-                        return indexMetaData -> IndexMetaData.builder(indexMetaData)
-                            .settings(
-                                Settings.builder()
-                                    .put(indexMetaData.getSettings())
-                                    .put("index.refresh_interval", "10s")
-                            ).build();
-                    }
-                }
-            ));
+                indexMetaData -> IndexMetaData.builder(indexMetaData)
+                    .settings(
+                        Settings.builder()
+                            .put(indexMetaData.getSettings())
+                            .put("index.refresh_interval", "10s")
+                    ).build()));
         IndexMetaData src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "200s").build());
         assertFalse(service.isUpgraded(src));
         src = service.upgradeIndexMetaData(src, Version.CURRENT.minimumIndexCompatibilityVersion());
@@ -133,13 +125,8 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             Collections.singletonList(
-                new Plugin() {
-                    @Override
-                    public UnaryOperator<IndexMetaData> getIndexMetaDataUpgrader() {
-                        return indexMetaData -> {
-                            throw new IllegalStateException("Cannot upgrade index " + indexMetaData.getIndex().getName());
-                        };
-                    }
+                indexMetaData -> {
+                    throw new IllegalStateException("Cannot upgrade index " + indexMetaData.getIndex().getName());
                 }
             ));
         IndexMetaData src = newIndexMeta("foo", Settings.EMPTY);

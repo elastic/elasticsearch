@@ -43,7 +43,6 @@ AGG_NAME            =  <the name of the aggregation> ;
 METRIC              =  <the name of the metric (in case of multi-value metrics aggregation)> ;
 PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEPARATOR>, <METRIC> ] ;
 --------------------------------------------------
-// NOTCONSOLE
 
 For example, the path `"my_bucket>my_stats.avg"` will path to the `avg` value in the `"my_stats"` metric, which is
 contained in the `"my_bucket"` bucket aggregation.

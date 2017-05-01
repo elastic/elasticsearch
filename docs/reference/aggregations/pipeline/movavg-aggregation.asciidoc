@@ -155,17 +155,33 @@ the values from a `simple` moving average tend to "lag" behind the real data.
 
 [source,js]
 --------------------------------------------------
+POST /_search
 {
-    "the_movavg":{
-        "moving_avg":{
-            "buckets_path": "the_sum",
-            "window" : 30,
-            "model" : "simple"
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movavg":{
+                    "moving_avg":{
+                        "buckets_path": "the_sum",
+                        "window" : 30,
+                        "model" : "simple"
+                    }
+                }
+            }
         }
     }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
+// TEST[setup:sales]
 
 A `simple` model has no special settings to configure
 
@@ -192,16 +208,33 @@ the "lag" behind the data's mean, since older points have less influence.
 
 [source,js]
 --------------------------------------------------
+POST /_search
 {
-    "the_movavg":{
-        "moving_avg":{
-            "buckets_path": "the_sum",
-            "window" : 30,
-            "model" : "linear"
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movavg": {
+                    "moving_avg":{
+                        "buckets_path": "the_sum",
+                        "window" : 30,
+                        "model" : "linear"
+                    }
+                }
+            }
         }
+    }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
+// TEST[setup:sales]
 
 A `linear` model has no special settings to configure
 
@@ -234,20 +267,36 @@ The EWMA model can be <<movavg-minimizer, Minimized>>
 
 [source,js]
 --------------------------------------------------
+POST /_search
 {
-    "the_movavg":{
-        "moving_avg":{
-            "buckets_path": "the_sum",
-            "window" : 30,
-            "model" : "ewma",
-            "settings" : {
-                "alpha" : 0.5
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movavg": {
+                    "moving_avg":{
+                        "buckets_path": "the_sum",
+                        "window" : 30,
+                        "model" : "ewma",
+                        "settings" : {
+                            "alpha" : 0.5
+                        }
+                    }
+                }
             }
         }
+    }
 }
 --------------------------------------------------
-// NOTCONSOLE
-
+// CONSOLE
+// TEST[setup:sales]
 
 
 [[single_0.2alpha]]
@@ -277,20 +326,37 @@ The Holt-Linear model can be <<movavg-minimizer, Minimized>>
 
 [source,js]
 --------------------------------------------------
+POST /_search
 {
-    "the_movavg":{
-        "moving_avg":{
-            "buckets_path": "the_sum",
-            "window" : 30,
-            "model" : "holt",
-            "settings" : {
-                "alpha" : 0.5,
-                "beta" : 0.5
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movavg": {
+                    "moving_avg":{
+                        "buckets_path": "the_sum",
+                        "window" : 30,
+                        "model" : "holt",
+                        "settings" : {
+                            "alpha" : 0.5,
+                            "beta" : 0.5
+                        }
+                    }
+                }
             }
         }
+    }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
+// TEST[setup:sales]
 
 In practice, the `alpha` value behaves very similarly in `holt` as `ewma`: small values produce more smoothing
 and more lag, while larger values produce closer tracking and less lag.  The value of `beta` is often difficult
@@ -348,23 +414,40 @@ The additive Holt-Winters model can be <<movavg-minimizer, Minimized>>
 
 [source,js]
 --------------------------------------------------
+POST /_search
 {
-    "the_movavg":{
-        "moving_avg":{
-            "buckets_path": "the_sum",
-            "window" : 30,
-            "model" : "holt_winters",
-            "settings" : {
-                "type" : "add",
-                "alpha" : 0.5,
-                "beta" : 0.5,
-                "gamma" : 0.5,
-                "period" : 7
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movavg": {
+                    "moving_avg":{
+                        "buckets_path": "the_sum",
+                        "window" : 30,
+                        "model" : "holt_winters",
+                        "settings" : {
+                            "type" : "add",
+                            "alpha" : 0.5,
+                            "beta" : 0.5,
+                            "gamma" : 0.5,
+                            "period" : 7
+                        }
+                    }
+                }
             }
         }
+    }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
+// TEST[setup:sales]
 
 
 [[holt_winters_add]]
@@ -392,24 +475,41 @@ you can disable this behavior with `pad: false`
 
 [source,js]
 --------------------------------------------------
+POST /_search
 {
-    "the_movavg":{
-        "moving_avg":{
-            "buckets_path": "the_sum",
-            "window" : 30,
-            "model" : "holt_winters",
-            "settings" : {
-                "type" : "mult",
-                "alpha" : 0.5,
-                "beta" : 0.5,
-                "gamma" : 0.5,
-                "period" : 7,
-                "pad" : true
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movavg": {
+                    "moving_avg":{
+                        "buckets_path": "the_sum",
+                        "window" : 30,
+                        "model" : "holt_winters",
+                        "settings" : {
+                            "type" : "mult",
+                            "alpha" : 0.5,
+                            "beta" : 0.5,
+                            "gamma" : 0.5,
+                            "period" : 7,
+                            "pad" : true
+                        }
+                    }
+                }
             }
         }
+    }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
+// TEST[setup:sales]
 
 ==== Prediction
 
@@ -422,17 +522,34 @@ as your buckets:
 
 [source,js]
 --------------------------------------------------
+POST /_search
 {
-    "the_movavg":{
-        "moving_avg":{
-            "buckets_path": "the_sum",
-            "window" : 30,
-            "model" : "simple",
-            "predict" : 10
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movavg": {
+                    "moving_avg":{
+                        "buckets_path": "the_sum",
+                        "window" : 30,
+                        "model" : "simple",
+                        "predict" : 10
+                    }
+                }
+            }
         }
+    }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
+// TEST[setup:sales]
 
 The `simple`, `linear` and `ewma` models all produce "flat" predictions: they essentially converge on the mean
 of the last value in the series, producing a flat:
@@ -483,20 +600,37 @@ Minimization is enabled/disabled via the `minimize` parameter:
 
 [source,js]
 --------------------------------------------------
+POST /_search
 {
-    "the_movavg":{
-        "moving_avg":{
-            "buckets_path": "the_sum",
-            "model" : "holt_winters",
-            "window" : 30,
-            "minimize" : true,  <1>
-            "settings" : {
-                "period" : 7
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movavg": {
+                    "moving_avg":{
+                        "buckets_path": "the_sum",
+                        "model" : "holt_winters",
+                        "window" : 30,
+                        "minimize" : true,  <1>
+                        "settings" : {
+                            "period" : 7
+                        }
+                    }
+                }
             }
         }
+    }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
+// TEST[setup:sales]
 
 <1> Minimization is enabled with the `minimize` parameter
 

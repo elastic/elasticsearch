@@ -96,7 +96,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadProcessors() throws Exception {
         Processor processor = mock(Processor.class);
         Map<String, Processor.Factory> registry =
-            Collections.singletonMap("test_processor", (factories, tag, config) -> processor);
+                Collections.singletonMap("test_processor", (factories, tag, config) -> processor);
 
         List<Map<String, Map<String, Object>>> config = new ArrayList<>();
         Map<String, Object> emptyConfig = Collections.emptyMap();
@@ -112,7 +112,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         unknownTaggedConfig.put("tag", "my_unknown");
         config.add(Collections.singletonMap("unknown_processor", unknownTaggedConfig));
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> ConfigurationUtils.readProcessorConfigs(config, registry));
+                () -> ConfigurationUtils.readProcessorConfigs(config, registry));
         assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
         assertThat(e.getHeader("processor_tag"), equalTo(Collections.singletonList("my_unknown")));
         assertThat(e.getHeader("processor_type"), equalTo(Collections.singletonList("unknown_processor")));
@@ -138,6 +138,17 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(e2.getHeader("processor_tag"), equalTo(Collections.singletonList("my_second_unknown")));
         assertThat(e2.getHeader("processor_type"), equalTo(Collections.singletonList("second_unknown_processor")));
         assertThat(e2.getHeader("property_name"), is(nullValue()));
+    }
+
+    public void testInlineProcessorThrowsException() {
+        List configInline = new ArrayList<>();
+        Map<String, Object> inlineScript = new HashMap<>();
+        inlineScript.put("script", "ctx.foo=bar");
+        configInline.add(inlineScript);
+        ElasticsearchParseException parseExceptionOnInlineScript =
+                expectThrows(ElasticsearchParseException.class,
+                        () -> ConfigurationUtils.readProcessorConfigs(configInline, new HashMap<>()));
+        assertThat(parseExceptionOnInlineScript.getMessage(), equalTo("Cannot use an inline processor in processors list"));
     }
 
 }

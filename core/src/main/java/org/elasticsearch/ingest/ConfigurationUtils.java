@@ -250,6 +250,9 @@ public final class ConfigurationUtils {
             for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
                     try {
+                        if(!(entry.getValue() instanceof Map)){
+                            throw new ElasticsearchParseException("Cannot use an inline processor in processors list");
+                        }
                         processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
                     } catch (Exception e) {
                         exception = ExceptionsHelper.useOrSuppress(exception, e);

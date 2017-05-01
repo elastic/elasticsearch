@@ -316,10 +316,8 @@ public class Node implements Closeable {
             DeprecationLogger.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> DeprecationLogger.removeThreadContext(threadPool.getThreadContext()));
 
-            final List<Setting<?>> additionalSettings = new ArrayList<>();
-            final List<String> additionalSettingsFilter = new ArrayList<>();
-            additionalSettings.addAll(pluginsService.getPluginSettings());
-            additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
+            final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.getPluginSettings());
+            final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }

@@ -39,7 +39,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -328,27 +327,12 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final String indexName = "test-index-del-on-node-rejoin-idx";
         final int numNodes = 2;
 
-        final List<String> nodes;
-        if (randomBoolean()) {
-            // test with a regular index
-            logger.info("--> starting a cluster with " + numNodes + " nodes");
-            nodes = internalCluster().startNodes(numNodes);
-            logger.info("--> create an index");
-            createIndex(indexName);
-        } else {
-            // test with a shadow replica index
-            final Path dataPath = createTempDir();
-            logger.info("--> created temp data path for shadow replicas [{}]", dataPath);
-            logger.info("--> starting a cluster with " + numNodes + " nodes");
-            final Settings nodeSettings = Settings.builder()
-                                                  .put("node.add_lock_id_to_custom_path", false)
-                                                  .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath.toString())
-                                                  .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
-                                                  .build();
-            nodes = internalCluster().startNodes(numNodes, nodeSettings);
-            logger.info("--> create a shadow replica index");
-            createShadowReplicaIndex(indexName, dataPath, numNodes - 1);
-        }
+        // test with a regular index, shadow replicas are removed in 6.x and test failures with
+        // them are too hard to debug
+        logger.info("--> starting a cluster with " + numNodes + " nodes");
+        final List<String> nodes = internalCluster().startNodes(numNodes);
+        logger.info("--> create an index");
+        createIndex(indexName);
 
         logger.info("--> waiting for green status");
         ensureGreen();

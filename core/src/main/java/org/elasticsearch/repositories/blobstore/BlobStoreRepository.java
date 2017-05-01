@@ -784,8 +784,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
                 }
             } catch (NoSuchFileException e) {
-                logger.debug("[{}] Incompatible snapshots blob [{}] does not exist, the likely reason is that " +
-                             "there are no incompatible snapshots in the repository", metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
+                if (isReadOnly()) {
+                    logger.debug("[{}] Incompatible snapshots blob [{}] does not exist, the likely " +
+                                 "reason is that there are no incompatible snapshots in the repository",
+                                 metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
+                } else {
+                    // write an empty incompatible-snapshots blob - we do this so that there
+                    // is a blob present, which helps speed up some cloud-based repositories
+                    // (e.g. S3), which retry if a blob is missing with exponential backoff,
+                    // delaying the read of repository data and sometimes causing a timeout
+                    writeIncompatibleSnapshots(RepositoryData.EMPTY);
+                }
             }
             if (legacyFormat) {
                 // pre 5.0 repository data needs to be updated to include the indices
@@ -954,8 +963,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw ex;
         }
     }
-
-
 
     @Override
     public void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {

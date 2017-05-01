@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.ActionFilters;
@@ -28,9 +29,12 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
@@ -75,9 +79,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     protected ClusterBlockException checkBlock(IndicesAliasesRequest request, ClusterState state) {
         Set<String> indices = new HashSet<>();
         for (AliasActions aliasAction : request.aliasActions()) {
-            for (String index : aliasAction.indices()) {
-                indices.add(index);
-            }
+            Collections.addAll(indices, aliasAction.indices());
         }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[indices.size()]));
     }
@@ -97,12 +99,12 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             for (String index : concreteIndices) {
                 switch (action.actionType()) {
                 case ADD:
-                    for (String alias : action.concreteAliases(state.metaData(), index)) {
+                    for (String alias : concreteAliases(action, state.metaData(), index)) {
                         finalActions.add(new AliasAction.Add(index, alias, action.filter(), action.indexRouting(), action.searchRouting()));
                     }
                     break;
                 case REMOVE:
-                    for (String alias : action.concreteAliases(state.metaData(), index)) {
+                    for (String alias : concreteAliases(action, state.metaData(), index)) {
                         finalActions.add(new AliasAction.Remove(index, alias));
                     }
                     break;
@@ -133,5 +135,23 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                 listener.onFailure(t);
             }
         });
+    }
+
+    private static String[] concreteAliases(AliasActions action, MetaData metaData, String concreteIndex) {
+        if (action.expandAliasesWildcards()) {
+            //for DELETE we expand the aliases
+            String[] indexAsArray = {concreteIndex};
+            ImmutableOpenMap<String, List<AliasMetaData>> aliasMetaData = metaData.findAliases(action.aliases(), indexAsArray);
+            List<String> finalAliases = new ArrayList<>();
+            for (ObjectCursor<List<AliasMetaData>> curAliases : aliasMetaData.values()) {
+                for (AliasMetaData aliasMeta: curAliases.value) {
+                    finalAliases.add(aliasMeta.alias());
+                }
+            }
+            return finalAliases.toArray(new String[finalAliases.size()]);
+        } else {
+            //for ADD and REMOVE_INDEX we just return the current aliases
+            return action.aliases();
+        }
     }
 }

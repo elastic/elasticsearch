@@ -121,6 +121,7 @@ thirdPartyAudit.excludes = [
         'io.netty.internal.tcnative.CertificateRequestedCallback$KeyMaterial',
         'io.netty.internal.tcnative.CertificateVerifier',
         'io.netty.internal.tcnative.SessionTicketKey',
+        'io.netty.internal.tcnative.SniHostNameMatcher',
         'org.eclipse.jetty.alpn.ALPN$ClientProvider',
         'org.eclipse.jetty.alpn.ALPN$ServerProvider',
         'org.eclipse.jetty.alpn.ALPN',
@@ -143,4 +144,7 @@ thirdPartyAudit.excludes = [
         'io.netty.util.internal.shaded.org.jctools.util.JvmInfo',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+
+        'org.conscrypt.Conscrypt$Engines',
+        'org.conscrypt.HandshakeListener'
 ]

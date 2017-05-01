@@ -43,3 +43,4 @@ as follows:
 GET /log_2013_-*/_settings/index.number_*
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]

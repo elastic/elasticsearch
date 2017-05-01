@@ -30,10 +30,16 @@ public class BatsOverVagrantTask extends VagrantCommandTask {
     String remoteCommand
 
     BatsOverVagrantTask() {
-        project.afterEvaluate {
-            command 'ssh'
-            args '--command', remoteCommand
+        command = 'ssh'
+    }
+
+    void setRemoteCommand(String remoteCommand) {
+        if (remoteCommand == null) {
+            // Sanity check, otherwise you might get a confusing NPE when reading args
+            throw new IllegalArgumentException("remoteCommand == null!");
         }
+        this.remoteCommand = remoteCommand
+        setArgs(['--command', remoteCommand])
     }
 
     @Override

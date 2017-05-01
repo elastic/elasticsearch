@@ -47,20 +47,24 @@ public class VagrantCommandTask extends LoggedExec {
 
     public VagrantCommandTask() {
         executable = 'vagrant'
+    }
 
-        project.afterEvaluate {
-            // It'd be nice if --machine-readable were, well, nice
-            standardOutput = new TeeOutputStream(standardOutput, createLoggerOutputStream())
-            if (environmentVars != null) {
-                environment environmentVars
-            }
-
-            def vagrantCommand = [executable, command]
-            if (subcommand != null) {
-                vagrantCommand + subcommand
-            }
-            commandLine([*vagrantCommand, boxName, *args])
+    @Override @TaskAction
+    protected void exec() {
+        // Build our command line for vagrant
+        def vagrantCommand = [executable, command]
+        if (subcommand != null) {
+            vagrantCommand + subcommand
         }
+        commandLine([*vagrantCommand, boxName, *args])
+
+        // It'd be nice if --machine-readable were, well, nice
+        standardOutput = new TeeOutputStream(standardOutput, createLoggerOutputStream())
+        if (environmentVars != null) {
+            environment environmentVars
+        }
+
+        super.exec()
     }
 
     @Inject

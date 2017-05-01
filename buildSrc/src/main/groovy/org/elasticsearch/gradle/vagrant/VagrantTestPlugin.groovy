@@ -439,11 +439,11 @@ class VagrantTestPlugin implements Plugin<Project> {
             vagrantSmokeTest.dependsOn(smoke)
 
             Task packaging = project.tasks.create("vagrant${boxTask}#packagingTest", BatsOverVagrantTask) {
+                remoteCommand BATS_TEST_COMMAND
                 boxName box
                 environmentVars vagrantEnvVars
                 dependsOn up, setupBats
                 finalizedBy halt
-                remoteCommand BATS_TEST_COMMAND
             }
 
             TaskExecutionAdapter packagingReproListener = new TaskExecutionAdapter() {

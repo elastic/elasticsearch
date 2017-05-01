@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -63,6 +64,7 @@ public class Netty4Utils {
      * Set the number of available processors that Netty uses for sizing various resources (e.g., thread pools).
      *
      * @param availableProcessors the number of available processors
+     * @throws IllegalStateException if available processors was set previously and the specified value does not match the already-set value
      */
     public static void setAvailableProcessors(final int availableProcessors) {
         /*
@@ -71,12 +73,17 @@ public class Netty4Utils {
          */
         if (isAvailableProcessorsSet.compareAndSet(false, true)) {
             NettyRuntime.setAvailableProcessors(availableProcessors);
-        } else {
-            // we have previously set the available processors so here we sanity check that we are setting to the same value
-            assert availableProcessors == NettyRuntime.availableProcessors()
-                    : "available processors value [" + availableProcessors + "] did not match current value ["
-                    + NettyRuntime.availableProcessors() + "]";
-
+        } else if (availableProcessors != NettyRuntime.availableProcessors()) {
+            /*
+             * We have previously set the available processors yet either we are trying to set it to a different value now or there is a bug
+             * in Netty and our previous value did not take, bail.
+             */
+            final String message = String.format(
+                    Locale.ROOT,
+                    "available processors value [%d] did not match current value [%d]",
+                    availableProcessors,
+                    NettyRuntime.availableProcessors());
+            throw new IllegalStateException(message);
         }
     }
 

@@ -68,7 +68,7 @@ public class Netty4Utils {
      * @throws IllegalStateException if available processors was set previously and the specified value does not match the already-set value
      */
     public static void setAvailableProcessors(final int availableProcessors) {
-        // we set this to false in tests to avoid tests that randomly set processors from stepping all over each other
+        // we set this to false in tests to avoid tests that randomly set processors from stepping on each other
         final boolean set = Booleans.parseBoolean(System.getProperty("es.set.netty.runtime.available.processors", "true"));
         if (!set) {
             return;

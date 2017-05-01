@@ -34,13 +34,13 @@ compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-tr
 
 dependencies {
     // network stack
-    compile "io.netty:netty-buffer:4.1.9.Final"
-    compile "io.netty:netty-codec:4.1.9.Final"
-    compile "io.netty:netty-codec-http:4.1.9.Final"
-    compile "io.netty:netty-common:4.1.9.Final"
-    compile "io.netty:netty-handler:4.1.9.Final"
-    compile "io.netty:netty-resolver:4.1.9.Final"
-    compile "io.netty:netty-transport:4.1.9.Final"
+    compile "io.netty:netty-buffer:4.1.10.Final"
+    compile "io.netty:netty-codec:4.1.10.Final"
+    compile "io.netty:netty-codec-http:4.1.10.Final"
+    compile "io.netty:netty-common:4.1.10.Final"
+    compile "io.netty:netty-handler:4.1.10.Final"
+    compile "io.netty:netty-resolver:4.1.10.Final"
+    compile "io.netty:netty-transport:4.1.10.Final"
 }
 
 dependencyLicenses {
@@ -121,6 +121,7 @@ thirdPartyAudit.excludes = [
         'io.netty.internal.tcnative.CertificateRequestedCallback$KeyMaterial',
         'io.netty.internal.tcnative.CertificateVerifier',
         'io.netty.internal.tcnative.SessionTicketKey',
+        'io.netty.internal.tcnative.SniHostNameMatcher',
         'org.eclipse.jetty.alpn.ALPN$ClientProvider',
         'org.eclipse.jetty.alpn.ALPN$ServerProvider',
         'org.eclipse.jetty.alpn.ALPN',
@@ -143,4 +144,7 @@ thirdPartyAudit.excludes = [
         'io.netty.util.internal.shaded.org.jctools.util.JvmInfo',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+
+        'org.conscrypt.Conscrypt$Engines',
+        'org.conscrypt.HandshakeListener'
 ]

@@ -38,7 +38,7 @@ public class ListenableActionFutureTests extends ESTestCase {
             if (randomBoolean()) {
                 future = PlainListenableActionFuture.newDispatchingListenableFuture(threadPool);
             } else {
-                future = new PlainListenableActionFuture<>();
+                future = PlainListenableActionFuture.newListenableFuture();
             }
             final CountDownLatch listenerCalled = new CountDownLatch(1);
             final AtomicReference<Throwable> error = new AtomicReference<>();

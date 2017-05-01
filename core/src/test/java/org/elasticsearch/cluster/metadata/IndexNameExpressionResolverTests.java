@@ -644,47 +644,45 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(0, indexNames.length);
     }
 
-    // concreteIndexNames must resolve the provided wildcard only against the defined indices
+    // concreteIndexNames must be able to resolve the provided wildcard only against the defined
+    // indices when ignoreAliases option is set or against the defined indices and aliases otherwise
     public void testConcreteIndicesWildcardAndAliases() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo_foo").state(State.OPEN).putAlias(AliasMetaData.builder("foo")))
                 .put(indexBuilder("bar_bar").state(State.OPEN).putAlias(AliasMetaData.builder("foo")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
-        String[] indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNamesIndexExpression(state,
-                IndicesOptions.lenientExpandOpen(), "foo*");
+        IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
+        
+        String[] indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "foo*");
 
         assertEquals(1, indexNamesIndexWildcard.length);
         assertEquals("foo_foo", indexNamesIndexWildcard[0]);
 
-        indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNamesIndexExpression(state,
-                IndicesOptions.lenientExpandOpen(), "*o");
+        indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "*o");
 
         assertEquals(1, indexNamesIndexWildcard.length);
         assertEquals("foo_foo", indexNamesIndexWildcard[0]);
 
-        indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNamesIndexExpression(state,
-                IndicesOptions.lenientExpandOpen(), "f*o");
+        indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "f*o");
 
         assertEquals(1, indexNamesIndexWildcard.length);
         assertEquals("foo_foo", indexNamesIndexWildcard[0]);
 
-        List<String> indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state,
-                IndicesOptions.lenientExpandOpen(), "foo*"));
+        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false);
+        List<String> indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state, indicesAndAliasesOptions, "foo*"));
 
         assertEquals(2, indexNames.size());
         assertTrue(indexNames.contains("foo_foo"));
         assertTrue(indexNames.contains("bar_bar"));
 
-        indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state,
-                IndicesOptions.lenientExpandOpen(), "*o"));
+        indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state, indicesAndAliasesOptions, "*o"));
 
         assertEquals(2, indexNames.size());
         assertTrue(indexNames.contains("foo_foo"));
         assertTrue(indexNames.contains("bar_bar"));
 
-        indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state,
-                IndicesOptions.lenientExpandOpen(), "f*o"));
+        indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state, indicesAndAliasesOptions, "f*o"));
 
         assertEquals(2, indexNames.size());
         assertTrue(indexNames.contains("foo_foo"));

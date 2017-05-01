@@ -61,7 +61,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
     //indices options that require every specified index to exist, expand wildcards only to open indices and
     //don't allow that no indices are resolved from wildcard expressions
-    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false);
+    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
 
     public IndicesAliasesRequest() {
 

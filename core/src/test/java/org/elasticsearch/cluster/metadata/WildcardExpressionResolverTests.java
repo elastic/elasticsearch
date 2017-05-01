@@ -127,17 +127,19 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     }
 
     // WildcardExpressionResolver must be able to resolve the provided wildcard only against the
-    // defined indices or against the defined indices and aliases (#23960)
+    // defined indices when ignoreAliases option is set or against the defined indices and aliases
+    // otherwise
     public void testConcreteIndicesWildcardAndAliases() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo_foo").state(State.OPEN).putAlias(AliasMetaData.builder("foo")))
                 .put(indexBuilder("bar_bar").state(State.OPEN).putAlias(AliasMetaData.builder("foo")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
-                IndicesOptions.lenientExpandOpen());
-        IndexNameExpressionResolver.Context contextIndices = new IndexNameExpressionResolver.Context(
-                state, IndicesOptions.lenientExpandOpen(), System.currentTimeMillis(), false, true);
+        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false);
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
+
+        IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
+        IndexNameExpressionResolver.Context contextIndices = new IndexNameExpressionResolver.Context(state, ignoreAliasesOptions);
 
         assertThat(
                 IndexNameExpressionResolver.WildcardExpressionResolver

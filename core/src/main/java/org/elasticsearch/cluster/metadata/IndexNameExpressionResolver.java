@@ -79,15 +79,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     }
 
     /**
-     * Same as {@link #concreteIndexNames(ClusterState state, IndicesRequest request)}, but the
-     * indexExpressions are resolved only against indices
-     */
-    public String[] concreteIndexNamesIndexExpression(ClusterState state, IndicesRequest request) {
-        Context context = new Context(state, request.indicesOptions(), System.currentTimeMillis(), false, true);
-        return concreteIndexNames(context, request.indices());
-    }
-
-    /**
      * Same as {@link #concreteIndices(ClusterState, IndicesOptions, String...)}, but the index expressions and options
      * are encapsulated in the specified request.
      */
@@ -114,18 +105,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         return concreteIndexNames(context, indexExpressions);
     }
 
-    /**
-     * Same as
-     * {@link #concreteIndexNames(ClusterState state, IndicesOptions options, String... indexExpressions)},
-     * but the indexExpressions are resolved only against indices
-     */
-
-    public String[] concreteIndexNamesIndexExpression(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        Context context = new Context(state, options, System.currentTimeMillis(), false, true);
-        return concreteIndexNames(context, indexExpressions);
-    }
-
-    /**
+     /**
      * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *
      * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
@@ -525,7 +505,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         private final IndicesOptions options;
         private final long startTime;
         private final boolean preserveAliases;
-        private final boolean resolveIndices;
 
         Context(ClusterState state, IndicesOptions options) {
             this(state, options, System.currentTimeMillis());
@@ -539,18 +518,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
            this(state, options, startTime, false);
         }
 
-        Context(ClusterState state, IndicesOptions options, long startTime,
-                boolean preserveAliases) {
-            this(state, options, startTime, preserveAliases, false);
-        }
-
-        Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases,
-                boolean resolveIndices) {
+        Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;
             this.preserveAliases = preserveAliases;
-            this.resolveIndices = resolveIndices;
         }
 
         public ClusterState getState() {
@@ -573,10 +545,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         boolean isPreserveAliases() {
             return preserveAliases;
         }
-
-        public boolean isResolveIndices() {
-            return resolveIndices;
-        }
     }
 
     private interface ExpressionResolver {
@@ -588,6 +556,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
          * @return a new list with expressions based on the provided expressions
          */
         List<String> resolve(Context context, List<String> expressions);
+
     }
 
     /**
@@ -728,7 +697,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         public static Map<String, AliasOrIndex> matches(Context context, MetaData metaData, String expression) {
             if (Regex.isMatchAllPattern(expression)) {
                 // Can only happen if the expressions was initially: '-*'
-                if (!context.isResolveIndices()) {
+                if (!context.getOptions().ignoreAliases()) {
                     return metaData.getAliasAndIndexLookup();
                 }
                 return metaData.getAliasAndIndexLookup().entrySet().stream()
@@ -748,7 +717,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             toPrefixCharArr[toPrefixCharArr.length - 1]++;
             String toPrefix = new String(toPrefixCharArr);
             SortedMap<String,AliasOrIndex> subMap = metaData.getAliasAndIndexLookup().subMap(fromPrefix, toPrefix);
-            if (context.isResolveIndices()) {
+            if (context.getOptions().ignoreAliases()) {
                  return subMap.entrySet().stream()
                         .filter(p -> !p.getValue().isAlias())
                         .collect(Collectors.toMap(p -> p.getKey(), p -> p.getValue()));
@@ -761,7 +730,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             return metaData.getAliasAndIndexLookup()
                 .entrySet()
                 .stream()
-                .filter(e -> context.isResolveIndices() ? !e.getValue().isAlias() : true)
+                .filter(e -> context.getOptions().ignoreAliases() ? !e.getValue().isAlias() : true)
                 .filter(e -> Regex.simpleMatch(pattern, e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }

@@ -94,7 +94,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         // Resolve all the AliasActions into AliasAction instances and gather all the aliases
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesIndexExpression(state, request.indicesOptions(), action.indices());
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), action.indices());
             Collections.addAll(aliases, action.aliases());
             for (String index : concreteIndices) {
                 switch (action.actionType()) {

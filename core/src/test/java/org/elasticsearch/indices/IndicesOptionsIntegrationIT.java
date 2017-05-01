@@ -491,8 +491,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(client().admin().indices().prepareOpen("_all"), false);
 
         // if there are no indices to open/close throw an exception
-        IndicesOptions openIndicesOptions = IndicesOptions.fromOptions(false, false, true, false);
-        IndicesOptions closeIndicesOptions = IndicesOptions.fromOptions(false, false, false, true);
+        IndicesOptions openIndicesOptions = IndicesOptions.fromOptions(false, false, false, true);
+        IndicesOptions closeIndicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
         verify(client().admin().indices().prepareClose("bar*").setIndicesOptions(closeIndicesOptions), false);
         verify(client().admin().indices().prepareClose("bar*").setIndicesOptions(closeIndicesOptions), true);

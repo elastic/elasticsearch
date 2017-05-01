@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.search;
+package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.search.SearchShardIterator;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -199,90 +200,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertEquals("remote clusters must not have the empty string as its key", iae.getMessage());
                 }
             }
-        }
-    }
-
-    public void testProcessRemoteShards() throws IOException {
-        try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, null)) {
-            assertFalse(service.isCrossClusterSearchEnabled());
-            List<SearchShardIterator> iteratorList = new ArrayList<>();
-            Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
-            DiscoveryNode[] nodes = new DiscoveryNode[] {
-                new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
-                new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT)
-            };
-            Map<String, AliasFilter> indicesAndAliases = new HashMap<>();
-            indicesAndAliases.put("foo", new AliasFilter(new TermsQueryBuilder("foo", "bar"), Strings.EMPTY_ARRAY));
-            indicesAndAliases.put("bar", new AliasFilter(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY));
-            ClusterSearchShardsGroup[] groups = new ClusterSearchShardsGroup[] {
-                new ClusterSearchShardsGroup(new ShardId("foo", "foo_id", 0),
-                    new ShardRouting[] {TestShardRouting.newShardRouting("foo", 0, "node1", true, ShardRoutingState.STARTED),
-                        TestShardRouting.newShardRouting("foo", 0, "node2", false, ShardRoutingState.STARTED)}),
-                new ClusterSearchShardsGroup(new ShardId("foo", "foo_id", 1),
-                    new ShardRouting[] {TestShardRouting.newShardRouting("foo", 0, "node1", true, ShardRoutingState.STARTED),
-                        TestShardRouting.newShardRouting("foo", 1, "node2", false, ShardRoutingState.STARTED)}),
-                new ClusterSearchShardsGroup(new ShardId("bar", "bar_id", 0),
-                    new ShardRouting[] {TestShardRouting.newShardRouting("bar", 0, "node2", true, ShardRoutingState.STARTED),
-                        TestShardRouting.newShardRouting("bar", 0, "node1", false, ShardRoutingState.STARTED)})
-            };
-            searchShardsResponseMap.put("test_cluster_1", new ClusterSearchShardsResponse(groups, nodes, indicesAndAliases));
-            DiscoveryNode[] nodes2 = new DiscoveryNode[] {
-                    new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT)
-            };
-            ClusterSearchShardsGroup[] groups2 = new ClusterSearchShardsGroup[] {
-                    new ClusterSearchShardsGroup(new ShardId("xyz", "xyz_id", 0),
-                            new ShardRouting[] {TestShardRouting.newShardRouting("xyz", 0, "node3", true, ShardRoutingState.STARTED)})
-            };
-            searchShardsResponseMap.put("test_cluster_2", new ClusterSearchShardsResponse(groups2, nodes2, null));
-
-            Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
-            remoteIndicesByCluster.put("test_cluster_1",
-                    new OriginalIndices(new String[]{"fo*", "ba*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
-            remoteIndicesByCluster.put("test_cluster_2",
-                    new OriginalIndices(new String[]{"x*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
-            Map<String, AliasFilter> remoteAliases = new HashMap<>();
-            service.processRemoteShards(searchShardsResponseMap, remoteIndicesByCluster, iteratorList, remoteAliases);
-            assertEquals(4, iteratorList.size());
-            for (SearchShardIterator iterator : iteratorList) {
-                if (iterator.shardId().getIndexName().endsWith("foo")) {
-                    assertArrayEquals(new String[]{"fo*", "ba*"}, iterator.getOriginalIndices().indices());
-                    assertTrue(iterator.shardId().getId() == 0 || iterator.shardId().getId() == 1);
-                    assertEquals("test_cluster_1:foo", iterator.shardId().getIndexName());
-                    ShardRouting shardRouting = iterator.nextOrNull();
-                    assertNotNull(shardRouting);
-                    assertEquals(shardRouting.getIndexName(), "foo");
-                    shardRouting = iterator.nextOrNull();
-                    assertNotNull(shardRouting);
-                    assertEquals(shardRouting.getIndexName(), "foo");
-                    assertNull(iterator.nextOrNull());
-                } else if (iterator.shardId().getIndexName().endsWith("bar")) {
-                    assertArrayEquals(new String[]{"fo*", "ba*"}, iterator.getOriginalIndices().indices());
-                    assertEquals(0, iterator.shardId().getId());
-                    assertEquals("test_cluster_1:bar", iterator.shardId().getIndexName());
-                    ShardRouting shardRouting = iterator.nextOrNull();
-                    assertNotNull(shardRouting);
-                    assertEquals(shardRouting.getIndexName(), "bar");
-                    shardRouting = iterator.nextOrNull();
-                    assertNotNull(shardRouting);
-                    assertEquals(shardRouting.getIndexName(), "bar");
-                    assertNull(iterator.nextOrNull());
-                } else if (iterator.shardId().getIndexName().endsWith("xyz")) {
-                    assertArrayEquals(new String[]{"x*"}, iterator.getOriginalIndices().indices());
-                    assertEquals(0, iterator.shardId().getId());
-                    assertEquals("test_cluster_2:xyz", iterator.shardId().getIndexName());
-                    ShardRouting shardRouting = iterator.nextOrNull();
-                    assertNotNull(shardRouting);
-                    assertEquals(shardRouting.getIndexName(), "xyz");
-                    assertNull(iterator.nextOrNull());
-                }
-            }
-            assertEquals(3, remoteAliases.size());
-            assertTrue(remoteAliases.toString(), remoteAliases.containsKey("foo_id"));
-            assertTrue(remoteAliases.toString(), remoteAliases.containsKey("bar_id"));
-            assertTrue(remoteAliases.toString(), remoteAliases.containsKey("xyz_id"));
-            assertEquals(new TermsQueryBuilder("foo", "bar"), remoteAliases.get("foo_id").getQueryBuilder());
-            assertEquals(new MatchAllQueryBuilder(), remoteAliases.get("bar_id").getQueryBuilder());
-            assertNull(remoteAliases.get("xyz_id").getQueryBuilder());
         }
     }
 

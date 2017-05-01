@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -119,6 +120,8 @@ public class TransportService extends AbstractLifecycleComponent {
     volatile String[] tracerLogInclude;
     volatile String[] tracerLogExclude;
 
+    private final RemoteClusterService remoteClusterService;
+
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
     private final Transport.Connection localNodeConnection = new Transport.Connection() {
@@ -158,10 +161,20 @@ public class TransportService extends AbstractLifecycleComponent {
         taskManager = createTaskManager();
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
+        final boolean connectToRemoteCluster = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        remoteClusterService = connectToRemoteCluster ? new RemoteClusterService(settings, this) : null;
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
+            if (connectToRemoteCluster) {
+                clusterSettings.addAffixUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS,
+                    remoteClusterService::updateRemoteCluster, (namespace, value) -> {});
+            }
         }
+    }
+
+    public RemoteClusterService getRemoteClusterService() {
+        return remoteClusterService;
     }
 
     public DiscoveryNode getLocalNode() {
@@ -209,6 +222,10 @@ public class TransportService extends AbstractLifecycleComponent {
             false, false,
             (request, channel) -> channel.sendResponse(
                     new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
+        if (remoteClusterService != null) {
+            // here we start to connect to the remote clusters
+            remoteClusterService.initializeRemoteClusters();
+        }
     }
 
     @Override
@@ -253,8 +270,8 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() {
-        transport.close();
+    protected void doClose() throws IOException {
+        IOUtils.close(remoteClusterService, transport);
     }
 
     /**

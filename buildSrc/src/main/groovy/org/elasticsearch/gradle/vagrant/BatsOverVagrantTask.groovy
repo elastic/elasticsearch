@@ -34,11 +34,7 @@ public class BatsOverVagrantTask extends VagrantCommandTask {
     }
 
     void setRemoteCommand(String remoteCommand) {
-        if (remoteCommand == null) {
-            // Sanity check, otherwise you might get a confusing NPE when reading args
-            throw new IllegalArgumentException("remoteCommand == null!");
-        }
-        this.remoteCommand = remoteCommand
+        this.remoteCommand = Objects.requireNonNull(remoteCommand)
         setArgs(['--command', remoteCommand])
     }
 

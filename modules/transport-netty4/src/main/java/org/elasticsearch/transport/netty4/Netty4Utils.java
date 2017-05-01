@@ -24,6 +24,7 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.util.NettyRuntime;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.apache.lucene.util.BytesRef;
@@ -36,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class Netty4Utils {
@@ -53,6 +55,19 @@ public class Netty4Utils {
 
     public static void setup() {
 
+    }
+
+    private static AtomicBoolean isAvailableProcessorsSet = new AtomicBoolean();
+
+    /**
+     * Set the number of available processors that Netty uses for sizing various resources (e.g., thread pools).
+     *
+     * @param availableProcessors the number of available processors
+     */
+    public static void setAvailableProcessors(final int availableProcessors) {
+        if (isAvailableProcessorsSet.compareAndSet(false, true)) {
+            NettyRuntime.setAvailableProcessors(availableProcessors);
+        }
     }
 
     /**

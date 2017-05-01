@@ -100,6 +100,17 @@ enables you to use a single Kibana instance to search and visualize data in
 your production cluster as well as monitor data sent to a dedicated monitoring
 cluster.
 
+`xpack.monitoring.kibana.collection.enabled`::
+
+Whether or not to enable data collection from the Kibana NodeJS server for
+Kibana Dashboards to be featured in the Monitoring UI. Defaults to `true`.
+
+`xpack.monitoring.kibana.collection.interval`::
+
+Number of milliseconds to wait in between data sampling for Kibana's NodeJS
+server for the metrics that are displayed in the Kibana dashboards. Defaults to
+`10000` (10 seconds).
+
 `xpack.monitoring.max_bucket_size`::
 
 The number of term buckets to return out of the overall terms list when
@@ -128,16 +139,11 @@ helps us improve your user experience. Your data is never shared with anyone. Se
 `false` to disable statistics reporting from any browser connected to the Kibana instance.
 You can also opt-out on a per-browser basis through the Monitoring user interface. Defaults to `true`.
 
-`xpack.monitoring.kibana.collection.enabled`::
+`xpack.monitoring.ui.enabled`::
 
-Whether or not to enable data collection from the Kibana NodeJS server for
-Kibana Dashboards to be featured in the Monitoring UI. Defaults to `true`.
-
-`xpack.monitoring.kibana.collection.interval`::
-
-Number of milliseconds to wait in between data sampling for Kibana's NodeJS
-server for the metrics that are displayed in the Kibana dashboards. Defaults to
-`10000` (10 seconds).
+Set to `false` to hide the Monitoring UI in Kibana. The Monitoring back-end
+continues to run as an agent for sending Kibana stats to the Monitoring
+cluster. Defaults to `true`.
 
 [float]
 [[monitoring-ui-cgroup-settings]]

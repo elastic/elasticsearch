@@ -22,7 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.plugins.UpgraderPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -109,7 +109,7 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             Collections.singletonList(
-                new UpgraderPlugin() {
+                new Plugin() {
                     @Override
                     public UnaryOperator<IndexMetaData> getIndexMetaDataUpgrader() {
                         return indexMetaData -> IndexMetaData.builder(indexMetaData)
@@ -133,7 +133,7 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             Collections.singletonList(
-                new UpgraderPlugin() {
+                new Plugin() {
                     @Override
                     public UnaryOperator<IndexMetaData> getIndexMetaDataUpgrader() {
                         return indexMetaData -> {

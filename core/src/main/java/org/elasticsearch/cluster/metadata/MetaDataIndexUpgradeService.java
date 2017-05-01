@@ -35,13 +35,14 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.plugins.UpgraderPlugin;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /**
  * This service is responsible for upgrading legacy index metadata to the current version
@@ -56,16 +57,22 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
-    private final Collection<UpgraderPlugin> upgraderPlugins;
+    private final UnaryOperator<IndexMetaData> upgraders;
 
     @Inject
     public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                       IndexScopedSettings indexScopedSettings, Collection<UpgraderPlugin> upgraderPlugins) {
+                                       IndexScopedSettings indexScopedSettings, Collection<Plugin> upgraderPlugins) {
         super(settings);
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
-        this.upgraderPlugins = upgraderPlugins;
+        this.upgraders = indexMetaData -> {
+            IndexMetaData newIndexMetaData = indexMetaData;
+            for (Plugin upgraderPlugin : upgraderPlugins) {
+                newIndexMetaData = upgraderPlugin.getIndexMetaDataUpgrader().apply(newIndexMetaData);
+            }
+            return newIndexMetaData;
+        };
     }
 
     /**
@@ -89,9 +96,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         // only run the check with the upgraded settings!!
         checkMappingsCompatibility(newMetaData);
         // apply plugin checks
-        for (UpgraderPlugin upgraderPlugin : upgraderPlugins) {
-            newMetaData = upgraderPlugin.getIndexMetaDataUpgrader().apply(newMetaData);
-        }
+        newMetaData = upgraders.apply(newMetaData);
         return markAsUpgraded(newMetaData);
     }
 

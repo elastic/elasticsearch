@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -34,8 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
-import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.plugins.UpgraderPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.TestCustomMetaData;
 
 import java.util.Arrays;
@@ -260,7 +260,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         MetaData metaData = randomMetaData();
         MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
             Collections.singletonList(
-                new UpgraderPlugin() {
+                new Plugin() {
                     @Override
                     public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
                         return customs -> {
@@ -282,7 +282,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         MetaData metaData = randomMetaData(new CustomMetaData1("data"));
         MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
             Collections.singletonList(
-                new UpgraderPlugin() {
+                new Plugin() {
                     @Override
                     public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
                         return customs -> {
@@ -302,7 +302,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         MetaData metaData = randomMetaData(new CustomMetaData1("data"));
         MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
             Collections.singletonList(
-                new UpgraderPlugin() {
+                new Plugin() {
                     @Override
                     public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
                         return customs -> {
@@ -325,7 +325,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         MetaData metaData = randomMetaData();
         MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
             Collections.singletonList(
-                new UpgraderPlugin() {
+                new Plugin() {
                     @Override
                     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
                         return templates -> {
@@ -356,7 +356,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
     public void testCustomMetaDataValidation() throws Exception {
         MetaData metaData = randomMetaData(new CustomMetaData1("data"));
         MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.singletonList(
-            new UpgraderPlugin() {
+            new Plugin() {
                 @Override
                 public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
                     return customs -> {
@@ -376,10 +376,10 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         final MetaData metaData;
         switch (randomIntBetween(0, 2)) {
             case 0:
-                metaData = randomMetaData(new CustomMetaData1("data1"), new CustomMetaData2("data2"));
+                metaData = randomMetaDataWithIndexTemplates("template1", "template2");
                 break;
             case 1:
-                metaData = randomMetaData(randomBoolean() ? new CustomMetaData1("data1") : new CustomMetaData2("data2"));
+                metaData = randomMetaDataWithIndexTemplates(randomBoolean() ? "template1" : "template2");
                 break;
             case 2:
                 metaData = randomMetaData();
@@ -389,22 +389,25 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         }
         MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
             Arrays.asList(
-                new UpgraderPlugin() {
+                new Plugin() {
                     @Override
-                    public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
-                        return
-                            customs -> {
-                                customs.put(CustomMetaData1.TYPE, new CustomMetaData1("modified_data1"));
-                                return customs;
-                            };
+                    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+                        return indexTemplateMetaDatas -> {
+                            indexTemplateMetaDatas.put("template1", IndexTemplateMetaData.builder("template1").settings(
+                                Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 20).build()).build());
+                            return indexTemplateMetaDatas;
+
+                        };
                     }
                 },
-                new UpgraderPlugin() {
+                new Plugin() {
                     @Override
-                    public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
-                        return customs -> {
-                            customs.put(CustomMetaData2.TYPE, new CustomMetaData1("modified_data2"));
-                            return customs;
+                    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+                        return indexTemplateMetaDatas -> {
+                            indexTemplateMetaDatas.put("template2", IndexTemplateMetaData.builder("template2").settings(
+                                Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 10).build()).build());
+                            return indexTemplateMetaDatas;
+
                         };
                     }
                 })
@@ -412,10 +415,10 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         MetaData upgrade = GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader);
         assertTrue(upgrade != metaData);
         assertFalse(MetaData.isGlobalStateEquals(upgrade, metaData));
-        assertNotNull(upgrade.custom(CustomMetaData1.TYPE));
-        assertThat(((TestCustomMetaData) upgrade.custom(CustomMetaData1.TYPE)).getData(), equalTo("modified_data1"));
-        assertNotNull(upgrade.custom(CustomMetaData2.TYPE));
-        assertThat(((TestCustomMetaData) upgrade.custom(CustomMetaData2.TYPE)).getData(), equalTo("modified_data2"));
+        assertNotNull(upgrade.templates().get("template1"));
+        assertThat(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(upgrade.templates().get("template1").settings()), equalTo(20));
+        assertNotNull(upgrade.templates().get("template2"));
+        assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(upgrade.templates().get("template2").settings()), equalTo(10));
         for (IndexMetaData indexMetaData : upgrade) {
             assertTrue(metaData.hasIndexMetaData(indexMetaData));
         }
@@ -435,7 +438,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
     public void testCustomMetaDataNoChange() throws Exception {
         MetaData metaData = randomMetaData(new CustomMetaData1("data"));
         MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.singletonList(
-            new UpgraderPlugin() {
+            new Plugin() {
                 @Override
                 public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
                     return HashMap::new;
@@ -457,7 +460,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
     public void testIndexTemplateValidation() throws Exception {
         MetaData metaData = randomMetaData();
         MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(Collections.singletonList(
-            new UpgraderPlugin() {
+            new Plugin() {
                 @Override
                 public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
                     return customs -> {
@@ -471,6 +474,56 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertThat(message, equalTo("template is incompatible"));
     }
 
+
+    public void testMultipleIndexTemplateUpgrade() throws Exception {
+        final MetaData metaData;
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                metaData = randomMetaData(new CustomMetaData1("data1"), new CustomMetaData2("data2"));
+                break;
+            case 1:
+                metaData = randomMetaData(randomBoolean() ? new CustomMetaData1("data1") : new CustomMetaData2("data2"));
+                break;
+            case 2:
+                metaData = randomMetaData();
+                break;
+            default:
+                throw new IllegalStateException("should never happen");
+        }
+        MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(
+            Arrays.asList(
+                new Plugin() {
+                    @Override
+                    public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
+                        return
+                            customs -> {
+                                customs.put(CustomMetaData1.TYPE, new CustomMetaData1("modified_data1"));
+                                return customs;
+                            };
+                    }
+                },
+                new Plugin() {
+                    @Override
+                    public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
+                        return customs -> {
+                            customs.put(CustomMetaData2.TYPE, new CustomMetaData1("modified_data2"));
+                            return customs;
+                        };
+                    }
+                })
+        );
+        MetaData upgrade = GatewayMetaState.upgradeMetaData(metaData, new MockMetaDataIndexUpgradeService(false), metaDataUpgrader);
+        assertTrue(upgrade != metaData);
+        assertFalse(MetaData.isGlobalStateEquals(upgrade, metaData));
+        assertNotNull(upgrade.custom(CustomMetaData1.TYPE));
+        assertThat(((TestCustomMetaData) upgrade.custom(CustomMetaData1.TYPE)).getData(), equalTo("modified_data1"));
+        assertNotNull(upgrade.custom(CustomMetaData2.TYPE));
+        assertThat(((TestCustomMetaData) upgrade.custom(CustomMetaData2.TYPE)).getData(), equalTo("modified_data2"));
+        for (IndexMetaData indexMetaData : upgrade) {
+            assertTrue(metaData.hasIndexMetaData(indexMetaData));
+        }
+    }
+
     private static class MockMetaDataIndexUpgradeService extends MetaDataIndexUpgradeService {
         private final boolean upgrade;
 
@@ -478,6 +531,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
             super(Settings.EMPTY, null, null, null, null);
             this.upgrade = upgrade;
         }
+
         @Override
         public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
             return upgrade ? IndexMetaData.builder(indexMetaData).build() : indexMetaData;
@@ -524,6 +578,27 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         MetaData.Builder builder = MetaData.builder();
         for (TestCustomMetaData customMetaData : customMetaDatas) {
             builder.putCustom(customMetaData.getWriteableName(), customMetaData);
+        }
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            builder.put(
+                IndexMetaData.builder(randomAlphaOfLength(10))
+                    .settings(settings(Version.CURRENT))
+                    .numberOfReplicas(randomIntBetween(0, 3))
+                    .numberOfShards(randomIntBetween(1, 5))
+            );
+        }
+        return builder.build();
+    }
+
+    private static MetaData randomMetaDataWithIndexTemplates(String... templates) {
+        MetaData.Builder builder = MetaData.builder();
+        for (String template : templates) {
+            IndexTemplateMetaData templateMetaData = IndexTemplateMetaData.builder(template)
+                .settings(settings(Version.CURRENT)
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 3))
+                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5)))
+                .build();
+            builder.put(templateMetaData);
         }
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             builder.put(

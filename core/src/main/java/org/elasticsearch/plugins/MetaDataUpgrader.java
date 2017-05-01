@@ -35,10 +35,10 @@ public class MetaDataUpgrader {
 
     public final UnaryOperator<Map<String, IndexTemplateMetaData>> indexTemplateMetaDataUpgraders;
 
-    public MetaDataUpgrader(Collection<UpgraderPlugin> upgraderPlugins) {
+    public MetaDataUpgrader(Collection<? extends Plugin> upgraderPlugins) {
         this.customMetaDataUpgraders = customs -> {
             Map<String, MetaData.Custom> upgradedCustoms = new HashMap<>(customs);
-            for (UpgraderPlugin upgraderPlugin : upgraderPlugins) {
+            for (Plugin upgraderPlugin : upgraderPlugins) {
                 upgradedCustoms = upgraderPlugin.getCustomMetaDataUpgrader().apply(upgradedCustoms);
             }
             return upgradedCustoms;
@@ -46,7 +46,7 @@ public class MetaDataUpgrader {
 
         this.indexTemplateMetaDataUpgraders = templates -> {
             Map<String, IndexTemplateMetaData> upgradedTemplates = new HashMap<>(templates);
-            for (UpgraderPlugin upgraderPlugin : upgraderPlugins) {
+            for (Plugin upgraderPlugin : upgraderPlugins) {
                 upgradedTemplates = upgraderPlugin.getIndexTemplateMetaDataUpgrader().apply(upgradedTemplates);
             }
             return upgradedTemplates;

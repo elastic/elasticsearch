@@ -209,6 +209,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                      NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
         super(settings);
+        Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
         this.networkService = networkService;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;

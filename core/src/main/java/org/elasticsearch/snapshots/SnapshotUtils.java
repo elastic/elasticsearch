@@ -82,8 +82,7 @@ public class SnapshotUtils {
                     } else {
                         if (result == null) {
                             // add all the previous ones...
-                            result = new HashSet<>();
-                            result.addAll(availableIndices.subList(0, i));
+                            result = new HashSet<>(availableIndices.subList(0, i));
                         }
                     }
                 } else {
@@ -99,8 +98,7 @@ public class SnapshotUtils {
             }
             if (result == null) {
                 // add all the previous ones...
-                result = new HashSet<>();
-                result.addAll(availableIndices.subList(0, i));
+                result = new HashSet<>(availableIndices.subList(0, i));
             }
             boolean found = false;
             for (String index : availableIndices) {

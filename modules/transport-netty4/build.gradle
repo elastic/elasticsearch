@@ -47,6 +47,14 @@ dependencyLicenses {
   mapping from: /netty-.*/, to: 'netty'
 }
 
+test {
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+integTestRunner {
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
 thirdPartyAudit.excludes = [
         // classes are missing
 

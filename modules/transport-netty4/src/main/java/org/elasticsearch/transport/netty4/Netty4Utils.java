@@ -29,6 +29,7 @@ import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
@@ -67,6 +68,12 @@ public class Netty4Utils {
      * @throws IllegalStateException if available processors was set previously and the specified value does not match the already-set value
      */
     public static void setAvailableProcessors(final int availableProcessors) {
+        // we set this to false in tests to avoid tests that randomly set processors from stepping all over each other
+        final boolean set = Booleans.parseBoolean(System.getProperty("es.set.netty.runtime.available.processors", "true"));
+        if (!set) {
+            return;
+        }
+
         /*
          * This can be invoked twice, once from Netty4Transport and another time from Netty4HttpServerTransport; however,
          * Netty4Runtime#availableProcessors forbids settings the number of processors twice so we prevent double invocation here.

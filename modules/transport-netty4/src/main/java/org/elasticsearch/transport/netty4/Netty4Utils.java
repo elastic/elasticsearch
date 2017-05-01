@@ -65,8 +65,18 @@ public class Netty4Utils {
      * @param availableProcessors the number of available processors
      */
     public static void setAvailableProcessors(final int availableProcessors) {
+        /*
+         * This can be invoked twice, once from Netty4Transport and another time from Netty4HttpServerTransport; however,
+         * Netty4Runtime#availableProcessors forbids settings the number of processors twice so we prevent double invocation here.
+         */
         if (isAvailableProcessorsSet.compareAndSet(false, true)) {
             NettyRuntime.setAvailableProcessors(availableProcessors);
+        } else {
+            // we have already previously set the available processors so here we sanity check that we are setting to the same value
+            assert availableProcessors == NettyRuntime.availableProcessors()
+                    : "available processors value [" + availableProcessors + "] did not match current value ["
+                    + NettyRuntime.availableProcessors() + "]";
+
         }
     }
 

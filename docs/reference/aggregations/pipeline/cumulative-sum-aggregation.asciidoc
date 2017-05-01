@@ -19,6 +19,7 @@ A `cumulative_sum` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 .`cumulative_sum` Parameters
 |===

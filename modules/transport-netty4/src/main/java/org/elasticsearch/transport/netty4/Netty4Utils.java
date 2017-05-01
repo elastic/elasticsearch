@@ -72,7 +72,7 @@ public class Netty4Utils {
         if (isAvailableProcessorsSet.compareAndSet(false, true)) {
             NettyRuntime.setAvailableProcessors(availableProcessors);
         } else {
-            // we have already previously set the available processors so here we sanity check that we are setting to the same value
+            // we have previously set the available processors so here we sanity check that we are setting to the same value
             assert availableProcessors == NettyRuntime.availableProcessors()
                     : "available processors value [" + availableProcessors + "] did not match current value ["
                     + NettyRuntime.availableProcessors() + "]";

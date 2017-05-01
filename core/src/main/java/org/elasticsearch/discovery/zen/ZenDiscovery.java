@@ -775,16 +775,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             return false;
         }
 
-        if (newClusterState.nodes().isLocalNodeElectedMaster()) {
-            // update the set of nodes to ping
-            nodesFD.updateNodesAndPing(newClusterState);
-        } else {
-            // check to see that we monitor the correct master of the cluster
-            if (masterFD.masterNode() == null || !masterFD.masterNode().equals(newClusterState.nodes().getMasterNode())) {
-                masterFD.restart(newClusterState.nodes().getMasterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
-            }
-        }
-
         if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
             // its a fresh update from the master as we transition from a start of not having a master to having one
             logger.debug("got first state from fresh master [{}]", newClusterState.nodes().getMasterNodeId());
@@ -826,6 +816,19 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
 
         state.set(adaptedNewClusterState);
+
+        // update failure detection only after the state has been updated to prevent race condition with handleLeaveRequest
+        // and handleNodeFailure as those check the current state to determine whether the failure is to be handled by this node
+        if (adaptedNewClusterState.nodes().isLocalNodeElectedMaster()) {
+            // update the set of nodes to ping
+            nodesFD.updateNodesAndPing(adaptedNewClusterState);
+        } else {
+            // check to see that we monitor the correct master of the cluster
+            if (masterFD.masterNode() == null || !masterFD.masterNode().equals(adaptedNewClusterState.nodes().getMasterNode())) {
+                masterFD.restart(adaptedNewClusterState.nodes().getMasterNode(),
+                    "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
+            }
+        }
 
         clusterApplier.onNewClusterState("apply cluster state (from master [" + reason + "])",
             this::clusterState,

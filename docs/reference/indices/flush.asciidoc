@@ -77,7 +77,7 @@ the <<indices-stats,indices stats>> API:
 GET twitter/_stats?filter_path=**.commit&level=shards <1>
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\n/]
+// TEST[s/^/PUT twitter\nPOST twitter\/_flush\/synced\n/]
 <1> `filter_path` is used to reduce the verbosity of the response, but is entirely optional
 
 
@@ -93,12 +93,13 @@ which returns something similar to:
                {
                  "commit" : {
                    "id" : "3M3zkw2GHMo2Y4h4/KFKCg==",
-                   "generation" : 1,
+                   "generation" : 2,
                    "user_data" : {
                      "translog_uuid" : "hnOG3xFcTDeoI_kvvvOdNA",
                      "local_checkpoint" : "-1",
                      "translog_generation" : "1",
                      "max_seq_no" : "-1",
+                     "sync_id" : "AVvFY-071siAOuFGEO9P", <1>
                      "max_unsafe_auto_id_timestamp" : "-1"
                    },
                    "num_docs" : 0
@@ -116,6 +117,7 @@ which returns something similar to:
 --------------------------------------------------
 // TESTRESPONSE[s/"id" : "3M3zkw2GHMo2Y4h4\/KFKCg=="/"id": $body.indices.twitter.shards.0.0.commit.id/]
 // TESTRESPONSE[s/"translog_uuid" : "hnOG3xFcTDeoI_kvvvOdNA"/"translog_uuid": $body.indices.twitter.shards.0.0.commit.user_data.translog_uuid/]
+// TESTRESPONSE[s/"sync_id" : "AVvFY-071siAOuFGEO9P"/"sync_id": $body.indices.twitter.shards.0.0.commit.user_data.sync_id/]
 // TESTRESPONSE[s/"1": \.\.\./"1": $body.indices.twitter.shards.1/]
 // TESTRESPONSE[s/"2": \.\.\./"2": $body.indices.twitter.shards.2/]
 // TESTRESPONSE[s/"3": \.\.\./"3": $body.indices.twitter.shards.3/]

@@ -194,6 +194,7 @@ may be referred to as:
 ---------------
 "buckets_path": "my_percentile[99.9]"
 ---------------
+// NOTCONSOLE
 
 [[gap-policy]]
 [float]

@@ -394,7 +394,6 @@ class VagrantTestPlugin implements Plugin<Project> {
                 command 'halt'
                 boxName box
                 environmentVars vagrantEnvVars
-//                args 'halt', box
             }
             stop.dependsOn(halt)
 
@@ -403,7 +402,6 @@ class VagrantTestPlugin implements Plugin<Project> {
                 subcommand 'update'
                 boxName box
                 environmentVars vagrantEnvVars
-//                args 'box', 'update', box
                 dependsOn vagrantCheckVersion, virtualboxCheckVersion
             }
             update.mustRunAfter(setupBats)
@@ -422,7 +420,6 @@ class VagrantTestPlugin implements Plugin<Project> {
                   vagrant's default but its possible to change that default and folks do.
                   But the boxes that we use are unlikely to work properly with other
                   virtualization providers. Thus the lock. */
-//                args 'up', box, '--provision', '--provider', 'virtualbox'
                 args '--provision', '--provider', 'virtualbox'
                 /* It'd be possible to check if the box is already up here and output
                   SKIPPED but that would require running vagrant status which is slow! */
@@ -471,7 +468,6 @@ class VagrantTestPlugin implements Plugin<Project> {
                 environmentVars vagrantEnvVars
                 dependsOn up
                 finalizedBy halt
-//                args 'ssh', boxName, '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.extensions.esvagrant.formattedTestSeed}"
                 args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.extensions.esvagrant.formattedTestSeed}"
             }
             TaskExecutionAdapter platformReproListener = new TaskExecutionAdapter() {

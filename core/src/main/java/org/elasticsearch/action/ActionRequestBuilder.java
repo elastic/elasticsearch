@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.support.DispatchingListenableActionFuture;
+import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +47,7 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
     }
 
     public ListenableActionFuture<Response> execute() {
-        DispatchingListenableActionFuture<Response> future = new DispatchingListenableActionFuture<>(threadPool);
+        PlainListenableActionFuture<Response> future = PlainListenableActionFuture.newDispatchingListenableFuture(threadPool);
         execute(future);
         return future;
     }

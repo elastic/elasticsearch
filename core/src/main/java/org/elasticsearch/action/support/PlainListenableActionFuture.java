@@ -19,8 +19,11 @@
 
 package org.elasticsearch.action.support;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +32,16 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
 
     volatile Object listeners;
     boolean executedListeners = false;
+
+    private PlainListenableActionFuture() {}
+
+    public static <T> PlainListenableActionFuture<T> newListenableFuture() {
+        return new PlainListenableActionFuture<>();
+    }
+
+    public static <T> PlainListenableActionFuture<T> newDispatchingListenableFuture(ThreadPool threadPool) {
+        return new DispatchingListenableActionFuture<>(threadPool);
+    }
 
     @Override
     public void addListener(final ActionListener<T> listener) {
@@ -91,6 +104,25 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
             listener.onResponse(actionGet(0));
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    public static class DispatchingListenableActionFuture<T> extends PlainListenableActionFuture<T> {
+
+        private static final Logger logger = Loggers.getLogger(DispatchingListenableActionFuture.class);
+        private final ThreadPool threadPool;
+
+        private DispatchingListenableActionFuture(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+        }
+
+        @Override
+        public void addListener(final ActionListener<T> listener) {
+            super.addListener(new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener, false));
+        }
+
+        public ThreadPool threadPool() {
+            return threadPool;
         }
     }
 }

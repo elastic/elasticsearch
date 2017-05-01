@@ -36,7 +36,7 @@ public class ListenableActionFutureTests extends ESTestCase {
         try {
             final PlainListenableActionFuture<Object> future;
             if (randomBoolean()) {
-                future = new DispatchingListenableActionFuture<>(threadPool);
+                future = PlainListenableActionFuture.newDispatchingListenableFuture(threadPool);
             } else {
                 future = new PlainListenableActionFuture<>();
             }

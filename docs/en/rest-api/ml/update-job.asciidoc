@@ -27,7 +27,8 @@ The following properties can be updated after the job is created:
   (object) The analysis configuration, which specifies how to analyze the data.
   See <<ml-analysisconfig, analysis configuration objects>>. In particular,
   the following properties can be updated: `categorization_filters`,
-  `detector_description`, TBD.
+  `detector_description`.
+//TBD: Full list of properties that can be updated?  
 
 `analysis_limits`::
   (object) Specifies runtime limits for the job.

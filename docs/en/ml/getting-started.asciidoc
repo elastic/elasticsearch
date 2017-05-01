@@ -21,8 +21,8 @@ will hopefully be inspired to use it to detect anomalies in your own data.
 
 You might also be interested in these video tutorials:
 
-* Getting started with machine learning (single metric)
-* Getting started with machine learning (multiple metric)
+* https://www.elastic.co/videos/machine-learning-tutorial-creating-a-single-metric-job[Machine Learning for the Elastic Stack: Creating a single metric job]
+* https://www.elastic.co/videos/machine-learning-tutorial-creating-a-multi-metric-job[Machine Learning for the Elastic Stack: Creating a multi-metric job]
 
 
 [float]

@@ -313,7 +313,8 @@ public final class LambdaBootstrap {
     private static void generateStaticCtorDelegator(ClassWriter cw, Type delegateClassType, String delegateMethodName,
             MethodType delegateMethodType) {
         Method wrapperMethod = new Method(DELEGATED_CTOR_WRAPPER_NAME, delegateMethodType.toMethodDescriptorString());
-        Method constructorMethod = new Method(delegateMethodName, delegateMethodType.changeReturnType(void.class).toMethodDescriptorString());
+        Method constructorMethod = 
+            new Method(delegateMethodName, delegateMethodType.changeReturnType(void.class).toMethodDescriptorString());
         int modifiers = ACC_PRIVATE | ACC_STATIC;
 
         GeneratorAdapter factory = new GeneratorAdapter(modifiers, wrapperMethod,

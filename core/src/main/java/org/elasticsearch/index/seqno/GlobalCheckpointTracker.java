@@ -277,7 +277,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
     @SuppressForbidden(reason = "Object#wait for local checkpoint advancement")
     private synchronized void waitForLocalCheckpointToAdvance() throws InterruptedException {
-        this.wait(TimeUnit.SECONDS.toMillis(30));
+        this.wait();
     }
 
     /**

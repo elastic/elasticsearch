@@ -862,7 +862,7 @@ public final class MockTransportService extends TransportService {
     }
 
     @Override
-    protected void doClose() {
+    protected void doClose() throws IOException {
         super.doClose();
         synchronized (openConnections) {
             assert openConnections.size() == 0 : "still open connections: " + openConnections;

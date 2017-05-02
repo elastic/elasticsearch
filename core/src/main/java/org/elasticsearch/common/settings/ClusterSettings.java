@@ -19,8 +19,8 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.elasticsearch.action.search.RemoteClusterAware;
-import org.elasticsearch.action.search.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;

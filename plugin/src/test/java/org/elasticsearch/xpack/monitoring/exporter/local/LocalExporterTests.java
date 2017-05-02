@@ -133,7 +133,7 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
             for (String nodeName : internalCluster().getNodeNames()) {
                 String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
                 StringTerms.Bucket bucket = aggregation.getBucketByKey(nodeId);
-                assertTrue(bucket.getDocCount() >= 1L);
+                assertTrue(bucket != null && bucket.getDocCount() >= 1L);
 
                 Max subAggregation = bucket.getAggregations().get("agg_last_time_collected");
                 DateTime lastCollection = new DateTime(Math.round(subAggregation.getValue()), DateTimeZone.UTC);

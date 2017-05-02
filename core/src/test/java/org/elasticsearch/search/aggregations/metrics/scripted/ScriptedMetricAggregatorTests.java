@@ -61,8 +61,10 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     private static final Script COMBINE_SCRIPT = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScript",
             Collections.emptyMap());
 
-    private static final Script INIT_SCRIPT_SCORE = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "initScriptScore", Collections.emptyMap());
-    private static final Script MAP_SCRIPT_SCORE = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "mapScriptScore", Collections.emptyMap());
+    private static final Script INIT_SCRIPT_SCORE = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "initScriptScore",
+            Collections.emptyMap());
+    private static final Script MAP_SCRIPT_SCORE = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "mapScriptScore",
+            Collections.emptyMap());
     private static final Script COMBINE_SCRIPT_SCORE = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScriptScore",
             Collections.emptyMap());
     private static final Map<String, Function<Map<String, Object>, Object>> SCRIPTS = new HashMap<>();

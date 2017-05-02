@@ -35,10 +35,24 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
 
     private PlainListenableActionFuture() {}
 
+    /**
+     * This method returns a listenable future. The listeners will be called on completion of the future.
+     * The listeners will be executed by the same thread that completes the future.
+     *
+     * @param <T> the result of the future
+     * @return a listenable future
+     */
     public static <T> PlainListenableActionFuture<T> newListenableFuture() {
         return new PlainListenableActionFuture<>();
     }
 
+    /**
+     * This method returns a listenable future. The listeners will be called on completion of the future.
+     * The listeners will be executed on the LISTENER thread pool.
+     * @param threadPool
+     * @param <T> the result of the future
+     * @return a listenable future
+     */
     public static <T> PlainListenableActionFuture<T> newDispatchingListenableFuture(ThreadPool threadPool) {
         return new DispatchingListenableActionFuture<>(threadPool);
     }
@@ -107,7 +121,7 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
         }
     }
 
-    private static class DispatchingListenableActionFuture<T> extends PlainListenableActionFuture<T> {
+    private static final class DispatchingListenableActionFuture<T> extends PlainListenableActionFuture<T> {
 
         private static final Logger logger = Loggers.getLogger(DispatchingListenableActionFuture.class);
         private final ThreadPool threadPool;
@@ -119,10 +133,6 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
         @Override
         public void addListener(final ActionListener<T> listener) {
             super.addListener(new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener, false));
-        }
-
-        public ThreadPool threadPool() {
-            return threadPool;
         }
     }
 }

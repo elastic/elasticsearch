@@ -469,7 +469,7 @@ class BuildPlugin implements Plugin<Project> {
             heapdumpDir.mkdirs()
             jvmArg '-XX:HeapDumpPath=' + heapdumpDir
             final String testsJvmArgline = System.getProperty('tests.jvm.argline')
-            // only append OmitStackTraceInFastThrow if it is not already included in tests.jvm.argline
+            // only append -XX:-OmitStackTraceInFastThrow if it is not already included in tests.jvm.argline
             if (testsJvmArgline == null) {
                 argLine '-XX:-OmitStackTraceInFastThrow'
             } else if (testsJvmArgline.indexOf("OmitStackTraceInFastThrow") < 0) {

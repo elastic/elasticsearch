@@ -728,6 +728,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             bytes = bStream.bytes();
         }
+        if (snapshotsBlobContainer.blobExists(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
+            snapshotsBlobContainer.deleteBlob(INCOMPATIBLE_SNAPSHOTS_BLOB);
+        }
         // write the incompatible snapshots blob
         writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB, bytes);
     }

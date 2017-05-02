@@ -17,6 +17,7 @@ A `derivative` aggregation looks like this in isolation:
   "buckets_path": "the_sum"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 .`derivative` Parameters
 |===

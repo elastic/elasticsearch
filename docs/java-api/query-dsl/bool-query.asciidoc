@@ -3,17 +3,11 @@
 
 See {ref}/query-dsl-bool-query.html[Bool Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = boolQuery()
-    .must(termQuery("content", "test1"))    <1>
-    .must(termQuery("content", "test4"))    <1>
-    .mustNot(termQuery("content", "test2")) <2>
-    .should(termQuery("content", "test3"))  <3>
-    .filter(termQuery("content", "test5")); <4>
+include-tagged::{query-dsl-test}[bool]
 --------------------------------------------------
 <1> must query
 <2> must not query
 <3> should query
 <4> a query that must appear in the matching documents but doesn't contribute to scoring.
-

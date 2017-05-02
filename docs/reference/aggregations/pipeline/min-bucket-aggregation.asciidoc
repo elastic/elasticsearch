@@ -19,6 +19,7 @@ A `min_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 .`min_bucket` Parameters
 |===

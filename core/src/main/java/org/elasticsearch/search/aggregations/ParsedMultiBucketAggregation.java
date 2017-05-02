@@ -54,8 +54,8 @@ public abstract class ParsedMultiBucketAggregation extends ParsedAggregation imp
     }
 
     protected static void declareMultiBucketAggregationFields(final ObjectParser<? extends ParsedMultiBucketAggregation, Void> objectParser,
-                                                              final CheckedFunction<XContentParser, ParsedBucket<?>, IOException> bucketParser,
-                                                              final CheckedFunction<XContentParser, ParsedBucket<?>, IOException> keyedBucketParser) {
+                                                  final CheckedFunction<XContentParser, ParsedBucket<?>, IOException> bucketParser,
+                                                  final CheckedFunction<XContentParser, ParsedBucket<?>, IOException> keyedBucketParser) {
         declareAggregationFields(objectParser);
         objectParser.declareField((parser, aggregation, context) -> {
             XContentParser.Token token = parser.currentToken();

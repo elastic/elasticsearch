@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.transport.actions.execute;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -70,10 +71,14 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     protected void doExecute(ExecuteWatchRequest request, ActionListener<ExecuteWatchResponse> listener) {
         if (request.getId() != null) {
             client.getWatch(request.getId(), ActionListener.wrap(response -> {
-                Watch watch = watchParser.parse(request.getId(), true, response.getSourceAsBytesRef(), request.getXContentType());
-                watch.version(response.getVersion());
-                watch.status().version(response.getVersion());
-                executeWatch(request, listener, watch, true);
+                if (response.isExists()) {
+                    Watch watch = watchParser.parse(request.getId(), true, response.getSourceAsBytesRef(), request.getXContentType());
+                    watch.version(response.getVersion());
+                    watch.status().version(response.getVersion());
+                    executeWatch(request, listener, watch, true);
+                } else {
+                    listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getId()));
+                }
             }, listener::onFailure));
         } else if (request.getWatchSource() != null) {
             try {

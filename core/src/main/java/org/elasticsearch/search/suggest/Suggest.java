@@ -386,6 +386,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
         @SuppressWarnings("unchecked")
         public static Suggestion<? extends Entry<? extends Option>> fromXContent(XContentParser parser) throws IOException {
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
             return XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Suggestion.class);
         }
 

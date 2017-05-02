@@ -19,19 +19,59 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 public abstract class ParsedMultiBucketAggregation extends ParsedAggregation implements MultiBucketsAggregation {
+
+    protected final List<ParsedBucket<?>> buckets = new ArrayList<>();
+    protected boolean keyed;
+
+    @Override
+    protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        if (keyed) {
+            builder.startObject(CommonFields.BUCKETS.getPreferredName());
+        } else {
+            builder.startArray(CommonFields.BUCKETS.getPreferredName());
+        }
+        for (ParsedMultiBucketAggregation.ParsedBucket<?> bucket : buckets) {
+            bucket.toXContent(builder, params);
+        }
+        if (keyed) {
+            builder.endObject();
+        } else {
+            builder.endArray();
+        }
+        return builder;
+    }
+
+    protected static void declareMultiBucketAggregationFields(final ObjectParser<? extends ParsedMultiBucketAggregation, Void> objectParser,
+                                                              final CheckedFunction<XContentParser, ParsedBucket<?>, IOException> bucketParser,
+                                                              final CheckedFunction<XContentParser, ParsedBucket<?>, IOException> keyedBucketParser) {
+        declareAggregationFields(objectParser);
+        objectParser.declareField((parser, aggregation, context) -> {
+            XContentParser.Token token = parser.currentToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                aggregation.keyed = true;
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    aggregation.buckets.add(keyedBucketParser.apply(parser));
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                aggregation.keyed = false;
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    aggregation.buckets.add(bucketParser.apply(parser));
+                }
+            }
+        }, CommonFields.BUCKETS, ObjectParser.ValueType.OBJECT_ARRAY);
+    }
 
     public static class ParsedBucket<T> implements MultiBucketsAggregation.Bucket {
 
@@ -39,12 +79,8 @@ public abstract class ParsedMultiBucketAggregation extends ParsedAggregation imp
         private T key;
         private String keyAsString;
         private long docCount;
-        private String keyedString;
+        private boolean keyed;
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            //norelease MultiBucketsAggregation.Bucket must not extend Writeable in core - fix that
-        }
         protected void setKey(T key) {
             this.key = key;
         }
@@ -60,13 +96,7 @@ public abstract class ParsedMultiBucketAggregation extends ParsedAggregation imp
 
         @Override
         public String getKeyAsString() {
-            if (keyAsString != null) {
-                return keyAsString;
-            } else if (keyedString != null) {
-                return keyedString;
-            } else {
-                return String.valueOf(key);
-            }
+            return keyAsString;
         }
 
         protected void setDocCount(long docCount) {
@@ -78,8 +108,8 @@ public abstract class ParsedMultiBucketAggregation extends ParsedAggregation imp
             return docCount;
         }
 
-        protected void setKeyedString(String keyedString) {
-            this.keyedString = keyedString;
+        public void setKeyed(boolean keyed) {
+            this.keyed = keyed;
         }
 
         protected void setAggregations(List<? extends Aggregation> aggregations) {
@@ -88,44 +118,13 @@ public abstract class ParsedMultiBucketAggregation extends ParsedAggregation imp
 
         @Override
         public Aggregations getAggregations() {
-            //norelease use Aggregations abstract class once it is available (#24184)
-            return new Aggregations() {
-
-                @Override
-                public List<Aggregation> asList() {
-                    return Collections.unmodifiableList(new ArrayList<>(aggregations));
-                }
-
-                @Override
-                public Map<String, Aggregation> asMap() {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public Map<String, Aggregation> getAsMap() {
-                    Map<String, Aggregation> map = new HashMap<>(aggregations.size());
-                    for (Aggregation aggregation : aggregations) {
-                        map.put(aggregation.getName(), aggregation);
-                    }
-                    return map;
-                }
-
-                @Override
-                public <A extends Aggregation> A get(String name) {
-                    return (A) getAsMap().get(name);
-                }
-
-                @Override
-                public Iterator<Aggregation> iterator() {
-                    return asList().iterator();
-                }
-            };
+            return new Aggregations(aggregations) {};
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (keyedString != null) {
-                builder.startObject(keyedString);
+            if (keyed) {
+                builder.startObject(getKeyAsString());
             } else {
                 builder.startObject();
             }

@@ -19,13 +19,14 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.util.Map;
 
 /**
- * An aggregation
+ * An aggregation. Extends {@link ToXContent} as it makes it easier to print out its content.
  */
-public interface Aggregation {
+public interface Aggregation extends ToXContent {
 
     /**
      * Delimiter used when prefixing aggregation names with their type

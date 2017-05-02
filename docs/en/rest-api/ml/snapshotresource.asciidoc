@@ -21,7 +21,7 @@ A model snapshot resource has the following properties:
   (string) An optional description of the job.
 
 `job_id`::
-  (string) A numerical character string that uniquely identifing the job that the snapshot was created for.
+  (string) A numerical character string that uniquely identifies the job that the snapshot was created for.
 
 `latest_record_time_stamp`::
   (date) The timestamp of the latest processed record.
@@ -30,11 +30,12 @@ A model snapshot resource has the following properties:
   (date) The timestamp of the latest bucket result.
 
 `model_size_stats`::
-  (object) Summary information describing the model. See <<ml-snapshot-stats,Model Size Statistics>>.
+  (object) Summary information describing the model.
+  See <<ml-snapshot-stats,Model Size Statistics>>.
 
 `retain`::
-  (boolean) If true, this snapshot will not be deleted during automatic cleanup of snapshots 
-  older than `model_snapshot_retention_days`.
+  (boolean) If true, this snapshot will not be deleted during automatic cleanup
+  of snapshots older than `model_snapshot_retention_days`.
   However, this snapshot will be deleted when the job is deleted.
   The default value is false.
 
@@ -55,22 +56,25 @@ A model snapshot resource has the following properties:
 The `model_size_stats` object has the following properties:
 
 `bucket_allocation_failures_count`::
-  (long) The number of buckets for which entites were not processed due to memory limit constraints.
+  (long) The number of buckets for which entities were not processed due to
+  memory limit constraints.
 
 `job_id`::
   (string) A numerical character string that uniquely identifies the job.
 
 `log_time`::
-  (date) The timestamp that the `model_size_stats` were recorded, according to server-time.
+  (date) The timestamp that the `model_size_stats` were recorded, according to
+  server-time.
 
 `memory_status`::
   (string) The status of the memory in relation to its `model_memory_limit`.
   Contains one of the following values.
   `ok`::: The internal models stayed below the configured value.
-  `soft_limit`::: The internal models require more than 60% of the configured memory limit and more aggressive pruning will
+  `soft_limit`::: The internal models require more than 60% of the configured
+  memory limit and more aggressive pruning will
   be performed in order to try to reclaim space.
-  `hard_limit`::: The internal models require more space that the configured memory limit.
-  Some incoming data could not be processed.
+  `hard_limit`::: The internal models require more space that the configured
+  memory limit. Some incoming data could not be processed.
 
 `model_bytes`::
   (long) An approximation of the memory resources required for this analysis.
@@ -89,4 +93,3 @@ The `model_size_stats` object has the following properties:
 
 `total_partition_field_count`::
   (long) The number of _partition_ field values analyzed.
-

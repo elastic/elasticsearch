@@ -9,11 +9,6 @@ The update job API enables you to update certain properties of a job.
 `POST _xpack/ml/anomaly_detectors/<job_id>/_update`
 
 
-////
-===== Description
-
-//TBD: Important:: Updates do not take effect until after then job is closed and re-opened.
-////
 ===== Path Parameters
 
 `job_id` (required)::
@@ -23,16 +18,48 @@ The update job API enables you to update certain properties of a job.
 
 The following properties can be updated after the job is created:
 
-`analysis_config`::
-  (object) The analysis configuration, which specifies how to analyze the data.
-  See <<ml-analysisconfig, analysis configuration objects>>. In particular,
-  the following properties can be updated: `categorization_filters`,
-  `detector_description`.
-//TBD: Full list of properties that can be updated?  
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Name |Description |Requires Restart
 
-`analysis_limits`::
-  (object) Specifies runtime limits for the job.
-  See <<ml-apilimits,analysis limits>>.
+|`analysis_limits`: `model_memory_limit` |The approximate maximum amount of
+memory resources required for analytical processing, in MiB.
+See <<ml-apilimits>>. | Yes
+
+|`background_persist_interval` |Advanced configuration option. The time between
+each periodic persistence of the model. See <<ml-job-resource>>. | Yes
+
+|`custom_settings` |Contains custom meta data about the job. | No
+
+|`description` |An optional description of the job.
+See <<ml-job-resource>>. | No
+
+|`model_plot_config`: `enabled` |If true, enables calculation and storage of the
+model bounds for each entity that is being analyzed.
+See <<ml-apimodelplotconfig>>. | No
+
+|`model_snapshot_retention_days` |The time in days that model snapshots are
+retained for the job. See <<ml-job-resource>>. | Yes
+
+|`renormalization_window_days` |Advanced configuration option. The period over
+which adjustments to the score are applied, as new data is seen.
+See <<ml-job-resource>>. | Yes
+
+|`results_retention_days` |Advanced configuration option. The number of days
+for which job results are retained. See <<ml-job-resource>>. | Yes
+
+|=======================================================================
+
+For those properties that have `Requires Restart` set to `Yes` in this table,
+if the job is open when you make the update, you must stop the data feed, close
+the job, then restart the data feed and open the job for the changes to take
+effect.
+
+//|`analysis_config`: `detectors`: `index` | A unique identifier of the
+//detector. Matches the order of detectors returned by
+//<<ml-get-job,GET job>>, starting from 0. | No
+//|`analysis_config`: `detectors`: `detector_description` |A description of the
+//detector. See <<ml-analysisconfig>>. | No
 
 [NOTE]
 --
@@ -43,9 +70,6 @@ of `hard_limit`, this means that it was unable to process some data. You might
 want to re-run this job with an increased `model_memory_limit`.
 --
 
-`description`::
-  (string) An optional description of the job.
-
 
 ===== Authorization
 
@@ -55,32 +79,81 @@ For more information, see <<privileges-list-cluster>>.
 
 ===== Examples
 
-The following example updates the `it-ops-kpi` job:
+The following example updates the `it_ops_new_logs` job:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/it-ops-kpi/_update
+POST _xpack/ml/anomaly_detectors/it_ops_new_logs/_update
 {
-    "description":"New description",
-    "analysis_limits":{
-      "model_memory_limit": 8192
-    }
+  "description":"An updated job",
+  "model_plot_config": {
+    "enabled": true
+  },
+  "analysis_limits": {
+    "model_memory_limit": 1024
+  },
+  "renormalization_window_days": 30,
+  "background_persist_interval": "2h",
+  "model_snapshot_retention_days": 7,
+  "results_retention_days": 60,
+  "custom_settings": {
+    "custom_urls" : [{
+      "url_name" : "Lookup IP",
+      "url_value" : "http://geoiplookup.net/ip/$clientip$"
+    }]
+  }
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]
 
-When the job is updated, you receive the following results:
+When the job is updated, you receive a summary of the job configuration
+information, including the updated property values. For example:
+
 [source,js]
 ----
 {
-  "job_id": "it-ops-kpi",
+  "job_id": "it_ops_new_logs",
   "job_type": "anomaly_detector",
-  "description": "New description",
-  ...
-  "analysis_limits": {
-    "model_memory_limit": 8192
+  "description": "An updated job",
+  "create_time": 1493678314204,
+  "finished_time": 1493678315850,
+  "analysis_config": {
+    "bucket_span": "1800s",
+    "categorization_field_name": "message",
+    "detectors": [
+      {
+        "detector_description": "Unusual message counts",
+        "function": "count",
+        "by_field_name": "mlcategory",
+        "detector_rules": []
+      }
+    ],
+    "influencers": []
   },
-  ...
+  "analysis_limits": {
+    "model_memory_limit": 1024
+  },
+  "data_description": {
+    "time_field": "time",
+    "time_format": "epoch_ms"
+  },
+  "model_plot_config": {
+    "enabled": true
+  },
+  "renormalization_window_days": 30,
+  "background_persist_interval": "2h",
+  "model_snapshot_retention_days": 7,
+  "results_retention_days": 60,
+  "custom_settings": {
+    "custom_urls": [
+      {
+        "url_name": "Lookup IP",
+        "url_value": "http://geoiplookup.net/ip/$clientip$"
+      }
+    ]
+  },
+  "model_snapshot_id": "1493678315",
+  "results_index_name": "shared"
 }
 ----

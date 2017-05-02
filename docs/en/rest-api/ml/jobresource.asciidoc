@@ -260,9 +260,10 @@ The `analysis_limits` object has the following properties:
 NOTE: The `categorization_examples_limit` only applies to analysis that uses categorization.
 
 `model_memory_limit`::
-  (long) The maximum amount of memory, in MiB, that the mathematical models can use.
-  Once this limit is approached, data pruning becomes more aggressive.
-  Upon exceeding this limit, new entities are not modeled. The default value is 4096.
+  (long) The approximate maximum amount of memory resources that are required
+  for analytical processing, in MiB. Once this limit is approached, data pruning
+  becomes more aggressive. Upon exceeding this limit, new entities are not
+  modeled. The default value is 4096.
 
 [float]
 [[ml-apimodelplotconfig]]

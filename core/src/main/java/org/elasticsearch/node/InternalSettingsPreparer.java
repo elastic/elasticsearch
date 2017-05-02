@@ -19,16 +19,6 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.env.Environment;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,6 +29,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.env.Environment;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 
@@ -109,11 +107,6 @@ public class InternalSettingsPreparer {
             throw new SettingsException("multiple settings files found with suffixes: "
                 + Strings.collectionToDelimitedString(foundSuffixes, ","));
         }
-        if (foundSuffixes.contains(".yml") || foundSuffixes.contains(".json")) {
-            final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(InternalSettingsPreparer.class));
-            deprecationLogger.deprecated("elasticsearch{} is deprecated; rename your configuration file to elasticsearch.yaml",
-                                         foundSuffixes.iterator().next());
-        }
 
         // re-initialize settings now that the config file has been loaded
         initializeSettings(output, input, properties);
@@ -123,7 +116,8 @@ public class InternalSettingsPreparer {
 
         // we put back the path.logs so we can use it in the logging configuration file
         output.put(Environment.PATH_LOGS_SETTING.getKey(), cleanPath(environment.logsFile().toAbsolutePath().toString()));
-        return new Environment(output.build());
+        String configExtension = foundSuffixes.isEmpty() ? null : foundSuffixes.iterator().next();
+        return new Environment(output.build(), configExtension);
     }
 
     /**

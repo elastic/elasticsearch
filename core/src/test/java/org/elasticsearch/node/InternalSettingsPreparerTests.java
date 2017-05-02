@@ -166,22 +166,22 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains(".json"));
     }
 
-    public void testYmlDeprecated() throws IOException {
+    public void testYmlExtension() throws IOException {
         InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.yaml");
         Path config = homeDir.resolve("config");
         Files.createDirectory(config);
         Files.copy(yaml, config.resolve("elasticsearch.yml"));
-        InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null);
-        assertWarnings("elasticsearch.yml is deprecated; rename your configuration file to elasticsearch.yaml");
+        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null);
+        assertEquals(".yml", env.configExtension());
     }
 
-    public void testJsonDeprecated() throws IOException {
+    public void testJsonExtension() throws IOException {
         InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.json");
         Path config = homeDir.resolve("config");
         Files.createDirectory(config);
         Files.copy(yaml, config.resolve("elasticsearch.json"));
-        InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null);
-        assertWarnings("elasticsearch.json is deprecated; rename your configuration file to elasticsearch.yaml");
+        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null);
+        assertEquals(".json", env.configExtension());
     }
 
     public void testSecureSettings() {

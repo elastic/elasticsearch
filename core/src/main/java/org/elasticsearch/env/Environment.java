@@ -67,6 +67,8 @@ public class Environment {
 
     private final Settings settings;
 
+    private final String configExtension;
+
     private final Path[] dataFiles;
 
     private final Path[] dataWithClusterFiles;
@@ -114,6 +116,12 @@ public class Environment {
     }
 
     public Environment(Settings settings) {
+        this(settings, null);
+    }
+
+    // Note: Do not use this ctor, it is for correct deprecation logging in 5.5 and will be removed
+    public Environment(Settings settings, String configExtension) {
+        this.configExtension = configExtension;
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
             homeFile = PathUtils.get(cleanPath(PATH_HOME_SETTING.get(settings)));
@@ -285,8 +293,14 @@ public class Environment {
         }
     }
 
+    /** Return then extension of the config file that was loaded, or*/
+    public String configExtension() {
+        return configExtension;
+    }
+
+    // TODO: rename all these "file" methods to "dir"
     /**
-     * The config location.
+     * The config directory.
      */
     public Path configFile() {
         return configFile;

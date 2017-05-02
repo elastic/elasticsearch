@@ -189,6 +189,18 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertEquals(repositoryData.getIncompatibleSnapshotIds(), readData.getIncompatibleSnapshotIds());
     }
 
+    public void testIncompatibleSnapshotsBlobExists() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+        RepositoryData emptyData = RepositoryData.EMPTY;
+        repository.writeIndexGen(emptyData, emptyData.getGenId());
+        RepositoryData repoData = repository.getRepositoryData();
+        assertEquals(emptyData, repoData);
+        assertTrue(repository.blobContainer().blobExists("incompatible-snapshots"));
+        repoData = addRandomSnapshotsToRepoData(repository.getRepositoryData(), true);
+        repository.writeIndexGen(repoData, repoData.getGenId());
+        assertEquals(0, repository.getRepositoryData().getIncompatibleSnapshotIds().size());
+    }
+
     private BlobStoreRepository setupRepo() {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());

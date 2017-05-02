@@ -469,6 +469,7 @@ class BuildPlugin implements Plugin<Project> {
             heapdumpDir.mkdirs()
             jvmArg '-XX:HeapDumpPath=' + heapdumpDir
             argLine System.getProperty('tests.jvm.argline')
+            argLine '-XX:-OmitStackTraceInFastThrow'
 
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
             systemProperty 'java.io.tmpdir', './temp'

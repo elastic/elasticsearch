@@ -1526,7 +1526,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (globalCheckpoint <= localCheckpoint) {
             seqNoService.updateGlobalCheckpointOnReplica(globalCheckpoint);
         } else {
-            assert state() == IndexShardState.RECOVERING;
+            /*
+             * This can happen during recovery when the shard has started its engine but recovery is not finalized and is receiving global
+             * checkpoint updates from in-flight operations. However, since this shard is not yet contributing to calculating the global
+             * checkpoint, it can be the case that the global checkpoint update from the primary is ahead of the local checkpoint on this
+             * shard. In this case, we ignore the global checkpoint update. This should only happen if we are in the translog stage of
+             * recovery. Prior to this, the engine is not opened and this shard will not receive global checkpoint updates, and after this
+             * the shard will be contributing to calculations of the the global checkpoint.
+             */
+            assert recoveryState().getStage() == RecoveryState.Stage.TRANSLOG
+                    : "expected recovery stage [" + RecoveryState.Stage.TRANSLOG + "] but was [" + recoveryState().getStage() + "]";
         }
     }
 

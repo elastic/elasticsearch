@@ -46,6 +46,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -185,7 +186,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final Map<String, List<String>> groupedIndices = remoteClusterService.groupClusterIndices(searchRequest.indices(),
                 // empty string is not allowed
                 idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
-            List<String> remove = groupedIndices.remove(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+            List<String> remove = groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             String[] indices = remove == null ? Strings.EMPTY_ARRAY : remove.toArray(new String[remove.size()]);
             localIndices = new OriginalIndices(indices, searchRequest.indicesOptions());
             Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
@@ -235,7 +236,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 //this ends up in the hits returned with the search response
                 ShardId shardId = clusterSearchShardsGroup.getShardId();
                 Index remoteIndex = shardId.getIndex();
-                Index index = new Index(clusterAlias + RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR + remoteIndex.getName(),
+                Index index = new Index(clusterAlias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + remoteIndex.getName(),
                     remoteIndex.getUUID());
                 OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
                 assert originalIndices != null;
@@ -285,9 +286,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (int i = 0; i < indices.length; i++) {
             concreteIndices[i] = indices[i].getName();
         }
-        GroupShardsIterator<ShardIterator> localShardsIterator = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap,
-            searchRequest.preference());
-        GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardsIterator, localIndices, remoteShardIterators);
+        GroupShardsIterator<ShardIterator> localShardsIterator = clusterService.operationRouting().searchShards(clusterState,
+            concreteIndices, routingMap, searchRequest.preference());
+        GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardsIterator, localIndices,
+            remoteShardIterators);
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
@@ -348,7 +350,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest,
                                                         GroupShardsIterator<SearchShardIterator> shardIterators,
-                                                        SearchTimeProvider timeProvider, Function<String, Transport.Connection> connectionLookup,
+                                                        SearchTimeProvider timeProvider,
+                                                        Function<String, Transport.Connection> connectionLookup,
                                                         long clusterStateVersion, Map<String, AliasFilter> aliasFilter,
                                                         Map<String, Float> concreteIndexBoosts,
                                                         ActionListener<SearchResponse> listener) {
@@ -357,13 +360,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         switch(searchRequest.searchType()) {
             case DFS_QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
-                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, timeProvider,
-                    clusterStateVersion, task);
+                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators,
+                    timeProvider, clusterStateVersion, task);
                 break;
             case QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
-                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, timeProvider,
-                    clusterStateVersion, task);
+                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators,
+                    timeProvider, clusterStateVersion, task);
                 break;
             default:
                 throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");

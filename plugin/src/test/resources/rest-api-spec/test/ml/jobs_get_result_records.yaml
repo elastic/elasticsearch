@@ -1,7 +1,7 @@
 setup:
   - do:
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: jobs-get-result-records
         body:  >
           {
             "analysis_config" : {
@@ -15,12 +15,12 @@ setup:
 
   - do:
       index:
-        index:  .ml-anomalies-farequote
+        index:  .ml-anomalies-jobs-get-result-records
         type:   result
-        id:     farequote_1464739200000_1_1
+        id:     jobs-get-result-records_1464739200000_1_1
         body:
           {
-            "job_id": "farequote",
+            "job_id": "jobs-get-result-records",
             "result_type": "record",
             "timestamp": "2016-06-01T00:00:00Z",
             "record_score": 60.0,
@@ -30,12 +30,12 @@ setup:
 
   - do:
         index:
-          index:  .ml-anomalies-farequote
+          index:  .ml-anomalies-jobs-get-result-records
           type:   result
-          id:     farequote_1464825600000_1_2
+          id:     jobs-get-result-records_1464825600000_1_2
           body:
             {
-              "job_id": "farequote",
+              "job_id": "jobs-get-result-records",
               "result_type": "record",
               "timestamp": "2016-06-02T00:00:00Z",
               "record_score": 80.0,
@@ -46,27 +46,27 @@ setup:
 
   - do:
       indices.refresh:
-        index: .ml-anomalies-farequote
+        index: .ml-anomalies-jobs-get-result-records
 
 ---
 "Test result records api":
   - do:
       xpack.ml.get_records:
-        job_id: "farequote"
+        job_id: "jobs-get-result-records"
 
   - match: { count: 2 }
   - match: { records.0.timestamp: 1464825600000 }
-  - match: { records.0.job_id: farequote}
+  - match: { records.0.job_id: jobs-get-result-records}
   - match: { records.0.result_type: record}
   - match: { records.1.timestamp: 1464739200000 }
-  - match: { records.1.job_id: farequote}
+  - match: { records.1.job_id: jobs-get-result-records}
   - match: { records.1.result_type: record}
 
 ---
 "Test get records given exclude_interim is false":
   - do:
       xpack.ml.get_records:
-        job_id: "farequote"
+        job_id: "jobs-get-result-records"
         exclude_interim: false
 
   - match: { count: 2 }
@@ -75,7 +75,7 @@ setup:
 "Test get records given exclude_interim is true":
   - do:
       xpack.ml.get_records:
-        job_id: "farequote"
+        job_id: "jobs-get-result-records"
         exclude_interim: true
 
   - match: { count: 1 }
@@ -86,13 +86,13 @@ setup:
 "Test result records api with time range":
   - do:
       xpack.ml.get_records:
-        job_id: "farequote"
+        job_id: "jobs-get-result-records"
         start: "2016-05-01T00:00:00Z"
         end: "2016-06-01T01:00:00Z"
 
   - match: { count: 1 }
   - match: { records.0.timestamp: 1464739200000 }
-  - match: { records.0.job_id: farequote}
+  - match: { records.0.job_id: jobs-get-result-records}
   - match: { records.0.result_type: record}
 
 ---

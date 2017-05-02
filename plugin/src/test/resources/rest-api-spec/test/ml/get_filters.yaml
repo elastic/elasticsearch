@@ -5,13 +5,13 @@
       xpack.ml.put_filter:
         body:  >
           {
-            "id": "foo",
+            "id": "filter-foo",
             "items": ["abc", "xyz"]
           }
 
   - do:
       xpack.ml.delete_filter:
-        filter_id: "foo"
+        filter_id: "filter-foo"
 
   - do:
       xpack.ml.get_filters: {}

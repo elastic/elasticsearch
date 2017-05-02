@@ -4,7 +4,7 @@ setup:
       xpack.ml.put_filter:
         body:  >
           {
-            "id": "foo",
+            "id": "filter-foo",
             "items": ["abc", "xyz"]
           }
 
@@ -12,7 +12,7 @@ setup:
       xpack.ml.put_filter:
         body:  >
           {
-            "id": "foo2",
+            "id": "filter-foo2",
             "items": ["123", "lmnop"]
           }
 
@@ -32,12 +32,12 @@ setup:
 
   - do:
       xpack.ml.get_filters:
-        filter_id: "foo"
+        filter_id: "filter-foo"
 
   - match: { count:   1 }
   - match:
       filters.0:
-        id: "foo"
+        id: "filter-foo"
         items: ["abc", "xyz"]
 
 ---
@@ -49,12 +49,12 @@ setup:
   - match: { count:   2 }
   - match:
       filters.0:
-        id: "foo"
+        id: "filter-foo"
         items: ["abc", "xyz"]
 
   - match:
       filters.1:
-        id: "foo2"
+        id: "filter-foo2"
         items: ["123", "lmnop"]
 
   - do:
@@ -70,19 +70,19 @@ setup:
   - do:
       catch: request
       xpack.ml.get_filters:
-        filter_id: "foo"
+        filter_id: "filter-foo"
         from: 0
 
   - do:
         catch: request
         xpack.ml.get_filters:
-          filter_id: "foo"
+          filter_id: "filter-foo"
           size: 1
 
   - do:
         catch: request
         xpack.ml.get_filters:
-          filter_id: "foo"
+          filter_id: "filter-foo"
           from: 0
           size: 1
 ---
@@ -91,7 +91,7 @@ setup:
       xpack.ml.put_filter:
         body:  >
           {
-            "id": "foo2",
+            "id": "filter-foo2",
             "items": ["abc", "xyz"]
           }
 
@@ -99,12 +99,12 @@ setup:
 
   - do:
       xpack.ml.get_filters:
-        filter_id: "foo2"
+        filter_id: "filter-foo2"
 
   - match: { count:   1 }
   - match:
       filters.0:
-        id: "foo2"
+        id: "filter-foo2"
         items: ["abc", "xyz"]
 
 ---
@@ -121,10 +121,10 @@ setup:
 "Test delete in-use filter":
   - do:
       xpack.ml.put_job:
-        job_id: farequote2
+        job_id: filter-crud
         body:  >
           {
-            "job_id":"farequote2",
+            "job_id":"filter-crud",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "3600s",
@@ -134,7 +134,7 @@ setup:
                       "rule_conditions": [
                         {
                           "condition_type": "categorical",
-                          "value_filter": "foo"
+                          "value_filter": "filter-foo"
                         }
                       ]
                     }
@@ -149,7 +149,7 @@ setup:
   - do:
       catch: conflict
       xpack.ml.delete_filter:
-        filter_id: "foo"
+        filter_id: "filter-foo"
 
 ---
 "Test non-existing filter":
@@ -163,19 +163,19 @@ setup:
 
   - do:
       xpack.ml.get_filters:
-        filter_id: "foo"
+        filter_id: "filter-foo"
 
   - match: { count:   1 }
   - match:
       filters.0:
-        id: "foo"
+        id: "filter-foo"
         items: ["abc", "xyz"]
 
   - do:
       xpack.ml.delete_filter:
-        filter_id: "foo"
+        filter_id: "filter-foo"
 
   - do:
       catch: missing
       xpack.ml.get_filters:
-        filter_id: "foo"
+        filter_id: "filter-foo"

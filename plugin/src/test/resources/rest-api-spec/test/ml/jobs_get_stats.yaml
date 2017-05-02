@@ -23,10 +23,10 @@ setup:
 
   - do:
       xpack.ml.put_job:
-        job_id: datafeed-job
+        job_id: jobs-get-stats-datafeed-job
         body:  >
           {
-            "job_id":"datafeed-job",
+            "job_id":"jobs-get-stats-datafeed-job",
             "description":"A job with a datafeed",
             "analysis_config" : {
                 "bucket_span": "1h",
@@ -40,14 +40,14 @@ setup:
           }
   - do:
       xpack.ml.open_job:
-        job_id: datafeed-job
+        job_id: jobs-get-stats-datafeed-job
 
   - do:
       xpack.ml.put_datafeed:
         datafeed_id: datafeed-1
         body:  >
           {
-            "job_id":"datafeed-job",
+            "job_id":"jobs-get-stats-datafeed-job",
             "indexes":["farequote"],
             "types":["response"]
           }
@@ -119,8 +119,8 @@ setup:
 
   - do:
       xpack.ml.get_job_stats:
-        job_id: datafeed-job
-  - match: { jobs.0.job_id : datafeed-job }
+        job_id: jobs-get-stats-datafeed-job
+  - match: { jobs.0.job_id : jobs-get-stats-datafeed-job }
   - match: { jobs.0.data_counts.processed_record_count: 0 }
   - match: { jobs.0.model_size_stats.model_bytes : 0 }
   - match: { jobs.0.state: opened }

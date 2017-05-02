@@ -1,10 +1,10 @@
 setup:
   - do:
       xpack.ml.put_job:
-        job_id: job-1
+        job_id: get-datafeed-stats-1
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"get-datafeed-stats-1",
             "analysis_config" : {
                 "bucket_span": "1h",
                 "detectors" :[{"function":"count"}]
@@ -18,10 +18,10 @@ setup:
 
   - do:
       xpack.ml.put_job:
-        job_id: job-2
+        job_id: get-datafeed-stats-2
         body:  >
           {
-            "job_id":"job-2",
+            "job_id":"get-datafeed-stats-2",
             "analysis_config" : {
                 "bucket_span": "1h",
                 "detectors" :[{"function":"count"}]
@@ -52,7 +52,7 @@ setup:
         datafeed_id: datafeed-1
         body: >
           {
-            "job_id":"job-1",
+            "job_id":"get-datafeed-stats-1",
             "indexes":["index-1"],
             "types":["type-1"]
           }
@@ -62,7 +62,7 @@ setup:
         datafeed_id: datafeed-2
         body: >
           {
-            "job_id":"job-2",
+            "job_id":"get-datafeed-stats-2",
             "indexes":["index-2"],
             "types":["type-2"]
           }
@@ -97,7 +97,7 @@ setup:
 
   - do:
       xpack.ml.open_job:
-        job_id: job-1
+        job_id: get-datafeed-stats-1
 
   - do:
       xpack.ml.start_datafeed:
@@ -118,7 +118,7 @@ setup:
 
   - do:
       xpack.ml.open_job:
-        job_id: job-1
+        job_id: get-datafeed-stats-1
 
   - do:
       xpack.ml.start_datafeed:
@@ -127,7 +127,7 @@ setup:
 
   - do:
       xpack.ml.open_job:
-        job_id: job-2
+        job_id: get-datafeed-stats-2
 
   - do:
       xpack.ml.start_datafeed:

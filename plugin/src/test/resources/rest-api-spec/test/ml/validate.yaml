@@ -42,7 +42,7 @@
       xpack.ml.validate:
         body:  >
           {
-            "job_id": "farequote",
+            "job_id": "validate-job-config-with-job-id",
             "analysis_config": {
               "bucket_span": "1h",
               "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]

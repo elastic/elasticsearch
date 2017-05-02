@@ -76,7 +76,7 @@ setup:
 
   - do:
       xpack.ml.put_job:
-        job_id: scroll-job
+        job_id: preview-datafeed-job
         body:  >
           {
             "analysis_config" : {
@@ -90,17 +90,17 @@ setup:
 
   - do:
       xpack.ml.put_datafeed:
-        datafeed_id: scroll-feed
+        datafeed_id: preview-datafeed-feed
         body:  >
           {
-            "job_id":"scroll-job",
+            "job_id":"preview-datafeed-job",
             "indexes":"airline-data",
             "types":"response"
           }
 
   - do:
       xpack.ml.preview_datafeed:
-        datafeed_id: scroll-feed
+        datafeed_id: preview-datafeed-feed
   - length: { $body: 4 }
   - match: { 0.time: 1487376000000 }
   - match: { 0.airline: foo }

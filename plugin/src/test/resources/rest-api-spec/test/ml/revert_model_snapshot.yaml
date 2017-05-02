@@ -1,10 +1,10 @@
 setup:
   - do:
       xpack.ml.put_job:
-        job_id: foo
+        job_id: revert-model-snapshot
         body:  >
           {
-            "job_id":"foo",
+            "job_id":"revert-model-snapshot",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "1h",
@@ -19,20 +19,20 @@ setup:
 
   - do:
       xpack.ml.open_job:
-        job_id: foo
+        job_id: revert-model-snapshot
 
   - do:
       xpack.ml.close_job:
-        job_id: foo
+        job_id: revert-model-snapshot
 
   - do:
       index:
-        index:  .ml-anomalies-foo
+        index:  .ml-anomalies-revert-model-snapshot
         type:   model_snapshot
-        id:     "foo-first"
+        id:     "revert-model-snapshot-first"
         body: >
           {
-            "job_id": "foo",
+            "job_id": "revert-model-snapshot",
             "timestamp": "2016-06-02T00:00:00Z",
             "snapshot_id": "first",
             "description": "first snapshot",
@@ -42,12 +42,12 @@ setup:
 
   - do:
       index:
-        index:  .ml-anomalies-foo
+        index:  .ml-anomalies-revert-model-snapshot
         type:   model_snapshot
-        id:     "foo-second"
+        id:     "revert-model-snapshot-second"
         body: >
           {
-            "job_id": "foo",
+            "job_id": "revert-model-snapshot",
             "timestamp": "2016-06-01T00:00:00Z",
             "snapshot_id": "second",
             "description": "second snapshot",
@@ -57,49 +57,81 @@ setup:
 
   - do:
       index:
-        index:  .ml-anomalies-foo
+        index:  .ml-anomalies-revert-model-snapshot
         type:   result
-        id:     "foo_1464825600000_1"
-        body:   { "job_id": "foo", "result_type": "bucket", "timestamp": "2016-06-02T00:00:00Z", "bucket_span":1 }
+        id:     "revert-model-snapshot_1464825600000_1"
+        body: >
+          {
+            "job_id": "revert-model-snapshot",
+            "result_type": "bucket",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "bucket_span":1
+          }
 
   - do:
       index:
-        index:  .ml-anomalies-foo
+        index:  .ml-anomalies-revert-model-snapshot
         type:   result
-        id:     "foo_1464782400000_1"
-        body:   { "job_id": "foo", "result_type": "bucket", "timestamp": "2016-06-01T12:00:00Z", "bucket_span":1 }
+        id:     "revert-model-snapshot_1464782400000_1"
+        body: >
+          {
+            "job_id": "revert-model-snapshot",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T12:00:00Z",
+            "bucket_span":1
+          }
 
   - do:
       index:
-        index:  .ml-anomalies-foo
+        index:  .ml-anomalies-revert-model-snapshot
         type:   result
-        id:     "foo_1462060800000_1"
-        body:   { "job_id": "foo", "result_type": "bucket", "timestamp": "2016-05-01T00:00:00Z", "bucket_span":1 }
+        id:     "revert-model-snapshot_1462060800000_1"
+        body: >
+          {
+            "job_id": "revert-model-snapshot",
+            "result_type": "bucket",
+            "timestamp": "2016-05-01T00:00:00Z",
+            "bucket_span":1
+          }
 
   - do:
        index:
-        index:  .ml-anomalies-foo
+        index:  .ml-anomalies-revert-model-snapshot
         type:   result
-        id:     "foo_1464825600000_1_1"
-        body:   { "job_id": "foo", "result_type": "record", "timestamp": "2016-06-02T00:00:00Z", "bucket_span":1, "sequence_num":1 }
+        id:     "revert-model-snapshot_1464825600000_1_1"
+        body: >
+          {
+            "job_id": "revert-model-snapshot",
+            "result_type": "record",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "bucket_span":1,
+            "sequence_num":1
+          }
 
   - do:
        index:
-         index:  .ml-anomalies-foo
+         index:  .ml-anomalies-revert-model-snapshot
          type:   result
-         id:     "foo_1462060800000_1_2"
-         body:   { "job_id": "foo", "result_type": "record", "timestamp": "2016-05-01T00:00:00Z", "bucket_span":1, "sequence_num":2 }
+         id:     "revert-model-snapshot_1462060800000_1_2"
+         body: >
+           {
+              "job_id": "revert-model-snapshot",
+              "result_type": "record",
+              "timestamp": "2016-05-01T00:00:00Z",
+              "bucket_span":1,
+              "sequence_num":2
+           }
 
   - do:
       index:
-        index:  .ml-anomalies-foo
+        index:  .ml-anomalies-revert-model-snapshot
         type:   result
-        id:     "foo_1464825600000_1_3"
+        id:     "revert-model-snapshot_1464825600000_1_3"
         body:   {
-                  "job_id": "foo",
+                  "job_id": "revert-model-snapshot",
                   "result_type": "influencer",
                   "timestamp": "2016-06-02T00:00:00Z",
-                  "influencer_field_name": "foo",
+                  "influencer_field_name": "revert-model-snapshot",
                   "influencer_field_value": "zoo",
                   "influencer_score": 50.0,
                   "bucket_span": 1,
@@ -108,15 +140,15 @@ setup:
 
   - do:
       index:
-        index:  .ml-anomalies-foo
+        index:  .ml-anomalies-revert-model-snapshot
         type:   result
-        id:     "foo_1462060800000_1_4"
+        id:     "revert-model-snapshot_1462060800000_1_4"
         body:
            {
-              "job_id": "foo",
+              "job_id": "revert-model-snapshot",
               "result_type": "influencer",
               "timestamp": "2016-05-01T00:00:00Z",
-              "influencer_field_name": "foo",
+              "influencer_field_name": "revert-model-snapshot",
               "influencer_field_value": "zoo",
               "influencer_score": 50.0,
               "bucket_span": 1,
@@ -125,7 +157,7 @@ setup:
 
   - do:
       indices.refresh:
-        index: .ml-anomalies-foo
+        index: .ml-anomalies-revert-model-snapshot
 
   - do:
       indices.refresh:
@@ -136,29 +168,29 @@ setup:
   - do:
       catch: /resource_not_found_exception/
       xpack.ml.revert_model_snapshot:
-        job_id: "foo"
+        job_id: "revert-model-snapshot"
         snapshot_id: "not_exist"
 
 ---
 "Test revert model with valid snapshotId":
   - do:
       xpack.ml.revert_model_snapshot:
-        job_id: "foo"
+        job_id: "revert-model-snapshot"
         snapshot_id: "first"
 
   - match: { acknowledged: true }
-  - match: { model.job_id: "foo" }
+  - match: { model.job_id: "revert-model-snapshot" }
   - match: { model.timestamp: 1464825600000 }
   - match: { model.snapshot_id: "first" }
   - match: { model.snapshot_doc_count: 0 }
 
   - do:
       xpack.ml.revert_model_snapshot:
-        job_id: "foo"
+        job_id: "revert-model-snapshot"
         snapshot_id: "second"
 
   - match: { acknowledged: true }
-  - match: { model.job_id: "foo" }
+  - match: { model.job_id: "revert-model-snapshot" }
   - match: { model.timestamp: 1464739200000 }
   - match: { model.snapshot_id: "second" }
   - match: { model.snapshot_doc_count: 0 }
@@ -167,7 +199,7 @@ setup:
 "Test revert model with delete_intervening_results":
   - do:
       xpack.ml.get_buckets:
-        job_id: "foo"
+        job_id: "revert-model-snapshot"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
 
@@ -175,47 +207,47 @@ setup:
 
   - do:
       xpack.ml.revert_model_snapshot:
-        job_id: "foo"
+        job_id: "revert-model-snapshot"
         snapshot_id: "second"
         delete_intervening_results: true
 
   - do:
       indices.refresh:
-        index: .ml-anomalies-foo
+        index: .ml-anomalies-revert-model-snapshot
 
   - do:
       xpack.ml.get_buckets:
-        job_id: "foo"
+        job_id: "revert-model-snapshot"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
 
   - match: { count: 1 }
-  - match: { buckets.0.job_id: "foo" }
+  - match: { buckets.0.job_id: "revert-model-snapshot" }
   - match: { buckets.0.timestamp: 1462060800000 }
 
   - do:
       xpack.ml.get_records:
-        job_id: "foo"
+        job_id: "revert-model-snapshot"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
 
   - match: { count: 1 }
-  - match: { records.0.job_id: "foo" }
+  - match: { records.0.job_id: "revert-model-snapshot" }
   - match: { records.0.timestamp: 1462060800000 }
 
   - do:
       xpack.ml.get_influencers:
-        job_id: "foo"
+        job_id: "revert-model-snapshot"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T01:00:00Z"
 
   - match: { count: 1 }
-  - match: { influencers.0.job_id: "foo" }
+  - match: { influencers.0.job_id: "revert-model-snapshot" }
   - match: { influencers.0.timestamp: 1462060800000 }
 
   - do:
       xpack.ml.get_job_stats:
-        job_id: foo
+        job_id: revert-model-snapshot
 
   - match: { jobs.0.data_counts.latest_record_timestamp: 1464739200000 }
 

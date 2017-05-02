@@ -11,10 +11,10 @@ setup:
 
   - do:
       xpack.ml.put_job:
-        job_id: datafeed-job
+        job_id: start-stop-datafeed-job
         body:  >
           {
-            "job_id":"datafeed-job",
+            "job_id":"start-stop-datafeed-job",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "1h",
@@ -28,10 +28,10 @@ setup:
           }
   - do:
       xpack.ml.put_datafeed:
-        datafeed_id: datafeed-1
+        datafeed_id: start-stop-datafeed-datafeed-1
         body:  >
           {
-            "job_id":"datafeed-job",
+            "job_id":"start-stop-datafeed-job",
             "indexes":"airline-data",
             "types":"response"
           }
@@ -40,58 +40,58 @@ setup:
 "Test start and stop datafeed happy path":
   - do:
       xpack.ml.open_job:
-        job_id: "datafeed-job"
+        job_id: "start-stop-datafeed-job"
   - do:
       xpack.ml.start_datafeed:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
         start: 0
   - do:
       xpack.ml.get_datafeed_stats:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
   - match: { datafeeds.0.state: started }
   - do:
       xpack.ml.stop_datafeed:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
   - do:
       xpack.ml.get_datafeed_stats:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
   - match: { datafeeds.0.state: stopped }
 
 ---
 "Test force stop datafeed":
   - do:
       xpack.ml.open_job:
-        job_id: "datafeed-job"
+        job_id: "start-stop-datafeed-job"
   - do:
       xpack.ml.start_datafeed:
-        "datafeed_id": "datafeed-1"
+        "datafeed_id": "start-stop-datafeed-datafeed-1"
         "start": 0
   - do:
       xpack.ml.get_datafeed_stats:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
   - match: { datafeeds.0.state: started }
 
   - do:
       xpack.ml.stop_datafeed:
-        "datafeed_id": "datafeed-1"
+        "datafeed_id": "start-stop-datafeed-datafeed-1"
         force: true
   - do:
       xpack.ml.get_datafeed_stats:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
   - match: { datafeeds.0.state: stopped }
 
 ---
 "Test start datafeed given start is now":
   - do:
       xpack.ml.open_job:
-        job_id: "datafeed-job"
+        job_id: "start-stop-datafeed-job"
   - do:
       xpack.ml.start_datafeed:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
         start: "now"
   - do:
       xpack.ml.get_datafeed_stats:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
   - match: { datafeeds.0.state: started }
 
 ---
@@ -107,33 +107,33 @@ setup:
     - do:
         catch: conflict
         xpack.ml.start_datafeed:
-          datafeed_id: "datafeed-1"
+          datafeed_id: "start-stop-datafeed-datafeed-1"
           start: 0
     - do:
-        catch: /cannot start datafeed \[datafeed-1\] because job \[datafeed-job\] is not open/
+        catch: /cannot start datafeed \[start-stop-datafeed-datafeed-1\] because job \[start-stop-datafeed-job\] is not open/
         xpack.ml.start_datafeed:
-          datafeed_id: "datafeed-1"
+          datafeed_id: "start-stop-datafeed-datafeed-1"
           start: 0
 
 ---
 "Test start already started datafeed job":
   - do:
       xpack.ml.open_job:
-        job_id: "datafeed-job"
+        job_id: "start-stop-datafeed-job"
   - do:
       xpack.ml.start_datafeed:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
         start: 0
   - do:
       catch: conflict
       xpack.ml.start_datafeed:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
         start: 0
 
   - do:
-      catch: /cannot start datafeed \[datafeed-1\] because it has already been started/
+      catch: /cannot start datafeed \[start-stop-datafeed-datafeed-1\] because it has already been started/
       xpack.ml.start_datafeed:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
         start: 0
 
 ---
@@ -148,22 +148,22 @@ setup:
   - do:
       catch: conflict
       xpack.ml.stop_datafeed:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
   - do:
-      catch: /Cannot stop datafeed \[datafeed-1\] because it has already been stopped/
+      catch: /Cannot stop datafeed \[start-stop-datafeed-datafeed-1\] because it has already been stopped/
       xpack.ml.stop_datafeed:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
 
 ---
 "Test start given end earlier than start":
   - do:
       xpack.ml.open_job:
-        job_id: "datafeed-job"
+        job_id: "start-stop-datafeed-job"
 
   - do:
       catch: /.* start \[1485910800000\] must be earlier than end \[1485907200000\]/
       xpack.ml.start_datafeed:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
         start: "2017-02-01T01:00:00Z"
         end: "2017-02-01T00:00:00Z"
 
@@ -171,12 +171,12 @@ setup:
 "Test start given end same as start":
   - do:
       xpack.ml.open_job:
-        job_id: "datafeed-job"
+        job_id: "start-stop-datafeed-job"
 
   - do:
       catch: /.* start \[1485910800000\] must be earlier than end \[1485910800000\]/
       xpack.ml.start_datafeed:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"
         start: "2017-02-01T01:00:00Z"
         end: "2017-02-01T01:00:00Z"
 
@@ -184,7 +184,7 @@ setup:
 "Test start given datafeed index does not exist":
   - do:
       xpack.ml.update_datafeed:
-        datafeed_id: datafeed-1
+        datafeed_id: start-stop-datafeed-datafeed-1
         body:  >
           {
             "indexes":["utopia"]
@@ -192,9 +192,9 @@ setup:
 
   - do:
       xpack.ml.open_job:
-        job_id: "datafeed-job"
+        job_id: "start-stop-datafeed-job"
 
   - do:
-      catch: /No node found to start datafeed \[datafeed-1\].*\[utopia\] does not exist.*/
+      catch: /No node found to start datafeed \[start-stop-datafeed-datafeed-1\].*\[utopia\] does not exist.*/
       xpack.ml.start_datafeed:
-        datafeed_id: "datafeed-1"
+        datafeed_id: "start-stop-datafeed-datafeed-1"

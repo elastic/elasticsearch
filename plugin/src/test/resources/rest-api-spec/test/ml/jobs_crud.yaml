@@ -18,7 +18,7 @@
 
   - do:
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: job-crud-test-apis
         body:  >
           {
             "description":"Analysis of response time by airline",
@@ -32,22 +32,22 @@
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
-  - match: { job_id: "farequote" }
+  - match: { job_id: "job-crud-test-apis" }
 
   - do:
       xpack.ml.get_jobs:
-        job_id: "farequote"
+        job_id: "job-crud-test-apis"
   - match: { count: 1 }
-  - match: { jobs.0.job_id: "farequote" }
+  - match: { jobs.0.job_id: "job-crud-test-apis" }
 
   - do:
       xpack.ml.delete_job:
-        job_id: "farequote"
+        job_id: "job-crud-test-apis"
   - match: { acknowledged: true }
 
   - do:
       indices.exists:
-        index: ".ml-anomalies-farequote"
+        index: ".ml-anomalies-job-crud-test-apis"
   - is_false: ''
 
 ---
@@ -101,10 +101,10 @@
 "Test put job with id that is already taken":
   - do:
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: jobs-crud-id-already-taken
         body:  >
           {
-            "job_id":"farequote",
+            "job_id":"jobs-crud-id-already-taken",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "3600000ms",
@@ -116,15 +116,15 @@
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
-  - match: { job_id: "farequote" }
+  - match: { job_id: "jobs-crud-id-already-taken" }
 
   - do:
       catch: /resource_already_exists_exception/
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: jobs-crud-id-already-taken
         body:  >
           {
-            "job_id":"farequote",
+            "job_id":"jobs-crud-id-already-taken",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "1h",
@@ -137,12 +137,12 @@
             }
           }
   - do:
-      catch: /The job cannot be created with the Id 'farequote'. The Id is already used./
+      catch: /The job cannot be created with the Id 'jobs-crud-id-already-taken'. The Id is already used./
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: jobs-crud-id-already-taken
         body:  >
           {
-            "job_id":"farequote",
+            "job_id":"jobs-crud-id-already-taken",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "1h",
@@ -157,10 +157,10 @@
   - do:
       catch: param
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: jobs-crud-id-already-taken
         body:  >
           {
-            "job_id":"farequote",
+            "job_id":"jobs-crud-id-already-taken",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "1h",
@@ -177,7 +177,7 @@
 "Test update job":
   - do:
       xpack.ml.put_job:
-        job_id: to-update
+        job_id: jobs-crud-update-job
         body:  >
           {
             "description":"Pre update description",
@@ -206,15 +206,15 @@
               "setting2": "custom2"
             }
           }
-  - match: { job_id: "to-update" }
+  - match: { job_id: "jobs-crud-update-job" }
 
   - do:
       xpack.ml.open_job:
-        job_id: to-update
+        job_id: jobs-crud-update-job
 
   - do:
       xpack.ml.update_job:
-        job_id: to-update
+        job_id: jobs-crud-update-job
         body:  >
           {
             "description":"Post update description",
@@ -238,7 +238,7 @@
               "setting3": "custom3"
             }
           }
-  - match: { job_id: "to-update" }
+  - match: { job_id: "jobs-crud-update-job" }
   - match: { description: "Post update description" }
   - match: { model_plot_config.enabled: false }
   - match: { model_plot_config.terms: "foobar" }
@@ -264,10 +264,10 @@
 "Test delete job that is referred by a datafeed":
   - do:
       xpack.ml.put_job:
-        job_id: datafeed-job
+        job_id: jobs-crud-datafeed-job
         body:  >
           {
-            "job_id":"datafeed-job",
+            "job_id":"jobs-crud-datafeed-job",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "1h",
@@ -279,32 +279,32 @@
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
-  - match: { job_id: "datafeed-job" }
+  - match: { job_id: "jobs-crud-datafeed-job" }
 
   - do:
       xpack.ml.put_datafeed:
-        datafeed_id: test-datafeed-1
+        datafeed_id: jobs-crud-test-datafeed-1
         body:  >
           {
-            "job_id":"datafeed-job",
+            "job_id":"jobs-crud-datafeed-job",
             "indexes":["index-foo"],
             "types":["type-bar"]
           }
-  - match: { datafeed_id: "test-datafeed-1" }
+  - match: { datafeed_id: "jobs-crud-test-datafeed-1" }
 
   - do:
-      catch: /Cannot delete job \[datafeed-job\] because datafeed \[test-datafeed-1\] refers to it/
+      catch: /Cannot delete job \[jobs-crud-datafeed-job\] because datafeed \[jobs-crud-test-datafeed-1\] refers to it/
       xpack.ml.delete_job:
-        job_id: datafeed-job
+        job_id: jobs-crud-datafeed-job
 ---
 "Test close job":
 
   - do:
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: jobs-crud-close-job
         body:  >
           {
-            "job_id":"farequote",
+            "job_id":"jobs-crud-close-job",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span":"1h",
@@ -316,23 +316,23 @@
                 "time_format":"epoch"
             }
           }
-  - match: { job_id: "farequote" }
+  - match: { job_id: "jobs-crud-close-job" }
 
   - do:
       xpack.ml.open_job:
-        job_id: farequote
+        job_id: jobs-crud-close-job
 
   - do:
       xpack.ml.post_data:
-        job_id: farequote
+        job_id: jobs-crud-close-job
         body: >
-          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
-          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+          {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","time":"1403481700"}
 
 
   - do:
       xpack.ml.flush_job:
-        job_id: farequote
+        job_id: jobs-crud-close-job
   - match: { flushed: true }
 
   - do:
@@ -343,7 +343,7 @@
 
   - do:
       xpack.ml.close_job:
-        job_id: farequote
+        job_id: jobs-crud-close-job
   - match: { closed: true }
 
   - do:
@@ -358,10 +358,10 @@
 
   - do:
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: jobs-crud-force-close-job
         body:  >
           {
-            "job_id":"farequote",
+            "job_id":"jobs-crud-force-close-job",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span":"1h",
@@ -373,23 +373,23 @@
                 "time_format":"epoch"
             }
           }
-  - match: { job_id: "farequote" }
+  - match: { job_id: "jobs-crud-force-close-job" }
 
   - do:
       xpack.ml.open_job:
-        job_id: farequote
+        job_id: jobs-crud-force-close-job
 
   - do:
       xpack.ml.post_data:
-        job_id: farequote
+        job_id: jobs-crud-force-close-job
         body: >
-          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
-          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+          {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","time":"1403481700"}
 
 
   - do:
       xpack.ml.flush_job:
-        job_id: farequote
+        job_id: jobs-crud-force-close-job
   - match: { flushed: true }
 
   - do:
@@ -400,7 +400,7 @@
 
   - do:
       xpack.ml.close_job:
-        job_id: farequote
+        job_id: jobs-crud-force-close-job
         force: true
   - match: { closed: true }
 

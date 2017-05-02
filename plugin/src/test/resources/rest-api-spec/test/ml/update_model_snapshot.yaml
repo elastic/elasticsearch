@@ -1,7 +1,7 @@
 setup:
   - do:
       xpack.ml.put_job:
-        job_id: foo
+        job_id: update-model-snapshot
         body:  >
           {
             "analysis_config" : {
@@ -15,40 +15,40 @@ setup:
 
   - do:
       index:
-        index:  .ml-anomalies-foo
+        index:  .ml-anomalies-update-model-snapshot
         type:   model_snapshot
         id:     "1"
         body: >
           {
-            "job_id" : "foo",
+            "job_id" : "update-model-snapshot",
             "timestamp": "2016-06-02T00:00:00Z",
-            "snapshot_id": "foo",
+            "snapshot_id": "snapshot-1",
             "retain": false
           }
 
   - do:
       index:
-        index:  .ml-anomalies-foo
+        index:  .ml-anomalies-update-model-snapshot
         type:   model_snapshot
         id:     "2"
         body: >
           {
-            "job_id": "foo",
+            "job_id": "update-model-snapshot",
             "timestamp": "2016-06-01T00:00:00Z",
-            "snapshot_id": "bar",
-            "description": "bar",
+            "snapshot_id": "snapshot-2",
+            "description": "snapshot 2 description",
             "retain": true
           }
 
   - do:
       indices.refresh:
-        index: .ml-anomalies-foo
+        index: .ml-anomalies-update-model-snapshot
 
 ---
 "Test with valid description":
   - do:
       xpack.ml.get_model_snapshots:
-        job_id: "foo"
+        job_id: "update-model-snapshot"
         description: "new_description"
 
   - match: { count: 0 }
@@ -56,8 +56,8 @@ setup:
 
   - do:
       xpack.ml.update_model_snapshot:
-        job_id: "foo"
-        snapshot_id: "foo"
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-1"
         body: >
           {
             "description": "new_description"
@@ -69,44 +69,45 @@ setup:
 
   - do:
       indices.refresh:
-        index: .ml-anomalies-foo
+        index: .ml-anomalies-update-model-snapshot
 
   - do:
       xpack.ml.get_model_snapshots:
-        job_id: "foo"
+        job_id: "update-model-snapshot"
         description: "new_description"
 
   - match: { count: 1 }
+  - match: { model_snapshots.0.snapshot_id: "snapshot-1" }
   - match: { model_snapshots.0.timestamp: 1464825600000 }
 
 ---
 "Test with conflict against existing description":
   - do:
       xpack.ml.get_model_snapshots:
-        job_id: "foo"
-        description: "bar"
+        job_id: "update-model-snapshot"
+        description: "2"
 
   - match: { count: 1 }
   - length: { model_snapshots: 1 }
-  - match: { model_snapshots.0.job_id: "foo" }
-  - match: { model_snapshots.0.description: "bar" }
+  - match: { model_snapshots.0.job_id: "update-model-snapshot" }
+  - match: { model_snapshots.0.description: "snapshot 2 description" }
 
   - do:
       catch: request
       xpack.ml.update_model_snapshot:
-        job_id: "foo"
-        snapshot_id: "foo"
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-1"
         body: >
           {
-            "description": "bar"
+            "description": "snapshot"
           }
 
 ---
 "Test with retain":
   - do:
       xpack.ml.update_model_snapshot:
-        job_id: "foo"
-        snapshot_id: "foo"
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-1"
         body: >
           {
             "retain": true
@@ -117,8 +118,8 @@ setup:
 
   - do:
       xpack.ml.update_model_snapshot:
-        job_id: "foo"
-        snapshot_id: "bar"
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-2"
         body: >
           {
             "retain": false
@@ -126,22 +127,22 @@ setup:
 
   - match: { acknowledged: true }
   - match: { model.retain: false }
-  - match: { model.description: "bar" }
+  - match: { model.description: "snapshot 2 description" }
 
 ---
 "Test with all fields":
   - do:
       xpack.ml.update_model_snapshot:
-        job_id: "foo"
-        snapshot_id: "foo"
+        job_id: "update-model-snapshot"
+        snapshot_id: "snapshot-1"
         body: >
           {
-            "description": "new foo",
+            "description": "new snapshot 1 description",
             "retain": true
           }
 
   - match: { acknowledged: true }
-  - match: { model.description: "new foo" }
+  - match: { model.description: "new snapshot 1 description" }
   - match: { model.retain: true }
 
 ---
@@ -150,7 +151,7 @@ setup:
       catch: missing
       xpack.ml.update_model_snapshot:
         job_id: "non-existent-job"
-        snapshot_id: "foo"
+        snapshot_id: "san"
         body: >
           {
             "description": "new foo",

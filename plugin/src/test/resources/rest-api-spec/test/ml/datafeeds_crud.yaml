@@ -1,10 +1,10 @@
 setup:
   - do:
       xpack.ml.put_job:
-        job_id: job-1
+        job_id: datafeeds-crud-1
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"datafeeds-crud-1",
             "analysis_config" : {
                 "bucket_span": "1h",
                 "detectors" :[{"function":"count"}]
@@ -18,7 +18,7 @@ setup:
 
   - do:
       xpack.ml.put_job:
-        job_id: job-2
+        job_id: datafeeds-crud-2
         body:  >
           {
             "analysis_config" : {
@@ -65,12 +65,12 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"]
           }
   - match: { datafeed_id: "test-datafeed-1" }
-  - match: { job_id: "job-1" }
+  - match: { job_id: "datafeeds-crud-1" }
   - match: { indexes: ["index-foo"] }
   - match: { types: ["type-bar"] }
   - match: { scroll_size: 1000 }
@@ -84,7 +84,7 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"]
           }
@@ -96,7 +96,7 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id":"job-2",
+            "job_id":"datafeeds-crud-2",
             "indexes":["index-foo"],
             "types":["type-bar"]
           }
@@ -108,19 +108,19 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"]
           }
   - match: { datafeed_id: "test-datafeed-1" }
 
   - do:
-      catch: /A datafeed \[test-datafeed-1\] already exists for job \[job-1\]/
+      catch: /A datafeed \[test-datafeed-1\] already exists for job \[datafeeds-crud-1\]/
       xpack.ml.put_datafeed:
         datafeed_id: test-datafeed-2
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"]
           }
@@ -133,7 +133,7 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"],
             "query":{"match_all_mispelled":{}}
@@ -146,7 +146,7 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"],
             "scroll_size": 2000,
@@ -165,7 +165,7 @@ setup:
             "query_delay": "0s"
           }
   - match: { datafeed_id: "test-datafeed-1" }
-  - match: { job_id: "job-1" }
+  - match: { job_id: "datafeeds-crud-1" }
   - match: { indexes: ["index-*"] }
   - match: { types: ["type-bar"] }
   - match: { scroll_size: 10000 }
@@ -179,7 +179,7 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"],
             "scroll_size": 2000
@@ -190,10 +190,10 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id": "job-2"
+            "job_id": "datafeeds-crud-2"
           }
   - match: { datafeed_id: "test-datafeed-1" }
-  - match: { job_id: "job-2" }
+  - match: { job_id: "datafeeds-crud-2" }
   - match: { indexes: ["index-foo"] }
   - match: { types: ["type-bar"] }
 
@@ -214,7 +214,7 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"],
             "scroll_size": 2000
@@ -226,7 +226,7 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id": "job-3"
+            "job_id": "update-datafeed-missing-job"
           }
 
 ---
@@ -236,7 +236,7 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"]
           }
@@ -246,18 +246,18 @@ setup:
         datafeed_id: test-datafeed-2
         body:  >
           {
-            "job_id":"job-2",
+            "job_id":"datafeeds-crud-2",
             "indexes":["index-foo"],
             "types":["type-bar"]
           }
 
   - do:
-      catch: /A datafeed \[test-datafeed-2\] already exists for job \[job-2\]/
+      catch: /A datafeed \[test-datafeed-2\] already exists for job \[datafeeds-crud-2\]/
       xpack.ml.update_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id": "job-2"
+            "job_id": "datafeeds-crud-2"
           }
 
 ---
@@ -274,7 +274,7 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"],
             "chunking_config": {"mode":"manual","time_span": "1h"}
@@ -290,7 +290,7 @@ setup:
         datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id":"job-1",
+            "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"]
           }

@@ -1,10 +1,10 @@
 setup:
   - do:
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: post-data-job
         body:  >
           {
-            "job_id":"farequote",
+            "job_id":"post-data-job",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "1h",
@@ -19,10 +19,10 @@ setup:
 
   - do:
       xpack.ml.put_job:
-        job_id: closed_job
+        job_id: post-data-closed-job
         body:  >
           {
-            "job_id":"closed_job",
+            "job_id":"post-data-closed-job",
             "description":"A closed job",
             "analysis_config" : {
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
@@ -34,21 +34,21 @@ setup:
 
   - do:
       xpack.ml.open_job:
-        job_id: farequote
+        job_id: post-data-job
 
 ---
 "Test POST data job api, flush, close and verify DataCounts doc":
   - do:
       xpack.ml.post_data:
-        job_id: farequote
+        job_id: post-data-job
         body:
           - airline: AAL
             responsetime: 132.2046
-            sourcetype: farequote
+            sourcetype: post-data-job
             time: 1403481600
           - airline: JZA
             responsetime: 990.4628
-            sourcetype: farequote
+            sourcetype: post-data-job
             time: 1403481700
 
   - match: { processed_record_count: 2 }
@@ -64,24 +64,24 @@ setup:
 
   - do:
       xpack.ml.flush_job:
-        job_id: farequote
+        job_id: post-data-job
   - match: { flushed: true }
 
   - do:
       xpack.ml.close_job:
-        job_id: farequote
+        job_id: post-data-job
   - match: { closed: true }
 
   - do:
       xpack.ml.get_job_stats:
-        job_id: farequote
+        job_id: post-data-job
   - match: { jobs.0.state: "closed" }
 
   - do:
       get:
-        index: .ml-anomalies-farequote
+        index: .ml-anomalies-post-data-job
         type: data_counts
-        id: farequote-data-counts
+        id: post-data-job-data-counts
 
   - match: { _source.processed_record_count: 2 }
   - match: { _source.processed_field_count: 4}
@@ -98,17 +98,17 @@ setup:
 "Test flush and close job WITHOUT sending any data":
   - do:
       xpack.ml.flush_job:
-        job_id: farequote
+        job_id: post-data-job
   - match: { flushed: true }
 
   - do:
       xpack.ml.close_job:
-        job_id: farequote
+        job_id: post-data-job
   - match: { closed: true }
 
   - do:
       xpack.ml.get_job_stats:
-        job_id: farequote
+        job_id: post-data-job
   - match: { jobs.0.state: "closed" }
 
 ---
@@ -131,7 +131,7 @@ setup:
   - do:
       catch: /parse_exception/
       xpack.ml.post_data:
-        job_id: farequote
+        job_id: post-data-job
         reset_start: not_a_date
         body:
           - airline: AAL
@@ -146,7 +146,7 @@ setup:
   - do:
       catch: /parse_exception/
       xpack.ml.post_data:
-        job_id: farequote
+        job_id: post-data-job
         reset_end: end_not_a_date
         body:
           - airline: AAL
@@ -168,19 +168,19 @@ setup:
   - do:
       catch: /parse_exception/
       xpack.ml.flush_job:
-        job_id: farequote
+        job_id: post-data-job
         start: not_a_date
 
   - do:
       catch: /parse_exception/
       xpack.ml.flush_job:
-        job_id: farequote
+        job_id: post-data-job
         end: end_not_a_date
 
   - do:
       catch: /parse_exception/
       xpack.ml.flush_job:
-        job_id: farequote
+        job_id: post-data-job
         advance_time: advance_time_not_a_date
 
 ---
@@ -201,17 +201,17 @@ setup:
   - do:
       catch: /status_exception/
       xpack.ml.flush_job:
-        job_id: closed_job
+        job_id: post-data-closed-job
 
   - do:
       catch: /status_exception/
       xpack.ml.close_job:
-        job_id: closed_job
+        job_id: post-data-closed-job
 
   - do:
       catch: /status_exception/
       xpack.ml.post_data:
-        job_id: closed_job
+        job_id: post-data-closed-job
         body:
           - airline: AAL
             responsetime: 132.2046

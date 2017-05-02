@@ -1,7 +1,7 @@
 setup:
   - do:
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: jobs-get-result-buckets
         body:  >
           {
             "analysis_config" : {
@@ -15,12 +15,12 @@ setup:
 
   - do:
       index:
-        index:  .ml-anomalies-farequote
+        index:  .ml-anomalies-jobs-get-result-buckets
         type:   result
-        id:     "farequote_1464739200000_1"
+        id:     "jobs-get-result-buckets_1464739200000_1"
         body:
           {
-            "job_id": "farequote",
+            "job_id": "jobs-get-result-buckets",
             "result_type": "bucket",
             "timestamp": "2016-06-01T00:00:00Z",
             "bucket_span":1
@@ -28,12 +28,12 @@ setup:
 
   - do:
       index:
-        index:  .ml-anomalies-farequote
+        index:  .ml-anomalies-jobs-get-result-buckets
         type:   result
-        id:     "farequote_1464739200000_2"
+        id:     "jobs-get-result-buckets_1464739200000_2"
         body:
           {
-            "job_id": "farequote",
+            "job_id": "jobs-get-result-buckets",
             "result_type": "bucket",
             "timestamp": "2016-08-01T00:00:00Z",
             "bucket_span":1,
@@ -42,33 +42,33 @@ setup:
 
   - do:
       indices.refresh:
-        index: .ml-anomalies-farequote
+        index: .ml-anomalies-jobs-get-result-buckets
 
 ---
 "Test result buckets api with time range":
   - do:
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         start: "2016-05-01T00:00:00Z"
         end: "2016-07-01T00:00:00Z"
 
   - match: { count: 1 }
   - match: { buckets.0.timestamp: 1464739200000 }
-  - match: { buckets.0.job_id: farequote}
+  - match: { buckets.0.job_id: jobs-get-result-buckets}
   - match: { buckets.0.result_type: bucket}
 
 ---
 "Test result buckets api":
   - do:
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
 
   - match: { count: 2 }
   - match: { buckets.0.timestamp: 1464739200000 }
-  - match: { buckets.0.job_id: farequote}
+  - match: { buckets.0.job_id: jobs-get-result-buckets}
   - match: { buckets.0.result_type: bucket}
   - match: { buckets.1.timestamp: 1470009600000 }
-  - match: { buckets.1.job_id: farequote}
+  - match: { buckets.1.job_id: jobs-get-result-buckets}
   - match: { buckets.1.result_type: bucket}
   - is_false: buckets.0.partition_scores
   - is_false: buckets.1.partition_scores
@@ -77,7 +77,7 @@ setup:
 "Test get buckets given exclude_interim is false":
   - do:
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         exclude_interim: false
 
   - match: { count: 2 }
@@ -86,7 +86,7 @@ setup:
 "Test get buckets given exclude_interim is true":
   - do:
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         exclude_interim: true
 
   - match: { count: 1 }
@@ -97,11 +97,11 @@ setup:
 "Test result single bucket api":
   - do:
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
 
   - match: { buckets.0.timestamp: 1464739200000}
-  - match: { buckets.0.job_id: farequote }
+  - match: { buckets.0.job_id: jobs-get-result-buckets }
   - match: { buckets.0.result_type: bucket}
 
 ---
@@ -109,35 +109,35 @@ setup:
   - do:
       catch: request
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         start: "2016-05-01T00:00:00Z"
 
   - do:
       catch: request
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         end: "2016-05-01T00:00:00Z"
 
   - do:
       catch: request
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         from: "2016-05-01T00:00:00Z"
 
   - do:
       catch: request
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         end: "2016-05-01T00:00:00Z"
 
   - do:
       catch: request
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         anomaly_score: "80.0"
 
@@ -146,7 +146,7 @@ setup:
   - do:
       catch: request
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         body:
           timestamp: "2016-06-01T00:00:00Z"
           start: "2016-05-01T00:00:00Z"
@@ -154,7 +154,7 @@ setup:
   - do:
       catch: request
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         body:
           timestamp: "2016-06-01T00:00:00Z"
           end: "2016-05-01T00:00:00Z"
@@ -162,7 +162,7 @@ setup:
   - do:
       catch: request
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         body:
           timestamp: "2016-06-01T00:00:00Z"
           from: "2016-05-01T00:00:00Z"
@@ -170,7 +170,7 @@ setup:
   - do:
       catch: request
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         body:
           timestamp: "2016-06-01T00:00:00Z"
           end: "2016-05-01T00:00:00Z"
@@ -178,7 +178,7 @@ setup:
   - do:
       catch: request
       xpack.ml.get_buckets:
-        job_id: "farequote"
+        job_id: "jobs-get-result-buckets"
         body:
           timestamp: "2016-06-01T00:00:00Z"
           anomaly_score: "80.0"

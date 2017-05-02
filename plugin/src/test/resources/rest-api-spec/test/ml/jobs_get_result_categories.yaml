@@ -1,7 +1,7 @@
 setup:
   - do:
       xpack.ml.put_job:
-        job_id: farequote
+        job_id: jobs-get-result-categories
         body:  >
           {
             "analysis_config" : {
@@ -15,68 +15,68 @@ setup:
 
   - do:
       index:
-        index:  .ml-anomalies-farequote
+        index:  .ml-anomalies-jobs-get-result-categories
         type:   category_definition
-        id:     farequote-1
-        body:   { "job_id": "farequote", "category_id": 1 }
+        id:     jobs-get-result-categories-1
+        body:   { "job_id": "jobs-get-result-categories", "category_id": 1 }
   - do:
       index:
-        index:  .ml-anomalies-farequote
+        index:  .ml-anomalies-jobs-get-result-categories
         type:   category_definition
-        id:     farequote-2
-        body:   { "job_id": "farequote", "category_id": 2 }
+        id:     jobs-get-result-categories-2
+        body:   { "job_id": "jobs-get-result-categories", "category_id": 2 }
   - do:
       index:
         index:  .ml-anomalies-unrelated
         type:   category_definition
-        id:     farequote-3
+        id:     jobs-get-result-categories-3
         body:   { "job_id": "unrelated", "category_id": 1 }
 
   - do:
       indices.refresh:
-        index: .ml-anomalies-farequote
+        index: .ml-anomalies-jobs-get-result-categories
 
 ---
 "Test result categories api":
   - do:
       xpack.ml.get_categories:
-        job_id: "farequote"
+        job_id: "jobs-get-result-categories"
 
   - match: { count: 2 }
-  - match: { categories.0.job_id: farequote }
+  - match: { categories.0.job_id: jobs-get-result-categories }
   - match: { categories.0.category_id: 1 }
-  - match: { categories.1.job_id: farequote }
+  - match: { categories.1.job_id: jobs-get-result-categories }
   - match: { categories.1.category_id: 2 }
 
 ---
 "Test get categories with pagination":
   - do:
       xpack.ml.get_categories:
-        job_id: "farequote"
+        job_id: "jobs-get-result-categories"
         size: 1
 
   - length: { categories: 1 }
-  - match: { categories.0.job_id: farequote }
+  - match: { categories.0.job_id: jobs-get-result-categories }
   - match: { categories.0.category_id: 1 }
 
   - do:
      xpack.ml.get_categories:
-        job_id: "farequote"
+        job_id: "jobs-get-result-categories"
         from: 1
         size: 2
 
   - length: { categories: 1 }
-  - match: { categories.0.job_id: farequote }
+  - match: { categories.0.job_id: jobs-get-result-categories }
   - match: { categories.0.category_id: 2 }
 
 ---
 "Test get category by id":
   - do:
       xpack.ml.get_categories:
-        job_id: "farequote"
+        job_id: "jobs-get-result-categories"
         category_id: "1"
 
-  - match: { categories.0.job_id: farequote }
+  - match: { categories.0.job_id: jobs-get-result-categories }
   - match: { categories.0.category_id: 1 }
 
 ---
@@ -84,21 +84,21 @@ setup:
   - do:
       catch: request
       xpack.ml.get_categories:
-        job_id: "farequote"
+        job_id: "jobs-get-result-categories"
         category_id: "1"
         from: 0
 
   - do:
       catch: request
       xpack.ml.get_categories:
-        job_id: "farequote"
+        job_id: "jobs-get-result-categories"
         category_id: "1"
         size: 1
 
   - do:
       catch: request
       xpack.ml.get_categories:
-        job_id: "farequote"
+        job_id: "jobs-get-result-categories"
         category_id: "1"
         from: 0
         size: 1
@@ -108,7 +108,7 @@ setup:
   - do:
       catch: request
       xpack.ml.get_categories:
-        job_id: "farequote"
+        job_id: "jobs-get-result-categories"
         category_id: "1"
         body:
           from: 0
@@ -116,7 +116,7 @@ setup:
   - do:
       catch: request
       xpack.ml.get_categories:
-        job_id: "farequote"
+        job_id: "jobs-get-result-categories"
         category_id: "1"
         body:
           size: 1
@@ -124,7 +124,7 @@ setup:
   - do:
       catch: request
       xpack.ml.get_categories:
-        job_id: "farequote"
+        job_id: "jobs-get-result-categories"
         category_id: "1"
         body:
           from: 0

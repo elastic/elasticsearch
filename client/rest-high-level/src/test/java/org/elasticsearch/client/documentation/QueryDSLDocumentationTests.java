@@ -134,7 +134,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testExists() {
         // tag::exists
-        existsQuery("name");   // <1>
+        existsQuery("name");                                         // <1>
         // end::exists
     }
 

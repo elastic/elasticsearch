@@ -741,8 +741,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             // There is no need to synchronize writes here. In the case of concurrent access, we could just
             // compute some mappers several times, which is not a big deal
-            Map<String, MappedFieldType> newUnmappedFieldTypes = new HashMap<>();
-            newUnmappedFieldTypes.putAll(unmappedFieldTypes);
+            Map<String, MappedFieldType> newUnmappedFieldTypes = new HashMap<>(unmappedFieldTypes);
             newUnmappedFieldTypes.put(type, fieldType);
             unmappedFieldTypes = unmodifiableMap(newUnmappedFieldTypes);
         }

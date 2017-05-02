@@ -48,7 +48,8 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         double max = randomDoubleBetween(-1000000, 1000000, true);
         double sum = randomDoubleBetween(-1000000, 1000000, true);
         DocValueFormat format = randomNumericDocValueFormat();
-        return createInstance(name, count, sum, min, max, randomDoubleBetween(0, 1000000, true), sigma, format, pipelineAggregators, metaData);
+        return createInstance(name, count, sum, min, max, randomDoubleBetween(0, 1000000, true),
+                sigma, format, pipelineAggregators, metaData);
     }
 
     protected InternalExtendedStats createInstance(String name, long count, double sum, double min, double max, double sumOfSqrs,

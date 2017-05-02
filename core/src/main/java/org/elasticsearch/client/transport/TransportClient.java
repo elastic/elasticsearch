@@ -129,10 +129,8 @@ public abstract class TransportClient extends AbstractClient {
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
         final NetworkService networkService = new NetworkService(settings, Collections.emptyList());
         try {
-            final List<Setting<?>> additionalSettings = new ArrayList<>();
-            final List<String> additionalSettingsFilter = new ArrayList<>();
-            additionalSettings.addAll(pluginsService.getPluginSettings());
-            additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
+            final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.getPluginSettings());
+            final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
@@ -194,8 +192,7 @@ public abstract class TransportClient extends AbstractClient {
             final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService,
                 actionModule.getActions().values().stream().map(x -> x.getAction()).collect(Collectors.toList()));
 
-            List<LifecycleComponent> pluginLifecycleComponents = new ArrayList<>();
-            pluginLifecycleComponents.addAll(pluginsService.getGuiceServiceClasses().stream()
+            List<LifecycleComponent> pluginLifecycleComponents = new ArrayList<>(pluginsService.getGuiceServiceClasses().stream()
                 .map(injector::getInstance).collect(Collectors.toList()));
             resourcesToClose.addAll(pluginLifecycleComponents);
 

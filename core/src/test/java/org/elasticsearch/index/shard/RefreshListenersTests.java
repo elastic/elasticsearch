@@ -56,6 +56,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Cancellable;
@@ -272,6 +273,7 @@ public class RefreshListenersTests extends ESTestCase {
      * Uses a bunch of threads to index, wait for refresh, and non-realtime get documents to validate that they are visible after waiting
      * regardless of what crazy sequence of events causes the refresh listener to fire.
      */
+    @TestLogging("_root:debug,org.elasticsearch.index.engine.Engine.DW:trace")
     public void testLotsOfThreads() throws Exception {
         int threadCount = between(3, 10);
         maxListeners = between(1, threadCount * 2);

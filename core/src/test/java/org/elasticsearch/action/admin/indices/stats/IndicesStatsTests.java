@@ -23,6 +23,7 @@ import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -30,8 +31,10 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
@@ -115,6 +118,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         }
     }
 
+    @TestLogging("_root:debug")
     public void testRefreshListeners() throws Exception {
         // Create an index without automatic refreshes
         createIndex("test", Settings.builder().put("refresh_interval", -1).build());
@@ -124,11 +128,19 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).execute();
 
         // Wait for the refresh listener to appear in the stats
-        assertBusy(() -> {
-            IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().setRefresh(true).get();
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (true) {
+            IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().setRefresh(true).setDocs(true).get();
             CommonStats common = stats.getIndices().get("test").getTotal();
-            assertEquals(1, common.refresh.getListeners());
-        });
+            // There shouldn't be a doc. If there is then we did *something* weird.
+            assertEquals(0, common.docs.getCount());
+            if (1 == common.refresh.getListeners()) {
+                break;
+            }
+            if (end - System.nanoTime() < 0) {
+                fail("didn't get a refresh listener in time: " + Strings.toString(common));
+            }
+        }
 
         // Refresh the index and wait for the request to come back
         client().admin().indices().prepareRefresh("test").get();

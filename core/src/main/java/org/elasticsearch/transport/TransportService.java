@@ -83,6 +83,7 @@ public class TransportService extends AbstractLifecycleComponent {
     protected final TaskManager taskManager;
     private final TransportInterceptor.AsyncSender asyncSender;
     private final Function<BoundTransportAddress, DiscoveryNode> localNodeFactory;
+    private final boolean connectToRemoteCluster;
 
     volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     final Object requestHandlerMutex = new Object();
@@ -161,14 +162,13 @@ public class TransportService extends AbstractLifecycleComponent {
         taskManager = createTaskManager();
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
-        final boolean connectToRemoteCluster = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        this.connectToRemoteCluster = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
         remoteClusterService = new RemoteClusterService(settings, this);
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
             if (connectToRemoteCluster) {
-                clusterSettings.addAffixUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS,
-                    remoteClusterService::updateRemoteCluster, (namespace, value) -> {});
+                remoteClusterService.listenForUpdates(clusterSettings);
             }
         }
     }
@@ -222,7 +222,7 @@ public class TransportService extends AbstractLifecycleComponent {
             false, false,
             (request, channel) -> channel.sendResponse(
                     new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
-        if (remoteClusterService != null) {
+        if (connectToRemoteCluster) {
             // here we start to connect to the remote clusters
             remoteClusterService.initializeRemoteClusters();
         }

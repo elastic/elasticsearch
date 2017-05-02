@@ -22,6 +22,7 @@ package org.elasticsearch.index.seqno;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -248,7 +249,12 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @throws InterruptedException if the thread is interrupted waiting for the local checkpoint on the shard to advance
      */
     public synchronized void markAllocationIdAsInSync(final String allocationId, final long localCheckpoint) throws InterruptedException {
-        if (trackingLocalCheckpoints.containsKey(allocationId) == false) {
+        if (!trackingLocalCheckpoints.containsKey(allocationId)) {
+            /*
+             * This can happen if the recovery target has been failed and the cluster state update from the master has triggered removing
+             * this allocation ID from the tracking map but this recovery thread has not yet been made aware that the recovery is
+             * cancelled.
+             */
             return;
         }
 
@@ -257,7 +263,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     }
 
     private synchronized void waitForAllocationIdToBeInSync(final String allocationId) throws InterruptedException {
-        pendingInSync.add(allocationId);
+        if (!pendingInSync.add(allocationId)) {
+            throw new IllegalStateException("there is already a pending sync in progress for allocation ID [" + allocationId + "]");
+        }
         try {
             while (true) {
                 /*
@@ -269,6 +277,13 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                 if (current >= globalCheckpoint) {
                     logger.trace("marked [{}] as in-sync with local checkpoint [{}]", allocationId, current);
                     trackingLocalCheckpoints.remove(allocationId);
+                    /*
+                     * This is prematurely adding the allocation ID to the in-sync map as at this point recovery is not yet finished and
+                     * could still abort. At this point we will end up with a shard in the in-sync map holding back the global checkpoint
+                     * because the shard never recovered and we would have to wait until either the recovery retries and completes
+                     * successfully, or the master fails the shard and issues a cluster state update that removes the shard from the set of
+                     * active allocation IDs.
+                     */
                     inSyncLocalCheckpoints.put(allocationId, current);
                     break;
                 } else {

@@ -77,12 +77,10 @@ public class SearchTransportService extends AbstractComponent {
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
 
     private final TransportService transportService;
-    private final RemoteClusterService remoteClusterService;
 
     public SearchTransportService(Settings settings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
-        this.remoteClusterService = transportService.getRemoteClusterService();
     }
 
     public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {
@@ -402,7 +400,7 @@ public class SearchTransportService extends AbstractComponent {
         if (clusterAlias == null) {
             return transportService.getConnection(node);
         } else {
-            return remoteClusterService.getConnection(node, clusterAlias);
+            return transportService.getRemoteClusterService().getConnection(node, clusterAlias);
         }
     }
 }

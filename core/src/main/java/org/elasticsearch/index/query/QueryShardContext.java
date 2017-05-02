@@ -392,7 +392,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     @Override
-    public final BytesReference getTemplateBytes(Script template) {
+    public final String getTemplateBytes(Script template) {
         failIfFrozen();
         return super.getTemplateBytes(template);
     }

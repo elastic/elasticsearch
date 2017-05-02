@@ -116,7 +116,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
                     QueryShardContext shardContext = suggestion.getShardContext();
                     final ExecutableScript executable = collateScript.apply(vars);
-                    final BytesReference querySource = (BytesReference) executable.run();
+                    final String querySource = (String) executable.run();
                     try (XContentParser parser = XContentFactory.xContent(querySource).createParser(shardContext.getXContentRegistry(),
                             querySource)) {
                         QueryBuilder innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();

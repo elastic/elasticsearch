@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -75,8 +76,8 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
             Script script = new Script(request.getScriptType(), TEMPLATE_LANG, request.getScript(),
                 request.getScriptParams() == null ? Collections.emptyMap() : request.getScriptParams());
             CompiledTemplate compiledScript = scriptService.compileTemplate(script, SEARCH);
-            BytesReference source = compiledScript.run(script.getParams());
-            response.setSource(source);
+            String source = compiledScript.run(script.getParams());
+            response.setSource(new BytesArray(source));
 
             if (request.isSimulate()) {
                 listener.onResponse(response);

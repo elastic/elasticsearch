@@ -325,7 +325,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     /** Compiles a template. Note this will be moved to a separate TemplateService in the future. */
     public CompiledTemplate compileTemplate(Script script, ScriptContext scriptContext) {
         CompiledScript compiledScript = compile(script, scriptContext);
-        return params -> (BytesReference)executable(compiledScript, params).run();
+        return params -> (String)executable(compiledScript, params).run();
     }
 
     /**

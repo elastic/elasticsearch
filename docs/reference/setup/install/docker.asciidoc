@@ -3,7 +3,7 @@
 
 Elasticsearch is also available as a Docker image.
 The image is built with {xpack}/index.html[X-Pack] and uses https://hub.docker.com/_/centos/[centos:7] as the base image.
-The source code can be found on https://github.com/elastic/elasticsearch-docker/tree/{branch}[github].
+The source code can be found on https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
 
 ==== Security note
 
@@ -263,7 +263,7 @@ We have collected a number of best practices for production use.
 
 NOTE: Any Docker parameters mentioned below assume the use of `docker run`.
 
-. Elasticsearch inside the container runs as user `elasticsearch` using uid:gid `1000:1000`. If you are bind mounting a local directory or file, ensure it is readable by this user, while the <<path-settings,data and log dirs>> additionally require write access.
+. Elasticsearch runs inside the container as user `elasticsearch` using uid:gid `1000:1000`. If you are bind-mounting a local directory or file, ensure it is readable by this user, while the <<path-settings,data and log dirs>> additionally require write access.
 +
 . It is important to ensure increased ulimits for <<setting-system-settings,nofile>> and https://www.elastic.co/guide/en/elasticsearch/reference/current/_maximum_number_of_threads_check.html[nproc] are available for the Elasticsearch containers. Verify the https://github.com/moby/moby/tree/ea4d1243953e6b652082305a9c3cda8656edab26/contrib/init[init system] for the Docker daemon is already setting those to acceptable values and, if needed, adjust them in the Daemon, or override them per container, for example using `docker run`:
 +

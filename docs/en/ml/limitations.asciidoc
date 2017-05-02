@@ -8,7 +8,7 @@ The following limitations and known problems apply to the {version} release of
 === Pop-ups must be enabled in browsers
 //See x-pack-elasticsearch/#844
 
-The {xpack} {ml} features in Kibana use pop-ups. You must configure your
+The {xpackml} features in Kibana use pop-ups. You must configure your
 web browser so that it does not block pop-up windows or create an
 exception for your Kibana URL.
 
@@ -17,8 +17,8 @@ exception for your Kibana URL.
 === Jobs must be re-created at GA
 //See x-pack-elasticsearch/#844
 
-The models that you create in the {xpack} {ml} Beta cannot be upgraded.
-After the {xpack} {ml} features become generally available, you must
+The models that you create in the {xpackml} Beta cannot be upgraded.
+After the {xpackml} features become generally available, you must
 re-create your jobs. If you have data sets and job configurations that
 you work with extensively in the beta, make note of all the details so
 that you can re-create them successfully.
@@ -39,15 +39,15 @@ represented as a single dot. If there are only two data points, they are joined
 by a line.
 
 [float]
-=== Jobs close on the data feed end date
+=== Jobs close on the {dfeed} end date
 //See x-pack-elasticsearch/#1037
 
-If you start a data feed and specify an end date, it will close the job when
-the data feed stops. This behavior avoids having numerous open one-time jobs.
+If you start a {dfeed} and specify an end date, it will close the job when
+the {dfeed} stops. This behavior avoids having numerous open one-time jobs.
 
-If you do not specify an end date when you start a data feed, the job
-remains open when you stop the data feed. This behavior avoids the overhead
-of closing and re-opening large jobs when there are pauses in the data feed.
+If you do not specify an end date when you start a {dfeed}, the job
+remains open when you stop the {dfeed}. This behavior avoids the overhead
+of closing and re-opening large jobs when there are pauses in the {dfeed}.
 
 [float]
 === Post data API requires JSON format
@@ -111,14 +111,13 @@ Likewise, when you create a single or multi-metric job in {kib}, in some cases
 it uses aggregations on the data that it retrieves from {es}. One of the
 benefits of summarizing data this way is that {es} automatically distributes
 these calculations across your cluster. This summarized data is then fed into
-{xpack} {ml} instead of raw results, which reduces the volume of data that must
+{xpackml} instead of raw results, which reduces the volume of data that must
 be considered while detecting anomalies.  However, if you have two jobs, one of
 which uses pre-aggregated data and another that does not, their results might
 differ. This difference is due to the difference in precision of the input data.
 The {ml} analytics are designed to be aggregation-aware and the likely increase
 in performance that is gained by pre-aggregating the data makes the potentially
 poorer precision worthwhile. If you want to view or change the aggregations
-that are used in your job, refer to the `aggregations` property in your data
-feed.
+that are used in your job, refer to the `aggregations` property in your {dfeed}.
 
 For more information, see <<ml-datafeed-resource>>.

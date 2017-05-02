@@ -92,7 +92,7 @@ Grants `manage_ml` cluster privileges and read access to the `.ml-*` indices.
 
 [[built-in-roles-ml-user]]
 `machine_learning_user`::
-Grants the minimum privileges required to view {xpack} {ml} configuration,
+Grants the minimum privileges required to view {xpackml} configuration,
 status, and results. This role grants `monitor_ml` cluster privileges and
 read access to the `.ml-notifications` and `.ml-anomalies*` indices,
 which store {ml} results.

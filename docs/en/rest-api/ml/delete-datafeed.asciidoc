@@ -1,8 +1,8 @@
 //lcawley Verified example output 2017-04-11
 [[ml-delete-datafeed]]
-==== Delete Data Feeds
+==== Delete {dfeeds-cap}
 
-The delete data feed API enables you to delete an existing data feed.
+The delete {dfeed} API enables you to delete an existing {dfeed}.
 
 
 ===== Request
@@ -12,23 +12,13 @@ The delete data feed API enables you to delete an existing data feed.
 
 ===== Description
 
-NOTE: You must stop the data feed before you can delete it.
+NOTE: You must stop the {dfeed} before you can delete it.
 
 
 ===== Path Parameters
 
 `feed_id` (required)::
-  (string) Identifier for the data feed
-////
-===== Responses
-
-200
-(EmptyResponse) The cluster has been successfully deleted
-404
-(BasicFailedReply) The cluster specified by {cluster_id} cannot be found (code: clusters.cluster_not_found)
-412
-(BasicFailedReply) The Elasticsearch cluster has not been shutdown yet (code: clusters.cluster_plan_state_error)
-////
+  (string) Identifier for the {dfeed}
 
 
 ===== Authorization
@@ -39,7 +29,7 @@ For more information, see <<privileges-list-cluster>>.
 
 ===== Examples
 
-The following example deletes the `datafeed-it-ops` data feed:
+The following example deletes the `datafeed-it-ops` {dfeed}:
 
 [source,js]
 --------------------------------------------------
@@ -48,7 +38,7 @@ DELETE _xpack/ml/datafeeds/datafeed-it-ops
 // CONSOLE
 // TEST[skip:todo]
 
-When the data feed is deleted, you receive the following results:
+When the {dfeed} is deleted, you receive the following results:
 [source,js]
 ----
 {

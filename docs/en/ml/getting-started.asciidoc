@@ -2,14 +2,14 @@
 == Getting Started
 
 ////
-{xpack} {ml} features automatically detect:
+{xpackml} features automatically detect:
 * Anomalies in single or multiple time series
 * Outliers in a population (also known as _entity profiling_)
 * Rare events (also known as _log categorization_)
 
 This tutorial is focuses on an anomaly detection scenario in single time series.
 ////
-Ready to get some hands-on experience with the {xpack} {ml} features? This
+Ready to get some hands-on experience with the {xpackml} features? This
 tutorial shows you how to:
 
 * Load a sample data set into {es}
@@ -40,7 +40,7 @@ viewing jobs +
 //ll {ml} features are available to use as an API, however this tutorial
 //will focus on using the {ml} tab in the {kib} UI.
 
-WARNING: The {xpack} {ml} features are in beta and subject to change.
+WARNING: The {xpackml} features are in beta and subject to change.
 Beta features are not subject to the same support SLA as GA features,
 and deployment in production is at your own risk.
 
@@ -66,9 +66,9 @@ activity related to jobs, see <<ml-settings>>.
 [[ml-gs-users]]
 ==== Users, Roles, and Privileges
 
-The {xpack} {ml} features implement cluster privileges and built-in roles to
+The {xpackml} features implement cluster privileges and built-in roles to
 make it easier to control which users have authority to view and manage the jobs,
-data feeds, and results.
+{dfeeds}, and results.
 
 By default, you can perform all of the steps in this tutorial by using the
 built-in `elastic` super user. The default password for the `elastic` user is
@@ -87,7 +87,7 @@ For more information, see <<built-in-roles>> and <<privileges-list-cluster>>.
 
 For the purposes of this tutorial, we provide sample data that you can play with
 and search in {es}. When you consider your own data, however, it's important to
-take a moment and think about where the {xpack} {ml} features will be most
+take a moment and think about where the {xpackml} features will be most
 impactful.
 
 The first consideration is that it must be time series data. The {ml} features
@@ -104,12 +104,12 @@ insights.
 
 The final consideration is where the data is located. This tutorial assumes that
 your data is stored in {es}. It guides you through the steps required to create
-a _data feed_ that passes data to a job. If your own data is outside of {es},
+a _{dfeed}_ that passes data to a job. If your own data is outside of {es},
 analysis is still possible by using a post data API.
 
-IMPORTANT: If you want to create {ml} jobs in {kib}, you must use data feeds.
+IMPORTANT: If you want to create {ml} jobs in {kib}, you must use {dfeeds}.
 That is to say, you must store your input data in {es}. When you create
-a job, you select an existing index pattern and {kib} configures the data feed
+a job, you select an existing index pattern and {kib} configures the {dfeed}
 for you under the covers.
 
 
@@ -168,7 +168,7 @@ particular time. If your data is stored in {es}, you can generate
 this type of sum or average by using aggregations. One of the benefits of
 summarizing data this way is that {es} automatically distributes
 these calculations across your cluster. You can then feed this summarized data
-into {xpack} {ml} instead of raw results, which reduces the volume
+into {xpackml} instead of raw results, which reduces the volume
 of data that must be considered while detecting anomalies. For the purposes of
 this tutorial, however, these summary values are stored in {es},
 rather than created using the {ref}/search-aggregations.html[_aggregations framework_].
@@ -319,7 +319,7 @@ This tutorial uses {kib} to create jobs and view results, but you can
 alternatively use APIs to accomplish most tasks.
 For API reference information, see <<ml-apis>>.
 
-The {xpack} {ml} features in {kib} use pop-ups. You must configure your
+The {xpackml} features in {kib} use pop-ups. You must configure your
 web browser so that it does not block pop-up windows or create an
 exception for your Kibana URL.
 --
@@ -406,7 +406,7 @@ NOTE: Some functions such as `count` and `rare` do not require fields.
 interval that the analysis is aggregated into.
 +
 --
-The {xpack} {ml} features use the concept of a bucket to divide up the time series
+The {xpackml} features use the concept of a bucket to divide up the time series
 into batches for processing. For example, if you are monitoring
 the total number of requests in the system,
 //and receive a data point every 10 minutes
@@ -432,7 +432,7 @@ typical anomalies and the frequency at which alerting is required.
 . Determine whether you want to process all of the data or only part of it. If
 you want to analyze all of the existing data, click
 **Use full server-metrics* data**. If you want to see what happens when you
-stop and start data feeds and process additional data over time, click the time
+stop and start {dfeeds} and process additional data over time, click the time
 picker in the {kib} toolbar. Since the sample data spans a period of time
 between March 23, 2017 and April 22, 2017, click **Absolute**. Set the start
 time to March 23, 2017 and the end time to April 1, 2017, for example. Once
@@ -440,7 +440,7 @@ you've got the time range set up, click the **Go** button. +
 +
 --
 [role="screenshot"]
-image::images/ml-gs-job1-time.jpg["Setting the time range for the data feed"]
+image::images/ml-gs-job1-time.jpg["Setting the time range for the {dfeed}"]
 --
 +
 --
@@ -462,7 +462,7 @@ As the job is created, the graph is updated to give a visual representation of
 the progress of {ml} as the data is processed. This view is only available whilst the
 job is running.
 
-TIP: The `create_single_metic.sh` script creates a similar job and data feed by
+TIP: The `create_single_metic.sh` script creates a similar job and {dfeed} by
 using the {ml} APIs. You can download that script by clicking
 here: https://download.elastic.co/demos/machine_learning/gettingstarted/create_single_metric.sh[create_single_metric.sh]
 For API reference information, see <<ml-apis>>.
@@ -511,12 +511,12 @@ A closing job cannot accept further data.
 `failed`::: The job did not finish successfully due to an error.
 This situation can occur due to invalid input data.
 If the job had irrevocably failed, it must be force closed and then deleted.
-If the data feed can be corrected, the job can be closed and then re-opened.
+If the {dfeed} can be corrected, the job can be closed and then re-opened.
 
-Datafeed state::
-The status of the data feed, which can be one of the following values: +
-started::: The data feed is actively receiving data.
-stopped::: The data feed is stopped and will not receive data until it is
+{dfeed-cap} state::
+The status of the {dfeed}, which can be one of the following values: +
+started::: The {dfeed} is actively receiving data.
+stopped::: The {dfeed} is stopped and will not receive data until it is
 re-started.
 
 Latest timestamp::
@@ -527,22 +527,22 @@ If you click the arrow beside the name of job, you can show or hide additional
 information, such as the settings, configuration information, or messages for
 the job.
 
-You can also click one of the **Actions** buttons to start the data feed, edit
-the job or data feed, and clone or delete the job, for example.
+You can also click one of the **Actions** buttons to start the {dfeed}, edit
+the job or {dfeed}, and clone or delete the job, for example.
 
 [float]
 [[ml-gs-job1-datafeed]]
-==== Managing Data Feeds
+==== Managing {dfeeds-cap}
 
-A data feed can be started and stopped multiple times throughout its lifecycle.
-If you want to retrieve more data from {es} and the data feed is
-stopped, you must restart it.
+A {dfeed} can be started and stopped multiple times throughout its lifecycle.
+If you want to retrieve more data from {es} and the {dfeed} is stopped, you must
+restart it.
 
 For example, if you did not use the full data when you created the job, you can
-now process the remaining data by restarting the data feed:
+now process the remaining data by restarting the {dfeed}:
 
 . In the **Machine Learning** / **Job Management** tab, click the following
-button to start the data feed: image:images/ml-start-feed.jpg["Start data feed"]
+button to start the {dfeed}: image:images/ml-start-feed.jpg["Start {dfeed}"]
 
 
 . Choose a start time and end time. For example,
@@ -553,20 +553,20 @@ otherwise you might miss anomalies. +
 +
 --
 [role="screenshot"]
-image::images/ml-gs-job1-datafeed.jpg["Restarting a data feed"]
+image::images/ml-gs-job1-datafeed.jpg["Restarting a {dfeed}"]
 --
 
-The data feed state changes to `started`, the job state changes to `opened`,
+The {dfeed} state changes to `started`, the job state changes to `opened`,
 and the number of processed records increases as the new data is analyzed. The
 latest timestamp information also increases. For example:
 [role="screenshot"]
-image::images/ml-gs-job1-manage2.jpg["Job opened and data feed started"]
+image::images/ml-gs-job1-manage2.jpg["Job opened and {dfeed} started"]
 
 TIP: If your data is being loaded continuously, you can continue running the job
-in real time. For this, start your data feed and select **No end time**.
+in real time. For this, start your {dfeed} and select **No end time**.
 
-If you want to stop the data feed at this point, you can click the following
-button: image:images/ml-stop-feed.jpg["Stop data feed"]
+If you want to stop the {dfeed} at this point, you can click the following
+button: image:images/ml-stop-feed.jpg["Stop {dfeed}"]
 
 Now that you have processed all the data, let's start exploring the job results.
 
@@ -574,7 +574,7 @@ Now that you have processed all the data, let's start exploring the job results.
 [[ml-gs-jobresults]]
 === Exploring Job Results
 
-The {xpack} {ml} features analyze the input stream of data, model its behavior,
+The {xpackml} features analyze the input stream of data, model its behavior,
 and perform analysis based on the detectors you defined in your job. When an
 event occurs outside of the model, that event is identified as an anomaly.
 

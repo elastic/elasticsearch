@@ -3,23 +3,23 @@
 
 Use machine learning to detect anomalies in time series data.
 
-* <<ml-api-datafeed-endpoint,Datafeeds>>
+* <<ml-api-datafeed-endpoint,{dfeeds-cap}>>
 * <<ml-api-job-endpoint,Jobs>>
 * <<ml-api-snapshot-endpoint, Model Snapshots>>
 * <<ml-api-result-endpoint,Results>>
 * <<ml-api-definitions, Definitions>>
 
 [[ml-api-datafeed-endpoint]]
-=== Data Feeds
+=== {dfeeds-cap}
 
-* <<ml-put-datafeed,Create data feed>>
-* <<ml-delete-datafeed,Delete data feed>>
-* <<ml-get-datafeed,Get data feed info>>
-* <<ml-get-datafeed-stats,Get data feed statistics>>
-* <<ml-preview-datafeed,Preview data feed>>
-* <<ml-start-datafeed,Start data feed>>
-* <<ml-stop-datafeed,Stop data feed>>
-* <<ml-update-datafeed,Update data feed>>
+* <<ml-put-datafeed,Create {dfeed}>>
+* <<ml-delete-datafeed,Delete {dfeed}>>
+* <<ml-get-datafeed,Get {dfeed} info>>
+* <<ml-get-datafeed-stats,Get {dfeed} statistics>>
+* <<ml-preview-datafeed,Preview {dfeed}>>
+* <<ml-start-datafeed,Start {dfeed}>>
+* <<ml-stop-datafeed,Stop {dfeed}>>
+* <<ml-update-datafeed,Update {dfeed}>>
 
 include::ml/put-datafeed.asciidoc[]
 include::ml/delete-datafeed.asciidoc[]
@@ -88,8 +88,8 @@ include::ml/get-record.asciidoc[]
 [[ml-api-definitions]]
 === Definitions
 
-* <<ml-datafeed-resource,Data feeds>>
-* <<ml-datafeed-counts,Data feed counts>>
+* <<ml-datafeed-resource,{dfeeds-cap}>>
+* <<ml-datafeed-counts,{dfeed-cap} counts>>
 * <<ml-job-resource,Jobs>>
 * <<ml-jobstats,Job statistics>>
 * <<ml-snapshot-resource,Model snapshots>>

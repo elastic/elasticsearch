@@ -1,9 +1,9 @@
 //lcawley Verified example output 2017-04
 [[ml-start-datafeed]]
-==== Start Data Feeds
+==== Start {dfeeds-cap}
 
-A data feed must be started in order to retrieve data from {es}.
-A data feed can be started and stopped multiple times throughout its lifecycle.
+A {dfeed} must be started in order to retrieve data from {es}.
+A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
 ===== Request
 
@@ -11,21 +11,21 @@ A data feed can be started and stopped multiple times throughout its lifecycle.
 
 ===== Description
 
-NOTE: Before you can start a data feed, the job must be open. Otherwise, an error
+NOTE: Before you can start a {dfeed}, the job must be open. Otherwise, an error
 occurs.
 
-When you start a data feed, you can specify a start time.  This enables you to
+When you start a {dfeed}, you can specify a start time.  This enables you to
 include a training period, providing you have this data available in {es}.
 If you want to analyze from the beginning of a dataset, you can specify any date
 earlier than that beginning date.
 
-If you do not specify a start time and the data feed is associated with a new
+If you do not specify a start time and the {dfeed} is associated with a new
 job, the analysis starts from the earliest time for which data is available.
 
-When you start a data feed, you can also specify an end time. If you do so, the
+When you start a {dfeed}, you can also specify an end time. If you do so, the
 job analyzes data from the start time until the end time, at which point the
 analysis stops.  This scenario is useful for a one-off batch analysis.  If you
-do not specify an end time, the data feed runs continuously.
+do not specify an end time, the {dfeed} runs continuously.
 
 The `start` and `end` times can be specified by using one of the
 following formats: +
@@ -40,12 +40,12 @@ designator, where Z is accepted as an abbreviation for UTC time.
 NOTE: When a URL is expected (for example, in browsers), the `+` used in time
 zone designators must be encoded as `%2B`.
 
-If the system restarts, any jobs that had data feeds running are also restarted.
+If the system restarts, any jobs that had {dfeeds} running are also restarted.
 
-When a stopped data feed is restarted, it continues processing input data from
+When a stopped {dfeed} is restarted, it continues processing input data from
 the next millisecond after it was stopped. If your data contains the same
 timestamp (for example, it is summarized by minute), then data loss is possible
-for the timestamp value when the data feed stopped.  This situation can occur
+for the timestamp value when the {dfeed} stopped.  This situation can occur
 because the job might not have completely processed all data for that millisecond.
 If you specify a `start` value that is earlier than the timestamp of the latest
 processed record, that value is ignored.
@@ -54,20 +54,20 @@ processed record, that value is ignored.
 ===== Path Parameters
 
 `feed_id` (required)::
-(string) Identifier for the data feed
+(string) Identifier for the {dfeed}
 
 ===== Request Body
 
 `end`::
-  (string) The time that the data feed should end. This value is exclusive.
+  (string) The time that the {dfeed} should end. This value is exclusive.
   The default value is an empty string.
 
 `start`::
-  (string) The time that the data feed should begin. This value is inclusive.
+  (string) The time that the {dfeed} should begin. This value is inclusive.
   The default value is an empty string.
 
 `timeout`::
-  (time) Controls the amount of time to wait until a data feed starts.
+  (time) Controls the amount of time to wait until a {dfeed} starts.
   The default value is 20 seconds.
 
 
@@ -79,7 +79,7 @@ For more information, see <<privileges-list-cluster>>.
 
 ===== Examples
 
-The following example opens the `datafeed-it-ops-kpi` data feed:
+The following example starts the `datafeed-it-ops-kpi` {dfeed}:
 
 [source,js]
 --------------------------------------------------
@@ -91,7 +91,7 @@ POST _xpack/ml/datafeeds/datafeed-it-ops-kpi/_start
 // CONSOLE
 // TEST[skip:todo]
 
-When the job opens, you receive the following results:
+When the {dfeed} starts, you receive the following results:
 [source,js]
 ----
 {

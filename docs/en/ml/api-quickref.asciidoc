@@ -35,15 +35,15 @@ The main {ml} resources can be accessed with a variety of endpoints:
 [[ml-api-datafeeds]]
 === /datafeeds/
 
-* <<ml-put-datafeed,PUT /datafeeds/<datafeed_id+++>+++>>: Create a data feed
-* <<ml-start-datafeed,POST /datafeeds/<datafeed_id>/_start>>: Start a data feed
-* <<ml-get-datafeed,GET /datafeeds>>: List data feeds
-* <<ml-get-datafeed,GET /datafeeds/<datafeed_id+++>+++>>: Get data feed details
-* <<ml-get-datafeed-stats,GET /datafeeds/<datafeed_id>/_stats>>: Get statistical information for data feeds
-* <<ml-preview-datafeed,GET /datafeeds/<datafeed_id>/_preview>>: Get a preview of a data feed
-* <<ml-update-datafeed,POST /datafeeds/<datafeedid>/_update>>: Update certain settings for a data feed
-* <<ml-stop-datafeed,POST /datafeeds/<datafeed_id>/_stop>>: Stop a data feed
-* <<ml-delete-datafeed,DELETE /datafeeds/<datafeed_id+++>+++>>: Delete data feed
+* <<ml-put-datafeed,PUT /datafeeds/<datafeed_id+++>+++>>: Create a {dfeed}
+* <<ml-start-datafeed,POST /datafeeds/<datafeed_id>/_start>>: Start a {dfeed}
+* <<ml-get-datafeed,GET /datafeeds>>: List {dfeeds}
+* <<ml-get-datafeed,GET /datafeeds/<datafeed_id+++>+++>>: Get {dfeed} details
+* <<ml-get-datafeed-stats,GET /datafeeds/<datafeed_id>/_stats>>: Get statistical information for {dfeeds}
+* <<ml-preview-datafeed,GET /datafeeds/<datafeed_id>/_preview>>: Get a preview of a {dfeed}
+* <<ml-update-datafeed,POST /datafeeds/<datafeedid>/_update>>: Update certain settings for a {dfeed}
+* <<ml-stop-datafeed,POST /datafeeds/<datafeed_id>/_stop>>: Stop a {dfeed}
+* <<ml-delete-datafeed,DELETE /datafeeds/<datafeed_id+++>+++>>: Delete {dfeed}
 
 [float]
 [[ml-api-results]]

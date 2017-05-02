@@ -1,11 +1,11 @@
 //lcawley Verified example output 2017-04-11
 [[ml-datafeed-resource]]
-==== Data Feed Resources
+==== {dfeed-cap} Resources
 
-A data feed resource has the following properties:
+A {dfeed} resource has the following properties:
 
 `aggregations`::
-  (object) If set, the data feed performs aggregation searches.
+  (object) If set, the {dfeed} performs aggregation searches.
   For syntax information, see {ref}/search-aggregations.html[Aggregations].
   Support for aggregations is limited and should only be used with
   low cardinality data.
@@ -22,11 +22,11 @@ A data feed resource has the following properties:
   For example: {"mode": "manual", "time_span": "3h"}
 
 `datafeed_id`::
- (string) A numerical character string that uniquely identifies the data feed.
+ (string) A numerical character string that uniquely identifies the {dfeed}.
 
 `frequency`::
-  (time units) The interval at which scheduled queries are made while the data
-  feed runs in real time. The default value is either the bucket span for short
+  (time units) The interval at which scheduled queries are made while the
+  {dfeed} runs in real time. The default value is either the bucket span for short
   bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
   span. For example: "150s"
 
@@ -34,7 +34,7 @@ A data feed resource has the following properties:
   (array) An array of index names. For example: ["it_ops_metrics"]
 
 `job_id` (required)::
- (string) The unique identifier for the job to which the data feed sends data.
+ (string) The unique identifier for the job to which the {dfeed} sends data.
 
 `query`::
   (object) The {es} query domain-specific language (DSL). This value
@@ -59,7 +59,7 @@ A data feed resource has the following properties:
 [[ml-datafeed-chunking-config]]
 ===== Chunking Configuration Objects
 
-Data feeds might be required to search over long time periods, for several months
+{dfeeds-cap} might be required to search over long time periods, for several months
 or years. This search is split into time chunks in order to ensure the load
 on {es} is managed. Chunking configuration controls how the size of these time
 chunks are calculated and is an advanced configuration option.
@@ -80,21 +80,21 @@ A chunking configuration object has the following properties:
 
 [float]
 [[ml-datafeed-counts]]
-==== Data Feed Counts
+==== {dfeed-cap} Counts
 
-The get data feed statistics API provides information about the operational
-progress of a data feed. For example:
+The get {dfeed} statistics API provides information about the operational
+progress of a {dfeed}. For example:
 
 `assignment_explanation`::
-  (string) For started data feeds only, contains messages relating to the
+  (string) For started {dfeeds} only, contains messages relating to the
   selection of a node.
 
 `datafeed_id`::
- (string) A numerical character string that uniquely identifies the data feed.
+ (string) A numerical character string that uniquely identifies the {dfeed}.
 
 `node`::
-  (object) The node upon which the data feed is started. The data feed and
-  job will be on the same node.
+  (object) The node upon which the {dfeed} is started. The {dfeed} and job will
+  be on the same node.
   `id`::: The unique identifier of the node. For example,
   "0-o0tOoRTwKFZifatTWKNw".
   `name`::: The node name. For example, "0-o0tOo".
@@ -104,7 +104,7 @@ progress of a data feed. For example:
   `attributes`::: For example, {"max_running_jobs": "10"}.
 
 `state`::
-  (string) The status of the data feed, which can be one of the following values: +
-  `started`::: The data feed is actively receiving data.
-  `stopped`::: The data feed is stopped and will not receive data until it is
+  (string) The status of the {dfeed}, which can be one of the following values: +
+  `started`::: The {dfeed} is actively receiving data.
+  `stopped`::: The {dfeed} is stopped and will not receive data until it is
   re-started.

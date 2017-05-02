@@ -1,8 +1,8 @@
 //lcawley Verified example output 2017-04-11
 [[ml-put-datafeed]]
-==== Create Data Feeds
+==== Create {dfeeds-cap}
 
-The create data feed API enables you to instantiate a data feed.
+The create {dfeed} API enables you to instantiate a {dfeed}.
 
 
 ===== Request
@@ -12,20 +12,20 @@ The create data feed API enables you to instantiate a data feed.
 
 ===== Description
 
-You must create a job before you create a data feed.  You can associate only one
-data feed to each job.
+You must create a job before you create a {dfeed}.  You can associate only one
+{dfeed} to each job.
 
 
 ===== Path Parameters
 
 `feed_id` (required)::
-  (string) A numerical character string that uniquely identifies the data feed.
+  (string) A numerical character string that uniquely identifies the {dfeed}.
 
 
 ===== Request Body
 
 `aggregations`::
-  (object) If set, the data feed performs aggregation searches.
+  (object) If set, the {dfeed} performs aggregation searches.
   For more information, see <<ml-datafeed-resource>>.
 
 `chunking_config`::
@@ -33,8 +33,8 @@ data feed to each job.
   See <<ml-datafeed-chunking-config>>.
 
 `frequency`::
-  (time units) The interval at which scheduled queries are made while the data
-  feed runs in real time. The default value is either the bucket span for short
+  (time units) The interval at which scheduled queries are made while the {dfeed}
+  runs in real time. The default value is either the bucket span for short
   bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
   span. For example: "150s".
 
@@ -65,7 +65,7 @@ data feed to each job.
   For example: ["network","sql","kpi"].
 
 For more information about these properties,
-see <<ml-datafeed-resource, Data Feed Resources>>.
+see <<ml-datafeed-resource>>.
 
 
 ===== Authorization
@@ -75,7 +75,7 @@ For more information, see <<privileges-list-cluster>>.
 
 ===== Examples
 
-The following example creates the `datafeed-it-ops-kpi` data feed:
+The following example creates the `datafeed-it-ops-kpi` {dfeed}:
 
 [source,js]
 --------------------------------------------------
@@ -94,7 +94,7 @@ PUT _xpack/ml/datafeeds/datafeed-it-ops-kpi
 // CONSOLE
 // TEST[skip:todo]
 
-When the data feed is created, you receive the following results:
+When the {dfeed} is created, you receive the following results:
 [source,js]
 ----
 {

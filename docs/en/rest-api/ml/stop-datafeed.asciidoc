@@ -1,9 +1,9 @@
 //lcawley Verified example output 2017-04-11
 [[ml-stop-datafeed]]
-==== Stop Data Feeds
+==== Stop {dfeeds-cap}
 
-A data feed that is stopped ceases to retrieve data from {es}.
-A data feed can be started and stopped multiple times throughout its lifecycle.
+A {dfeed} that is stopped ceases to retrieve data from {es}.
+A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
 ===== Request
 
@@ -14,15 +14,15 @@ A data feed can be started and stopped multiple times throughout its lifecycle.
 ===== Path Parameters
 
 `feed_id` (required)::
-  (string) Identifier for the data feed
+  (string) Identifier for the {dfeed}
 
 ===== Request Body
 
 `force`::
-  (boolean) If true, the data feed is stopped forcefully.
+  (boolean) If true, the {dfeed} is stopped forcefully.
 
 `timeout`::
-  (time) Controls the amount of time to wait until a data feed stops.
+  (time) Controls the amount of time to wait until a {dfeed} stops.
   The default value is 20 seconds.
 
 
@@ -33,7 +33,7 @@ For more information, see <<privileges-list-cluster>>.
 
 ===== Examples
 
-The following example stops the `datafeed-it-ops-kpi` data feed:
+The following example stops the `datafeed-it-ops-kpi` {dfeed}:
 
 [source,js]
 --------------------------------------------------
@@ -45,7 +45,7 @@ POST _xpack/ml/datafeeds/datafeed-it-ops-kpi/_stop
 // CONSOLE
 // TEST[skip:todo]
 
-When the data feed stops, you receive the following results:
+When the {dfeed} stops, you receive the following results:
 [source,js]
 ----
 {

@@ -16,7 +16,7 @@ All cluster read-only operations, like cluster health & state, hot threads, node
 info, node & cluster stats, snapshot/restore status, pending cluster tasks.
 
 `monitor_ml`::
-All read only {ml} operations, such as getting information about data feeds, jobs,
+All read only {ml} operations, such as getting information about {dfeeds}, jobs,
 model snapshots, or results.
 
 `monitor_watcher`::
@@ -24,14 +24,14 @@ All read only watcher operations, such as getting a watch and watcher stats.
 
 `manage`::
 Builds on `monitor` and adds cluster operations that change values in the cluster.
-This includes snapshotting,updating settings, and rerouting. This privilege does
+This includes snapshotting, updating settings, and rerouting. This privilege does
 not include the ability to manage security.
 
 `manage_index_templates`::
 All operations on index templates.
 
 `manage_ml`::
-All {ml} operations, such as creating and deleting data feeds, jobs, and model
+All {ml} operations, such as creating and deleting {dfeeds}, jobs, and model
 snapshots.
 
 `manage_pipeline`::

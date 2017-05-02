@@ -1,9 +1,9 @@
 //lcawley Verified example output 2017-04-11
 [[ml-get-datafeed]]
-==== Get Data Feeds
+==== Get {dfeeds-cap}
 
-The get data feeds API enables you to retrieve configuration information for
-data feeds.
+The get {dfeeds} API enables you to retrieve configuration information for
+{dfeeds}.
 
 ===== Request
 
@@ -16,9 +16,9 @@ data feeds.
 ===== Path Parameters
 
 `feed_id`::
-  (string) Identifier for the data feed.
+  (string) Identifier for the {dfeed}.
   This parameter does not support wildcards, but you can specify `_all` or
-  omit the `feed_id` to get information about all data feeds.
+  omit the `feed_id` to get information about all {dfeeds}.
 
 
 ===== Results
@@ -26,8 +26,8 @@ data feeds.
 The API returns the following information:
 
 `datafeeds`::
-  (array) An array of data feed objects.
-  For more information, see <<ml-datafeed-resource,data feed resources>>.
+  (array) An array of {dfeed} objects.
+  For more information, see <<ml-datafeed-resource>>.
 
 
 ===== Authorization
@@ -39,7 +39,7 @@ privileges to use this API. For more information, see <<privileges-list-cluster>
 ===== Examples
 
 The following example gets configuration information for the
-`datafeed-it-ops-kpi` data feed:
+`datafeed-it-ops-kpi` {dfeed}:
 
 [source,js]
 --------------------------------------------------

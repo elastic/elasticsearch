@@ -1,8 +1,8 @@
 //lcawley Verified example output 2017-04
 [[ml-update-datafeed]]
-==== Update Data Feeds
+==== Update {dfeeds-cap}
 
-The update data feed API enables you to update certain properties of a data feed.
+The update {dfeed} API enables you to update certain properties of a {dfeed}.
 
 ===== Request
 
@@ -13,14 +13,14 @@ The update data feed API enables you to update certain properties of a data feed
 ===== Path Parameters
 
 `feed_id` (required)::
-  (string) Identifier for the data feed
+  (string) Identifier for the {dfeed}
 
 ===== Request Body
 
-The following properties can be updated after the data feed is created:
+The following properties can be updated after the {dfeed} is created:
 
 `aggregations`::
-  (object) If set, the data feed performs aggregation searches.
+  (object) If set, the {dfeed} performs aggregation searches.
   For more information, see <<ml-datafeed-resource>>.
 
 `chunking_config`::
@@ -28,8 +28,8 @@ The following properties can be updated after the data feed is created:
   See <<ml-datafeed-chunking-config>>.
 
 `frequency`::
-  (time units) The interval at which scheduled queries are made while the data
-  feed runs in real time. The default value is either the bucket span for short
+  (time units) The interval at which scheduled queries are made while the
+  {dfeed} runs in real time. The default value is either the bucket span for short
   bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
   span. For example: "150s".
 
@@ -60,7 +60,7 @@ The following properties can be updated after the data feed is created:
   For example: ["network","sql","kpi"].
 
 For more information about these properties,
-see <<ml-datafeed-resource, Data Feed Resources>>.
+see <<ml-datafeed-resource>>.
 
 
 ===== Authorization
@@ -70,7 +70,7 @@ For more information, see <<privileges-list-cluster>>.
 
 ===== Examples
 
-The following example updates the `it-ops-kpi` job:
+The following example updates the `datafeed-it-ops-kpi` {dfeed}:
 
 [source,js]
 --------------------------------------------------
@@ -114,7 +114,7 @@ POST _xpack/ml/datafeeds/datafeed-it-ops-kpi/_update
 // CONSOLE
 // TEST[skip:todo]
 
-When the data feed is updated, you receive the following results:
+When the {dfeed} is updated, you receive the following results:
 [source,js]
 ----
 {

@@ -39,7 +39,7 @@ progress of a job.
   `failed`::: The job did not finish successfully due to an error.
   This situation can occur due to invalid input data.
   If the job had irrevocably failed, it must be force closed and then deleted.
-  If the data feed can be corrected, the job can be closed and then re-opened.
+  If the {dfeed} can be corrected, the job can be closed and then re-opened.
 
 [float]
 [[ml-datacounts]]
@@ -97,7 +97,7 @@ or old results are deleted, the job counts are not reset.
   it is possible that not all fields are missing. The value of
   `processed_record_count` includes this count. +
 
-NOTE: If you are using data feeds or posting data to the job in JSON format, a
+NOTE: If you are using {dfeeds} or posting data to the job in JSON format, a
 high `missing_field_count` is often not an indication of data issues. It is not
 necessarily a cause for concern.
 
@@ -117,9 +117,9 @@ necessarily a cause for concern.
   (long) The number of records that have been processed by the job.
   This value includes records with missing fields, since they are nonetheless
   analyzed. +
-  If you use data feeds and have aggregations in your search query,
+  If you use {dfeeds} and have aggregations in your search query,
   the `processed_record_count` will be the number of aggregated records
-  processed, not the number of {es} documents. 
+  processed, not the number of {es} documents.
 
 `sparse_bucket_count`::
   (long) The number of buckets that contained few data points compared to the

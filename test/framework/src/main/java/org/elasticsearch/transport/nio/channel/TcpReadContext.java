@@ -96,17 +96,6 @@ public class TcpReadContext implements ReadContext {
         return bytesRead;
     }
 
-    public int newRead() throws IOException {
-        bytesRead = 0;
-
-        TcpFrameDecoder frameDecoder = new TcpFrameDecoder();
-        byte[] bytes = new byte[frameDecoder.nextReadLength()];
-        int bytesRead = channel.read(ByteBuffer.wrap(bytes));
-        BytesReference message = frameDecoder.decode(new BytesArray(bytes));
-
-        return bytesRead;
-    }
-
     private int readPartialHeader() throws IOException {
         int headerBytesRead = channel.read(headerBuffer);
         if (headerBytesRead < 0) {

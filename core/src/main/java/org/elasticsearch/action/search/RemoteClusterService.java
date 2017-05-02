@@ -100,7 +100,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private volatile Map<String, RemoteClusterConnection> remoteClusters = Collections.emptyMap();
 
     RemoteClusterService(Settings settings, TransportService transportService) {
-        super(settings, false);
+        super(settings);
         this.transportService = transportService;
         numRemoteConnections = REMOTE_CONNECTIONS_PER_CLUSTER.get(settings);
     }

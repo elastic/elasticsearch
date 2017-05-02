@@ -52,24 +52,15 @@ public abstract class RemoteClusterAware extends AbstractComponent {
         "seeds", (key) -> Setting.listSetting(key, Collections.emptyList(), RemoteClusterAware::parseSeedAddress,
             Setting.Property.NodeScope, Setting.Property.Dynamic));
     protected static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
-    static final String LOCAL_CLUSTER_GROUP_KEY = "";
+    protected static final String LOCAL_CLUSTER_GROUP_KEY = "";
     protected final ClusterNameExpressionResolver clusterNameResolver;
 
     /**
      * Creates a new {@link RemoteClusterAware} instance
      * @param settings the nodes level settings
-     * @param initialize if <code>true</code> the {@link #updateRemoteCluster(String, List)} method will be invoked from the given
-     *                   node settings to initialize the registered remote cluster state.
      */
-    protected RemoteClusterAware(Settings settings, boolean initialize) {
+    protected RemoteClusterAware(Settings settings) {
         super(settings);
-        if (initialize) {
-            Map<String, List<DiscoveryNode>> seeds = RemoteClusterAware.buildRemoteClustersSeeds(settings);
-            for (Map.Entry<String, List<DiscoveryNode>> entry : seeds.entrySet()) {
-                updateRemoteCluster(entry.getKey(), entry.getValue().stream().map(n -> n.getAddress().address())
-                    .collect(Collectors.toList()));
-            }
-        }
         this.clusterNameResolver = new ClusterNameExpressionResolver(settings);
     }
 
@@ -96,7 +87,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
      * {@link #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.
      *
      * @param requestIndices the indices in the search request to filter
-     * @param indexExists a predicate that can test if a certain index or alias exists
+     * @param indexExists a predicate that can test if a certain index or alias exists in the local cluster
      *
      * @return a map of grouped remote and local indices
      */
@@ -139,7 +130,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
     protected abstract void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses);
 
     /**
-     * Registers this instance to listen to updates ont the cluster settings.
+     * Registers this instance to listen to updates on the cluster settings.
      */
     public void listenForUpdates(ClusterSettings clusterSettings) {
         clusterSettings.addAffixUpdateConsumer(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS, this::updateRemoteCluster,

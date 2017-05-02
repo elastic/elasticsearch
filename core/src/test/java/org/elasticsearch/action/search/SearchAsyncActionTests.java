@@ -81,7 +81,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 randomIntBetween(1, 10), randomBoolean(), primaryNode, replicaNode);
         AtomicInteger numFreedContext = new AtomicInteger();
         SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(RemoteClusterService.REMOTE_CLUSTERS_SEEDS)), null) {
+                Collections.singleton(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS)), null) {
             @Override
             public void sendFreeContext(Transport.Connection connection, long contextId, OriginalIndices originalIndices) {
                 numFreedContext.incrementAndGet();

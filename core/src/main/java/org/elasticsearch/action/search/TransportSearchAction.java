@@ -179,7 +179,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final Map<String, List<String>> groupedIndices = remoteClusterService.groupClusterIndices(searchRequest.indices(),
                 // empty string is not allowed
                 idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
-            List<String> remove = groupedIndices.remove(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+            List<String> remove = groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             String[] indices = remove == null ? Strings.EMPTY_ARRAY : remove.toArray(new String[remove.size()]);
             localIndices = new OriginalIndices(indices, searchRequest.indicesOptions());
             Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();

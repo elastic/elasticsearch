@@ -26,7 +26,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -46,6 +46,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TaskAwareTransportRequestHandler;
@@ -62,7 +63,7 @@ import java.util.function.Supplier;
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
  * transport.
  */
-public class SearchTransportService extends AbstractLifecycleComponent {
+public class SearchTransportService extends AbstractComponent {
 
     public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
@@ -77,17 +78,10 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
 
     private final TransportService transportService;
-    private final RemoteClusterService remoteClusterService;
-    private final boolean connectToRemote;
 
     public SearchTransportService(Settings settings, ClusterSettings clusterSettings, TransportService transportService) {
         super(settings);
-        this.connectToRemote = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
         this.transportService = transportService;
-        this.remoteClusterService = new RemoteClusterService(settings, transportService);
-        if (connectToRemote) {
-            remoteClusterService.listenForUpdates(clusterSettings);
-        }
     }
 
     public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {
@@ -181,7 +175,7 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     }
 
     public RemoteClusterService getRemoteClusterService() {
-        return remoteClusterService;
+        return transportService.getRemoteClusterService();
     }
 
     static class ScrollFreeContextRequest extends TransportRequest {
@@ -398,21 +392,5 @@ public class SearchTransportService extends AbstractLifecycleComponent {
 
     Transport.Connection getConnection(DiscoveryNode node) {
         return transportService.getConnection(node);
-    }
-
-    @Override
-    protected void doStart() {
-        if (connectToRemote) {
-            // here we start to connect to the remote clusters
-            remoteClusterService.initializeRemoteClusters();
-        }
-    }
-
-    @Override
-    protected void doStop() {}
-
-    @Override
-    protected void doClose() throws IOException {
-        remoteClusterService.close();
     }
 }

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.search;
+package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
@@ -51,8 +51,8 @@ public abstract class RemoteClusterAware extends AbstractComponent {
     public static final Setting.AffixSetting<List<InetSocketAddress>> REMOTE_CLUSTERS_SEEDS = Setting.affixKeySetting("search.remote.",
         "seeds", (key) -> Setting.listSetting(key, Collections.emptyList(), RemoteClusterAware::parseSeedAddress,
             Setting.Property.NodeScope, Setting.Property.Dynamic));
-    protected static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
-    protected static final String LOCAL_CLUSTER_GROUP_KEY = "";
+    public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
+    public static final String LOCAL_CLUSTER_GROUP_KEY = "";
     protected final ClusterNameExpressionResolver clusterNameResolver;
 
     /**
@@ -91,7 +91,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
      *
      * @return a map of grouped remote and local indices
      */
-    protected Map<String, List<String>> groupClusterIndices(String[] requestIndices, Predicate<String> indexExists) {
+    public Map<String, List<String>> groupClusterIndices(String[] requestIndices, Predicate<String> indexExists) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
         Set<String> remoteClusterNames = getRemoteClusterNames();
         for (String index : requestIndices) {

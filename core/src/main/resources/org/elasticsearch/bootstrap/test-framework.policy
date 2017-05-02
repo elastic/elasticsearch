@@ -53,12 +53,7 @@ grant codeBase "${codebase.randomizedtesting-runner-2.5.0.jar}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.junit4-ant-2.3.2.jar}" {
-  // needed for stream redirection
-  permission java.lang.RuntimePermission "setIO";
-};
-
-grant codeBase "${codebase.junit-4.11.jar}" {
+grant codeBase "${codebase.junit-4.12.jar}" {
   // needed for TestClass creation
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };

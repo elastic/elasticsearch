@@ -162,7 +162,7 @@ public class TransportService extends AbstractLifecycleComponent {
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         final boolean connectToRemoteCluster = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
-        remoteClusterService = connectToRemoteCluster ? new RemoteClusterService(settings, this) : null;
+        remoteClusterService = new RemoteClusterService(settings, this);
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);

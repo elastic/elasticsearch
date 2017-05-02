@@ -36,8 +36,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 
 import static org.elasticsearch.repositories.s3.S3Repository.Repositories;
-import static org.elasticsearch.repositories.s3.S3Repository.Repository;
-import static org.elasticsearch.repositories.s3.S3Repository.getValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class S3RepositoryTests extends ESTestCase {
@@ -82,15 +80,15 @@ public class S3RepositoryTests extends ESTestCase {
 
     private void assertValidBuffer(long bufferMB, long chunkMB) throws IOException {
         RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
-            .put(Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB))
-            .put(Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB)).build());
+            .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB))
+            .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB)).build());
         new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service());
     }
 
     private void assertInvalidBuffer(int bufferMB, int chunkMB, Class<? extends Exception> clazz, String msg) throws IOException {
         RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
-            .put(Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB))
-            .put(Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB)).build());
+            .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB))
+            .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB)).build());
 
         Exception e = expectThrows(clazz, () -> new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY,
             new DummyS3Service()));
@@ -99,26 +97,14 @@ public class S3RepositoryTests extends ESTestCase {
 
     public void testBasePathSetting() throws IOException {
         RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
-            .put(Repository.BASE_PATH_SETTING.getKey(), "/foo/bar").build());
+            .put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar").build());
         S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service());
-        assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
-        assertWarnings("S3 repository base_path" +
-                " trimming the leading `/`, and leading `/` will not be supported for the S3 repository in future releases");
-        metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.EMPTY);
-        Settings settings = Settings.builder().put(Repositories.BASE_PATH_SETTING.getKey(), "/foo/bar").build();
-        s3repo = new S3Repository(metadata, settings, NamedXContentRegistry.EMPTY, new DummyS3Service());
-        assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { Repositories.BASE_PATH_SETTING },
-            "S3 repository base_path" +
-                " trimming the leading `/`, and leading `/` will not be supported for the S3 repository in future releases");
+        assertEquals("foo/bar/", s3repo.basePath().buildAsString());
     }
 
     public void testDefaultBufferSize() {
-        ByteSizeValue defaultBufferSize = S3Repository.Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
+        ByteSizeValue defaultBufferSize = S3Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
         assertThat(defaultBufferSize, Matchers.lessThanOrEqualTo(new ByteSizeValue(100, ByteSizeUnit.MB)));
         assertThat(defaultBufferSize, Matchers.greaterThanOrEqualTo(new ByteSizeValue(5, ByteSizeUnit.MB)));
-
-        ByteSizeValue defaultNodeBufferSize = S3Repository.Repositories.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
-        assertEquals(defaultBufferSize, defaultNodeBufferSize);
     }
 }

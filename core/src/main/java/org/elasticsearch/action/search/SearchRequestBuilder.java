@@ -127,6 +127,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Indicates whether the search should early terminate based on the index sorting.
+     * The search sort must not be set since documents will be returned sorted by the index sorting criteria.
+     */
+    public SearchRequestBuilder setEarlyTerminate(boolean value) {
+        sourceBuilder().earlyTerminate(value);
+        return this;
+    }
+
+    /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
     public SearchRequestBuilder setRouting(String routing) {

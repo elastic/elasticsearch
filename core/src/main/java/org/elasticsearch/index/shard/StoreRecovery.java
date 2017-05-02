@@ -46,6 +46,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -110,12 +111,13 @@ final class StoreRecovery {
             }
             indexShard.mapperService().merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
             // now that the mapping is merged we can validate the index sort configuration.
-            Sort indexSort = indexShard.getIndexSort();
+            SortAndFormats indexSort = indexShard.getIndexSort();
             return executeRecovery(indexShard, () -> {
                 logger.debug("starting recovery from local shards {}", shards);
                 try {
                     final Directory directory = indexShard.store().directory(); // don't close this directory!!
-                    addIndices(indexShard.recoveryState().getIndex(), directory, indexSort,
+                    addIndices(indexShard.recoveryState().getIndex(), directory,
+                        indexSort == null ? null : indexSort.sort,
                         shards.stream().map(s -> s.getSnapshotDirectory())
                         .collect(Collectors.toList()).toArray(new Directory[shards.size()]));
                     internalRecoverFromStore(indexShard);

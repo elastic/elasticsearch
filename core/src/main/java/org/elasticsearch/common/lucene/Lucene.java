@@ -42,6 +42,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.EarlyTerminatingSortingCollector;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
@@ -50,6 +51,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SimpleCollector;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
@@ -258,6 +260,14 @@ public class Lucene {
     public static final TimeLimitingCollector wrapTimeLimitingCollector(final Collector delegate, final Counter counter, long timeoutInMillis) {
         return new TimeLimitingCollector(delegate, counter, timeoutInMillis);
     }
+
+    /**
+     * Wraps <code>delegate</code> with segment count based early termination sorting collector with a threshold of <code>maxHitsPerSegment</code>
+     */
+    public static final EarlyTerminatingSortingCollector wrapCountBasedEarlyTerminatingSortingCollector(final Collector delegate, final Sort sort, int maxHitsPerSegment) {
+        return new EarlyTerminatingSortingCollector(delegate, sort, maxHitsPerSegment);
+    }
+
 
     /**
      * Check whether there is one or more documents matching the provided query.

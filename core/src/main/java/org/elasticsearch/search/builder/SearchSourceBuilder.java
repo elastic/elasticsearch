@@ -77,6 +77,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
+    public static final ParseField EARLY_TERMINATE_FIELD = new ParseField("early_terminate");
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
@@ -149,6 +150,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private TimeValue timeout = null;
     private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
+    private boolean earlyTerminate = false;
 
     private StoredFieldsContext storedFieldsContext;
     private List<String> docValueFields;
@@ -223,6 +225,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             collapse = in.readOptionalWriteable(CollapseBuilder::new);
         }
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            earlyTerminate = in.readBoolean();
+        }
     }
 
     @Override
@@ -273,6 +278,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeOptionalWriteable(sliceBuilder);
         if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             out.writeOptionalWriteable(collapse);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeBoolean(earlyTerminate);
         }
     }
 
@@ -424,6 +432,22 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      */
     public int terminateAfter() {
         return terminateAfter;
+    }
+
+    /**
+     * Indicates whether the search should early terminate based on the index sorting.
+     * The search sort must not be set since documents will be returned sorted by the index sorting criteria.
+     */
+    public  SearchSourceBuilder earlyTerminate(boolean value) {
+        this.earlyTerminate = value;
+        return this;
+    }
+
+    /**
+     * Returns whether the search should early terminate based on the index sorting
+     */
+    public boolean earlyTerminate() {
+        return earlyTerminate;
     }
 
     /**
@@ -955,6 +979,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     timeout = TimeValue.parseTimeValue(parser.text(), null, TIMEOUT_FIELD.getPreferredName());
                 } else if (TERMINATE_AFTER_FIELD.match(currentFieldName)) {
                     terminateAfter = parser.intValue();
+                } else if (EARLY_TERMINATE_FIELD.match(currentFieldName)) {
+                    earlyTerminate = parser.booleanValue();
                 } else if (MIN_SCORE_FIELD.match(currentFieldName)) {
                     minScore = parser.floatValue();
                 } else if (VERSION_FIELD.match(currentFieldName)) {

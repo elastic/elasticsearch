@@ -67,6 +67,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -120,7 +121,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final Client client;
-    private Supplier<Sort> indexSortSupplier;
+    private Supplier<SortAndFormats> indexSortSupplier;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         NamedXContentRegistry xContentRegistry,
@@ -255,7 +256,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return similarityService;
     }
 
-    public Supplier<Sort> getIndexSortSupplier() {
+    public Supplier<SortAndFormats> getIndexSortSupplier() {
         return indexSortSupplier;
     }
 

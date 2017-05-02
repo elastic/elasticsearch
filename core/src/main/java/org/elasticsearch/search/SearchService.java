@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -725,6 +726,36 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.collapse() != null) {
             final CollapseContext collapseContext = source.collapse().build(context);
             context.collapse(collapseContext);
+        }
+
+        if (source.earlyTerminate()) {
+            IndexSortConfig sortConfig = context.mapperService().getIndexSettings().getIndexSortConfig();
+            if (sortConfig == null || sortConfig.hasIndexSort() == false) {
+                throw new SearchContextException(context,
+                    "cannot use `early_terminate` when index sorting is not set");
+            }
+            if (context.scrollContext() != null) {
+                throw new SearchContextException(context,
+                    "`early_terminate` cannot be used in a scroll context");
+            }
+            if (context.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
+                throw new SearchContextException(context,
+                    "cannot use `early_terminate` in conjunction with `terminate_after`");
+            }
+            if (context.searchAfter() != null) {
+                throw new SearchContextException(context,
+                    "cannot use `early_terminate` in conjunction with `search_after");
+            }
+            SortAndFormats sortAndFormats = sortConfig.buildIndexSort(context.mapperService()::fullName,
+                context.fieldData()::getForField);
+            if (context.sort() != null && context.sort().sort.equals(sortAndFormats.sort) == false) {
+                throw new SearchContextException(context, "cannot use `early_terminate` when the search sort [" +
+                    context.sort().sort + "] is different than the index sorting [" + sortAndFormats.sort + "]");
+            } else {
+                // the search sort is null or equals to index sorting so it's safe to override it here
+                context.sort(sortAndFormats);
+            }
+            context.earlyTerminate(true);
         }
     }
 

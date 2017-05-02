@@ -19,7 +19,8 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
@@ -63,7 +64,8 @@ public abstract class BaseFuture<V> implements Future<V> {
         assert timeout <= 0 ||
             (Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
                 ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
-                ClusterService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON));
+                ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON) &&
+                MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON));
         return sync.get(unit.toNanos(timeout));
     }
 
@@ -87,7 +89,8 @@ public abstract class BaseFuture<V> implements Future<V> {
     public V get() throws InterruptedException, ExecutionException {
         assert Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
             ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
-            ClusterService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON);
+            ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON) &&
+            MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON);
         return sync.get();
     }
 

@@ -122,9 +122,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             // TODO: change me once the minimum_master_nodes is changed too
             recoverAfterMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", -1);
         }
-
-        // Add the not recovered as initial state block, we don't allow anything until
-        this.clusterService.addInitialStateBlock(STATE_NOT_RECOVERED_BLOCK);
     }
 
     @Override

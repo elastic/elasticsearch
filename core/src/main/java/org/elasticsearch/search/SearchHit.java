@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -544,7 +545,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
         ShardId shardId = get(Fields._SHARD, values, null);
         String nodeId = get(Fields._NODE, values, null);
         if (shardId != null && nodeId != null) {
-            searchHit.shard(new SearchShardTarget(nodeId, shardId));
+            searchHit.shard(new SearchShardTarget(nodeId, shardId, OriginalIndices.NONE));
         }
         searchHit.fields(fields);
         return searchHit;

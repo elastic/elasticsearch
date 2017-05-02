@@ -245,6 +245,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testSimpleParentChild() throws Exception {
         assertAcked(prepareCreate("articles")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("article", "title", "type=text")
                 .addMapping("comment", "_parent", "type=article", "message", "type=text,fielddata=true")
         );
@@ -319,6 +320,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testRandomParentChild() throws Exception {
         assertAcked(prepareCreate("idx")
+                        .setSettings("index.mapping.single_type", false)
                         .addMapping("parent")
                         .addMapping("child1", "_parent", "type=parent")
                         .addMapping("child2", "_parent", "type=parent")
@@ -402,6 +404,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testInnerHitsOnHasParent() throws Exception {
         assertAcked(prepareCreate("stack")
+                        .setSettings("index.mapping.single_type", false)
                         .addMapping("question", "body", "type=text")
                         .addMapping("answer", "_parent", "type=question", "body", "type=text")
         );
@@ -444,9 +447,10 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testParentChildMultipleLayers() throws Exception {
         assertAcked(prepareCreate("articles")
-                        .addMapping("article", "title", "type=text")
-                        .addMapping("comment", "_parent", "type=article", "message", "type=text")
-                        .addMapping("remark", "_parent", "type=comment", "message", "type=text")
+                .setSettings("index.mapping.single_type", false)
+                .addMapping("article", "title", "type=text")
+                .addMapping("comment", "_parent", "type=article", "message", "type=text")
+                .addMapping("remark", "_parent", "type=comment", "message", "type=text")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -720,6 +724,7 @@ public class InnerHitsIT extends ESIntegTestCase {
     public void testRoyals() throws Exception {
         assertAcked(
                 prepareCreate("royals")
+                        .setSettings("index.mapping.single_type", false)
                         .addMapping("king")
                         .addMapping("prince", "_parent", "type=king")
                         .addMapping("duke", "_parent", "type=prince")
@@ -907,7 +912,9 @@ public class InnerHitsIT extends ESIntegTestCase {
     }
 
     public void testMatchesQueriesParentChildInnerHits() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("child", "_parent", "type=parent"));
+        assertAcked(prepareCreate("index")
+                .setSettings("index.mapping.single_type", false)
+                .addMapping("child", "_parent", "type=parent"));
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(client().prepareIndex("index", "parent", "1").setSource("{}", XContentType.JSON));
         requests.add(client().prepareIndex("index", "child", "1").setParent("1").setSource("field", "value1"));
@@ -946,7 +953,9 @@ public class InnerHitsIT extends ESIntegTestCase {
     }
 
     public void testDontExplode() throws Exception {
-        assertAcked(prepareCreate("index1").addMapping("child", "_parent", "type=parent"));
+        assertAcked(prepareCreate("index1")
+                .setSettings("index.mapping.single_type", false)
+                .addMapping("child", "_parent", "type=parent"));
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(client().prepareIndex("index1", "parent", "1").setSource("{}", XContentType.JSON));
         requests.add(client().prepareIndex("index1", "child", "1").setParent("1").setSource("field", "value1"));
@@ -1012,7 +1021,9 @@ public class InnerHitsIT extends ESIntegTestCase {
     }
 
     public void testNestedInnerHitWrappedInParentChildInnerhit() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("child_type", "_parent", "type=parent_type", "nested_type", "type=nested"));
+        assertAcked(prepareCreate("test")
+                .setSettings("index.mapping.single_type", false)
+                .addMapping("child_type", "_parent", "type=parent_type", "nested_type", "type=nested"));
         client().prepareIndex("test", "parent_type", "1").setSource("key", "value").get();
         client().prepareIndex("test", "child_type", "2").setParent("1").setSource("nested_type", Collections.singletonMap("key", "value"))
             .get();
@@ -1030,6 +1041,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testInnerHitsWithIgnoreUnmapped() throws Exception {
         assertAcked(prepareCreate("index1")
+            .setSettings("index.mapping.single_type", false)
             .addMapping("parent_type", "nested_type", "type=nested")
             .addMapping("child_type", "_parent", "type=parent_type")
         );

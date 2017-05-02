@@ -93,6 +93,7 @@ public class ReindexParentChildTests extends ReindexTestCase {
      */
     private void createParentChildIndex(String indexName) throws Exception {
         CreateIndexRequestBuilder create = client().admin().indices().prepareCreate(indexName);
+        create.setSettings("index.mapping.single_type", false);
         create.addMapping("city", "{\"_parent\": {\"type\": \"country\"}}", XContentType.JSON);
         create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}", XContentType.JSON);
         assertAcked(create);

@@ -20,10 +20,11 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -77,7 +78,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     }
 
     public void testSettingsAreRegistered() {
-        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CLUSTERS_SEEDS));
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_NODE_ATTRIBUTE));
@@ -88,12 +89,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("search.remote.foo.seeds", "192.168.0.1:8080")
             .put("search.remote.bar.seed", "[::1]:9090").build();
-        RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+        RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
 
         Settings brokenSettings = Settings.builder()
             .put("search.remote.foo.seeds", "192.168.0.1").build();
         expectThrows(IllegalArgumentException.class, () ->
-        RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(brokenSettings).forEach(setting -> setting.get(brokenSettings)));
+        RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(brokenSettings).forEach(setting -> setting.get(brokenSettings)));
     }
 
     public void testBuiltRemoteClustersSeeds() throws Exception {
@@ -144,9 +145,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(service.isRemoteClusterRegistered("foo"));
                     Map<String, List<String>> perClusterIndices = service.groupClusterIndices(new String[]{"foo:bar", "cluster_1:bar",
                         "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo", "cluster*:baz", "*:boo", "no*match:boo"}, i -> false);
-                    String[] localIndices = perClusterIndices.computeIfAbsent(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+                    String[] localIndices = perClusterIndices.computeIfAbsent(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                         k -> Collections.emptyList()).toArray(new String[0]);
-                    assertNotNull(perClusterIndices.remove(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY));
+                    assertNotNull(perClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
                     assertArrayEquals(new String[]{"foo:bar", "foo", "no*match:boo"}, localIndices);
                     assertEquals(2, perClusterIndices.size());
                     assertEquals(Arrays.asList("bar", "test", "baz", "boo"), perClusterIndices.get("cluster_1"));
@@ -194,7 +195,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     service.updateRemoteCluster("cluster_2", Collections.emptyList());
                     assertFalse(service.isRemoteClusterRegistered("cluster_2"));
                     IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                        () -> service.updateRemoteCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, Collections.emptyList()));
+                        () -> service.updateRemoteCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Collections.emptyList()));
                     assertEquals("remote clusters must not have the empty string as its key", iae.getMessage());
                 }
             }
@@ -204,7 +205,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     public void testProcessRemoteShards() throws IOException {
         try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, null)) {
             assertFalse(service.isCrossClusterSearchEnabled());
-            List<ShardIterator> iteratorList = new ArrayList<>();
+            List<SearchShardIterator> iteratorList = new ArrayList<>();
             Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
             DiscoveryNode[] nodes = new DiscoveryNode[] {
                 new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
@@ -225,11 +226,26 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         TestShardRouting.newShardRouting("bar", 0, "node1", false, ShardRoutingState.STARTED)})
             };
             searchShardsResponseMap.put("test_cluster_1", new ClusterSearchShardsResponse(groups, nodes, indicesAndAliases));
+            DiscoveryNode[] nodes2 = new DiscoveryNode[] {
+                    new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT)
+            };
+            ClusterSearchShardsGroup[] groups2 = new ClusterSearchShardsGroup[] {
+                    new ClusterSearchShardsGroup(new ShardId("xyz", "xyz_id", 0),
+                            new ShardRouting[] {TestShardRouting.newShardRouting("xyz", 0, "node3", true, ShardRoutingState.STARTED)})
+            };
+            searchShardsResponseMap.put("test_cluster_2", new ClusterSearchShardsResponse(groups2, nodes2, null));
+
+            Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+            remoteIndicesByCluster.put("test_cluster_1",
+                    new OriginalIndices(new String[]{"fo*", "ba*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
+            remoteIndicesByCluster.put("test_cluster_2",
+                    new OriginalIndices(new String[]{"x*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
             Map<String, AliasFilter> remoteAliases = new HashMap<>();
-            service.processRemoteShards(searchShardsResponseMap, iteratorList, remoteAliases);
-            assertEquals(3, iteratorList.size());
-            for (ShardIterator iterator : iteratorList) {
+            service.processRemoteShards(searchShardsResponseMap, remoteIndicesByCluster, iteratorList, remoteAliases);
+            assertEquals(4, iteratorList.size());
+            for (SearchShardIterator iterator : iteratorList) {
                 if (iterator.shardId().getIndexName().endsWith("foo")) {
+                    assertArrayEquals(new String[]{"fo*", "ba*"}, iterator.getOriginalIndices().indices());
                     assertTrue(iterator.shardId().getId() == 0 || iterator.shardId().getId() == 1);
                     assertEquals("test_cluster_1:foo", iterator.shardId().getIndexName());
                     ShardRouting shardRouting = iterator.nextOrNull();
@@ -239,7 +255,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertNotNull(shardRouting);
                     assertEquals(shardRouting.getIndexName(), "foo");
                     assertNull(iterator.nextOrNull());
-                } else {
+                } else if (iterator.shardId().getIndexName().endsWith("bar")) {
+                    assertArrayEquals(new String[]{"fo*", "ba*"}, iterator.getOriginalIndices().indices());
                     assertEquals(0, iterator.shardId().getId());
                     assertEquals("test_cluster_1:bar", iterator.shardId().getIndexName());
                     ShardRouting shardRouting = iterator.nextOrNull();
@@ -249,13 +266,23 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertNotNull(shardRouting);
                     assertEquals(shardRouting.getIndexName(), "bar");
                     assertNull(iterator.nextOrNull());
+                } else if (iterator.shardId().getIndexName().endsWith("xyz")) {
+                    assertArrayEquals(new String[]{"x*"}, iterator.getOriginalIndices().indices());
+                    assertEquals(0, iterator.shardId().getId());
+                    assertEquals("test_cluster_2:xyz", iterator.shardId().getIndexName());
+                    ShardRouting shardRouting = iterator.nextOrNull();
+                    assertNotNull(shardRouting);
+                    assertEquals(shardRouting.getIndexName(), "xyz");
+                    assertNull(iterator.nextOrNull());
                 }
             }
-            assertEquals(2, remoteAliases.size());
+            assertEquals(3, remoteAliases.size());
             assertTrue(remoteAliases.toString(), remoteAliases.containsKey("foo_id"));
             assertTrue(remoteAliases.toString(), remoteAliases.containsKey("bar_id"));
+            assertTrue(remoteAliases.toString(), remoteAliases.containsKey("xyz_id"));
             assertEquals(new TermsQueryBuilder("foo", "bar"), remoteAliases.get("foo_id").getQueryBuilder());
             assertEquals(new MatchAllQueryBuilder(), remoteAliases.get("bar_id").getQueryBuilder());
+            assertNull(remoteAliases.get("xyz_id").getQueryBuilder());
         }
     }
 

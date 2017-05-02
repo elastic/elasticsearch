@@ -30,8 +30,7 @@ import java.util.Locale;
 public class Platforms {
 
     private static final String PROGRAM_NAME = Constants.WINDOWS ? "controller.exe" : "controller";
-    private static final String PLATFORM_NAME =
-            Platforms.platformName(Constants.OS_NAME, Constants.OS_ARCH);
+    public static final String PLATFORM_NAME = Platforms.platformName(Constants.OS_NAME, Constants.OS_ARCH);
 
     private Platforms() {}
 

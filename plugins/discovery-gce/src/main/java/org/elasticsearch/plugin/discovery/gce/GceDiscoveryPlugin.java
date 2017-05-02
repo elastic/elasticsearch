@@ -24,28 +24,25 @@ import com.google.api.client.util.ClassInfo;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
 import org.elasticsearch.cloud.gce.GceMetadataService;
-import org.elasticsearch.cloud.gce.GceModule;
 import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.cloud.gce.util.Access;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.discovery.gce.GceUnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,11 +50,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -92,10 +85,12 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     @Override
     public Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
                                                               NamedWriteableRegistry namedWriteableRegistry,
-                                                              ClusterService clusterService, UnicastHostsProvider hostsProvider) {
+                                                              MasterService masterService, ClusterApplier clusterApplier,
+                                                              ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider) {
         // this is for backcompat with pre 5.1, where users would set discovery.type to use ec2 hosts provider
         return Collections.singletonMap(GCE, () ->
-            new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, clusterService, hostsProvider));
+            new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier,
+                clusterSettings, hostsProvider));
     }
 
     @Override

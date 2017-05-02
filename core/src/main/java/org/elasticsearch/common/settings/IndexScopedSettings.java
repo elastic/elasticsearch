@@ -135,6 +135,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
+        MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING,
         BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
         IndexModule.INDEX_STORE_TYPE_SETTING,
         IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
@@ -191,9 +192,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case IndexMetaData.SETTING_VERSION_UPGRADED:
             case IndexMetaData.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyConfig.INDEX_MERGE_ENABLED:
+            case IndexMetaData.INDEX_SHRINK_SOURCE_UUID_KEY:
+            case IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY:
                 return true;
             default:
-                return false;
+                return IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
         }
     }
 }

@@ -56,10 +56,10 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     @Before
     public void setup() throws IOException {
         createIndex("test");
-        client().prepareIndex("test", "testtype", "1")
+        client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("text", "value1").endObject())
                 .get();
-        client().prepareIndex("test", "testtype", "2")
+        client().prepareIndex("test", "type", "2")
                 .setSource(jsonBuilder().startObject().field("text", "value2").endObject())
                 .get();
         client().admin().indices().prepareRefresh().get();

@@ -86,14 +86,12 @@ public class SearchTransportService extends AbstractLifecycleComponent {
         this.transportService = transportService;
         this.remoteClusterService = new RemoteClusterService(settings, transportService);
         if (connectToRemote) {
-            clusterSettings.addAffixUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS, remoteClusterService::updateRemoteCluster,
-                (namespace, value) -> {
-                });
+            remoteClusterService.listenForUpdates(clusterSettings);
         }
     }
 
-    public void sendFreeContext(Transport.Connection connection, final long contextId, SearchRequest request) {
-        transportService.sendRequest(connection, FREE_CONTEXT_ACTION_NAME, new SearchFreeContextRequest(request, contextId),
+    public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {
+        transportService.sendRequest(connection, FREE_CONTEXT_ACTION_NAME, new SearchFreeContextRequest(originalIndices, contextId),
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(new ActionListener<SearchFreeContextResponse>() {
                 @Override
                 public void onResponse(SearchFreeContextResponse response) {
@@ -219,9 +217,9 @@ public class SearchTransportService extends AbstractLifecycleComponent {
         SearchFreeContextRequest() {
         }
 
-        SearchFreeContextRequest(SearchRequest request, long id) {
+        SearchFreeContextRequest(OriginalIndices originalIndices, long id) {
             super(id);
-            this.originalIndices = new OriginalIndices(request);
+            this.originalIndices = originalIndices;
         }
 
         @Override

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import java.io.Reader;
 import java.util.regex.Pattern;
@@ -27,6 +27,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractCharFilterFactory;
+import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 
 public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory implements MultiTermAwareComponent {
 

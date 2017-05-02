@@ -263,18 +263,17 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     }
 
     public void testDynamicUpdateMinimumMasterNodes() throws Exception {
-        Settings settings = Settings.builder()
-                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "400ms")
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "1")
-                .build();
+        Settings settingsWithMinMaster1 = Settings.builder()
+            .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "400ms")
+            .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 1)
+            .build();
 
-        logger.info("--> start first node and wait for it to be a master");
-        internalCluster().startNode(settings);
-        ensureClusterSizeConsistency();
+        Settings settingsWithMinMaster2 = Settings.builder()
+            .put(settingsWithMinMaster1).put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
+            .build();
 
-        // wait until second node join the cluster
-        logger.info("--> start second node and wait for it to join");
-        internalCluster().startNode(settings);
+        logger.info("--> start two nodes and wait for them to form a cluster");
+        internalCluster().startNodes(settingsWithMinMaster1, settingsWithMinMaster2);
         ensureClusterSizeConsistency();
 
         logger.info("--> setting minimum master node to 2");
@@ -292,7 +291,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertNoMasterBlockOnAllNodes();
 
         logger.info("--> bringing another node up");
-        internalCluster().startNode(Settings.builder().put(settings).put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2).build());
+        internalCluster().startNode(settingsWithMinMaster2);
         ensureClusterSizeConsistency();
     }
 

@@ -51,7 +51,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     final ObjectLongMap<String> inSyncLocalCheckpoints;
 
     /*
-     * This map holds the last known local checkpoint for initializing shards that is undergoing recovery. Such shards do not participate
+     * This map holds the last known local checkpoint for initializing shards that are undergoing recovery. Such shards do not participate
      * in determining the global checkpoint. We must track these local checkpoints so that when a shard is activated we use the highest
      * known checkpoint.
      */

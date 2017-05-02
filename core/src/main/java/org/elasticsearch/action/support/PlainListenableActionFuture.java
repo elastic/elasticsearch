@@ -49,7 +49,7 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
     /**
      * This method returns a listenable future. The listeners will be called on completion of the future.
      * The listeners will be executed on the LISTENER thread pool.
-     * @param threadPool
+     * @param threadPool the thread pool used to execute listeners
      * @param <T> the result of the future
      * @return a listenable future
      */

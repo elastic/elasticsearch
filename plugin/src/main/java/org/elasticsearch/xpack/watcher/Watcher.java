@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -181,7 +181,8 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
     private static final ScriptContext.Plugin SCRIPT_PLUGIN = new ScriptContext.Plugin("xpack", "watch");
     public static final ScriptContext SCRIPT_CONTEXT = SCRIPT_PLUGIN::getKey;
 
-    private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
+    private static final Logger logger = Loggers.getLogger(Watcher.class);
+    private WatcherIndexingListener listener;
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
@@ -201,15 +202,13 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
     protected final Settings settings;
     protected final boolean transportClient;
     protected final boolean enabled;
-    private final boolean transportClientMode;
 
     public Watcher(Settings settings) {
         this.settings = settings;
-        transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        if (enabled && transportClientMode == false) {
-            validAutoCreateIndex(settings);
+        this.transportClient = XPackPlugin.transportClientMode(settings);
+        if (enabled && transportClient == false) {
+            validAutoCreateIndex(settings, logger);
         }
     }
 
@@ -293,7 +292,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final Watch.Parser watchParser = new Watch.Parser(settings, triggerService, registry, inputRegistry, cryptoService, clock);
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                clock, threadPool, watchParser, watcherClientProxy);
+                clock, threadPool, watchParser, clusterService, watcherClientProxy);
 
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
@@ -301,15 +300,19 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = new WatcherIndexTemplateRegistry(settings,
                 clusterService.getClusterSettings(), clusterService, threadPool, internalClient);
 
-        final WatcherService watcherService = new WatcherService(settings, triggerService, executionService,
-                watcherIndexTemplateRegistry, watchParser, watcherClientProxy);
+        WatcherService watcherService = new WatcherService(settings, triggerService, triggeredWatchStore, executionService,
+                watchParser, watcherClientProxy);
 
         final WatcherLifeCycleService watcherLifeCycleService =
                 new WatcherLifeCycleService(settings, threadPool, clusterService, watcherService);
 
+        listener = new WatcherIndexingListener(settings, watchParser, clock, triggerService);
+        clusterService.addListener(listener);
+
         return Arrays.asList(registry, watcherClient, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
-                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, watcherClientProxy);
+                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, watcherClientProxy,
+                watcherIndexTemplateRegistry);
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
@@ -338,7 +341,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         List<Module> modules = new ArrayList<>();
         modules.add(b -> {
             XPackPlugin.bindFeatureSet(b, WatcherFeatureSet.class);
-            if (transportClientMode || enabled == false) {
+            if (transportClient || enabled == false) {
                 b.bind(WatcherService.class).toProvider(Providers.of(null));
             }
         });
@@ -358,6 +361,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         settings.add(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
         settings.add(MAX_STOP_TIMEOUT_SETTING);
         settings.add(ExecutionService.DEFAULT_THROTTLE_PERIOD_SETTING);
+        settings.add(TickerScheduleTriggerEngine.TICKER_INTERVAL_SETTING);
         settings.add(Setting.intSetting("xpack.watcher.execution.scroll.size", 0, Setting.Property.NodeScope));
         settings.add(Setting.intSetting("xpack.watcher.watch.scroll.size", 0, Setting.Property.NodeScope));
         settings.add(ENCRYPT_SENSITIVE_DATA_SETTING);
@@ -369,7 +373,6 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         settings.add(Setting.simpleString("xpack.watcher.index.rest.direct_access", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.input.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));
-        settings.add(Setting.simpleString("xpack.watcher.trigger.schedule.ticker.tick_interval", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.start_immediately", Setting.Property.NodeScope));
 
@@ -429,7 +432,21 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         return SCRIPT_PLUGIN;
     }
 
-    static void validAutoCreateIndex(Settings settings) {
+
+    public void onIndexModule(IndexModule module) {
+        if (enabled == false || transportClient) {
+            return;
+        }
+
+        assert listener != null;
+        // for now, we only add this index operation listener to indices starting with .watches
+        // this also means, that aliases pointing to this index have to follow this notation
+        if (module.getIndex().getName().startsWith(Watch.INDEX)) {
+            module.addIndexOperationListener(listener);
+        }
+    }
+
+    static void validAutoCreateIndex(Settings settings, Logger logger) {
         String value = settings.get("action.auto_create_index");
         if (value == null) {
             return;

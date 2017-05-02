@@ -59,6 +59,7 @@ teardown:
   - match: { watch_record.trigger_event.manual.schedule.scheduled_time: "2000-12-12T12:12:12.120Z" }
   - match: { watch_record.state: "executed" }
   - match: { watch_record._status.state.active: true }
+  - is_true: watch_record.node
   - match: { watch_record._status.actions.indexme.ack.state: "ackable" }
 
 ---

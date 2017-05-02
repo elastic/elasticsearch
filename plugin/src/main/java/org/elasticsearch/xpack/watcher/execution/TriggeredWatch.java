@@ -41,9 +41,7 @@ public class TriggeredWatch implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject(Field.TRIGGER_EVENT.getPreferredName())
-                .field(triggerEvent.type(), triggerEvent, params)
-                .endObject();
+        builder.field(Field.TRIGGER_EVENT.getPreferredName()).startObject().field(triggerEvent.type(), triggerEvent, params).endObject();
         builder.endObject();
         return builder;
     }

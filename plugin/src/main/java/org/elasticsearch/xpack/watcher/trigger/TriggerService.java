@@ -51,6 +51,21 @@ public class TriggerService extends AbstractComponent {
     }
 
     /**
+     * Stop execution/triggering of watches on this node, do not try to reload anything, just sit still
+     */
+    public synchronized void pauseExecution() {
+        engines.values().forEach(TriggerEngine::pauseExecution);
+    }
+
+    /**
+     * Count the total number of active jobs across all trigger engines
+     * @return The total count of active jobs
+     */
+    public long count() {
+        return engines.values().stream().mapToInt(TriggerEngine::getJobCount).sum();
+    }
+
+    /**
      * Adds the given job to the trigger service. If there is already a registered job in this service with the
      * same job ID, the newly added job will replace the old job (the old job will not be triggered anymore)
      *

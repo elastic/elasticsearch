@@ -137,10 +137,32 @@ appropriate trigger engine. Watches that have a `schedule` trigger are
 registered with the `scheduler` trigger engine. 
 
 The scheduler tracks time and triggers watches according to their schedules. 
-The scheduler runs on the master node and is bound to the lifecycle of the 
-{watcher} service. When the {watcher} service is stopped, the scheduler 
-stops with it. Trigger engines use a separate thread pool from the one used 
-to execute watches.
+On each node, that contains one of the `.watches` shards, a scheduler, that is
+bound to the watcher lifecycle runs. Even though all primaries and replicas are
+taken into account, when a watch is triggered, watcher also ensures, that each
+watch is only triggered on one of those shards. The more replica shards you
+add, the more distributed the watches can be executed. If you add or remove
+replicas, all watches need to be reloaded.  If a shard is relocated, the
+primary and all replicas of this particular shard will reload.
+
+Because the watches are executed on the node, where the watch shards are, you can create
+dedicated watcher nodes by using shard allocation filtering.
+
+You could configure nodes with a dedicated `node.attr.watcher: true` property and
+then configure the `.watches` index like this:
+
+[source,js]
+------------------------
+PUT .watches/_settings
+{
+  "index.routing.allocation.include": "watcher"
+}
+------------------------
+// CONSOLE
+// TEST[skip:indexes don't assign]
+
+When the {watcher} service is stopped, the scheduler stops with it. Trigger
+engines use a separate thread pool from the one used to execute watches.
 
 When a watch is triggered, {watcher} queues it up for execution. A `watch_record`
 document is created and added to the watch history and the watch's status is set 

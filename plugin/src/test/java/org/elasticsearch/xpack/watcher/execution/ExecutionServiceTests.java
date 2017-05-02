@@ -8,10 +8,9 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -46,12 +45,14 @@ import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -62,7 +63,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.joda.time.DateTime.now;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
@@ -106,11 +106,16 @@ public class ExecutionServiceTests extends ESTestCase {
 
         client = mock(WatcherClientProxy.class);
         parser = mock(Watch.Parser.class);
+
+        DiscoveryNode discoveryNode = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
+                new HashSet<>(asList(DiscoveryNode.Role.values())), Version.CURRENT);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.localNode()).thenReturn(discoveryNode);
+
         executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, clock, threadPool,
-                parser, client);
+                parser, clusterService, client);
 
         ClusterState clusterState = mock(ClusterState.class);
-        when(triggeredWatchStore.loadTriggeredWatches(clusterState)).thenReturn(new ArrayList<>());
         executionService.start(clusterState);
     }
 
@@ -185,6 +190,7 @@ public class ExecutionServiceTests extends ESTestCase {
         WatchRecord watchRecord = executionService.execute(context);
         assertThat(watchRecord.result().conditionResult(), sameInstance(conditionResult));
         assertThat(watchRecord.result().transformResult(), sameInstance(watchTransformResult));
+        assertThat(watchRecord.getNodeId(), is("node_1"));
         ActionWrapper.Result result = watchRecord.result().actionsResults().get("_action");
         assertThat(result, notNullValue());
         assertThat(result.id(), is("_action"));
@@ -809,6 +815,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.id()).thenReturn("_id");
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         when(ctx.knownWatch()).thenReturn(true);
+        when(watch.status()).thenReturn(new WatchStatus(now(), emptyMap()));
         when(ctx.watch()).thenReturn(watch);
 
         GetResponse getResponse = mock(GetResponse.class);
@@ -843,18 +850,22 @@ public class ExecutionServiceTests extends ESTestCase {
         }
     }
 
-    public void testValidateStartWithClosedIndex() throws Exception {
-        when(triggeredWatchStore.validate(anyObject())).thenReturn(true);
-        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDataBuilder = MetaData.builder();
-        Settings indexSettings = settings(Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
-        metaDataBuilder.put(IndexMetaData.builder(Watch.INDEX).state(IndexMetaData.State.CLOSE).settings(indexSettings));
-        csBuilder.metaData(metaDataBuilder);
+    public void testWatchInactive() {
+        Watch watch = mock(Watch.class);
+        when(watch.id()).thenReturn("_id");
+        WatchExecutionContext ctx = mock(WatchExecutionContext.class);
+        when(ctx.knownWatch()).thenReturn(true);
+        WatchStatus status = mock(WatchStatus.class);
+        when(status.state()).thenReturn(new WatchStatus.State(false, now()));
+        when(watch.status()).thenReturn(status);
+        when(ctx.watch()).thenReturn(watch);
 
-        assertThat(executionService.validate(csBuilder.build()), is(false));
+        WatchRecord.MessageWatchRecord record = mock(WatchRecord.MessageWatchRecord.class);
+        when(record.state()).thenReturn(ExecutionState.EXECUTION_NOT_NEEDED);
+        when(ctx.abortBeforeExecution(eq(ExecutionState.EXECUTION_NOT_NEEDED), eq("Watch is not active"))).thenReturn(record);
+
+        WatchRecord watchRecord = executionService.execute(ctx);
+        assertThat(watchRecord.state(), is(ExecutionState.EXECUTION_NOT_NEEDED));
     }
 
     private Tuple<Condition, Condition.Result> whenCondition(final WatchExecutionContext context) {

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.test;
 
 import io.netty.util.internal.SystemPropertyUtil;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -19,7 +18,9 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -62,8 +64,6 @@ import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.template.TemplateUtils;
-import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
-import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
@@ -71,9 +71,12 @@ import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.hamcrest.Matcher;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -90,10 +93,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -105,6 +110,7 @@ import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegist
 import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
@@ -228,25 +234,18 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return randomBoolean();
     }
 
-    protected boolean checkWatcherRunningOnlyOnce() {
-        return true;
-    }
-
     @Before
     public void _setup() throws Exception {
         setupTimeWarp();
         startWatcherIfNodesExist();
-        configureAliasesForWatcherIndices();
+        createWatcherIndicesOrAliases();
     }
 
     @After
     public void _cleanup() throws Exception {
         // Clear all internal watcher state for the next test method:
-        logger.info("[{}#{}]: clearing watcher state", getTestClass().getSimpleName(), getTestName());
-        if (checkWatcherRunningOnlyOnce()) {
-            ensureWatcherOnlyRunningOnce();
-        }
-        stopWatcher(false);
+        logger.info("[#{}]: clearing watcher state", getTestName());
+        stopWatcher();
     }
 
     @AfterClass
@@ -270,7 +269,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     private void setupTimeWarp() throws Exception {
         if (timeWarped()) {
-            timeWarp = new TimeWarp(getInstanceFromMaster(ScheduleTriggerEngineMock.class), (ClockMock)getInstanceFromMaster(Clock.class));
+            timeWarp = new TimeWarp(internalCluster().getInstances(ScheduleTriggerEngineMock.class),
+                    (ClockMock)getInstanceFromMaster(Clock.class));
         }
     }
 
@@ -284,21 +284,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 internalCluster().setDisruptionScheme(ice);
                 ice.startDisrupting();
             }
-            WatcherState state = getInstanceFromMaster(WatcherService.class).state();
-            if (state == WatcherState.STOPPED) {
-                logger.info("[{}#{}]: starting watcher", getTestClass().getSimpleName(), getTestName());
-                startWatcher(false);
-            } else if (state == WatcherState.STARTING) {
-                logger.info("[{}#{}]: watcher is starting, waiting for it to get in a started state",
-                        getTestClass().getSimpleName(), getTestName());
-                ensureWatcherStarted(false);
-            } else {
-                logger.info("[{}#{}]: not starting watcher, because watcher is in state [{}]",
-                        getTestClass().getSimpleName(), getTestName(), state);
-            }
-        } else {
-            logger.info("[{}#{}]: not starting watcher, because test cluster has no nodes",
-                    getTestClass().getSimpleName(), getTestName());
+            assertAcked(watcherClient().prepareWatchService().start().get());
         }
     }
 
@@ -310,7 +296,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
      * https://github.com/elastic/elasticsearch-migration/
      *
      */
-    private void configureAliasesForWatcherIndices() throws Exception {
+    private void createWatcherIndicesOrAliases() throws Exception {
         if (internalCluster().size() > 0) {
             // alias for .watches, setting the index template to the same as well
             if (rarely()) {
@@ -327,7 +313,22 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                             .addMapping("watch", (Map<String, Object>) allMappings.get("watch"))
                             .get();
                     assertAcked(response);
+                    ensureGreen(newIndex);
                 }
+            } else {
+                Settings.Builder builder = Settings.builder();
+                if (randomBoolean()) {
+                    builder.put("index.number_of_shards", scaledRandomIntBetween(1, 5));
+                }
+                if (randomBoolean()) {
+                    // maximum number of replicas
+                    ClusterState state = internalCluster().getDataNodeInstance(ClusterService.class).state();
+                    int dataNodeCount = state.nodes().getDataNodes().size();
+                    int replicas = scaledRandomIntBetween(0, dataNodeCount - 1);
+                    builder.put("index.number_of_replicas", replicas);
+                }
+                assertAcked(client().admin().indices().prepareCreate(Watch.INDEX).setSettings(builder));
+                ensureGreen(Watch.INDEX);
             }
 
             // alias for .triggered-watches, ensuring the index template is set appropriately
@@ -345,8 +346,18 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                             .addMapping("triggered_watch", (Map<String, Object>) allMappings.get("triggered_watch"))
                             .get();
                     assertAcked(response);
+                    ensureGreen(newIndex);
                 }
+            } else {
+                assertAcked(client().admin().indices().prepareCreate(TriggeredWatchStore.INDEX_NAME));
+                ensureGreen(TriggeredWatchStore.INDEX_NAME);
             }
+
+            String historyIndex = HistoryStore.getHistoryIndexNameForTime(DateTime.now(DateTimeZone.UTC));
+            assertAcked(client().admin().indices().prepareCreate(historyIndex));
+            ensureGreen(historyIndex);
+
+            ensureWatcherStarted();
         }
     }
 
@@ -551,19 +562,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         });
     }
 
-    protected void ensureWatcherStarted() throws Exception {
-        ensureWatcherStarted(true);
-    }
-
-    protected void ensureWatcherStarted(final boolean useClient) throws Exception {
-        assertBusy(() -> {
-            if (useClient) {
-                assertThat(watcherClient().prepareWatcherStats().get().getWatcherState(), is(WatcherState.STARTED));
-            } else {
-                assertThat(getInstanceFromMaster(WatcherService.class).state(), is(WatcherState.STARTED));
-            }
-        });
-
+    private void ensureWatcherTemplatesAdded() throws Exception {
         // Verify that the index templates exist:
         assertBusy(() -> {
             GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(HISTORY_TEMPLATE_NAME).get();
@@ -575,6 +574,22 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         });
     }
 
+    protected void ensureWatcherStarted() throws Exception {
+        ensureWatcherTemplatesAdded();
+        assertBusy(() -> {
+            WatcherStatsResponse watcherStatsResponse = watcherClient().prepareWatcherStats().get();
+            assertThat(watcherStatsResponse.hasFailures(), is(false));
+            List<Tuple<String, WatcherState>> currentStatesFromStatsRequest = watcherStatsResponse.getNodes().stream()
+                    .map(response -> Tuple.tuple(response.getNode().getName(), response.getWatcherState()))
+                    .collect(Collectors.toList());
+            List<WatcherState> states = currentStatesFromStatsRequest.stream().map(Tuple::v2).collect(Collectors.toList());
+
+            String message = String.format(Locale.ROOT, "Expected watcher to be started, but state was %s", currentStatesFromStatsRequest);
+            assertThat(message, states, everyItem(is(WatcherState.STARTED)));
+        });
+
+    }
+
     protected void ensureLicenseEnabled() throws Exception {
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
@@ -583,69 +598,28 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         });
     }
 
-    private void progressClocksAboveMaster(InternalTestCluster cluster) {
-        long minClock = Long.MAX_VALUE;
-        long maxClock = Long.MIN_VALUE;
-        for (Clock clock: cluster.getInstances(Clock.class)) {
-            final long millis = clock.millis();
-            minClock = Math.min(millis, minClock);
-            maxClock = Math.max(millis, maxClock);
-        }
-        // now move all the clocks ahead to make sure they are beyond the highest clock
-        final TimeValue delta = TimeValue.timeValueMillis(maxClock - minClock);
-        for (Clock clock: cluster.getInstances(Clock.class)) {
-            ((ClockMock)clock).fastForward(delta);
-        }
-    }
-
     protected void ensureWatcherStopped() throws Exception {
-        ensureWatcherStopped(true);
-    }
-
-    protected void ensureWatcherStopped(final boolean useClient) throws Exception {
         assertBusy(() -> {
-            if (useClient) {
-                assertThat(watcherClient().prepareWatcherStats().get().getWatcherState(), is(WatcherState.STOPPED));
-            } else {
-                assertThat(getInstanceFromMaster(WatcherService.class).state(), is(WatcherState.STOPPED));
-            }
+            WatcherStatsResponse watcherStatsResponse = watcherClient().prepareWatcherStats().get();
+            assertThat(watcherStatsResponse.hasFailures(), is(false));
+            List<Tuple<String, WatcherState>> currentStatesFromStatsRequest = watcherStatsResponse.getNodes().stream()
+                    .map(response -> Tuple.tuple(response.getNode().getName(), response.getWatcherState()))
+                    .collect(Collectors.toList());
+            List<WatcherState> states = currentStatesFromStatsRequest.stream().map(Tuple::v2).collect(Collectors.toList());
+
+            String message = String.format(Locale.ROOT, "Expected watcher to be stopped, but state was %s", currentStatesFromStatsRequest);
+            assertThat(message, states, everyItem(is(WatcherState.STOPPED)));
         });
     }
 
     protected void startWatcher() throws Exception {
-        startWatcher(true);
+        watcherClient().prepareWatchService().start().get();
+        ensureWatcherStarted();
     }
 
     protected void stopWatcher() throws Exception {
-        stopWatcher(true);
-    }
-
-    protected void startWatcher(boolean useClient) throws Exception {
-        if (useClient) {
-            watcherClient().prepareWatchService().start().get();
-        } else {
-            getInstanceFromMaster(WatcherLifeCycleService.class).start();
-        }
-        ensureWatcherStarted(useClient);
-    }
-
-    protected void stopWatcher(boolean useClient) throws Exception {
-        if (useClient) {
-            watcherClient().prepareWatchService().stop().get();
-        } else {
-            getInstanceFromMaster(WatcherLifeCycleService.class).stop();
-        }
-        ensureWatcherStopped(useClient);
-    }
-
-    protected void ensureWatcherOnlyRunningOnce() {
-        int running = 0;
-        for (WatcherService watcherService : internalCluster().getInstances(WatcherService.class)) {
-            if (watcherService.state() == WatcherState.STARTED) {
-                running++;
-            }
-        }
-        assertThat("watcher should only run on the elected master node, but it is running on [" + running + "] nodes", running, equalTo(1));
+        watcherClient().prepareWatchService().stop().get();
+        ensureWatcherStopped();
     }
 
     public static class NoopEmailService extends EmailService {
@@ -663,20 +637,24 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected static class TimeWarp {
 
-        protected final ScheduleTriggerEngineMock scheduler;
+        protected final Iterable<ScheduleTriggerEngineMock> schedulers;
         protected final ClockMock clock;
 
-        public TimeWarp(ScheduleTriggerEngineMock scheduler, ClockMock clock) {
-            this.scheduler = scheduler;
+        public TimeWarp(Iterable<ScheduleTriggerEngineMock> schedulers, ClockMock clock) {
+            this.schedulers = schedulers;
             this.clock = clock;
         }
 
-        public ScheduleTriggerEngineMock scheduler() {
-            return scheduler;
+        public void trigger(String jobName) {
+            schedulers.forEach(scheduler -> scheduler.trigger(jobName));
         }
 
         public ClockMock clock() {
             return clock;
+        }
+
+        public void trigger(String id, int times, TimeValue timeValue) {
+            schedulers.forEach(scheduler -> scheduler.trigger(id, times, timeValue));
         }
     }
 

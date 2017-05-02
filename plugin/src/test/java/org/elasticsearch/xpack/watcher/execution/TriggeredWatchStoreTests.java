@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -35,16 +36,23 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.hamcrest.core.IsNull;
+import org.joda.time.DateTime;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -72,20 +80,17 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         triggeredWatchStore.start();
     }
 
-    public void testLoadWatchRecordsNoPriorHistoryIndices() throws Exception {
-        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));
-        MetaData.Builder metaDataBuilder = MetaData.builder();
-        csBuilder.metaData(metaDataBuilder);
-        ClusterState cs = csBuilder.build();
-
-        assertThat(triggeredWatchStore.validate(cs), is(true));
-        Collection<TriggeredWatch> records = triggeredWatchStore.loadTriggeredWatches(cs);
-        assertThat(records, notNullValue());
-        assertThat(records, hasSize(0));
-        verifyZeroInteractions(clientProxy);
+    public void testFindTriggeredWatchesEmptyCollection() throws Exception {
+        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(Collections.emptyList());
+        assertThat(triggeredWatches, hasSize(0));
     }
 
-    public void testLoadWatchRecordsNoActivePrimaryShards() throws Exception {
+    public void testValidateNoIndex() {
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));
+        assertThat(triggeredWatchStore.validate(csBuilder.build()), is(true));
+    }
+
+    public void testValidateNoActivePrimaryShards() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -122,123 +127,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
 
         assertThat(triggeredWatchStore.validate(cs), is(false));
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> triggeredWatchStore.loadTriggeredWatches(cs));
-        assertThat(e.getMessage(), is("not all primary shards of the triggered watches index [.triggered_watches] are started"));
-
-        verifyZeroInteractions(clientProxy);
     }
 
-    public void testLoadWatchRecordsRefreshNotHittingAllShards() throws Exception {
-        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        MetaData.Builder metaDataBuilder = MetaData.builder();
-        metaDataBuilder.put(IndexMetaData.builder(TriggeredWatchStore.INDEX_NAME).settings(indexSettings));
-        final Index index = metaDataBuilder.get(TriggeredWatchStore.INDEX_NAME).getIndex();
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        ShardId shardId = new ShardId(index, 0);
-        indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                .addShard(TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED))
-                .build());
-        indexRoutingTableBuilder.addReplica();
-        routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metaData(metaDataBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
-        ClusterState cs = csBuilder.build();
-
-        assertThat(triggeredWatchStore.validate(cs), is(true));
-        RefreshResponse refreshResponse = mockRefreshResponse(1, 0);
-        when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
-        try {
-            triggeredWatchStore.loadTriggeredWatches(cs);
-            fail("exception expected, because refresh did't manage to run on all primary shards");
-        } catch (Exception e) {
-            assertThat(e.getMessage(), equalTo("refresh was supposed to run on [1] shards, but ran on [0] shards"));
-        }
-
-        verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
-    }
-
-    public void testLoadWatchRecordsSearchNotHittingAllShards() throws Exception {
-        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        MetaData.Builder metaDataBuilder = MetaData.builder();
-        metaDataBuilder.put(IndexMetaData.builder(TriggeredWatchStore.INDEX_NAME).settings(indexSettings));
-        final Index index = metaDataBuilder.get(TriggeredWatchStore.INDEX_NAME).getIndex();
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        ShardId shardId = new ShardId(index, 0);
-        indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                .addShard(TestShardRouting.newShardRouting(shardId, "_node_name", null, true, ShardRoutingState.STARTED))
-                .build());
-        indexRoutingTableBuilder.addReplica();
-        routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metaData(metaDataBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
-        ClusterState cs = csBuilder.build();
-
-        RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
-        when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
-
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getSuccessfulShards()).thenReturn(0);
-        when(searchResponse.getTotalShards()).thenReturn(1);
-        when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse);
-
-        when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
-
-        assertThat(triggeredWatchStore.validate(cs), is(true));
-        try {
-            triggeredWatchStore.loadTriggeredWatches(cs);
-            fail("exception expected, because scan search didn't manage to run on all shards");
-        } catch (Exception e) {
-            assertThat(e.getMessage(), equalTo("scan search was supposed to run on [1] shards, but ran on [0] shards"));
-        }
-        verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
-        verify(clientProxy, times(1)).search(any(SearchRequest.class), any(TimeValue.class));
-        verify(clientProxy, times(1)).clearScroll(anyString());
-    }
-
-    public void testLoadWatchRecordsNoHistoryEntries() throws Exception {
-        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        MetaData.Builder metaDataBuilder = MetaData.builder();
-        metaDataBuilder.put(IndexMetaData.builder(TriggeredWatchStore.INDEX_NAME).settings(indexSettings));
-        final Index index = metaDataBuilder.get(TriggeredWatchStore.INDEX_NAME).getIndex();
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        ShardId shardId = new ShardId(index, 0);
-        indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                .addShard(TestShardRouting.newShardRouting(shardId, "_node_name", null, true, ShardRoutingState.STARTED))
-                .build());
-        indexRoutingTableBuilder.addReplica();
-        routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metaData(metaDataBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
-        ClusterState cs = csBuilder.build();
-
-        RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
-        when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
-
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getSuccessfulShards()).thenReturn(1);
-        when(searchResponse.getTotalShards()).thenReturn(1);
-        when(searchResponse.getHits()).thenReturn(SearchHits.empty());
-        when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse);
-
-        when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
-
-        assertThat(triggeredWatchStore.validate(cs), is(true));
-        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.loadTriggeredWatches(cs);
-        assertThat(triggeredWatches, IsNull.notNullValue());
-        assertThat(triggeredWatches, hasSize(0));
-
-        verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
-        verify(clientProxy, times(1)).search(any(SearchRequest.class), any(TimeValue.class));
-        verify(clientProxy, times(1)).clearScroll(anyString());
-    }
-
-    public void testLoadWatchRecordsFoundHistoryEntries() throws Exception {
+    public void testFindTriggeredWatchesGoodCase() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -262,20 +153,21 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         SearchResponse searchResponse1 = mock(SearchResponse.class);
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
-        SearchHit hit = new SearchHit(0, "_id", new Text("_type"), null);
+        BytesArray source = new BytesArray("{}");
+        SearchHit hit = new SearchHit(0, "first_foo", new Text(TriggeredWatchStore.DOC_TYPE), null);
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", index, 0));
-        hit.sourceRef(new BytesArray("{}"));
+        hit.sourceRef(source);
         SearchHits hits = new SearchHits(new SearchHit[]{hit}, 1, 1.0f);
         when(searchResponse1.getHits()).thenReturn(hits);
         when(searchResponse1.getScrollId()).thenReturn("_scrollId");
-        when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse1);
+        when(clientProxy.search(any(SearchRequest.class))).thenReturn(searchResponse1);
 
         // First return a scroll response with a single hit and then with no hits
-        hit = new SearchHit(0, "_id", new Text("_type"), null);
+        hit = new SearchHit(0, "second_foo", new Text(TriggeredWatchStore.DOC_TYPE), null);
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", index, 0));
-        hit.sourceRef(new BytesArray("{}"));
+        hit.sourceRef(source);
         hits = new SearchHits(new SearchHit[]{hit}, 1, 1.0f);
         SearchResponse searchResponse2 = new SearchResponse(
                 new InternalSearchResponse(hits, null, null, null, false, null, 1), "_scrollId", 1, 1, 1, null);
@@ -289,12 +181,30 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
 
         assertThat(triggeredWatchStore.validate(cs), is(true));
-        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.loadTriggeredWatches(cs);
+        DateTime now = DateTime.now(UTC);
+        ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(now, now);
+
+        Watch watch1 = mock(Watch.class);
+        when(watch1.id()).thenReturn("first");
+        TriggeredWatch triggeredWatch1 = new TriggeredWatch(new Wid("first", now), triggerEvent);
+        when(parser.parse(eq("first_foo"), anyLong(), eq(source))).thenReturn(triggeredWatch1);
+
+        Watch watch2 = mock(Watch.class);
+        when(watch2.id()).thenReturn("second");
+        TriggeredWatch triggeredWatch2 = new TriggeredWatch(new Wid("second", now), triggerEvent);
+        when(parser.parse(eq("second_foo"), anyLong(), eq(source))).thenReturn(triggeredWatch2);
+
+        Collection<Watch> watches = new ArrayList<>();
+        watches.add(watch1);
+        if (randomBoolean()) {
+            watches.add(watch2);
+        }
+        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches);
         assertThat(triggeredWatches, notNullValue());
-        assertThat(triggeredWatches, hasSize(2));
+        assertThat(triggeredWatches, hasSize(watches.size()));
 
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
-        verify(clientProxy, times(1)).search(any(SearchRequest.class), any(TimeValue.class));
+        verify(clientProxy, times(1)).search(any(SearchRequest.class));
         verify(clientProxy, times(2)).searchScroll(anyString(), any(TimeValue.class));
         verify(clientProxy, times(1)).clearScroll(anyString());
     }
@@ -321,7 +231,6 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
 
         assertThat(triggeredWatchStore.validate(cs), is(true));
-        verifyZeroInteractions(clientProxy);
     }
 
     // the elasticsearch migration helper is doing reindex using aliases, so we have to
@@ -353,7 +262,6 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
 
         assertThat(triggeredWatchStore.validate(cs), is(false));
-        verifyZeroInteractions(clientProxy);
     }
 
     // this is a special condition that could lead to an NPE in earlier versions

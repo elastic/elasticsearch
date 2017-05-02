@@ -5,17 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.ack;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -37,9 +32,6 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.joda.time.DateTimeZone.UTC;
 
-/**
- * Performs the ack operation.
- */
 public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequest, AckWatchResponse> {
 
     private final Clock clock;
@@ -47,11 +39,10 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
     private final WatcherClientProxy client;
 
     @Inject
-    public TransportAckWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportAckWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, Clock clock, XPackLicenseState licenseState,
                                    Watch.Parser parser, WatcherClientProxy client) {
-        super(settings, AckWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+        super(settings, AckWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, AckWatchRequest::new);
         this.clock = clock;
         this.parser = parser;
@@ -59,18 +50,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected AckWatchResponse newResponse() {
-        return new AckWatchResponse();
-    }
-
-    @Override
-    protected void masterOperation(AckWatchRequest request, ClusterState state, ActionListener<AckWatchResponse> listener) throws
-            ElasticsearchException {
+    protected void doExecute(AckWatchRequest request, ActionListener<AckWatchResponse> listener) {
         client.getWatch(request.getWatchId(), ActionListener.wrap((response) -> {
             if (response.isExists() == false) {
                 listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exit", request.getWatchId()));
@@ -118,10 +98,5 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                         listener::onFailure));
             }
         }, listener::onFailure));
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(AckWatchRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, Watch.INDEX);
     }
 }

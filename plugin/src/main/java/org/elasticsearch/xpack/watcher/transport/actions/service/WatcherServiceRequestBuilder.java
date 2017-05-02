@@ -16,7 +16,7 @@ public class WatcherServiceRequestBuilder extends MasterNodeOperationRequestBuil
     }
 
     /**
-     * Starts the watcher if not already started.
+     * Starts watcher if not already started.
      */
     public WatcherServiceRequestBuilder start() {
         request.start();
@@ -24,18 +24,10 @@ public class WatcherServiceRequestBuilder extends MasterNodeOperationRequestBuil
     }
 
     /**
-     * Stops the watcher if not already stopped.
+     * Stops watcher if not already stopped.
      */
     public WatcherServiceRequestBuilder stop() {
         request.stop();
-        return this;
-    }
-
-    /**
-     * Starts and stops the watcher.
-     */
-    public WatcherServiceRequestBuilder restart() {
-        request.restart();
         return this;
     }
 }

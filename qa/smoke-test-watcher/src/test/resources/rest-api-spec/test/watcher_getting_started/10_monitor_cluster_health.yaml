@@ -18,8 +18,8 @@ teardown:
 "Getting started - Monitor cluster health":
   - do:
       xpack.watcher.stats: {}
-  - match: { "watcher_state": "started" }
-  - match: { "watch_count": 0 }
+  - match: { "stats.0.watcher_state": "started" }
+  - match: { "stats.0.watch_count": 0 }
 
   # extract http host and port from master node
   - do:
@@ -77,7 +77,7 @@ teardown:
 
   - do:
       xpack.watcher.stats: {}
-  - match: { "watch_count": 1 }
+  - match: { "stats.0.watch_count": 1 }
 
   # Simulate a Thread.sleep()
   - do:
@@ -130,4 +130,4 @@ teardown:
 
   - do:
       xpack.watcher.stats: {}
-  - match: { "watch_count": 0 }
+  - match: { "stats.0.watch_count": 0 }

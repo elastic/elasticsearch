@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.history;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -32,6 +33,7 @@ import static org.hamcrest.Matchers.is;
  * This test makes sure that the http host and path fields in the watch_record action result are
  * not analyzed so they can be used in aggregations
  */
+@TestLogging("org.elasticsearch.xpack.watcher:DEBUG,org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
@@ -88,7 +90,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                 .addAction("logger", scriptTransform("return [ 'key' : 'value2' ];"), loggingAction("indexed")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
-        timeWarp().scheduler().trigger("_id1");
+        timeWarp().trigger("_id1");
 
         // adding another watch which with a transform that should conflict with the preview watch. Since the
         // mapping for the transform construct is disabled, there should be nor problems.
@@ -100,7 +102,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                 .addAction("logger", scriptTransform("return [ 'key' : [ 'key1' : 'value2' ] ];"), loggingAction("indexed")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
-        timeWarp().scheduler().trigger("_id2");
+        timeWarp().trigger("_id2");
 
         flush();
         refresh();

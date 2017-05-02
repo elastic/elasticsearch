@@ -5,72 +5,70 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.stats;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
-import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
-import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+
+import java.util.List;
 
 /**
  * Performs the stats operation.
  */
-public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherStatsRequest, WatcherStatsResponse> {
+public class TransportWatcherStatsAction extends TransportNodesAction<WatcherStatsRequest, WatcherStatsResponse,
+        WatcherStatsRequest.Node, WatcherStatsResponse.Node> {
 
     private final WatcherService watcherService;
     private final ExecutionService executionService;
+    private final TriggerService triggerService;
     private final WatcherLifeCycleService lifeCycleService;
-    private final InternalClient client;
 
     @Inject
     public TransportWatcherStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
-                                       ExecutionService executionService, XPackLicenseState licenseState,
-                                       WatcherLifeCycleService lifeCycleService, InternalClient client) {
-        super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState, WatcherStatsRequest::new);
+                                       ExecutionService executionService, TriggerService triggerService,
+                                       WatcherLifeCycleService lifeCycleService) {
+        super(settings, WatcherStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+                WatcherStatsRequest::new, WatcherStatsRequest.Node::new, ThreadPool.Names.MANAGEMENT,
+                WatcherStatsResponse.Node.class);
         this.watcherService = watcherService;
         this.executionService = executionService;
+        this.triggerService = triggerService;
         this.lifeCycleService = lifeCycleService;
-        this.client = client;
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
+    protected WatcherStatsResponse newResponse(WatcherStatsRequest request, List<WatcherStatsResponse.Node> nodes,
+                                               List<FailedNodeException> failures) {
+        return new WatcherStatsResponse(clusterService.getClusterName(), lifeCycleService.watcherMetaData(), nodes, failures);
     }
 
     @Override
-    protected WatcherStatsResponse newResponse() {
-        return new WatcherStatsResponse();
+    protected WatcherStatsRequest.Node newNodeRequest(String nodeId, WatcherStatsRequest request) {
+        return new WatcherStatsRequest.Node(request, nodeId);
     }
 
     @Override
-    protected void masterOperation(WatcherStatsRequest request, ClusterState state, ActionListener<WatcherStatsResponse> listener) throws
-            ElasticsearchException {
+    protected WatcherStatsResponse.Node newNodeResponse() {
+        return new WatcherStatsResponse.Node();
+    }
 
-        WatcherStatsResponse statsResponse = new WatcherStatsResponse();
+    @Override
+    protected WatcherStatsResponse.Node nodeOperation(WatcherStatsRequest.Node request) {
+        WatcherStatsResponse.Node statsResponse = new WatcherStatsResponse.Node(clusterService.localNode());
         statsResponse.setWatcherState(watcherService.state());
         statsResponse.setThreadPoolQueueSize(executionService.executionThreadPoolQueueSize());
         statsResponse.setThreadPoolMaxSize(executionService.executionThreadPoolMaxSize());
-        statsResponse.setWatcherMetaData(lifeCycleService.watcherMetaData());
         if (request.includeCurrentWatches()) {
             statsResponse.setSnapshots(executionService.currentExecutions());
         }
@@ -78,17 +76,13 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
             statsResponse.setQueuedWatches(executionService.queuedWatches());
         }
 
-        SearchRequest searchRequest =
-                Requests.searchRequest(Watch.INDEX).types(Watch.DOC_TYPE).source(new SearchSourceBuilder().size(0));
-        client.search(searchRequest, ActionListener.wrap(searchResponse -> {
-                    statsResponse.setWatchesCount(searchResponse.getHits().getTotalHits());
-                    listener.onResponse(statsResponse);
-                },
-                e -> listener.onResponse(statsResponse)));
+        statsResponse.setWatchesCount(triggerService.count());
+        return statsResponse;
     }
 
     @Override
-    protected ClusterBlockException checkBlock(WatcherStatsRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    protected boolean accumulateExceptions() {
+        return false;
     }
+
 }

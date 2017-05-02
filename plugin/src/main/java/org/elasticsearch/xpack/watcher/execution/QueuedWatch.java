@@ -22,15 +22,14 @@ public class QueuedWatch implements Streamable, ToXContent {
     private DateTime triggeredTime;
     private DateTime executionTime;
 
+    public QueuedWatch() {
+    }
+
     public QueuedWatch(WatchExecutionContext ctx) {
         this.watchId = ctx.watch().id();
         this.watchRecordId = ctx.id().value();
         this.triggeredTime = ctx.triggerEvent().triggeredTime();
         this.executionTime = ctx.executionTime();
-    }
-
-    public QueuedWatch(StreamInput in) throws IOException {
-        readFrom(in);
     }
 
     public String watchId() {

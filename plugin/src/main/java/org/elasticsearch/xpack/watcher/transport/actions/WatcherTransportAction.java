@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
-import java.util.function.Supplier;
-
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -22,16 +19,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
 
-public abstract class WatcherTransportAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse>
-        extends TransportMasterNodeAction<Request, Response> {
+import java.util.function.Supplier;
+
+public abstract class WatcherTransportAction<Request extends ActionRequest, Response extends ActionResponse>
+        extends HandledTransportAction<Request, Response> {
 
     protected final XPackLicenseState licenseState;
 
-    public WatcherTransportAction(Settings settings, String actionName, TransportService transportService,
-                                  ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver, XPackLicenseState licenseState,
-                                  Supplier<Request> request) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
+    public WatcherTransportAction(Settings settings, String actionName, TransportService transportService, ThreadPool threadPool,
+                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                  XPackLicenseState licenseState, Supplier<Request> request) {
+        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
         this.licenseState = licenseState;
     }
 

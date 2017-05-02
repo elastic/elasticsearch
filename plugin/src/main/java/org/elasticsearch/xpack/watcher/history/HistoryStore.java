@@ -5,7 +5,11 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -16,7 +20,9 @@ import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
@@ -59,7 +65,6 @@ public class HistoryStore extends AbstractComponent {
         } finally {
             stopLock.unlock();
         }
-
     }
 
     /**
@@ -79,6 +84,7 @@ public class HistoryStore extends AbstractComponent {
                     .source(builder)
                     .opType(IndexRequest.OpType.CREATE);
             client.index(request, (TimeValue) null);
+            logger.debug("indexed watch history record [{}]", watchRecord.id().value());
         } catch (IOException ioe) {
             throw ioException("failed to persist watch record [{}]", ioe, watchRecord);
         } finally {
@@ -90,29 +96,34 @@ public class HistoryStore extends AbstractComponent {
      * Stores the specified watchRecord.
      * Any existing watchRecord will be overwritten.
      */
-    public void forcePut(WatchRecord watchRecord) throws Exception {
+    public void forcePut(WatchRecord watchRecord) {
         if (!started.get()) {
             throw new IllegalStateException("unable to persist watch record history store is not ready");
         }
         String index = getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         putUpdateLock.lock();
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            watchRecord.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
+        try {
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                watchRecord.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
 
-            IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
-                    .source(builder)
-                    .opType(IndexRequest.OpType.CREATE);
-            client.index(request, (TimeValue) null);
-        } catch (VersionConflictEngineException vcee) {
-            watchRecord = new WatchRecord.MessageWatchRecord(watchRecord, ExecutionState.EXECUTED_MULTIPLE_TIMES,
-                    "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
-            try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
                 IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
-                        .source(xContentBuilder.value(watchRecord));
+                        .source(builder)
+                        .opType(IndexRequest.OpType.CREATE);
                 client.index(request, (TimeValue) null);
+                logger.debug("indexed watch history record [{}]", watchRecord.id().value());
+            } catch (VersionConflictEngineException vcee) {
+                watchRecord = new WatchRecord.MessageWatchRecord(watchRecord, ExecutionState.EXECUTED_MULTIPLE_TIMES,
+                        "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
+                try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+                    IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
+                            .source(xContentBuilder.value(watchRecord));
+                    client.index(request, (TimeValue) null);
+                }
+                logger.debug("overwrote watch history record [{}]", watchRecord.id().value());
             }
         } catch (IOException ioe) {
-            throw ioException("failed to persist watch record [{}]", ioe, watchRecord);
+            final WatchRecord wr = watchRecord;
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to persist watch record [{}]", wr), ioe);
         } finally {
             putUpdateLock.unlock();
         }
@@ -125,4 +136,21 @@ public class HistoryStore extends AbstractComponent {
         return INDEX_PREFIX_WITH_TEMPLATE + indexTimeFormat.print(time);
     }
 
+    /**
+     * Check if everything is set up for the history store to operate fully. Checks for the
+     * current watcher history index and if it is open.
+     *
+     * @param state The current cluster state
+     * @return true, if history store is ready to be started
+     */
+    public static boolean validate(ClusterState state) {
+        String currentIndex = getHistoryIndexNameForTime(DateTime.now(DateTimeZone.UTC));
+        IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(currentIndex, state.metaData());
+        if (indexMetaData == null) {
+            return true;
+        } else {
+            return indexMetaData.getState() == IndexMetaData.State.OPEN &&
+                    state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
+        }
+    }
 }

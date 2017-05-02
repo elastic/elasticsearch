@@ -20,7 +20,9 @@ import java.security.cert.CertificateException;
 import java.time.Clock;
 
 public class TimeWarpedXPackPlugin extends XPackPlugin {
-    private final ClockMock clock = new ClockMock();
+
+    // use a single clock across all nodes using this plugin, this lets keep it static
+    private static final ClockMock clock = new ClockMock();
 
     public TimeWarpedXPackPlugin(Settings settings) throws IOException,
             DestroyFailedException, OperatorCreationException, GeneralSecurityException {

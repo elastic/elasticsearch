@@ -9,7 +9,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -19,15 +18,18 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.io.IOException;
@@ -36,10 +38,12 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
@@ -61,10 +65,11 @@ public class TriggeredWatchStore extends AbstractComponent {
 
     public TriggeredWatchStore(Settings settings, WatcherClientProxy client, TriggeredWatch.Parser triggeredWatchParser) {
         super(settings);
-        this.scrollSize = settings.getAsInt("xpack.watcher.execution.scroll.size", 100);
+        this.scrollSize = settings.getAsInt("xpack.watcher.execution.scroll.size", 1000);
         this.client = client;
         this.scrollTimeout = settings.getAsTime("xpack.watcher.execution.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.triggeredWatchParser = triggeredWatchParser;
+        this.started.set(true);
     }
 
     public void start() {
@@ -74,7 +79,9 @@ public class TriggeredWatchStore extends AbstractComponent {
     public boolean validate(ClusterState state) {
         try {
             IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(INDEX_NAME, state.metaData());
-            if (indexMetaData != null) {
+            if (indexMetaData == null) {
+                return true;
+            } else {
                 if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                     logger.debug("triggered watch index [{}] is marked as closed, watcher cannot be started",
                             indexMetaData.getIndex().getName());
@@ -87,7 +94,6 @@ public class TriggeredWatchStore extends AbstractComponent {
             logger.trace((Supplier<?>) () -> new ParameterizedMessage("error getting index meta data [{}]: ", INDEX_NAME), e);
             return false;
         }
-        return true;
     }
 
     public void stop() {
@@ -179,43 +185,53 @@ public class TriggeredWatchStore extends AbstractComponent {
         }
     }
 
-    public Collection<TriggeredWatch> loadTriggeredWatches(ClusterState state) {
-        IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(INDEX_NAME, state.metaData());
-        if (indexMetaData == null) {
-            return Collections.emptySet();
+    private void ensureStarted() {
+        if (!started.get()) {
+            throw illegalState("unable to persist triggered watches, the store is not ready");
+        }
+    }
+
+    /**
+     * Checks if any of the loaded watches has been put into the triggered watches index for immediate execution
+     *
+     * Note: This is executing a blocking call over the network, thus a potential source of problems
+     *
+     * @param watches The list of watches that will be loaded here
+     * @return A list of triggered watches that have been started to execute somewhere else but not finished
+     */
+    public Collection<TriggeredWatch> findTriggeredWatches(Collection<Watch> watches) {
+        if (watches.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        int numPrimaryShards;
-        if (state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive() == false) {
-            throw illegalState("not all primary shards of the triggered watches index {} are started", indexMetaData.getIndex());
-        } else {
-            numPrimaryShards = indexMetaData.getNumberOfShards();
-        }
-        RefreshResponse refreshResponse = client.refresh(new RefreshRequest(INDEX_NAME));
-        if (refreshResponse.getSuccessfulShards() < numPrimaryShards) {
-            throw illegalState("refresh was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards,
-                    refreshResponse.getSuccessfulShards());
-        }
-
-        SearchRequest searchRequest = createScanSearchRequest();
-        SearchResponse response = client.search(searchRequest, null);
-        List<TriggeredWatch> triggeredWatches = new ArrayList<>();
         try {
-            if (response.getTotalShards() != response.getSuccessfulShards()) {
-                throw illegalState("scan search was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards,
-                        response.getSuccessfulShards());
-            }
+            client.refresh(new RefreshRequest(TriggeredWatchStore.INDEX_NAME));
+        } catch (IndexNotFoundException e) {
+            // no index, no problems, we dont need to search further
+            return Collections.emptyList();
+        }
 
+        Set<String> ids = watches.stream().map(Watch::id).collect(Collectors.toSet());
+        Collection<TriggeredWatch> triggeredWatches = new ArrayList<>(ids.size());
+
+        SearchRequest searchRequest = new SearchRequest(TriggeredWatchStore.INDEX_NAME)
+                .types(TriggeredWatchStore.DOC_TYPE)
+                .scroll(scrollTimeout)
+                .preference(Preference.LOCAL.toString())
+                .source(new SearchSourceBuilder()
+                        .size(scrollSize)
+                        .sort(SortBuilders.fieldSort("_doc"))
+                        .version(true));
+
+        SearchResponse response = client.search(searchRequest);
+        logger.debug("trying to find triggered watches for ids {}: found [{}] docs", ids, response.getHits().getTotalHits());
+        try {
             while (response.getHits().getHits().length != 0) {
-                for (SearchHit sh : response.getHits()) {
-                    String id = sh.getId();
-                    try {
-                        TriggeredWatch triggeredWatch = triggeredWatchParser.parse(id, sh.getVersion(), sh.getSourceRef());
-                        logger.trace("loaded triggered watch [{}/{}/{}]", sh.getIndex(), sh.getType(), sh.getId());
+                for (SearchHit hit : response.getHits()) {
+                    Wid wid = new Wid(hit.getId());
+                    if (ids.contains(wid.watchId())) {
+                        TriggeredWatch triggeredWatch = triggeredWatchParser.parse(hit.getId(), hit.getVersion(), hit.getSourceRef());
                         triggeredWatches.add(triggeredWatch);
-                    } catch (Exception e) {
-                        logger.error(
-                                (Supplier<?>) () -> new ParameterizedMessage("couldn't load triggered watch [{}], ignoring it...", id), e);
                     }
                 }
                 response = client.searchScroll(response.getScrollId(), scrollTimeout);
@@ -223,26 +239,8 @@ public class TriggeredWatchStore extends AbstractComponent {
         } finally {
             client.clearScroll(response.getScrollId());
         }
-        logger.debug("loaded [{}] triggered watches", triggeredWatches.size());
+
         return triggeredWatches;
     }
 
-    private SearchRequest createScanSearchRequest() {
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-                .size(scrollSize)
-                .sort(SortBuilders.fieldSort("_doc"));
-
-        SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
-        searchRequest.source(sourceBuilder);
-        searchRequest.types(DOC_TYPE);
-        searchRequest.scroll(scrollTimeout);
-        searchRequest.preference("_primary");
-        return searchRequest;
-    }
-
-    private void ensureStarted() {
-        if (!started.get()) {
-            throw illegalState("unable to persist triggered watches, the store is not ready");
-        }
-    }
 }

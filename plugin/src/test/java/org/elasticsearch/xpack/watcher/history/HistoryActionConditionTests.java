@@ -12,6 +12,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * This test makes sure per-action conditions are honored.
  */
+@TestLogging("org.elasticsearch.xpack.watcher:DEBUG,org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestCase {
 
     private final Input input = simpleInput("key", 15).build();
@@ -143,16 +145,12 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     @SuppressWarnings("unchecked")
     public void testActionConditionWithFailures() throws Exception {
         final String id = "testActionConditionWithFailures";
-        final List<Condition> actionConditionsWithFailure = Arrays.asList(conditionFails, conditionPasses, AlwaysCondition.INSTANCE);
+        final Condition[] actionConditionsWithFailure = new Condition[] { conditionFails, conditionPasses, AlwaysCondition.INSTANCE };
+        Collections.shuffle(Arrays.asList(actionConditionsWithFailure), random());
 
-        Collections.shuffle(actionConditionsWithFailure, random());
+        final int failedIndex = Arrays.asList(actionConditionsWithFailure).indexOf(conditionFails);
 
-        final int failedIndex = actionConditionsWithFailure.indexOf(conditionFails);
-
-        putAndTriggerWatch(id, input, actionConditionsWithFailure.toArray(new Condition[actionConditionsWithFailure.size()]));
-
-        flush();
-
+        putAndTriggerWatch(id, input, actionConditionsWithFailure);
         assertWatchWithMinimumActionsCount(id, ExecutionState.EXECUTED, 1);
 
         // only one action should have failed via condition
@@ -162,13 +160,13 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
-        for (int i = 0; i < actionConditionsWithFailure.size(); ++i) {
+        for (int i = 0; i < actionConditionsWithFailure.length; ++i) {
             final Map<String, Object> action = (Map<String, Object>)actions.get(i);
             final Map<String, Object> condition = (Map<String, Object>)action.get("condition");
             final Map<String, Object> logging = (Map<String, Object>)action.get("logging");
 
             assertThat(action.get("id"), is("action" + i));
-            assertThat(condition.get("type"), is(actionConditionsWithFailure.get(i).type()));
+            assertThat(condition.get("type"), is(actionConditionsWithFailure[i].type()));
 
             if (i == failedIndex) {
                 assertThat(action.get("status"), is("condition_failed"));
@@ -188,13 +186,16 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     public void testActionCondition() throws Exception {
         final String id = "testActionCondition";
         final List<Condition> actionConditions = new ArrayList<>();
-        actionConditions.add(conditionPasses);
+        //actionConditions.add(conditionPasses);
+        actionConditions.add(AlwaysCondition.INSTANCE);
 
+        /*
         if (randomBoolean()) {
             actionConditions.add(AlwaysCondition.INSTANCE);
         }
 
         Collections.shuffle(actionConditions, random());
+        */
 
         putAndTriggerWatch(id, input, actionConditions.toArray(new Condition[actionConditions.size()]));
 
@@ -256,7 +257,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().scheduler().trigger(id);
+        timeWarp().trigger(id);
     }
 
     /**

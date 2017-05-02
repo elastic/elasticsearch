@@ -37,7 +37,7 @@ import static java.util.Collections.unmodifiableMap;
 public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener {
 
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
-    public static final String INDEX_TEMPLATE_VERSION = "3";
+    public static final String INDEX_TEMPLATE_VERSION = "4";
 
     public static final String HISTORY_TEMPLATE_NAME = "watch_history_" + INDEX_TEMPLATE_VERSION;
     public static final String TRIGGERED_TEMPLATE_NAME = "triggered_watches";
@@ -95,23 +95,14 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             return;
         }
 
-        addTemplatesIfMissing(state, false);
+        addTemplatesIfMissing(state);
     }
 
-    /**
-     * Adds the registered index templates if missing to the cluster.
-     */
-    public void addTemplatesIfMissing() {
-        // to be sure that the templates exist after this method call, we should wait until the put index templates calls
-        // have returned if the templates were missing
-        addTemplatesIfMissing(clusterService.state(), true);
-    }
-
-    void addTemplatesIfMissing(ClusterState state, boolean wait) {
+    void addTemplatesIfMissing(ClusterState state) {
         for (TemplateConfig template : indexTemplates) {
             if (!state.metaData().getTemplates().containsKey(template.getTemplateName())) {
                 logger.debug("adding index template [{}], because it doesn't exist", template.getTemplateName());
-                putTemplate(template, wait);
+                putTemplate(template);
             } else {
                 logger.trace("not adding index template [{}], because it already exists", template.getTemplateName());
             }
@@ -155,17 +146,12 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             Map<String, Settings> customIndexSettings = new HashMap<String, Settings>(this.customIndexSettings);
             customIndexSettings.put(config.getSetting().getKey(), builder.build());
             this.customIndexSettings = customIndexSettings;
-            putTemplate(config, false);
+            putTemplate(config);
         }
     }
 
-    private void putTemplate(final TemplateConfig config, boolean wait) {
-        final Executor executor;
-        if (wait) {
-            executor = Runnable::run;
-        } else {
-            executor = threadPool.generic();
-        }
+    private void putTemplate(final TemplateConfig config) {
+        final Executor executor = threadPool.generic();
         executor.execute(() -> {
             final byte[] template = TemplateUtils.loadTemplate("/" + config.getFileName()+ ".json", INDEX_TEMPLATE_VERSION,
                     Pattern.quote("${xpack.watcher.template.version}")).getBytes(StandardCharsets.UTF_8);

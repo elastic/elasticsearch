@@ -44,6 +44,9 @@
         "watch_id": {
           "type": "keyword"
         },
+        "node": {
+          "type": "keyword"
+        },
         "trigger_event": {
           "type": "object",
           "dynamic": true,

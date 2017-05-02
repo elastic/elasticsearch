@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  * A mock scheduler to help with unit testing. Provide {@link ScheduleTriggerEngineMock#trigger} method to manually trigger
- * jobs.
+ * jobCount.
  */
 public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
@@ -56,11 +56,23 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     @Override
     public void stop() {
+        watches.clear();
     }
 
     @Override
     public void add(Watch watch) {
+        logger.debug("adding watch [{}]", watch.id());
         watches.put(watch.id(), watch);
+    }
+
+    @Override
+    public void pauseExecution() {
+        watches.clear();
+    }
+
+    @Override
+    public int getJobCount() {
+        return watches.size();
     }
 
     @Override
@@ -77,9 +89,14 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     public void trigger(String jobName, int times, TimeValue interval) {
+        if (watches.containsKey(jobName) == false) {
+            logger.trace("not executing job [{}], not found", jobName);
+            return;
+        }
+
         for (int i = 0; i < times; i++) {
             DateTime now = new DateTime(clock.millis());
-            logger.debug("firing [{}] at [{}]", jobName, now);
+            logger.debug("firing watch [{}] at [{}]", jobName, now);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(jobName, now, now);
             consumers.forEach(consumer -> consumer.accept(Collections.singletonList(event)));
             if (interval != null)  {

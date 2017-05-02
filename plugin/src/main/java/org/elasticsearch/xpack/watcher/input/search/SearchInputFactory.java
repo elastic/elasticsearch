@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
-import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 
@@ -31,7 +30,7 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
 
     public SearchInputFactory(Settings settings, WatcherClientProxy client, NamedXContentRegistry xContentRegistry,
             ScriptService scriptService) {
-        super(Loggers.getLogger(ExecutableSimpleInput.class, settings));
+        super(Loggers.getLogger(ExecutableSearchInput.class, settings));
         this.client = client;
         this.defaultTimeout = settings.getAsTime("xpack.watcher.input.search.default_timeout", null);
         this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);

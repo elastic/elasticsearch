@@ -186,7 +186,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
                 .get();
 
         if (timeWarped()) {
-            timeWarp().scheduler().trigger("_test_id");
+            timeWarp().trigger("_test_id");
             refresh();
         }
 

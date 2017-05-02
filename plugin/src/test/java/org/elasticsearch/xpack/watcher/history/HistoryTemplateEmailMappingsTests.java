@@ -9,6 +9,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
@@ -31,6 +32,8 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the email address fields in the watch_record action result are
  * not analyzed so they can be used in aggregations
  */
+@TestLogging("org.elasticsearch.xpack.watcher:DEBUG," +
+        "org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     private EmailServer server;
@@ -82,7 +85,7 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
-        timeWarp().scheduler().trigger("_id");
+        timeWarp().trigger("_id");
         flush();
         refresh();
 

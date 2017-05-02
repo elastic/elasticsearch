@@ -11,12 +11,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- * Empty response, so if it returns, it means all is fine.
- */
 public class WatcherServiceResponse extends AcknowledgedResponse {
 
-    WatcherServiceResponse() {
+    public WatcherServiceResponse() {
     }
 
     public WatcherServiceResponse(boolean acknowledged) {

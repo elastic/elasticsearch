@@ -130,7 +130,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().scheduler().trigger("_id");
+        timeWarp().trigger("_id");
 
         flush();
         refresh();

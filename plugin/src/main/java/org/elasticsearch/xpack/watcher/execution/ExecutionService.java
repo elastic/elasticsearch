@@ -10,7 +10,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Setting;
@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -48,7 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.joda.time.DateTimeZone.UTC;
 
-public final class ExecutionService extends AbstractComponent {
+public class ExecutionService extends AbstractComponent {
 
     public static final Setting<TimeValue> DEFAULT_THROTTLE_PERIOD_SETTING =
         Setting.positiveTimeSetting("xpack.watcher.execution.default_throttle_period",
@@ -65,13 +64,14 @@ public final class ExecutionService extends AbstractComponent {
     private final TimeValue maxStopTimeout;
     private final ThreadPool threadPool;
     private final Watch.Parser parser;
+    private final ClusterService clusterService;
     private final WatcherClientProxy client;
 
     private volatile CurrentExecutions currentExecutions;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
-                            Clock clock, ThreadPool threadPool, Watch.Parser parser,
+                            Clock clock, ThreadPool threadPool, Watch.Parser parser, ClusterService clusterService,
                             WatcherClientProxy client) {
         super(settings);
         this.historyStore = historyStore;
@@ -82,6 +82,7 @@ public final class ExecutionService extends AbstractComponent {
         this.maxStopTimeout = Watcher.MAX_STOP_TIMEOUT_SETTING.get(settings);
         this.threadPool = threadPool;
         this.parser = parser;
+        this.clusterService = clusterService;
         this.client = client;
     }
 
@@ -97,8 +98,6 @@ public final class ExecutionService extends AbstractComponent {
                 historyStore.start();
                 triggeredWatchStore.start();
                 currentExecutions = new CurrentExecutions();
-                Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.loadTriggeredWatches(state);
-                executeTriggeredWatches(triggeredWatches);
                 logger.debug("started execution service");
             } catch (Exception e) {
                 started.set(false);
@@ -108,29 +107,7 @@ public final class ExecutionService extends AbstractComponent {
     }
 
     public boolean validate(ClusterState state) {
-        boolean triggeredWatchStoreReady = triggeredWatchStore.validate(state);
-        if (triggeredWatchStoreReady == false) {
-            return false;
-        }
-
-        try {
-            IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metaData());
-            // no watch index yet means we are good to go
-            if (indexMetaData == null) {
-                return true;
-            } else {
-                if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                    logger.debug("watch index [{}] is marked as closed, watcher cannot be started",
-                            indexMetaData.getIndex().getName());
-                    return false;
-                } else {
-                    return state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
-                }
-            }
-        } catch (IllegalStateException e) {
-            logger.trace((Supplier<?>) () -> new ParameterizedMessage("error getting index meta data [{}]: ", Watch.INDEX), e);
-            return false;
-        }
+        return triggeredWatchStore.validate(state) && HistoryStore.validate(state);
     }
 
     public void stop() {
@@ -140,16 +117,17 @@ public final class ExecutionService extends AbstractComponent {
             // this is a forceful shutdown that also interrupts the worker threads in the thread pool
             int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
 
-            currentExecutions.sealAndAwaitEmpty(maxStopTimeout);
+            this.clearExecutions();
             triggeredWatchStore.stop();
             historyStore.stop();
-            logger.debug("cancelled [{}] queued tasks", cancelledTaskCount);
-            logger.debug("stopped execution service");
+            logger.debug("stopped execution service, cancelled [{}] queued tasks", cancelledTaskCount);
         }
     }
 
-    public boolean started() {
-        return started.get();
+    public synchronized void pauseExecution() {
+        int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
+        this.clearExecutions();
+        logger.debug("paused execution service, cancelled [{}] queued tasks", cancelledTaskCount);
     }
 
     public TimeValue defaultThrottlePeriod() {
@@ -225,7 +203,7 @@ public final class ExecutionService extends AbstractComponent {
             }
 
             if (triggeredWatches.isEmpty() == false) {
-                logger.debug("saving triggered [{}] watches", triggeredWatches.size());
+                logger.trace("saving triggered [{}] watches", triggeredWatches.size());
 
                 triggeredWatchStore.putAll(triggeredWatches, ActionListener.wrap(
                         (slots) -> {
@@ -272,12 +250,16 @@ public final class ExecutionService extends AbstractComponent {
     }
 
     public WatchRecord execute(WatchExecutionContext ctx) {
+        ctx.setNodeId(clusterService.localNode().getId());
         WatchRecord record = null;
         try {
             boolean executionAlreadyExists = currentExecutions.put(ctx.watch().id(), new WatchExecution(ctx, Thread.currentThread()));
             if (executionAlreadyExists) {
                 logger.trace("not executing watch [{}] because it is already queued", ctx.watch().id());
                 record = ctx.abortBeforeExecution(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED, "Watch is already queued in thread pool");
+            } else if (ctx.watch().status().state().isActive() == false) {
+                logger.debug("not executing watch [{}] because it is marked as inactive", ctx.watch().id());
+                record = ctx.abortBeforeExecution(ExecutionState.EXECUTION_NOT_NEEDED, "Watch is not active");
             } else {
                 boolean watchExists = false;
                 try {
@@ -342,9 +324,9 @@ public final class ExecutionService extends AbstractComponent {
     private void logWatchRecord(WatchExecutionContext ctx, Exception e) {
         // failed watches stack traces are only logged in debug, otherwise they should be checked out in the history
         if (logger.isDebugEnabled()) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to execute watch [{}]", ctx.id()), e);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to execute watch [{}]", ctx.watch().id()), e);
         } else {
-            logger.warn("Failed to execute watch [{}]", ctx.id());
+            logger.warn("Failed to execute watch [{}]", ctx.watch().id());
         }
     }
 
@@ -439,7 +421,7 @@ public final class ExecutionService extends AbstractComponent {
         return record;
     }
 
-    void executeTriggeredWatches(Collection<TriggeredWatch> triggeredWatches) throws Exception {
+    public void executeTriggeredWatches(Collection<TriggeredWatch> triggeredWatches) {
         assert triggeredWatches != null;
         int counter = 0;
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
@@ -448,16 +430,20 @@ public final class ExecutionService extends AbstractComponent {
                 String message = "unable to find watch for record [" + triggeredWatch.id().watchId() + "]/[" + triggeredWatch.id() +
                         "], perhaps it has been deleted, ignoring...";
                 WatchRecord record = new WatchRecord.MessageWatchRecord(triggeredWatch.id(), triggeredWatch.triggerEvent(),
-                        ExecutionState.NOT_EXECUTED_WATCH_MISSING, message);
+                        ExecutionState.NOT_EXECUTED_WATCH_MISSING, message, clusterService.localNode().getId());
                 historyStore.forcePut(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
                 DateTime now = new DateTime(clock.millis(), UTC);
-                Watch watch = parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now, XContentType.JSON);
-                TriggeredExecutionContext ctx =
-                        new StartupExecutionContext(watch, now, triggeredWatch.triggerEvent(), defaultThrottlePeriod);
-                executeAsync(ctx, triggeredWatch);
-                counter++;
+                try {
+                    Watch watch = parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now, XContentType.JSON);
+                    TriggeredExecutionContext ctx =
+                            new StartupExecutionContext(watch, now, triggeredWatch.triggerEvent(), defaultThrottlePeriod);
+                    executeAsync(ctx, triggeredWatch);
+                    counter++;
+                } catch (IOException e) {
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("Error parsing triggered watch"), e);
+                }
             }
         }
         logger.debug("triggered execution of [{}] watches", counter);

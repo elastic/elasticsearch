@@ -473,6 +473,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     public void onIndexModule(IndexModule module) {
         security.onIndexModule(module);
+        watcher.onIndexModule(module);
     }
 
     public static void bindFeatureSet(Binder binder, Class<? extends XPackFeatureSet> featureSet) {

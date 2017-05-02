@@ -265,15 +265,12 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
 
             // lets wait for the watch to be ackable
             if (timeWarped()) {
-                timeWarp().scheduler().trigger("_id");
+                timeWarp().trigger("_id");
             } else {
-                assertBusy(new Runnable() {
-                    @Override
-                    public void run() {
-                        GetWatchResponse getWatchResponse = watcherClient.prepareGetWatch("_id").get();
-                        assertThat(getWatchResponse.getStatus().actionStatus("log").ackStatus().state(),
-                                equalTo(ActionStatus.AckStatus.State.ACKABLE));
-                    }
+                assertBusy(() -> {
+                    GetWatchResponse getWatchResponse = watcherClient.prepareGetWatch("_id").get();
+                    assertThat(getWatchResponse.getStatus().actionStatus("log").ackStatus().state(),
+                            equalTo(ActionStatus.AckStatus.State.ACKABLE));
                 });
             }
 

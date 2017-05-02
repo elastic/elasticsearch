@@ -6,9 +6,8 @@
 package org.elasticsearch.xpack.watcher.security;
 
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.watcher.WatcherState;
+import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
@@ -18,13 +17,14 @@ import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsRespo
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 
 import java.util.Collections;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken
+        .BASIC_AUTH_HEADER;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken
+        .basicAuthHeaderValue;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
@@ -33,35 +33,20 @@ import static org.hamcrest.core.Is.is;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class BasicSecurityTests extends AbstractWatcherIntegrationTestCase {
+
     @Override
     protected boolean enableSecurity() {
         return true;
     }
 
-    @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder()
-                .put(super.transportClientSettings())
-                // Use just the transport user here, so we can test Watcher roles specifically
-                .put(Security.USER_SETTING.getKey(), "transport_client:changeme")
-                .build();
-    }
-
     public void testNoAuthorization() throws Exception {
-        try {
-            watcherClient().prepareWatcherStats().get();
-            fail("authentication failure should have occurred");
-        } catch (Exception e) {
-            // transport_client is the default user
-            assertThat(e.getMessage(), equalTo("action [cluster:monitor/xpack/watcher/stats] is unauthorized for user [transport_client]"));
-        }
+        String basicAuth = basicAuthHeaderValue("transport_client", new SecureString("changeme".toCharArray()));
+        WatcherClient watcherClient = watcherClient().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuth));
+        Exception e = expectThrows(Exception.class, () -> watcherClient.prepareWatcherStats().get());
+        assertThat(e.getMessage(), equalTo("action [cluster:monitor/xpack/watcher/stats] is unauthorized for user [transport_client]"));
     }
 
     public void testWatcherMonitorRole() throws Exception {
-        if (client().admin().indices().prepareExists(Watch.INDEX).get().isExists() == false) {
-            assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
-        }
-
         // stats and get watch apis require at least monitor role:
         String token = basicAuthHeaderValue("test", new SecureString("changeme".toCharArray()));
         try {
@@ -84,7 +69,8 @@ public class BasicSecurityTests extends AbstractWatcherIntegrationTestCase {
         token = basicAuthHeaderValue("monitor", new SecureString("changeme".toCharArray()));
         WatcherStatsResponse statsResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .prepareWatcherStats().get();
-        assertThat(statsResponse.getWatcherState(), equalTo(WatcherState.STARTED));
+        boolean watcherStarted = statsResponse.getNodes().stream().anyMatch(node -> node.getWatcherState() == WatcherState.STARTED);
+        assertThat(watcherStarted, is(true));
         GetWatchResponse getWatchResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .prepareGetWatch("_id").get();
         assertThat(getWatchResponse.isFound(), is(false));
@@ -152,7 +138,8 @@ public class BasicSecurityTests extends AbstractWatcherIntegrationTestCase {
         WatcherStatsResponse statsResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .prepareWatcherStats()
                 .get();
-        assertThat(statsResponse.getWatcherState(), equalTo(WatcherState.STARTED));
+        boolean watcherStarted = statsResponse.getNodes().stream().anyMatch(node -> node.getWatcherState() == WatcherState.STARTED);
+        assertThat(watcherStarted, is(true));
         GetWatchResponse getWatchResponse = watcherClient().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .prepareGetWatch("_id")
                 .get();

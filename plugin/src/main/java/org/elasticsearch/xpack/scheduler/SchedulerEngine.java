@@ -88,12 +88,13 @@ public class SchedulerEngine {
     }
 
     private final Map<String, ActiveSchedule> schedules = ConcurrentCollections.newConcurrentMap();
-    private ScheduledExecutorService scheduler;
+    private final ScheduledExecutorService scheduler;
     private final Clock clock;
-    private List<Listener> listeners = new CopyOnWriteArrayList<>();
+    private final List<Listener> listeners = new CopyOnWriteArrayList<>();
 
     public SchedulerEngine(Clock clock) {
         this.clock = clock;
+        this.scheduler = Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory("trigger_engine_scheduler"));
     }
 
     public void register(Listener listener) {
@@ -101,7 +102,6 @@ public class SchedulerEngine {
     }
 
     public void start(Collection<Job> jobs) {
-        this.scheduler = Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory("trigger_engine_scheduler"));
         jobs.forEach(this::add);
     }
 
@@ -130,6 +130,13 @@ public class SchedulerEngine {
             removedSchedule.cancel();
         }
         return removedSchedule != null;
+    }
+
+    /**
+     * @return The number of currently active/triggered jobs
+     */
+    public int jobCount() {
+        return schedules.size();
     }
 
     protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {

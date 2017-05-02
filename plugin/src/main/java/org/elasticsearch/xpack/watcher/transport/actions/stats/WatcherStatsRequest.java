@@ -6,16 +6,18 @@
 package org.elasticsearch.xpack.watcher.transport.actions.stats;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.nodes.BaseNodeRequest;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceRequest;
 
 import java.io.IOException;
 
 /**
  * The Request to get the watcher stats
  */
-public class WatcherStatsRequest extends MasterNodeReadRequest<WatcherStatsRequest> {
+public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
 
     private boolean includeCurrentWatches;
     private boolean includeQueuedWatches;
@@ -61,5 +63,41 @@ public class WatcherStatsRequest extends MasterNodeReadRequest<WatcherStatsReque
     @Override
     public String toString() {
         return "watcher_stats";
+    }
+
+    public static class Node extends BaseNodeRequest {
+
+        private boolean includeCurrentWatches;
+        private boolean includeQueuedWatches;
+
+        public Node() {}
+
+        public Node(WatcherStatsRequest request, String nodeId) {
+            super(nodeId);
+            includeCurrentWatches = request.includeCurrentWatches();
+            includeQueuedWatches = request.includeQueuedWatches();
+        }
+
+        public boolean includeCurrentWatches() {
+            return includeCurrentWatches;
+        }
+
+        public boolean includeQueuedWatches() {
+            return includeQueuedWatches;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            includeCurrentWatches = in.readBoolean();
+            includeQueuedWatches = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(includeCurrentWatches);
+            out.writeBoolean(includeQueuedWatches);
+        }
     }
 }

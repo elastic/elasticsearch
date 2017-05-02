@@ -41,12 +41,12 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
         String type = "the-type";
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
-                .trigger(schedule(interval("5s")))
+                .trigger(schedule(interval("5m")))
                 .addAction("index", indexAction(index, type)))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
-        timeWarp().scheduler().trigger("_id");
+        timeWarp().trigger("_id");
         flush();
         refresh();
 

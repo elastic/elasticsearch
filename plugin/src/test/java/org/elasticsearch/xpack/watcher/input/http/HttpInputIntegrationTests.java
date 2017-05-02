@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
@@ -41,13 +42,20 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 
+@TestLogging("org.elasticsearch.xpack.watcher:DEBUG,org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCase {
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
+    }
+
+    @Override
+    protected boolean timeWarped() {
+        return true;
     }
 
     @Override
@@ -74,10 +82,8 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .addAction("_id", loggingAction("anything")))
                 .get();
 
-        if (timeWarped()) {
-            timeWarp().scheduler().trigger("_name");
-            refresh();
-        }
+        timeWarp().trigger("_name");
+        refresh();
         assertWatchWithMinimumPerformedActionsCount("_name", 1, false);
     }
 
@@ -94,10 +100,8 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .get();
 
         assertTrue(putWatchResponse.isCreated());
-        if (timeWarped()) {
-            timeWarp().scheduler().trigger("_name");
-            refresh();
-        }
+        timeWarp().trigger("_name");
+        refresh();
         assertWatchWithMinimumPerformedActionsCount("_name", 1, false);
     }
 
@@ -134,13 +138,9 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .condition(new CompareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0L)))
                 .get();
 
-        if (timeWarped()) {
-            timeWarp().scheduler().trigger("_name1");
-            timeWarp().scheduler().trigger("_name2");
-            refresh();
-        } else {
-            Thread.sleep(10000);
-        }
+        timeWarp().trigger("_name1");
+        timeWarp().trigger("_name2");
+        refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_name1", 1, false);
         assertWatchWithNoActionNeeded("_name2", 1);

@@ -7,8 +7,8 @@
 
   - do:
       xpack.watcher.stats: {}
-  - match: { "watcher_state": "started" }
-  - match: { "watch_count": 0 }
+  - match: { "stats.0.watcher_state": "started" }
+  - match: { "stats.0.watch_count": 0 }
 
   - do:
       xpack.watcher.put_watch:
@@ -17,7 +17,7 @@
           {
             "trigger": {
               "schedule": {
-                "interval": "1s"
+                "interval": "5m"
               }
             },
             "input": {
@@ -92,7 +92,7 @@
 
   - do:
       xpack.watcher.stats: {}
-  - match: { "watch_count": 1 }
+  - match: { "stats.0.watch_count": 1 }
 
   - do:
       xpack.watcher.execute_watch:

@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
@@ -19,22 +21,35 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestWatchServiceAction extends WatcherRestHandler {
+
     public RestWatchServiceAction(Settings settings, RestController controller) {
         super(settings);
 
         // @deprecated Remove in 6.0
         // NOTE: we switched from PUT in 2.x to POST in 5.x
         controller.registerWithDeprecatedHandler(POST, URI_BASE + "/_restart", this,
-                                                 PUT, "/_watcher/_restart", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/_start", new StartRestHandler(settings),
-                                                 PUT, "/_watcher/_start", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/_stop", new StopRestHandler(settings),
-                                                 PUT, "/_watcher/_stop", deprecationLogger);
+                PUT, "/_watcher/_restart", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/_start",
+                new StartRestHandler(settings), PUT, "/_watcher/_start", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/_stop",
+                new StopRestHandler(settings), PUT, "/_watcher/_stop", deprecationLogger);
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
-        return channel -> client.watcherService(new WatcherServiceRequest().restart(), new AcknowledgedRestListener<>(channel));
+    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client)
+            throws IOException {
+        return channel -> client.watcherService(new WatcherServiceRequest().stop(),
+                ActionListener.wrap(
+                    stopResponse -> client.watcherService(new WatcherServiceRequest().start(),
+                        new AcknowledgedRestListener<>(channel))
+                , e -> {
+                    try {
+                        channel.sendResponse(new BytesRestResponse(channel, e));
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.error("failed to send failure response", inner);
+                    }
+                }));
     }
 
     private static class StartRestHandler extends WatcherRestHandler {
@@ -44,10 +59,11 @@ public class RestWatchServiceAction extends WatcherRestHandler {
         }
 
         @Override
-        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
-            return channel -> client.watcherService(new WatcherServiceRequest().start(), new AcknowledgedRestListener<>(channel));
+        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client)
+                throws IOException {
+            return channel -> client.watcherService(new WatcherServiceRequest().start(),
+                    new AcknowledgedRestListener<>(channel));
         }
-
     }
 
     private static class StopRestHandler extends WatcherRestHandler {
@@ -57,10 +73,10 @@ public class RestWatchServiceAction extends WatcherRestHandler {
         }
 
         @Override
-        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
-            return channel -> client.watcherService(new WatcherServiceRequest().stop(), new AcknowledgedRestListener<>(channel));
+        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client)
+                throws IOException {
+            return channel -> client.watcherService(new WatcherServiceRequest().stop(), new
+                    AcknowledgedRestListener<>(channel));
         }
-
     }
-
 }

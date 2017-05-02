@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
@@ -24,9 +26,13 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
+
+    public static final Setting<TimeValue> TICKER_INTERVAL_SETTING =
+            positiveTimeSetting("xpack.watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500), Property.NodeScope);
 
     private final TimeValue tickInterval;
     private volatile Map<String, ActiveSchedule> schedules;
@@ -34,7 +40,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(settings, scheduleRegistry, clock);
-        this.tickInterval = settings.getAsTime("xpack.watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500));
+        this.tickInterval = TICKER_INTERVAL_SETTING.get(settings);
         this.schedules = new ConcurrentHashMap<>();
     }
 
@@ -55,6 +61,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     @Override
     public void stop() {
         ticker.close();
+        pauseExecution();
     }
 
     @Override
@@ -62,6 +69,16 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         assert job.trigger() instanceof ScheduleTrigger;
         ScheduleTrigger trigger = (ScheduleTrigger) job.trigger();
         schedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), clock.millis()));
+    }
+
+    @Override
+    public void pauseExecution() {
+        schedules.clear();
+    }
+
+    @Override
+    public int getJobCount() {
+        return schedules.size();
     }
 
     @Override
@@ -75,7 +92,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         for (ActiveSchedule schedule : schedules.values()) {
             long scheduledTime = schedule.check(triggeredTime);
             if (scheduledTime > 0) {
-                logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name,
+                logger.debug("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name,
                         new DateTime(triggeredTime, UTC), new DateTime(scheduledTime, UTC));
                 events.add(new ScheduleTriggerEvent(schedule.name, new DateTime(triggeredTime, UTC),
                         new DateTime(scheduledTime, UTC)));
@@ -85,7 +102,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
                 }
             }
         }
-        if (events.size() > 0) {
+        if (events.isEmpty() == false) {
             notifyListeners(events);
         }
     }
@@ -161,5 +178,4 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             logger.trace("ticker thread stopped");
         }
     }
-
 }

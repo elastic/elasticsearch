@@ -13,8 +13,8 @@
         body:    { foo: bar }
 
   - do: {xpack.watcher.stats:{}}
-  - match: { "watcher_state": "started" }
-  - match: { "watch_count": 0 }
+  - match: { "stats.0.watcher_state": "started" }
+  - match: { "stats.0.watch_count": 0 }
 
   # extract http host and port from master node
   - do:

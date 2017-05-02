@@ -73,7 +73,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         if (logger.isDebugEnabled()) {
             logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits());
             for (SearchHit hit : response.getHits()) {
-                logger.debug("[{}] hit [{}]", ctx.id(), XContentHelper.toString(hit));
+                logger.debug("[{}] hit [{}]", ctx.id(), hit.getSourceAsMap());
             }
         }
 

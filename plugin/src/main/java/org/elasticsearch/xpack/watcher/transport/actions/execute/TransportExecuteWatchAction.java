@@ -7,15 +7,9 @@ package org.elasticsearch.xpack.watcher.transport.actions.execute;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
@@ -58,12 +53,11 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     private final WatcherClientProxy client;
 
     @Inject
-    public TransportExecuteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                       ThreadPool threadPool, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver, ExecutionService executionService,
-                                       Clock clock, XPackLicenseState licenseState, TriggerService triggerService,
-                                       Watch.Parser watchParser, WatcherClientProxy client) {
-        super(settings, ExecuteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+    public TransportExecuteWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                       ExecutionService executionService, Clock clock, XPackLicenseState licenseState,
+                                       Watch.Parser watchParser, WatcherClientProxy client, TriggerService triggerService) {
+        super(settings, ExecuteWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, ExecuteWatchRequest::new);
         this.executionService = executionService;
         this.clock = clock;
@@ -73,39 +67,22 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected ExecuteWatchResponse newResponse() {
-        return new ExecuteWatchResponse();
-    }
-
-    @Override
-    protected void masterOperation(ExecuteWatchRequest request, ClusterState state, ActionListener<ExecuteWatchResponse> listener)
-            throws ElasticsearchException {
+    protected void doExecute(ExecuteWatchRequest request, ActionListener<ExecuteWatchResponse> listener) {
         if (request.getId() != null) {
-            try {
-                // should be executed async in the future
-                GetResponse getResponse = client.getWatch(request.getId());
-                Watch watch = watchParser.parse(request.getId(), true, getResponse.getSourceAsBytesRef(), XContentType.JSON);
-                watch.version(getResponse.getVersion());
-                watch.status().version(getResponse.getVersion());
-                ExecuteWatchResponse executeWatchResponse = executeWatch(request, watch, true);
-                listener.onResponse(executeWatchResponse);
-            } catch (IOException e) {
-                listener.onFailure(e);
-            }
+            client.getWatch(request.getId(), ActionListener.wrap(response -> {
+                Watch watch = watchParser.parse(request.getId(), true, response.getSourceAsBytesRef(), request.getXContentType());
+                watch.version(response.getVersion());
+                watch.status().version(response.getVersion());
+                executeWatch(request, listener, watch, true);
+            }, listener::onFailure));
         } else if (request.getWatchSource() != null) {
             try {
                 assert !request.isRecordExecution();
-                Watch watch =
-                        watchParser.parse(ExecuteWatchRequest.INLINE_WATCH_ID, true, request.getWatchSource(), request.getXContentType());
-                ExecuteWatchResponse response = executeWatch(request, watch, false);
-                listener.onResponse(response);
-            } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}]", request.getId()), e);
+                Watch watch = watchParser.parse(ExecuteWatchRequest.INLINE_WATCH_ID, true, request.getWatchSource(),
+                request.getXContentType());
+                executeWatch(request, listener, watch, false);
+            } catch (IOException e) {
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to parse [{}]", request.getId()), e);
                 listener.onFailure(e);
             }
         } else {
@@ -113,37 +90,38 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
         }
     }
 
-    private ExecuteWatchResponse executeWatch(ExecuteWatchRequest request, Watch watch, boolean knownWatch) throws IOException {
-        String triggerType = watch.trigger().type();
-        TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());
+    private void executeWatch(ExecuteWatchRequest request, ActionListener<ExecuteWatchResponse> listener,
+                              Watch watch, boolean knownWatch) {
 
-        ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, knownWatch,
-                new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
+        threadPool.executor(XPackPlugin.WATCHER).submit(() -> {
+            try {
+                String triggerType = watch.trigger().type();
+                TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());
 
-        DateTime executionTime = new DateTime(clock.millis(), UTC);
-        ctxBuilder.executionTime(executionTime);
-        for (Map.Entry<String, ActionExecutionMode> entry : request.getActionModes().entrySet()) {
-            ctxBuilder.actionMode(entry.getKey(), entry.getValue());
-        }
-        if (request.getAlternativeInput() != null) {
-            ctxBuilder.withInput(new SimpleInput.Result(new Payload.Simple(request.getAlternativeInput())));
-        }
-        if (request.isIgnoreCondition()) {
-            ctxBuilder.withCondition(AlwaysCondition.RESULT_INSTANCE);
-        }
-        ctxBuilder.recordExecution(request.isRecordExecution());
+                ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, knownWatch,
+                        new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
 
-        WatchRecord record = executionService.execute(ctxBuilder.build());
-        XContentBuilder builder = XContentFactory.jsonBuilder();
+                DateTime executionTime = new DateTime(clock.millis(), UTC);
+                ctxBuilder.executionTime(executionTime);
+                for (Map.Entry<String, ActionExecutionMode> entry : request.getActionModes().entrySet()) {
+                    ctxBuilder.actionMode(entry.getKey(), entry.getValue());
+                }
+                if (request.getAlternativeInput() != null) {
+                    ctxBuilder.withInput(new SimpleInput.Result(new Payload.Simple(request.getAlternativeInput())));
+                }
+                if (request.isIgnoreCondition()) {
+                    ctxBuilder.withCondition(AlwaysCondition.RESULT_INSTANCE);
+                }
+                ctxBuilder.recordExecution(request.isRecordExecution());
 
-        record.toXContent(builder, WatcherParams.builder().hideSecrets(true).debug(request.isDebug()).build());
-        return new ExecuteWatchResponse(record.id().value(), builder.bytes(), XContentType.JSON);
+                WatchRecord record = executionService.execute(ctxBuilder.build());
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+
+                record.toXContent(builder, WatcherParams.builder().hideSecrets(true).debug(request.isDebug()).build());
+                listener.onResponse(new ExecuteWatchResponse(record.id().value(), builder.bytes(), XContentType.JSON));
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+        });
     }
-
-    @Override
-    protected ClusterBlockException checkBlock(ExecuteWatchRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, Watch.INDEX);
-    }
-
-
 }

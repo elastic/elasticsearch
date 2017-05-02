@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
@@ -107,7 +108,8 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(value, nullValue());
 
         // now we restart, to make sure the watches and their secrets are reloaded from the index properly
-        assertThat(watcherClient.prepareWatchService().restart().get().isAcknowledged(), is(true));
+        assertAcked(watcherClient.prepareWatchService().stop().get());
+        assertAcked(watcherClient.prepareWatchService().start().get());
         ensureWatcherStarted();
 
         // now lets execute the watch manually

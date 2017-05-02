@@ -50,6 +50,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class HistoryStoreTests extends ESTestCase {
+
     private HistoryStore historyStore;
     private WatcherClientProxy clientProxy;
 
@@ -63,7 +64,7 @@ public class HistoryStoreTests extends ESTestCase {
     public void testPut() throws Exception {
         Wid wid = new Wid("_name", new DateTime(0, UTC));
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), new DateTime(0, UTC), new DateTime(0, UTC));
-        WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, null);
+        WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, null, randomAlphaOfLength(10));
 
         IndexResponse indexResponse = mock(IndexResponse.class);
         IndexRequest indexRequest = indexRequest(".watcher-history-1970.01.01", HistoryStore.DOC_TYPE, wid.value()
@@ -76,7 +77,7 @@ public class HistoryStoreTests extends ESTestCase {
     public void testPutStopped() throws Exception {
         Wid wid = new Wid("_name", new DateTime(0, UTC));
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), new DateTime(0, UTC), new DateTime(0, UTC));
-        WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, null);
+        WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, null, randomAlphaOfLength(10));
 
         historyStore.stop();
         try {

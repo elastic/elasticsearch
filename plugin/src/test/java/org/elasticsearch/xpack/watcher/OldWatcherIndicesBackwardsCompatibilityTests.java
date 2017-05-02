@@ -17,22 +17,28 @@ import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
+import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for watcher indexes created before 5.0.
  */
 public class OldWatcherIndicesBackwardsCompatibilityTests extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
+
     @Override
     public Settings nodeSettings(int ord) {
         return Settings.builder()
@@ -44,8 +50,12 @@ public class OldWatcherIndicesBackwardsCompatibilityTests extends AbstractOldXPa
     @Override
     protected void checkVersion(Version version) throws Exception {
         // Wait for watcher to actually start....
+        WatcherClient watcherClient = new WatcherClient(client());
+        watcherClient.prepareWatchService().start();
         assertBusy(() -> {
-            assertEquals(WatcherState.STARTED, internalCluster().getInstance(WatcherService.class).state());
+            List<WatcherState> states = watcherClient.prepareWatcherStats().get().getNodes()
+                    .stream().map(WatcherStatsResponse.Node::getWatcherState).collect(Collectors.toList());
+            assertThat(states, everyItem(is(WatcherState.STARTED)));
         });
         try {
             assertWatchIndexContentsWork(version);
@@ -53,10 +63,9 @@ public class OldWatcherIndicesBackwardsCompatibilityTests extends AbstractOldXPa
         } finally {
             /* Shut down watcher after every test because watcher can be a bit finicky about shutting down when the node shuts down. This
              * makes super sure it shuts down *and* causes the test to fail in a sensible spot if it doesn't shut down. */
-            internalCluster().getInstance(WatcherLifeCycleService.class).stop();
-            assertBusy(() -> {
-                assertEquals(WatcherState.STOPPED, internalCluster().getInstance(WatcherService.class).state());
-            });
+            watcherClient.prepareWatchService().stop().get();
+            assertBusy(() -> internalCluster().getInstances(WatcherService.class)
+                    .forEach(watcherService -> assertThat(watcherService.state(), is(WatcherState.STOPPED))));
         }
     }
 

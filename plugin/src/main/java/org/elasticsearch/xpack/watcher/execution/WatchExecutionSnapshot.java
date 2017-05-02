@@ -27,8 +27,7 @@ public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
     private String[] executedActions;
     private StackTraceElement[] executionStackTrace;
 
-    public WatchExecutionSnapshot(StreamInput in) throws IOException {
-        readFrom(in);
+    public WatchExecutionSnapshot() {
     }
 
     WatchExecutionSnapshot(WatchExecutionContext context, StackTraceElement[] executionStackTrace) {

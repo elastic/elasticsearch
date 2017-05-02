@@ -47,7 +47,7 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().scheduler().trigger("_id");
+        timeWarp().trigger("_id");
 
         flush();
 
@@ -64,7 +64,7 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
 
         // within the 60 minute throttling period
         timeWarp().clock().fastForward(TimeValue.timeValueMinutes(randomIntBetween(1, 50)));
-        timeWarp().scheduler().trigger("_id");
+        timeWarp().trigger("_id");
 
         flush();
 

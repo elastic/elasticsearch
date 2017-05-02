@@ -40,6 +40,7 @@ public abstract class WatchExecutionContext {
     private Condition.Result conditionResult;
     private Transform.Result transformResult;
     private ConcurrentMap<String, ActionWrapper.Result> actionsResults = ConcurrentCollections.newConcurrentMap();
+    private String nodeId;
 
     public WatchExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
         this.id = new Wid(watch.id(), executionTime);
@@ -108,6 +109,20 @@ public abstract class WatchExecutionContext {
 
     public ExecutionPhase executionPhase() {
         return phase;
+    }
+
+    /**
+     * @param nodeId The node id this watch execution context runs on
+     */
+    public void setNodeId(String nodeId) {
+        this.nodeId = nodeId;
+    }
+
+    /**
+     * @return The node this watch execution context runs on, which will be stored in the watch history
+     */
+    public String getNodeId() {
+        return nodeId;
     }
 
     public void start() {
@@ -183,7 +198,7 @@ public abstract class WatchExecutionContext {
     public WatchRecord abortBeforeExecution(ExecutionState state, String message) {
         assert !phase.sealed();
         phase = ExecutionPhase.ABORTED;
-        return new WatchRecord.MessageWatchRecord(id, triggerEvent, state, message);
+        return new WatchRecord.MessageWatchRecord(id, triggerEvent, state, message, getNodeId());
     }
 
     public WatchRecord abortFailedExecution(String message) {
@@ -213,5 +228,4 @@ public abstract class WatchExecutionContext {
     public WatchExecutionSnapshot createSnapshot(Thread executionThread) {
         return new WatchExecutionSnapshot(this, executionThread.getStackTrace());
     }
-
 }

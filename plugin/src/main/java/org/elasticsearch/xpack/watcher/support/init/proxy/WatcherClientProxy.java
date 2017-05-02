@@ -101,6 +101,10 @@ public class WatcherClientProxy extends ClientProxy {
         return client.delete(preProcess(request)).actionGet(defaultIndexTimeout);
     }
 
+    public SearchResponse search(SearchRequest request) {
+        return search(request, defaultSearchTimeout);
+    }
+
     public SearchResponse search(SearchRequest request, TimeValue timeout) {
         if (timeout == null) {
             timeout = defaultSearchTimeout;

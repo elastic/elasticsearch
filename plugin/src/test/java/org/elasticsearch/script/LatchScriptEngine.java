@@ -16,9 +16,13 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 
 public class LatchScriptEngine implements ScriptEngineService {
 
@@ -77,7 +81,9 @@ public class LatchScriptEngine implements ScriptEngineService {
 
     public void finishScriptExecution() throws InterruptedException {
         scriptCompletionLatch.countDown();
-        scriptCompletionLatch.await(1, TimeUnit.SECONDS);
+        boolean countedDown = scriptCompletionLatch.await(10, TimeUnit.SECONDS);
+        String msg = String.format(Locale.ROOT, "Script completion latch value is [%s], but should be 0", scriptCompletionLatch.getCount());
+        assertThat(msg, countedDown, is(true));
     }
 
     public void reset() {

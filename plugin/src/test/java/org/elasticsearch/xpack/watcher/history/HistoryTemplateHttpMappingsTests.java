@@ -77,7 +77,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
 
         assertThat(putWatchResponse.isCreated(), is(true));
-        timeWarp().scheduler().trigger("_id");
+        timeWarp().trigger("_id");
         flush();
         refresh();
 

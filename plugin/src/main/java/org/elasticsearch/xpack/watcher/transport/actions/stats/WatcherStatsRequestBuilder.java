@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.stats;
 
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Watcher stats request builder.
  */
-public class WatcherStatsRequestBuilder extends MasterNodeReadOperationRequestBuilder<WatcherStatsRequest, WatcherStatsResponse,
+public class WatcherStatsRequestBuilder extends NodesOperationRequestBuilder<WatcherStatsRequest, WatcherStatsResponse,
         WatcherStatsRequestBuilder> {
 
     public WatcherStatsRequestBuilder(ElasticsearchClient client) {

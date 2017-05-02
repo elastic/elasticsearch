@@ -34,6 +34,7 @@ public abstract class WatchRecord implements ToXContentObject {
 
     protected final Wid id;
     protected final Watch watch;
+    private final String nodeId;
     protected final TriggerEvent triggerEvent;
     protected final ExecutionState state;
 
@@ -46,7 +47,8 @@ public abstract class WatchRecord implements ToXContentObject {
     @Nullable protected final WatchExecutionResult executionResult;
 
     private WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, Map<String, Object> vars, ExecutableInput input,
-                       Condition condition, Map<String, Object> metadata, Watch watch, WatchExecutionResult executionResult) {
+                        Condition condition, Map<String, Object> metadata, Watch watch, WatchExecutionResult executionResult,
+                        String nodeId) {
         this.id = id;
         this.triggerEvent = triggerEvent;
         this.state = state;
@@ -56,25 +58,26 @@ public abstract class WatchRecord implements ToXContentObject {
         this.metadata = metadata;
         this.executionResult = executionResult;
         this.watch = watch;
+        this.nodeId = nodeId;
     }
 
-    private WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state) {
-        this(id, triggerEvent, state, Collections.emptyMap(), null, null, null, null, null);
+    private WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, String nodeId) {
+        this(id, triggerEvent, state, Collections.emptyMap(), null, null, null, null, null, nodeId);
     }
 
     private WatchRecord(WatchRecord record, ExecutionState state) {
         this(record.id, record.triggerEvent, state, record.vars, record.input, record.condition, record.metadata, record.watch,
-                record.executionResult);
+                record.executionResult, record.nodeId);
     }
 
     private WatchRecord(WatchExecutionContext context, ExecutionState state) {
         this(context.id(), context.triggerEvent(), state, context.vars(), context.watch().input(), context.watch().condition(),
-                context.watch().metadata(), context.watch(), null);
+                context.watch().metadata(), context.watch(), null, context.getNodeId());
     }
 
     private WatchRecord(WatchExecutionContext context, WatchExecutionResult executionResult) {
         this(context.id(), context.triggerEvent(), getState(executionResult), context.vars(), context.watch().input(),
-                context.watch().condition(), context.watch().metadata(), context.watch(), executionResult);
+                context.watch().condition(), context.watch().metadata(), context.watch(), executionResult, context.getNodeId());
     }
 
     private static ExecutionState getState(WatchExecutionResult executionResult) {
@@ -122,10 +125,15 @@ public abstract class WatchRecord implements ToXContentObject {
         return executionResult;
     }
 
+    public String getNodeId() {
+        return nodeId;
+    }
+
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Field.WATCH_ID.getPreferredName(), id.watchId());
+        builder.field(Field.NODE.getPreferredName(), nodeId);
         builder.field(Field.STATE.getPreferredName(), state.id());
 
         if (watch != null && watch.status() != null) {
@@ -183,6 +191,7 @@ public abstract class WatchRecord implements ToXContentObject {
 
     public interface Field {
         ParseField WATCH_ID = new ParseField("watch_id");
+        ParseField NODE = new ParseField("node");
         ParseField TRIGGER_EVENT = new ParseField("trigger_event");
         ParseField MESSAGES = new ParseField("messages");
         ParseField STATE = new ParseField("state");
@@ -199,8 +208,8 @@ public abstract class WatchRecord implements ToXContentObject {
         /**
          * Called when the execution was aborted before it started
          */
-        public MessageWatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, String message) {
-            super(id, triggerEvent, state);
+        public MessageWatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, String message, String nodeId) {
+            super(id, triggerEvent, state, nodeId);
             this.messages = new String[] { message };
         }
 
@@ -221,7 +230,7 @@ public abstract class WatchRecord implements ToXContentObject {
             this.messages = Strings.EMPTY_ARRAY;
         }
 
-        public MessageWatchRecord(WatchRecord record, ExecutionState state, String message) {
+        MessageWatchRecord(WatchRecord record, ExecutionState state, String message) {
             super(record, state);
             if (record instanceof MessageWatchRecord) {
                 MessageWatchRecord messageWatchRecord = (MessageWatchRecord) record;

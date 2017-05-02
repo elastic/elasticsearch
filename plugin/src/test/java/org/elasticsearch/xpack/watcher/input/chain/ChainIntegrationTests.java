@@ -75,7 +75,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
                 .get();
 
         if (timeWarped()) {
-            timeWarp().scheduler().trigger("_name");
+            timeWarp().trigger("_name");
             refresh();
         } else {
             assertBusy(() -> assertWatchExecuted(), 9, TimeUnit.SECONDS);

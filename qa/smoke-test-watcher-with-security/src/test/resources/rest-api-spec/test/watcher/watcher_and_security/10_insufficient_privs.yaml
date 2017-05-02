@@ -9,4 +9,4 @@
   # the impersonation to show it works
   - do:
       xpack.watcher.stats: {}
-  - match: { watcher_state: started }
+  - match: { stats.0.watcher_state: started }

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionPhase;
 import org.elasticsearch.xpack.watcher.execution.QueuedWatch;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionSnapshot;
 import org.elasticsearch.xpack.watcher.input.InputBuilders;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
@@ -35,9 +36,10 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
 
 @ESIntegTestCase.ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0,
         randomDynamicTemplates = false, numDataNodes = 1, supportsDedicatedMasters = false)
@@ -79,7 +81,8 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
         getLatchScriptEngine().finishScriptExecution();
     }
 
-    @TestLogging("org.elasticsearch.xpack.watcher.trigger.schedule.engine:TRACE,org.elasticsearch.xpack.scheduler:TRACE")
+    @TestLogging("org.elasticsearch.xpack.watcher.trigger.schedule.engine:TRACE,org.elasticsearch.xpack.scheduler:TRACE,org.elasticsearch" +
+            ".xpack.watcher.execution:TRACE,org.elasticsearch.xpack.watcher.test:TRACE")
     public void testCurrentWatches() throws Exception {
         watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("1s")))
@@ -88,26 +91,33 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
                 .addAction("_action", ActionBuilders.loggingAction("some logging"))
         ).get();
 
+        logger.info("Waiting for first script invocation");
         getLatchScriptEngine().awaitScriptStartedExecution();
+        logger.info("First script got executed, checking currently running watches");
 
         WatcherStatsResponse response = watcherClient().prepareWatcherStats().setIncludeCurrentWatches(true).get();
-        assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
+        boolean watcherStarted = response.getNodes().stream().anyMatch(node -> node.getWatcherState() == WatcherState.STARTED);
+        assertThat(watcherStarted, is(true));
+
         assertThat(response.getWatchesCount(), equalTo(1L));
-        assertThat(response.getQueuedWatches(), nullValue());
-        assertThat(response.getSnapshots(), notNullValue());
-        assertThat(response.getSnapshots().size(), equalTo(1));
-        assertThat(response.getSnapshots().get(0).watchId(), equalTo("_id"));
-        assertThat(response.getSnapshots().get(0).executionPhase(), equalTo(ExecutionPhase.CONDITION));
+        assertThat(getQueuedWatches(response), hasSize(0));
+        List<WatchExecutionSnapshot> snapshots = getSnapshots(response);
+        assertThat(snapshots, notNullValue());
+        assertThat(snapshots, hasSize(1));
+        assertThat(snapshots.get(0).watchId(), equalTo("_id"));
+        assertThat(snapshots.get(0).executionPhase(), equalTo(ExecutionPhase.CONDITION));
     }
 
+    @TestLogging("org.elasticsearch.xpack.watcher.trigger.schedule.engine:TRACE,org.elasticsearch.xpack.scheduler:TRACE,org.elasticsearch" +
+            ".xpack.watcher.execution:TRACE,org.elasticsearch.xpack.watcher.test:TRACE")
     public void testPendingWatches() throws Exception {
         // Add 5 slow watches and we should almost immediately see pending watches in the stats api
         for (int i = 0; i < 5; i++) {
             watcherClient().preparePutWatch("_id" + i).setSource(watchBuilder()
-                            .trigger(schedule(interval("1s")))
-                            .input(noneInput())
-                            .condition(new ScriptCondition(LatchScriptEngine.latchScript()))
-                            .addAction("_action", ActionBuilders.loggingAction("some logging"))
+                    .trigger(schedule(interval("1s")))
+                    .input(noneInput())
+                    .condition(new ScriptCondition(LatchScriptEngine.latchScript()))
+                    .addAction("_action", ActionBuilders.loggingAction("some logging"))
             ).get();
         }
 
@@ -119,13 +129,13 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
         logger.info("Sleeping done, checking stats response");
 
         WatcherStatsResponse response = watcherClient().prepareWatcherStats().setIncludeQueuedWatches(true).get();
-        assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
+        boolean watcherStarted = response.getNodes().stream().allMatch(node -> node.getWatcherState() == WatcherState.STARTED);
+        assertThat(watcherStarted, is(true));
         assertThat(response.getWatchesCount(), equalTo(5L));
-        assertThat(response.getSnapshots(), nullValue());
-        assertThat(response.getQueuedWatches(), notNullValue());
-        assertThat(response.getQueuedWatches().size(), greaterThanOrEqualTo(5));
+        assertThat(getSnapshots(response), hasSize(0));
+        assertThat(getQueuedWatches(response), hasSize(greaterThanOrEqualTo(5)));
         DateTime previous = null;
-        for (QueuedWatch queuedWatch : response.getQueuedWatches()) {
+        for (QueuedWatch queuedWatch : getQueuedWatches(response)) {
             assertThat(queuedWatch.watchId(),
                     anyOf(equalTo("_id0"), equalTo("_id1"), equalTo("_id2"), equalTo("_id3"), equalTo("_id4")));
             if (previous != null) {
@@ -135,6 +145,22 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
             previous = queuedWatch.executionTime();
         }
         logger.info("Pending watches test finished, now counting down latches");
+    }
+
+    private List<WatchExecutionSnapshot> getSnapshots(WatcherStatsResponse response) {
+        List<WatchExecutionSnapshot> snapshots = new ArrayList<>();
+        response.getNodes().stream()
+                .filter(node -> node.getSnapshots() != null)
+                .forEach(node -> snapshots.addAll(node.getSnapshots()));
+        return snapshots;
+    }
+
+    private List<QueuedWatch> getQueuedWatches(WatcherStatsResponse response) {
+        final List<QueuedWatch> queuedWatches = new ArrayList<>();
+        response.getNodes().stream()
+                .filter(node -> node.getQueuedWatches() != null)
+                .forEach(node -> queuedWatches.addAll(node.getQueuedWatches()));
+        return queuedWatches;
     }
 
     private LatchScriptEngine getLatchScriptEngine() {

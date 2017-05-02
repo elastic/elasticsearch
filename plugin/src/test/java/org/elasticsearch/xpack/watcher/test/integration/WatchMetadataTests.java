@@ -59,7 +59,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                         .get();
 
         if (timeWarped()) {
-            timeWarp().scheduler().trigger("_name");
+            timeWarp().trigger("_name");
         } else {
             // Wait for a no action entry to be added. (the condition search request will not match, because there are no docs in my-index)
             assertWatchWithNoActionNeeded("_name", 1);

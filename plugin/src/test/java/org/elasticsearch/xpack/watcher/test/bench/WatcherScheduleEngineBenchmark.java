@@ -147,7 +147,8 @@ public class WatcherScheduleEngineBenchmark {
 
                     Clock clock = node.injector().getInstance(Clock.class);
                     WatcherClient watcherClient = node.injector().getInstance(WatcherClient.class);
-                    while (watcherClient.prepareWatcherStats().get().getWatcherState() != WatcherState.STARTED) {
+                    while (!watcherClient.prepareWatcherStats().get().getNodes().stream()
+                            .allMatch(r -> r.getWatcherState() == WatcherState.STARTED)) {
                         Thread.sleep(100);
                     }
                     long actualLoadedWatches = watcherClient.prepareWatcherStats().get().getWatchesCount();

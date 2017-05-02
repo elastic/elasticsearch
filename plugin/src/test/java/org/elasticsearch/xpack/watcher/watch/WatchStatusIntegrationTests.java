@@ -38,7 +38,7 @@ public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestC
                         .condition(NeverCondition.INSTANCE)
                         .addAction("_logger", loggingAction("logged text")))
                 .get();
-        timeWarp().scheduler().trigger("_name");
+        timeWarp().trigger("_name");
 
         GetWatchResponse getWatchResponse = watcherClient.prepareGetWatch().setId("_name").get();
         assertThat(getWatchResponse.isFound(), is(true));

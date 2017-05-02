@@ -31,6 +31,7 @@ import org.junit.Before;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.webhookAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -117,8 +118,8 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         assertThat(value, nullValue()); // and yet we don't have the password
 
         // now we restart, to make sure the watches and their secrets are reloaded from the index properly
-        assertThat(watcherClient.prepareWatchService().restart().get().isAcknowledged(), is(true));
-        ensureWatcherStarted();
+        stopWatcher();
+        startWatcher();
 
         // now lets execute the watch manually
 
@@ -182,8 +183,8 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         assertThat(value, nullValue()); // and yet we don't have the password
 
         // now we restart, to make sure the watches and their secrets are reloaded from the index properly
-        assertThat(watcherClient.prepareWatchService().restart().get().isAcknowledged(), is(true));
-        ensureWatcherStarted();
+        stopWatcher();
+        startWatcher();
 
         // now lets execute the watch manually
 

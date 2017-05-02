@@ -81,7 +81,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .get();
 
         if (timeWarped()) {
-            timeWarp().scheduler().trigger("_id");
+            timeWarp().trigger("_id");
             refresh();
         }
 
@@ -123,7 +123,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .get();
 
         if (timeWarped()) {
-            timeWarp().scheduler().trigger("_id");
+            timeWarp().trigger("_id");
             refresh();
         }
 

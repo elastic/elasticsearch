@@ -49,36 +49,29 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
-        timeWarp().scheduler().trigger("_id");
-        flush();
-        refresh();
+        timeWarp().trigger("_id");
 
-        // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
-        refresh();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
-                assertThat(mappingsResponse, notNullValue());
-                assertThat(mappingsResponse.getMappings().isEmpty(), is(false));
-                for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> metadatas : mappingsResponse.getMappings()) {
-                    if (!metadatas.key.startsWith(".watcher-history")) {
-                        continue;
-                    }
-                    MappingMetaData metadata = metadatas.value.get("watch_record");
-                    assertThat(metadata, notNullValue());
-                    try {
-                        Map<String, Object> source = metadata.getSourceAsMap();
-                        logger.info("checking index [{}] with metadata:\n[{}]", metadatas.key, metadata.source().toString());
-                        assertThat(extractValue("properties.trigger_event.properties.type.type", source), is((Object) "keyword"));
-                        assertThat(extractValue("properties.trigger_event.properties.triggered_time.type", source), is((Object) "date"));
-                        assertThat(extractValue("properties.trigger_event.properties.schedule.properties.scheduled_time.type", source),
-                                is((Object) "date"));
-                        assertThat(extractValue("properties.result.properties.execution_time.type", source), is((Object) "date"));
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+        assertBusy(() -> {
+            GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
+            assertThat(mappingsResponse, notNullValue());
+            assertThat(mappingsResponse.getMappings().isEmpty(), is(false));
+            for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> metadatas : mappingsResponse.getMappings()) {
+                if (!metadatas.key.startsWith(HistoryStore.INDEX_PREFIX)) {
+                    continue;
+                }
+                MappingMetaData metadata = metadatas.value.get("watch_record");
+                assertThat(metadata, notNullValue());
+                try {
+                    Map<String, Object> source = metadata.getSourceAsMap();
+                    logger.info("checking index [{}] with metadata:\n[{}]", metadatas.key, metadata.source().toString());
+                    assertThat(extractValue("properties.trigger_event.properties.type.type", source), is((Object) "keyword"));
+                    assertThat(extractValue("properties.trigger_event.properties.triggered_time.type", source), is((Object) "date"));
+                    assertThat(extractValue("properties.trigger_event.properties.schedule.properties.scheduled_time.type", source),
+                            is((Object) "date"));
+                    assertThat(extractValue("properties.result.properties.execution_time.type", source), is((Object) "date"));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
             }
         });

@@ -161,7 +161,7 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().scheduler().trigger("1");
+        timeWarp().trigger("1");
         flush();
         refresh();
 

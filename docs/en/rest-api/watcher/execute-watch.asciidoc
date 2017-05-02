@@ -92,6 +92,7 @@ This is an example of the output:
   "_id": "my_watch_0-2015-06-02T23:17:55.124Z", <1>
   "watch_record": { <2>
     "watch_id": "my_watch",
+    "node": "my_node",
     "messages": [],
     "trigger_event": {
       "type": "manual",
@@ -184,6 +185,7 @@ This is an example of the output:
 // TESTRESPONSE[s/"last_met_condition": "2015-06-02T23:17:55.124Z"/"last_met_condition": "$body.watch_record._status.last_met_condition"/]
 // TESTRESPONSE[s/"execution_duration": 12608/"execution_duration": "$body.watch_record.result.execution_duration"/]
 // TESTRESPONSE[s/"id": "AVSHKzPa9zx62AzUzFXY"/"id": "$body.watch_record.result.actions.0.index.response.id"/]
+// TESTRESPONSE[s/"node": "my_node"/"node": "$body.watch_record.node"/]
 <1> The id of the watch record as it would be stored in the `.watcher-history` index.
 <2> The watch record document as it would be stored in the `.watcher-history` index.
 <3> The watch execution results.

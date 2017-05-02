@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
@@ -21,7 +22,9 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
+import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -36,6 +39,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@TestLogging("org.elasticsearch.xpack.watcher:DEBUG,org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
@@ -43,12 +47,14 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/395")
+    @Override
+    protected boolean enableSecurity() {
+        return false;
+    }
+
     // FIXME not to be sleep based
     public void testDeactivateAndActivate() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-
-        PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
+        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()
                 .setId("_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
@@ -59,44 +65,55 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        GetWatchResponse getWatchResponse = watcherClient.prepareGetWatch("_id").get();
+        GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch("_id").get();
         assertThat(getWatchResponse, notNullValue());
         assertThat(getWatchResponse.getStatus().state().isActive(), is(true));
 
-        assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 5);
+        logger.info("Waiting for watch to be executed at least once");
+        assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
         // we now know the watch is executing... lets deactivate it
-        ActivateWatchResponse activateWatchResponse = watcherClient.prepareActivateWatch("_id", false).get();
+        ActivateWatchResponse activateWatchResponse = watcherClient().prepareActivateWatch("_id", false).get();
         assertThat(activateWatchResponse, notNullValue());
         assertThat(activateWatchResponse.getStatus().state().isActive(), is(false));
 
-        getWatchResponse = watcherClient.prepareGetWatch("_id").get();
+        getWatchResponse = watcherClient().prepareGetWatch("_id").get();
         assertThat(getWatchResponse, notNullValue());
         assertThat(getWatchResponse.getStatus().state().isActive(), is(false));
 
-        flush();
+        // wait until no watch is executing
+        assertBusy(() -> {
+            WatcherStatsResponse statsResponse = watcherClient().prepareWatcherStats().setIncludeCurrentWatches(true).get();
+            int sum = statsResponse.getNodes().stream().map(WatcherStatsResponse.Node::getSnapshots).mapToInt(List::size).sum();
+            assertThat(sum, is(0));
+        });
+
+        logger.info("Ensured no more watches are being executed");
         refresh();
         long count1 = docCount(".watcher-history*", "watch_record", matchAllQuery());
 
-        Thread.sleep(10000);
+        logger.info("Sleeping for 5 seconds, watch history count [{}]", count1);
+        Thread.sleep(5000);
 
-        flush();
         refresh();
         long count2 = docCount(".watcher-history*", "watch_record", matchAllQuery());
 
         assertThat(count2, is(count1));
 
         // lets activate it again
+        logger.info("Activating watch again");
 
-        activateWatchResponse = watcherClient.prepareActivateWatch("_id", true).get();
+        activateWatchResponse = watcherClient().prepareActivateWatch("_id", true).get();
         assertThat(activateWatchResponse, notNullValue());
         assertThat(activateWatchResponse.getStatus().state().isActive(), is(true));
 
-        getWatchResponse = watcherClient.prepareGetWatch("_id").get();
+        getWatchResponse = watcherClient().prepareGetWatch("_id").get();
         assertThat(getWatchResponse, notNullValue());
         assertThat(getWatchResponse.getStatus().state().isActive(), is(true));
 
-        Thread.sleep(10000);
+        logger.info("Sleeping for another five seconds, ensuring that watch is executed");
+        Thread.sleep(5000);
+        refresh();
         long count3 = docCount(".watcher-history*", "watch_record", matchAllQuery());
         assertThat(count3, greaterThan(count1));
     }
@@ -145,10 +162,9 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(indexResponse.getId(), is("_id"));
 
         // now, let's restart
-        assertThat(watcherClient.prepareWatchService().stop().get().isAcknowledged(), is(true));
-        ensureWatcherStopped();
-        assertThat(watcherClient.prepareWatchService().start().get().isAcknowledged(), is(true));
         ensureWatcherStarted();
+        stopWatcher();
+        startWatcher();
 
         getWatchResponse = watcherClient.prepareGetWatch("_id").get();
         assertThat(getWatchResponse, notNullValue());

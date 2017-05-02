@@ -31,6 +31,16 @@ public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
     void add(Watch job);
 
     /**
+     * Get into a pause state, implies clearing out existing jobs
+     */
+    void pauseExecution();
+
+    /**
+     * Returns the number of active jobs currently in this trigger engine implementation
+     */
+    int getJobCount();
+
+    /**
      * Removes the job associated with the given name from this trigger engine.
      *
      * @param jobId   The name of the job to remove

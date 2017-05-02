@@ -73,6 +73,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -624,7 +625,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         ParsedDocument doc = testParsedDocument("1", "test", null, new ParseContext.Document(),
             new BytesArray(new byte[]{1}), null);
-        Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
+        Engine.Index index = new Engine.Index(new Term("_id", doc.id()), doc);
         shard.index(index);
         assertEquals(1, preIndex.get());
         assertEquals(1, postIndexCreate.get());
@@ -643,7 +644,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, postDelete.get());
         assertEquals(0, postDeleteException.get());
 
-        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", doc.uid()));
+        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_id", doc.id()));
         shard.delete(delete);
 
         assertEquals(2, preIndex.get());
@@ -1037,7 +1038,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         indexDoc(target, "test", "1");
         target.refresh("test");
-        assertDocs(target, new Uid("test", "1"));
+        assertDocs(target, "1");
         flushShard(source); // only flush source
         final ShardRouting origRouting = target.routingEntry();
         ShardRouting routing = ShardRoutingHelper.reinitPrimary(origRouting);
@@ -1069,7 +1070,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }));
 
         target.updateRoutingEntry(routing.moveToStarted());
-        assertDocs(target, new Uid("test", "0"));
+        assertDocs(target, "0");
 
         closeShards(source, target);
     }
@@ -1080,7 +1081,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "test", "1", "{\"foobar\" : \"bar\"}");
         shard.refresh("test");
 
-        Engine.GetResult getResult = shard.get(new Engine.Get(false, new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
+        Engine.GetResult getResult = shard.get(new Engine.Get(false, "test", "1", new Term(IdFieldMapper.NAME, "1")));
         assertTrue(getResult.exists());
         assertNotNull(getResult.searcher());
         getResult.release();
@@ -1113,7 +1114,7 @@ public class IndexShardTests extends IndexShardTestCase {
             search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits, 1);
         }
-        getResult = newShard.get(new Engine.Get(false, new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
+        getResult = newShard.get(new Engine.Get(false, "test", "1", new Term(IdFieldMapper.NAME, "1")));
         assertTrue(getResult.exists());
         assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
         assertTrue(getResult.searcher().reader() instanceof FieldMaskingReader);
@@ -1424,7 +1425,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     testParsedDocument(id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
                 final Engine.Index index =
                     new Engine.Index(
-                        new Term("_uid", doc.uid()),
+                        new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())),
                         doc,
                         SequenceNumbersService.UNASSIGNED_SEQ_NO,
                         0,
@@ -1454,7 +1455,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     testParsedDocument(id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
                 final Engine.Index index =
                     new Engine.Index(
-                        new Term("_uid", doc.uid()),
+                        new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())),
                         doc,
                         SequenceNumbersService.UNASSIGNED_SEQ_NO,
                         0,

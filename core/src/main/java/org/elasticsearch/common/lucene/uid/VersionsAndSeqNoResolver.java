@@ -109,7 +109,6 @@ public final class VersionsAndSeqNoResolver {
      * </ul>
      */
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term) throws IOException {
-        assert term.field().equals(UidFieldMapper.NAME) : "unexpected term field " + term.field();
         List<LeafReaderContext> leaves = reader.leaves();
         if (leaves.isEmpty()) {
             return null;
@@ -120,7 +119,7 @@ public final class VersionsAndSeqNoResolver {
             LeafReaderContext context = leaves.get(i);
             LeafReader leaf = context.reader();
             PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf);
-            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), leaf.getLiveDocs(), context);
+            DocIdAndVersion result = lookup.lookupVersion(term.field(), term.bytes(), leaf.getLiveDocs(), context);
             if (result != null) {
                 return result;
             }
@@ -135,7 +134,6 @@ public final class VersionsAndSeqNoResolver {
      * </ul>
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term term) throws IOException {
-        assert term.field().equals(UidFieldMapper.NAME) : "unexpected term field " + term.field();
         List<LeafReaderContext> leaves = reader.leaves();
         if (leaves.isEmpty()) {
             return null;
@@ -146,7 +144,7 @@ public final class VersionsAndSeqNoResolver {
             LeafReaderContext context = leaves.get(i);
             LeafReader leaf = context.reader();
             PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf);
-            DocIdAndSeqNo result = lookup.lookupSeqNo(term.bytes(), leaf.getLiveDocs(), context);
+            DocIdAndSeqNo result = lookup.lookupSeqNo(term.field(), term.bytes(), leaf.getLiveDocs(), context);
             if (result != null) {
                 return result;
             }

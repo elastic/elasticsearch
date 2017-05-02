@@ -20,6 +20,7 @@ package org.elasticsearch.common.lucene.uid;
  */
 
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -29,9 +30,13 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -51,7 +56,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
 
     /** terms enum for uid field */
-    private final TermsEnum termsEnum;
+    private final TermsEnum uidTermsEnum;
+    private final TermsEnum idTermsEnum;
 
     /** Reused for iteration (when the term exists) */
     private PostingsEnum docsEnum;
@@ -65,9 +71,24 @@ final class PerThreadIDVersionAndSeqNoLookup {
     PerThreadIDVersionAndSeqNoLookup(LeafReader reader) throws IOException {
         Fields fields = reader.fields();
         Terms terms = fields.terms(UidFieldMapper.NAME);
-        termsEnum = terms.iterator();
-        if (termsEnum == null) {
-            throw new IllegalArgumentException("reader misses the [" + UidFieldMapper.NAME + "] field");
+        if (terms != null) {
+            uidTermsEnum = terms.iterator();
+        } else {
+            uidTermsEnum = null;
+        }
+        terms = fields.terms(IdFieldMapper.NAME);
+        if (terms != null) {
+            idTermsEnum = terms.iterator();
+        } else {
+            idTermsEnum = null;
+        }
+        if (uidTermsEnum == null && idTermsEnum == null) {
+            throw new IllegalArgumentException("reader has neither the [" + UidFieldMapper.NAME + "] nor the ["
+                    + IdFieldMapper.NAME + "] field");
+        }
+        if (uidTermsEnum != null && idTermsEnum != null) {
+            throw new IllegalArgumentException("reader has both the [" + UidFieldMapper.NAME + "] and ["
+                    + IdFieldMapper.NAME + "] fields");
         }
         if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
             throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field");
@@ -79,11 +100,11 @@ final class PerThreadIDVersionAndSeqNoLookup {
     }
 
     /** Return null if id is not found. */
-    public DocIdAndVersion lookupVersion(BytesRef id, Bits liveDocs, LeafReaderContext context)
+    public DocIdAndVersion lookupVersion(String field, BytesRef id, Bits liveDocs, LeafReaderContext context)
         throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, liveDocs);
+        int docID = getDocID(field, id, liveDocs);
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final NumericDocValues versions = context.reader().getNumericDocValues(VersionFieldMapper.NAME);
@@ -103,7 +124,23 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * returns the internal lucene doc id for the given id bytes.
      * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found
      * */
-    private int getDocID(BytesRef id, Bits liveDocs) throws IOException {
+    private int getDocID(String field, BytesRef id, Bits liveDocs) throws IOException {
+        TermsEnum termsEnum;
+        switch (field) {
+        case UidFieldMapper.NAME:
+            termsEnum = uidTermsEnum;
+            break;
+        case IdFieldMapper.NAME:
+            termsEnum = idTermsEnum;
+            break;
+        default:
+            throw new AssertionError("Field " + field + " cannot be used a a uid");
+        }
+
+        if (termsEnum == null) {
+            throw new IllegalArgumentException("Wrong uid field: " + field);
+        }
+
         if (termsEnum.seekExact(id)) {
             int docID = DocIdSetIterator.NO_MORE_DOCS;
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:
@@ -121,10 +158,10 @@ final class PerThreadIDVersionAndSeqNoLookup {
     }
 
     /** Return null if id is not found. */
-    DocIdAndSeqNo lookupSeqNo(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
+    DocIdAndSeqNo lookupSeqNo(String field, BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, liveDocs);
+        int docID = getDocID(field, id, liveDocs);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
             long seqNo;

@@ -4,9 +4,12 @@
       cluster.health:
           wait_for_status: yellow
 
+  # ensure index exists, but ignore if it does already
+  # this test should ensure the watch is missing, while the index is there
   - do:
       indices.create:
         index: .watches
+      ignore: 400
 
   - do:
       catch: missing

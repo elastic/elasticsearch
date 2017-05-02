@@ -107,7 +107,7 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
         }
     }
 
-    public static class DispatchingListenableActionFuture<T> extends PlainListenableActionFuture<T> {
+    private static class DispatchingListenableActionFuture<T> extends PlainListenableActionFuture<T> {
 
         private static final Logger logger = Loggers.getLogger(DispatchingListenableActionFuture.class);
         private final ThreadPool threadPool;

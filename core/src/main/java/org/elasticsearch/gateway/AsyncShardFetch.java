@@ -44,7 +44,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
@@ -72,7 +72,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private final Lister<BaseNodesResponse<T>, T> action;
     private final Map<String, NodeEntry<T>> cache = new HashMap<>();
     private final Set<String> nodesToIgnore = new HashSet<>();
-    private final AtomicInteger round = new AtomicInteger();
+    private final AtomicLong round = new AtomicLong();
     private boolean closed;
 
     @SuppressWarnings("unchecked")
@@ -118,7 +118,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         if (nodesToFetch.isEmpty() == false) {
             // mark all node as fetching and go ahead and async fetch them
             // use a unique round id to detect stale responses in processAsyncFetch
-            final int fetchingRound = round.incrementAndGet();
+            final long fetchingRound = round.incrementAndGet();
             for (NodeEntry<T> nodeEntry : nodesToFetch) {
                 nodeEntry.markAsFetching(fetchingRound);
             }
@@ -172,7 +172,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * the shard (response + failures), issuing a reroute at the end of it to make sure there will be another round
      * of allocations taking this new data into account.
      */
-    protected synchronized void processAsyncFetch(List<T> responses, List<FailedNodeException> failures, int fetchingRound) {
+    protected synchronized void processAsyncFetch(List<T> responses, List<FailedNodeException> failures, long fetchingRound) {
         if (closed) {
             // we are closed, no need to process this async fetch at all
             logger.trace("{} ignoring fetched [{}] results, already closed", shardId, type);
@@ -284,7 +284,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * Async fetches data for the provided shard with the set of nodes that need to be fetched from.
      */
     // visible for testing
-    void asyncFetch(final DiscoveryNode[] nodes, int fetchingRound) {
+    void asyncFetch(final DiscoveryNode[] nodes, long fetchingRound) {
         logger.trace("{} fetching [{}] from {}", shardId, type, nodes);
         action.list(shardId, nodes, new ActionListener<BaseNodesResponse<T>>() {
             @Override
@@ -357,7 +357,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         private T value;
         private boolean valueSet;
         private Throwable failure;
-        private int fetchingRound;
+        private long fetchingRound;
 
         NodeEntry(String nodeId) {
             this.nodeId = nodeId;
@@ -371,7 +371,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             return fetching;
         }
 
-        void markAsFetching(int fetchingRound) {
+        void markAsFetching(long fetchingRound) {
             assert fetching == false : "double marking a node as fetching";
             this.fetching = true;
             this.fetchingRound = fetchingRound;
@@ -420,7 +420,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             return value;
         }
 
-        int getFetchingRound() {
+        long getFetchingRound() {
             return fetchingRound;
         }
     }

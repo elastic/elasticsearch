@@ -154,7 +154,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             }
 
             @Override
-            protected synchronized void processAsyncFetch(List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures, int fetchingRound) {
+            protected synchronized void processAsyncFetch(List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures, long fetchingRound) {
                 fetchResponses.add(new Response(shardId, responses, failures));
                 if (expectedOps.countDown()) {
                     finish();

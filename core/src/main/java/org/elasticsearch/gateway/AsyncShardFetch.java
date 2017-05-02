@@ -183,19 +183,19 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         if (responses != null) {
             for (T response : responses) {
                 NodeEntry<T> nodeEntry = cache.get(response.getNode().getId());
-                // if the entry is there, for the right fetching round and not marked as failed already, process it
-                if (nodeEntry == null) {
-                    continue;
-                }
-                if (nodeEntry.getFetchingRound() != fetchingRound) {
-                    assert nodeEntry.getFetchingRound() > fetchingRound : "node entries only replaced by newer rounds";
-                    logger.trace("{} received response for [{}] from node {} for an older fetching round (expected: {} but was: {})",
-                        shardId, nodeEntry.getNodeId(), type, nodeEntry.getFetchingRound(), fetchingRound);
-                } else if (nodeEntry.isFailed()) {
-                    logger.trace("{} node {} has failed for [{}] (failure [{}])", shardId, nodeEntry.getNodeId(), type, nodeEntry.getFailure());
-                } else {
-                    logger.trace("{} marking {} as done for [{}], result is [{}]", shardId, nodeEntry.getNodeId(), type, response);
-                    nodeEntry.doneFetching(response);
+                if (nodeEntry != null) {
+                    if (nodeEntry.getFetchingRound() != fetchingRound) {
+                        assert nodeEntry.getFetchingRound() > fetchingRound : "node entries only replaced by newer rounds";
+                        logger.trace("{} received response for [{}] from node {} for an older fetching round (expected: {} but was: {})",
+                            shardId, nodeEntry.getNodeId(), type, nodeEntry.getFetchingRound(), fetchingRound);
+                    } else if (nodeEntry.isFailed()) {
+                        logger.trace("{} node {} has failed for [{}] (failure [{}])", shardId, nodeEntry.getNodeId(), type,
+                            nodeEntry.getFailure());
+                    } else {
+                        // if the entry is there, for the right fetching round and not marked as failed already, process it
+                        logger.trace("{} marking {} as done for [{}], result is [{}]", shardId, nodeEntry.getNodeId(), type, response);
+                        nodeEntry.doneFetching(response);
+                    }
                 }
             }
         }
@@ -203,22 +203,24 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             for (FailedNodeException failure : failures) {
                 logger.trace("{} processing failure {} for [{}]", shardId, failure, type);
                 NodeEntry<T> nodeEntry = cache.get(failure.nodeId());
-                // if the entry is there, for the right fetching round and not marked as failed already, process it
-                if (nodeEntry == null) {
-                    continue;
-                }
-                if (nodeEntry.getFetchingRound() != fetchingRound) {
-                    assert nodeEntry.getFetchingRound() > fetchingRound : "node entries only replaced by newer rounds";
-                    logger.trace("{} received failure for [{}] from node {} for an older fetching round (expected: {} but was: {})",
-                        shardId, nodeEntry.getNodeId(), type, nodeEntry.getFetchingRound(), fetchingRound);
-                } else if (nodeEntry.isFailed() == false) {
-                    Throwable unwrappedCause = ExceptionsHelper.unwrapCause(failure.getCause());
-                    // if the request got rejected or timed out, we need to try it again next time...
-                    if (unwrappedCause instanceof EsRejectedExecutionException || unwrappedCause instanceof ReceiveTimeoutTransportException || unwrappedCause instanceof ElasticsearchTimeoutException) {
-                        nodeEntry.restartFetching();
-                    } else {
-                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}]", shardId, type, failure.nodeId()), failure);
-                        nodeEntry.doneFetching(failure.getCause());
+                if (nodeEntry != null) {
+                    if (nodeEntry.getFetchingRound() != fetchingRound) {
+                        assert nodeEntry.getFetchingRound() > fetchingRound : "node entries only replaced by newer rounds";
+                        logger.trace("{} received failure for [{}] from node {} for an older fetching round (expected: {} but was: {})",
+                            shardId, nodeEntry.getNodeId(), type, nodeEntry.getFetchingRound(), fetchingRound);
+                    } else if (nodeEntry.isFailed() == false) {
+                        // if the entry is there, for the right fetching round and not marked as failed already, process it
+                        Throwable unwrappedCause = ExceptionsHelper.unwrapCause(failure.getCause());
+                        // if the request got rejected or timed out, we need to try it again next time...
+                        if (unwrappedCause instanceof EsRejectedExecutionException ||
+                            unwrappedCause instanceof ReceiveTimeoutTransportException ||
+                            unwrappedCause instanceof ElasticsearchTimeoutException) {
+                            nodeEntry.restartFetching();
+                        } else {
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}]",
+                                shardId, type, failure.nodeId()), failure);
+                            nodeEntry.doneFetching(failure.getCause());
+                        }
                     }
                 }
             }

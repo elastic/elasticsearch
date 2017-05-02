@@ -260,7 +260,12 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         pendingInSync.add(allocationId);
         try {
             while (true) {
-                final long current = trackingLocalCheckpoints.get(allocationId);
+                /*
+                 * If the allocation has been cancelled and so removed from the tracking map from a cluster state update from the master it
+                 * means that this recovery will be cancelled; we are here on a cancellable recovery thread and so this thread will throw
+                 * an interrupted exception as soon as it tries to wait on the monitor.
+                 */
+                final long current = trackingLocalCheckpoints.getOrDefault(allocationId, Long.MIN_VALUE);
                 if (current >= globalCheckpoint) {
                     logger.trace("marked [{}] as in-sync with local checkpoint [{}]", allocationId, current);
                     trackingLocalCheckpoints.remove(allocationId);

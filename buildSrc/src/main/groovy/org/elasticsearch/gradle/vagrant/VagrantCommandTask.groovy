@@ -26,6 +26,10 @@ import org.gradle.api.tasks.TaskAction
 import org.gradle.internal.logging.progress.ProgressLoggerFactory
 
 import javax.inject.Inject
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.locks.Lock
+import java.util.concurrent.locks.ReadWriteLock
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * Runs a vagrant command. Pretty much like Exec task but with a nicer output
@@ -47,18 +51,24 @@ public class VagrantCommandTask extends LoggedExec {
 
     public VagrantCommandTask() {
         executable = 'vagrant'
-        doFirst {
-            // Build our command line for vagrant
-            def vagrantCommand = [executable, command]
-            if (subcommand != null) {
-                vagrantCommand + subcommand
-            }
-            commandLine([*vagrantCommand, boxName, *args])
+        project.afterEvaluate {
+            // Schedule an action to set the values for exec before it runs.
+            // If you don't do this from within 'afterEvaluate', then
+            // the exec and configure actions are run out of order.
+            doFirst {
+                if (environmentVars != null) {
+                    environment environmentVars
+                }
 
-            // It'd be nice if --machine-readable were, well, nice
-            standardOutput = new TeeOutputStream(standardOutput, createLoggerOutputStream())
-            if (environmentVars != null) {
-                environment environmentVars
+                // Build our command line for vagrant
+                def vagrantCommand = [executable, command]
+                if (subcommand != null) {
+                    vagrantCommand = vagrantCommand + subcommand
+                }
+                commandLine([*vagrantCommand, boxName, *args])
+
+                // It'd be nice if --machine-readable were, well, nice
+                standardOutput = new TeeOutputStream(standardOutput, createLoggerOutputStream())
             }
         }
     }

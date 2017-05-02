@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -78,10 +77,12 @@ public class SearchTransportService extends AbstractComponent {
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
 
     private final TransportService transportService;
+    private final RemoteClusterService remoteClusterService;
 
-    public SearchTransportService(Settings settings, ClusterSettings clusterSettings, TransportService transportService) {
+    public SearchTransportService(Settings settings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
+        this.remoteClusterService = transportService.getRemoteClusterService();
     }
 
     public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {
@@ -390,7 +391,18 @@ public class SearchTransportService extends AbstractComponent {
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
     }
 
-    Transport.Connection getConnection(DiscoveryNode node) {
-        return transportService.getConnection(node);
+    /**
+     * Returns a connection to the given node on the provided cluster. If the cluster is <code>null</code> the node will be resolved
+     * against the local cluster.
+     * @param clusterAlias the cluster alias the node should be resolve against
+     * @param node the node to resolve
+     * @return a connection to the given node on the give cluster alias.
+     */
+    Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+        if (clusterAlias == null) {
+            return transportService.getConnection(node);
+        } else {
+            return remoteClusterService.getConnection(node, clusterAlias);
+        }
     }
 }

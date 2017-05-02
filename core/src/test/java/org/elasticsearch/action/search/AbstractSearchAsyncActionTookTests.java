@@ -63,7 +63,7 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new GroupShardsIterator<>(Collections.singletonList(new SearchShardIterator(null, Collections.emptyList(), null))),
+                new GroupShardsIterator<>(Collections.singletonList(new SearchShardIterator(null, null, Collections.emptyList(), null))),
                 timeProvider,
                 0,
                 null,

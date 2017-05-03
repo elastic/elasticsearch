@@ -43,6 +43,8 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -400,14 +402,20 @@ public class Node implements Closeable {
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
                                                  scriptModule.getScriptService(), xContentRegistry).stream())
                 .collect(Collectors.toList());
-            Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders =
-                pluginsService.filterPlugins(Plugin.class).stream()
-                .map(Plugin::getCustomMetaDataUpgrader)
-                .collect(Collectors.toList());
             final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
                     threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, restController);
-            final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders);
+            Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders =
+                pluginsService.filterPlugins(Plugin.class).stream()
+                    .map(Plugin::getCustomMetaDataUpgrader)
+                    .collect(Collectors.toList());
+            Collection<UnaryOperator<Map<String, IndexTemplateMetaData>>> indexTemplateMetaDataUpgraders =
+                pluginsService.filterPlugins(Plugin.class).stream()
+                    .map(Plugin::getIndexTemplateMetaDataUpgrader)
+                    .collect(Collectors.toList());
+            Collection<UnaryOperator<IndexMetaData>> indexMetaDataUpgraders = pluginsService.filterPlugins(Plugin.class).stream()
+                    .map(Plugin::getIndexMetaDataUpgrader).collect(Collectors.toList());
+            final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders, indexTemplateMetaDataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
@@ -462,8 +470,8 @@ public class Node implements Closeable {
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);
                     b.bind(UpdateHelper.class).toInstance(new UpdateHelper(settings, scriptModule.getScriptService()));
-                    b.bind(MetaDataIndexUpgradeService.class).toInstance(new MetaDataIndexUpgradeService(settings,
-                        xContentRegistry, indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
+                    b.bind(MetaDataIndexUpgradeService.class).toInstance(new MetaDataIndexUpgradeService(settings, xContentRegistry,
+                        indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), indexMetaDataUpgraders));
                     b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
                     b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
                     {

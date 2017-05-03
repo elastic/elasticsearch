@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transport.action.delete;
 
-import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.http.MockResponse;
@@ -91,7 +91,7 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
                     .get();
             assertThat(responseFuture.isCreated(), is(true));
 
-            ListenableActionFuture<ExecuteWatchResponse> executeWatchFuture =
+            ActionFuture<ExecuteWatchResponse> executeWatchFuture =
                     watcherClient().prepareExecuteWatch("_name").setRecordExecution(true).execute();
 
             // without this sleep the delete operation might overtake the watch execution

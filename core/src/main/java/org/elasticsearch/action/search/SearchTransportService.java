@@ -390,11 +390,11 @@ public class SearchTransportService extends AbstractComponent {
     }
 
     /**
-     * Returns a connection to the given node on the provided cluster. If the cluster is <code>null</code> the node will be resolved
+     * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved
      * against the local cluster.
      * @param clusterAlias the cluster alias the node should be resolve against
      * @param node the node to resolve
-     * @return a connection to the given node on the give cluster alias.
+     * @return a connection to the given node belonging to the cluster with the provided alias.
      */
     Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
         if (clusterAlias == null) {

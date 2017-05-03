@@ -37,22 +37,21 @@ public class TcpFrameDecoder {
 
     private int nextReadLength = DEFAULT_READ_LENGTH;
 
-    public BytesReference decode(BytesReference bytesReference) throws IOException {
-        int length = bytesReference.length();
-        if (length >= 6) {
+    public BytesReference decode(BytesReference bytesReference, int currentBufferSize) throws IOException {
+        if (currentBufferSize >= 6) {
             int messageLength = readHeaderBuffer(bytesReference);
             int totalLength = messageLength + HEADER_SIZE;
-            if (totalLength > length) {
-                nextReadLength = totalLength - length;
+            if (totalLength > currentBufferSize) {
+                nextReadLength = totalLength - currentBufferSize;
                 return null;
-            } else if (totalLength == length) {
+            } else if (totalLength == bytesReference.length()) {
                 nextReadLength = DEFAULT_READ_LENGTH;
                 return bytesReference;
             } else {
                 return bytesReference.slice(0, totalLength);
             }
         } else {
-            nextReadLength = DEFAULT_READ_LENGTH - length;
+            nextReadLength = DEFAULT_READ_LENGTH - currentBufferSize;
             return null;
         }
     }

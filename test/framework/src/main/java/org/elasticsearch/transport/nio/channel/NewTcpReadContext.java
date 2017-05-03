@@ -37,11 +37,13 @@ public class NewTcpReadContext implements ReadContext {
     private final TcpReadHandler handler;
     private final NioSocketChannel channel;
     private BytesReference reference;
+    private int currentBufferSize;
 
     public NewTcpReadContext(NioSocketChannel channel, TcpReadHandler handler) {
         this.handler = handler;
         this.channel = channel;
         this.reference = new BytesArray(new byte[frameDecoder.nextReadLength()]);
+        this.currentBufferSize = 0;
     }
 
     @Override
@@ -65,10 +67,12 @@ public class NewTcpReadContext implements ReadContext {
         if (bytesRead == -1) {
             return bytesRead;
         }
-        BytesReference message = frameDecoder.decode(reference);
+        currentBufferSize += bytesRead;
 
-        if (message != null) {
+        BytesReference message;
+        while ((message = frameDecoder.decode(reference, currentBufferSize)) != null) {
             reference = reference.slice(message.length(), reference.length() - message.length());
+            currentBufferSize -= message.length();
             try {
                 message = message.slice(6, message.length() - 6);
                 handler.handleMessage(message, channel, channel.getProfile(), message.length());

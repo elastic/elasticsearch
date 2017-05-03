@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
@@ -29,7 +28,6 @@ import java.io.IOException;
 import java.io.StreamCorruptedException;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.reset;
 
 public class TcpFrameDecoderTests extends ESTestCase {
 
@@ -45,8 +43,10 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('S');
         streamOutput.write(1);
         streamOutput.write(1);
+        streamOutput.write(0);
+        streamOutput.write(0);
 
-        assertNull(frameDecoder.decode(streamOutput.bytes()));
+        assertNull(frameDecoder.decode(streamOutput.bytes(), 4));
         assertEquals(1024 * 16 - 4, frameDecoder.nextReadLength());
     }
 
@@ -56,7 +56,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('S');
         streamOutput.writeInt(-1);
 
-        BytesReference message = frameDecoder.decode(streamOutput.bytes());
+        BytesReference message = frameDecoder.decode(streamOutput.bytes(), 6);
 
         assertEquals(1024 * 16, frameDecoder.nextReadLength());
         assertEquals(streamOutput.bytes(), message);
@@ -70,7 +70,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('E');
         streamOutput.write('S');
 
-        BytesReference message = frameDecoder.decode(streamOutput.bytes());
+        BytesReference message = frameDecoder.decode(streamOutput.bytes(), 8);
 
         assertEquals(6, message.length());
         assertEquals(streamOutput.bytes().slice(0, 6), message);
@@ -84,7 +84,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('M');
         streamOutput.write('A');
 
-        BytesReference message = frameDecoder.decode(streamOutput.bytes());
+        BytesReference message = frameDecoder.decode(streamOutput.bytes(), 8);
 
         assertEquals(1024 * 16, frameDecoder.nextReadLength());
         assertEquals(streamOutput.bytes(), message);
@@ -98,7 +98,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('M');
         streamOutput.write('A');
 
-        BytesReference message = frameDecoder.decode(streamOutput.bytes());
+        BytesReference message = frameDecoder.decode(streamOutput.bytes(), 8);
 
         assertEquals(1, frameDecoder.nextReadLength());
         assertNull(message);
@@ -113,7 +113,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('A');
 
         try {
-            frameDecoder.decode(streamOutput.bytes());
+            frameDecoder.decode(streamOutput.bytes(), 8);
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
@@ -134,7 +134,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write(randomByte());
 
         try {
-            frameDecoder.decode(streamOutput.bytes());
+            frameDecoder.decode(streamOutput.bytes(), 7);
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
@@ -157,7 +157,8 @@ public class TcpFrameDecoderTests extends ESTestCase {
             streamOutput.write(new byte[6]);
 
             try {
-                frameDecoder.decode(streamOutput.bytes());
+                BytesReference bytes = streamOutput.bytes();
+                frameDecoder.decode(bytes, bytes.length());
                 fail("Expected exception");
             } catch (Exception ex) {
                 assertThat(ex, instanceOf(TcpTransport.HttpOnTransportException.class));

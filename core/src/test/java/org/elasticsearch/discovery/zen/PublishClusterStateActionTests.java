@@ -90,7 +90,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     protected ThreadPool threadPool;
     protected Map<String, MockNode> nodes = new HashMap<>();
 
-    public static class MockNode implements PublishClusterStateAction.NewPendingClusterStateListener, DiscoveryNodesProvider {
+    public static class MockNode implements PublishClusterStateAction.NewPendingClusterStateListener {
         public final DiscoveryNode discoveryNode;
         public final MockTransportService service;
         public MockPublishAction action;
@@ -142,7 +142,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
             action.pendingStatesQueue().markAsProcessed(newClusterState);
         }
 
-        @Override
         public DiscoveryNodes nodes() {
             return clusterState.nodes();
         }

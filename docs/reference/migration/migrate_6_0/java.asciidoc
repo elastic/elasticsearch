@@ -16,7 +16,7 @@ as a result. From version 6.0.0, a `DeleteByQueryRequest` requires an explicit q
 
 ==== `InternalStats` and `Stats` getCountAsString() method removed
 
-The `count` value in the stats aggregation represents a doc count that shouldnn't require a formatted 
+The `count` value in the stats aggregation represents a doc count that shouldn't require a formatted
 version. This method was deprecated in 5.4 in favour of just using
 `String.valueOf(getCount())` if needed
 

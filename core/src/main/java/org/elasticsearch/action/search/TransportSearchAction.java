@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -59,7 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
@@ -204,31 +203,32 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         if (remoteClusterIndices.isEmpty()) {
             executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, Collections.emptyList(),
-                (nodeId) -> null, clusterState, Collections.emptyMap(), listener);
+                (clusterName, nodeId) -> null, clusterState, Collections.emptyMap(), listener);
         } else {
             remoteClusterService.collectSearchShards(searchRequest, remoteClusterIndices,
                 ActionListener.wrap((searchShardsResponses) -> {
                     List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
                     Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
-                    Function<String, Transport.Connection> connectionFunction = processRemoteShards(remoteClusterService,
-                        searchShardsResponses, remoteClusterIndices, remoteShardIterators, remoteAliasFilters);
+                    BiFunction<String, String, DiscoveryNode> clusterNodeLookup = processRemoteShards(searchShardsResponses,
+                        remoteClusterIndices, remoteShardIterators, remoteAliasFilters);
                     executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, remoteShardIterators,
-                        connectionFunction, clusterState, remoteAliasFilters, listener);
+                        clusterNodeLookup, clusterState, remoteAliasFilters, listener);
                 }, listener::onFailure));
         }
     }
 
-    static Function<String, Transport.Connection> processRemoteShards(RemoteClusterService remoteClusterService,
-                                                                      Map<String, ClusterSearchShardsResponse> searchShardsResponses,
+    static BiFunction<String, String, DiscoveryNode> processRemoteShards(Map<String, ClusterSearchShardsResponse> searchShardsResponses,
                                                                       Map<String, OriginalIndices> remoteIndicesByCluster,
                                                                       List<SearchShardIterator> remoteShardIterators,
                                                                       Map<String, AliasFilter> aliasFilterMap) {
-        Map<String, Supplier<Transport.Connection>> nodeToCluster = new HashMap<>();
+        Map<String, Map<String, DiscoveryNode>> clusterToNode = new HashMap<>();
         for (Map.Entry<String, ClusterSearchShardsResponse> entry : searchShardsResponses.entrySet()) {
             String clusterAlias = entry.getKey();
             ClusterSearchShardsResponse searchShardsResponse = entry.getValue();
+            HashMap<String, DiscoveryNode> idToDiscoveryNode = new HashMap<>();
+            clusterToNode.put(clusterAlias, idToDiscoveryNode);
             for (DiscoveryNode remoteNode : searchShardsResponse.getNodes()) {
-                nodeToCluster.put(remoteNode.getId(), () -> remoteClusterService.getConnection(remoteNode, clusterAlias));
+                idToDiscoveryNode.put(remoteNode.getId(), remoteNode);
             }
             Map<String, AliasFilter> indicesAndFilters = searchShardsResponse.getIndicesAndFilters();
             for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
@@ -240,7 +240,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     remoteIndex.getUUID());
                 OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
                 assert originalIndices != null;
-                SearchShardIterator shardIterator = new SearchShardIterator(new ShardId(index, shardId.getId()),
+                SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, new ShardId(index, shardId.getId()),
                     Arrays.asList(clusterSearchShardsGroup.getShards()), originalIndices);
                 remoteShardIterators.add(shardIterator);
                 AliasFilter aliasFilter;
@@ -254,17 +254,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 aliasFilterMap.put(remoteIndex.getUUID(), aliasFilter);
             }
         }
-        return (nodeId) -> {
-            Supplier<Transport.Connection> supplier = nodeToCluster.get(nodeId);
-            if (supplier == null) {
-                throw new IllegalArgumentException("unknown remote node: " + nodeId);
-            }
-            return supplier.get();
+        return (clusterAlias, nodeId) -> {
+                Map<String, DiscoveryNode> clusterNodes = clusterToNode.get(clusterAlias);
+                if (clusterNodes == null) {
+                    throw new IllegalArgumentException("unknown remote cluster: " + clusterAlias);
+                }
+            return clusterNodes.get(nodeId);
         };
     }
 
     private void executeSearch(SearchTask task, SearchTimeProvider timeProvider, SearchRequest searchRequest, OriginalIndices localIndices,
-                               List<SearchShardIterator> remoteShardIterators, Function<String, Transport.Connection> remoteConnections,
+                               List<SearchShardIterator> remoteShardIterators, BiFunction<String, String, DiscoveryNode> remoteConnections,
                                ClusterState clusterState, Map<String, AliasFilter> remoteAliasMap,
                                ActionListener<SearchResponse> listener) {
 
@@ -312,18 +312,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         final DiscoveryNodes nodes = clusterState.nodes();
-        Function<String, Transport.Connection> connectionLookup = (nodeId) -> {
-            final DiscoveryNode discoveryNode = nodes.get(nodeId);
-            final Transport.Connection connection;
-            if (discoveryNode != null) {
-                connection = searchTransportService.getConnection(discoveryNode);
-            } else  {
-                connection = remoteConnections.apply(nodeId);
-            }
-            if (connection == null) {
+        BiFunction<String, String, Transport.Connection> connectionLookup = (clusterName, nodeId) -> {
+            final DiscoveryNode discoveryNode = clusterName == null ? nodes.get(nodeId) : remoteConnections.apply(clusterName, nodeId);
+            if (discoveryNode == null) {
                 throw new IllegalStateException("no node found for id: " + nodeId);
             }
-            return connection;
+            return searchTransportService.getConnection(clusterName, discoveryNode);
         };
 
         searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),
@@ -338,7 +332,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             shards.add(shardIterator);
         }
         for (ShardIterator shardIterator : localShardsIterator) {
-            shards.add(new SearchShardIterator(shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
+            shards.add(new SearchShardIterator(null, shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
         }
         return new GroupShardsIterator<>(shards);
     }
@@ -351,7 +345,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest,
                                                         GroupShardsIterator<SearchShardIterator> shardIterators,
                                                         SearchTimeProvider timeProvider,
-                                                        Function<String, Transport.Connection> connectionLookup,
+                                                        BiFunction<String, String, Transport.Connection> connectionLookup,
                                                         long clusterStateVersion, Map<String, AliasFilter> aliasFilter,
                                                         Map<String, Float> concreteIndexBoosts,
                                                         ActionListener<SearchResponse> listener) {

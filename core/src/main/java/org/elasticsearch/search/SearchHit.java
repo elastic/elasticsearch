@@ -704,7 +704,7 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
         ShardId shardId = get(Fields._SHARD, values, null);
         String nodeId = get(Fields._NODE, values, null);
         if (shardId != null && nodeId != null) {
-            searchHit.shard(new SearchShardTarget(nodeId, shardId, OriginalIndices.NONE));
+            searchHit.shard(new SearchShardTarget(nodeId, shardId, null, OriginalIndices.NONE));
         }
         searchHit.fields(fields);
         return searchHit;

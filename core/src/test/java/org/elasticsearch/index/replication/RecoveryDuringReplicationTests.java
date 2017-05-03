@@ -207,12 +207,15 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     @TestLogging(
-            "_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE,"
+            "_root:DEBUG,"
+                    + "org.elasticsearch.action.bulk:TRACE,"
+                    + "org.elasticsearch.action.get:TRACE,"
+                    + "org.elasticsearch.cluster.service:TRACE,"
                     + "org.elasticsearch.discovery:TRACE,"
-                    + "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE,"
-                    + "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE,"
-                    + "org.elasticsearch.index.seqno:TRACE"
-    )
+                    + "org.elasticsearch.indices.cluster:TRACE,"
+                    + "org.elasticsearch.indices.recovery:TRACE,"
+                    + "org.elasticsearch.index.seqno:TRACE,"
+                    + "org.elasticsearch.index.shard:TRACE")
     public void testWaitForPendingSeqNo() throws Exception {
         IndexMetaData metaData = buildIndexMetaData(1);
 
@@ -297,12 +300,15 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     @TestLogging(
-            "_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE,"
+            "_root:DEBUG,"
+                    + "org.elasticsearch.action.bulk:TRACE,"
+                    + "org.elasticsearch.action.get:TRACE,"
+                    + "org.elasticsearch.cluster.service:TRACE,"
                     + "org.elasticsearch.discovery:TRACE,"
-                    + "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE,"
-                    + "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE,"
-                    + "org.elasticsearch.index.seqno:TRACE"
-    )
+                    + "org.elasticsearch.indices.cluster:TRACE,"
+                    + "org.elasticsearch.indices.recovery:TRACE,"
+                    + "org.elasticsearch.index.seqno:TRACE,"
+                    + "org.elasticsearch.index.shard:TRACE")
     public void testCheckpointsAndMarkingInSync() throws Exception {
         final IndexMetaData metaData = buildIndexMetaData(0);
         final BlockingEngineFactory replicaEngineFactory = new BlockingEngineFactory();

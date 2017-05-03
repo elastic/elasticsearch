@@ -66,6 +66,7 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
         return false;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1278")
     public void testConnection() throws Exception {
         final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-key.pem");
         final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");

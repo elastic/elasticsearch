@@ -25,17 +25,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.Request,
@@ -180,8 +181,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
 
                         // Delete the snapshot and any associated state files
                         JobDataDeleter deleter = new JobDataDeleter(client, request.getJobId());
-                        deleter.deleteModelSnapshot(deleteCandidate);
-                        deleter.commit(new ActionListener<BulkResponse>() {
+                        deleter.deleteModelSnapshots(Collections.singletonList(deleteCandidate), new ActionListener<BulkResponse>() {
                             @Override
                             public void onResponse(BulkResponse bulkResponse) {
                                 auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED,
@@ -194,8 +194,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
                             public void onFailure(Exception e) {
                                 listener.onFailure(e);
                             }
-                        },
-                        true);
+                        });
 
                     }, listener::onFailure);
         }

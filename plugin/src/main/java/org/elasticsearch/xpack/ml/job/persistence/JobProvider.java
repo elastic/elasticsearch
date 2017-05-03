@@ -88,7 +88,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -868,23 +867,18 @@ public class JobProvider {
     public void restoreStateToStream(String jobId, ModelSnapshot modelSnapshot, OutputStream restoreStream) throws IOException {
         String indexName = AnomalyDetectorsIndex.jobStateIndexName();
 
-
         // First try to restore model state.
-        int numDocs = modelSnapshot.getSnapshotDocCount();
-        for (int docNum = 1; docNum <= numDocs; ++docNum) {
-            String docId = String.format(Locale.ROOT, "%s#%d", ModelSnapshot.documentId(modelSnapshot), docNum);
+        for (String stateDocId : modelSnapshot.stateDocumentIds()) {
+            LOGGER.trace("ES API CALL: get ID {} type {} from index {}", stateDocId, ModelState.TYPE, indexName);
 
-            LOGGER.trace("ES API CALL: get ID {} type {} from index {}", docId, ModelState.TYPE, indexName);
-
-            GetResponse stateResponse = client.prepareGet(indexName, ModelState.TYPE.getPreferredName(), docId).get();
+            GetResponse stateResponse = client.prepareGet(indexName, ModelState.TYPE.getPreferredName(), stateDocId).get();
             if (!stateResponse.isExists()) {
                 LOGGER.error("Expected {} documents for model state for {} snapshot {} but failed to find {}",
-                        numDocs, jobId, modelSnapshot.getSnapshotId(), docId);
+                        modelSnapshot.getSnapshotDocCount(), jobId, modelSnapshot.getSnapshotId(), stateDocId);
                 break;
             }
             writeStateToStream(stateResponse.getSourceAsBytesRef(), restoreStream);
         }
-
 
         // Secondly try to restore categorizer state. This must come after model state because that's
         // the order the C++ process expects.

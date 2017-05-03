@@ -23,7 +23,9 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 
 
@@ -256,6 +258,16 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
                 && Objects.equals(this.latestRecordTimeStamp, that.latestRecordTimeStamp)
                 && Objects.equals(this.latestResultTimeStamp, that.latestResultTimeStamp)
                 && this.retain == that.retain;
+    }
+
+    public List<String> stateDocumentIds() {
+        String prefix = documentId(this);
+        List<String> stateDocumentIds = new ArrayList<>(snapshotDocCount);
+        // The state documents count suffices are 1-based
+        for (int i = 1; i <= snapshotDocCount; i++) {
+            stateDocumentIds.add(prefix + '#' + i);
+        }
+        return stateDocumentIds;
     }
 
     public static String documentId(ModelSnapshot snapshot) {

@@ -272,9 +272,7 @@ public class JobResultsPersister extends AbstractComponent {
      * Delete any existing interim results synchronously
      */
     public void deleteInterimResults(String jobId) {
-        JobDataDeleter deleter = new JobDataDeleter(client, jobId, true);
-        deleter.deleteInterimResults();
-        deleter.commit(false);
+        new JobDataDeleter(client, jobId).deleteInterimResults();
     }
 
     /**

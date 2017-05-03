@@ -13,8 +13,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XPackSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.JobTests;
@@ -44,6 +47,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumSet;
@@ -61,7 +65,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
+public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
     private static final String JOB_ID = "autodetect-result-processor-it-job";
 
     private Renormalizer renormalizer;
@@ -69,6 +73,22 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     private JobProvider jobProvider;
     private List<ModelSnapshot> capturedUpdateModelSnapshotOnJobRequests;
     private AutoDetectResultProcessor resultProcessor;
+
+    @Override
+    protected Settings nodeSettings()  {
+        Settings.Builder newSettings = Settings.builder();
+        newSettings.put(super.nodeSettings());
+        // Disable security otherwise delete-by-query action fails to get authorized
+        newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
+        newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        return newSettings.build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(XPackPlugin.class);
+    }
 
     @Before
     public void createComponents() {
@@ -320,7 +340,6 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     private class ResultsBuilder {
 
         private List<AutodetectResult> results = new ArrayList<>();
-        FlushAcknowledgement flushAcknowledgement;
 
         ResultsBuilder addBucket(Bucket bucket) {
             results.add(new AutodetectResult(Objects.requireNonNull(bucket), null, null, null, null, null, null, null, null));

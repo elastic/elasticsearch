@@ -117,14 +117,8 @@ public class JobStorageDeletionTask extends Task {
         jobProvider.modelSnapshots(jobId, 0, 10000,
                 page -> {
                     List<ModelSnapshot> deleteCandidates = page.results();
-
-                    // Delete the snapshot and any associated state files
                     JobDataDeleter deleter = new JobDataDeleter(client, jobId);
-                    for (ModelSnapshot deleteCandidate : deleteCandidates) {
-                        deleter.deleteModelSnapshot(deleteCandidate);
-                    }
-
-                    deleter.commit(listener, true);
+                    deleter.deleteModelSnapshots(deleteCandidates, listener);
                 },
                 listener::onFailure);
     }

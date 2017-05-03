@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Date;
@@ -260,8 +261,8 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager, JobProvider jobProvider,
-                ClusterService clusterService, Client client, JobDataCountsPersister jobDataCountsPersister) {
+                               IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager, JobProvider jobProvider,
+                               ClusterService clusterService, InternalClient client, JobDataCountsPersister jobDataCountsPersister) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
             this.client = client;
             this.jobManager = jobManager;
@@ -330,16 +331,11 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
                     logger.info("Deleting results after '" + deleteAfter + "'");
 
-                    // TODO JobDataDeleter is basically delete-by-query.
-                    // We should replace this whole abstraction with DBQ eventually (See #821)
                     JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
                     dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, new ActionListener<Boolean>() {
                         @Override
                         public void onResponse(Boolean success) {
-                            dataDeleter.commit(ActionListener.wrap(
-                                    bulkItemResponses -> {listener.onResponse(response);},
-                                    listener::onFailure),
-                                    true);
+                            listener.onResponse(response);
                         }
 
                         @Override

@@ -10,7 +10,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
+import java.util.Arrays;
 import java.util.Date;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapshot> {
     private static final Date DEFAULT_TIMESTAMP = new Date();
@@ -176,5 +179,15 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         assertEquals("foo-1", ModelSnapshot.documentId(snapshot1));
         assertEquals("foo-2", ModelSnapshot.documentId(snapshot2));
         assertEquals("bar-1", ModelSnapshot.documentId(snapshot3));
+    }
+
+    public void testStateDocumentIds_GivenDocCountIsOne() {
+        ModelSnapshot snapshot = new ModelSnapshot.Builder("foo").setSnapshotId("1").setSnapshotDocCount(1).build();
+        assertThat(snapshot.stateDocumentIds(), equalTo(Arrays.asList("foo-1#1")));
+    }
+
+    public void testStateDocumentIds_GivenDocCountIsThree() {
+        ModelSnapshot snapshot = new ModelSnapshot.Builder("foo").setSnapshotId("123456789").setSnapshotDocCount(3).build();
+        assertThat(snapshot.stateDocumentIds(), equalTo(Arrays.asList("foo-123456789#1", "foo-123456789#2", "foo-123456789#3")));
     }
 }

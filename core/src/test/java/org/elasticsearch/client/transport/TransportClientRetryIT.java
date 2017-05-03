@@ -69,7 +69,7 @@ public class TransportClientRetryIT extends ESIntegTestCase {
                 if (randomBoolean()) {
                     clusterState = client.admin().cluster().state(clusterStateRequest).get().getState();
                 } else {
-                    PlainActionFuture<ClusterStateResponse> future = new PlainActionFuture<>();
+                    PlainActionFuture<ClusterStateResponse> future = PlainActionFuture.newFuture();
                     client.admin().cluster().state(clusterStateRequest, future);
                     clusterState = future.get().getState();
                 }

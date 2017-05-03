@@ -68,11 +68,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     @Override
     protected void doExecute(FieldCapabilitiesRequest request,
                              final ActionListener<FieldCapabilitiesResponse> listener) {
-        ClusterState clusterState = clusterService.state();
-        Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices(),
+        final ClusterState clusterState = clusterService.state();
+        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices(),
             idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
-        OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
+        final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
         final int totalNumRequest = concreteIndices.length + remoteClusterIndices.size();
         final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
@@ -105,14 +105,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 shardAction.execute(new FieldCapabilitiesIndexRequest(request.fields(), index), innerListener);
             }
 
-            // this is the cross cluster part of this API - we actually do multiple reductions here and force
-            // the other cluster to not merge the results
+            // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
+            // send us back all individual index results.
             for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
                 Transport.Connection connection = remoteClusterService.getConnection(remoteIndices.getKey());
                 FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
-                remoteRequest.setMergeResults(false);
+                remoteRequest.setMergeResults(false); // we need to merge on this node
                 remoteRequest.indicesOptions(originalIndices.indicesOptions());
                 remoteRequest.indices(originalIndices.indices());
                 remoteRequest.fields(request.fields());
@@ -126,8 +126,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     @Override
                     public void handleResponse(FieldCapabilitiesResponse response) {
                         for (FieldCapabilitiesIndexResponse res : response.getIndexResponses()) {
-                            indexResponses.add(new FieldCapabilitiesIndexResponse(
-                                RemoteClusterAware.buildRemoteIndexName(clusterAlias, res.getIndexName()), res.get()));
+                            indexResponses.add(new FieldCapabilitiesIndexResponse(RemoteClusterAware.buildRemoteIndexName(clusterAlias,
+                                res.getIndexName()), res.get()));
                         }
                         onResponse.run();
                     }

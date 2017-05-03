@@ -933,5 +933,4 @@ public abstract class StreamInput extends InputStream {
      * be a no-op depending on the underlying implementation if the information of the remaining bytes is not present.
      */
     protected abstract void ensureCanReadBytes(int length) throws EOFException;
-
 }

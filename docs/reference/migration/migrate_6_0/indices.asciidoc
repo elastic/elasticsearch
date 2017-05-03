@@ -37,3 +37,10 @@ following settings:
 - `index.shared_filesystem`
 - `index.shadow_replicas`
 - `node.add_lock_id_to_custom_path`
+
+=== Open/Close index API allows wildcard expressions that match no indices by default
+
+The default value of the `allow_no_indices` option for the Open/Close index API
+has been changed from `false` to `true` so it is aligned with the behaviour of the
+Delete index API. As a result, Open/Close index API don't return an error by
+default when a provided wildcard expression doesn't match any closed/open index.

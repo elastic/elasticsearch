@@ -15,7 +15,7 @@ release-state can be: released | prerelease | unreleased
 :defguide:        https://www.elastic.co/guide/en/elasticsearch/guide/master
 :plugins:         https://www.elastic.co/guide/en/elasticsearch/plugins/{branch}
 :javaclient:      https://www.elastic.co/guide/en/elasticsearch/client/java-api/{branch}
-:xpack:           https://www.elastic.co/guide/en/x-pack/5.0
+:xpack:           https://www.elastic.co/guide/en/x-pack/5.4
 :logstash:        https://www.elastic.co/guide/en/logstash/{branch}
 :kibana:          https://www.elastic.co/guide/en/kibana/{branch}
 :issue:           https://github.com/elastic/elasticsearch/issues/
@@ -42,4 +42,3 @@ ifeval::["{release-state}"!="unreleased"]
 :elasticsearch-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/elasticsearch/{version}
 :painless-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}
 endif::[]
-

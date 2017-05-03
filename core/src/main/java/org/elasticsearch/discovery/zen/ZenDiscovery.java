@@ -258,7 +258,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         masterFD.stop("zen disco stop");
         nodesFD.stop();
         Releasables.close(zenPing); // stop any ongoing pinging
-        DiscoveryNodes nodes = nodes();
+        DiscoveryNodes nodes = clusterState().nodes();
         if (sendLeaveRequest) {
             if (nodes.getMasterNode() == null) {
                 // if we don't know who the master is, nothing to do here
@@ -290,20 +290,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         IOUtils.close(masterFD, nodesFD);
     }
 
-    /** start of {@link PingContextProvider } implementation */
-    @Override
-    public DiscoveryNodes nodes() {
-        return clusterState().nodes();
-    }
-
     @Override
     public ClusterState clusterState() {
         ClusterState clusterState = state.get();
         assert clusterState != null : "accessing cluster state before it is set";
         return clusterState;
     }
-
-    /** end of {@link PingContextProvider } implementation */
 
     @Override
     public void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener) {
@@ -677,7 +669,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
         if (localNodeMaster()) {
             removeNode(node, "zen-disco-node-left", "left");
-        } else if (node.equals(nodes().getMasterNode())) {
+        } else if (node.equals(clusterState().nodes().getMasterNode())) {
             handleMasterGone(node, null, "shut_down");
         }
     }
@@ -1041,7 +1033,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     }
 
     private boolean localNodeMaster() {
-        return nodes().isLocalNodeElectedMaster();
+        return clusterState().nodes().isLocalNodeElectedMaster();
     }
 
     private void handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {

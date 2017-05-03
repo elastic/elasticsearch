@@ -43,6 +43,8 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -291,6 +293,7 @@ public class Node implements Closeable {
                 Constants.JVM_NAME,
                 Constants.JAVA_VERSION,
                 Constants.JVM_VERSION);
+            logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
             warnIfPreRelease(Version.CURRENT, Build.CURRENT.isSnapshot(), logger);
 
             if (logger.isDebugEnabled()) {
@@ -399,19 +402,25 @@ public class Node implements Closeable {
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
                                                  scriptModule.getScriptService(), xContentRegistry).stream())
                 .collect(Collectors.toList());
-            Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders =
-                pluginsService.filterPlugins(Plugin.class).stream()
-                .map(Plugin::getCustomMetaDataUpgrader)
-                .collect(Collectors.toList());
             final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
                     threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, restController);
-            final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders);
+            Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders =
+                pluginsService.filterPlugins(Plugin.class).stream()
+                    .map(Plugin::getCustomMetaDataUpgrader)
+                    .collect(Collectors.toList());
+            Collection<UnaryOperator<Map<String, IndexTemplateMetaData>>> indexTemplateMetaDataUpgraders =
+                pluginsService.filterPlugins(Plugin.class).stream()
+                    .map(Plugin::getIndexTemplateMetaDataUpgrader)
+                    .collect(Collectors.toList());
+            Collection<UnaryOperator<IndexMetaData>> indexMetaDataUpgraders = pluginsService.filterPlugins(Plugin.class).stream()
+                    .map(Plugin::getIndexMetaDataUpgrader).collect(Collectors.toList());
+            final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders, indexTemplateMetaDataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
             final SearchTransportService searchTransportService =  new SearchTransportService(settings,
-                settingsModule.getClusterSettings(), transportService);
+                transportService);
             final Consumer<Binder> httpBind;
             final HttpServerTransport httpServerTransport;
             if (networkModule.isHttpEnabled()) {
@@ -461,8 +470,8 @@ public class Node implements Closeable {
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);
                     b.bind(UpdateHelper.class).toInstance(new UpdateHelper(settings, scriptModule.getScriptService()));
-                    b.bind(MetaDataIndexUpgradeService.class).toInstance(new MetaDataIndexUpgradeService(settings,
-                        xContentRegistry, indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
+                    b.bind(MetaDataIndexUpgradeService.class).toInstance(new MetaDataIndexUpgradeService(settings, xContentRegistry,
+                        indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), indexMetaDataUpgraders));
                     b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
                     b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
                     {
@@ -736,10 +745,6 @@ public class Node implements Closeable {
 
         // start nodes now, after the http server, because it may take some time
         tribeService.startNodes();
-        // starts connecting to remote clusters if any cluster is configured
-        SearchTransportService searchTransportService = injector.getInstance(SearchTransportService.class);
-        searchTransportService.start();
-
         logger.info("started");
 
         return this;
@@ -773,7 +778,6 @@ public class Node implements Closeable {
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
-        injector.getInstance(SearchTransportService.class).stop();
 
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
         // we should stop this last since it waits for resources to get released
@@ -835,8 +839,6 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
-        toClose.add(() -> stopWatch.stop().start("search_transport_service"));
-        toClose.add(injector.getInstance(SearchTransportService.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

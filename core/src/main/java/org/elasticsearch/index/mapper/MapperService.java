@@ -769,6 +769,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         indexAnalyzers.close();
     }
 
+    public boolean isMetaDataFieldInMetaDataRegistry(String fieldName){
+        return mapperRegistry.getMetadataMapperParsers().containsKey(fieldName);
+    }
+
     /**
      * @return Whether a field is a metadata field.
      */

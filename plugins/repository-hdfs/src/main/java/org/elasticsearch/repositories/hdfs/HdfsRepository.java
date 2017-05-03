@@ -138,7 +138,7 @@ public final class HdfsRepository extends BlobStoreRepository {
                 AbstractFileSystem fs = AbstractFileSystem.get(uri, hadoopConfiguration);
                 return FileContext.getFileContext(fs, hadoopConfiguration);
             } catch (UnsupportedFileSystemException e) {
-                throw new RuntimeException(e);
+                throw new UncheckedIOException(e);
             }
         });
     }

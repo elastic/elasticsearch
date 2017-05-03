@@ -299,7 +299,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     public final ShardSearchTransportRequest buildShardSearchRequest(SearchShardIterator shardIt) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
-        float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex(), DEFAULT_INDEX_BOOST);
+        float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
         return new ShardSearchTransportRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
             filter, indexBoost, timeProvider.getAbsoluteStartMillis());
     }

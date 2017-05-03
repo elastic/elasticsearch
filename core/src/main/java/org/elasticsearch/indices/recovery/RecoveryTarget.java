@@ -48,6 +48,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -471,4 +472,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished
         }
     }
+
+    Path translogLocation() {
+        return indexShard().shardPath().resolveTranslog();
+    }
+
 }

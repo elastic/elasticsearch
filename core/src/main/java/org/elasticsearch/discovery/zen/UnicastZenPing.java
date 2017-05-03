@@ -111,8 +111,6 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     private final TransportService transportService;
     private final ClusterName clusterName;
 
-    private final int concurrentConnects;
-
     private final List<String> configuredHosts;
 
     private final int limitPortCounts;
@@ -145,7 +143,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.hostsProvider = unicastHostsProvider;
 
-        this.concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
+        final int concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
         if (DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.exists(settings)) {
             configuredHosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
             // we only limit to 1 addresses, makes no sense to ping 100 ports

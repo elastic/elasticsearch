@@ -40,6 +40,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -80,7 +81,7 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         types = Collections.singleton("my_type");
         Mockito.when(mapperService.types()).thenReturn(types);
         query = ft.termQuery("my_type", context);
-        assertEquals(new MatchAllDocsQuery(), query);
+        assertEquals(Queries.newNonNestedFilter(), query);
 
         types = Collections.singleton("other_type");
         Mockito.when(mapperService.types()).thenReturn(types);

@@ -121,7 +121,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                     if (types.size() > 1) {
                         throw new AssertionError();
                     }
-                    String type = types.isEmpty() ? "doc" : types.iterator().next();
+                    // If we reach here, there is necessarily one type since we were able to find a `_type` field
+                    String type = types.iterator().next();
                     return type;
                 };
                 return new ConstantIndexFieldData.Builder(typeFunction);

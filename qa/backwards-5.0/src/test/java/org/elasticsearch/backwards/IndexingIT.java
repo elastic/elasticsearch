@@ -210,9 +210,6 @@ public class IndexingIT extends ESRestTestCase {
         final boolean checkGlobalCheckpoints = nodes.getMaster().getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED);
         logger.info("master version is [{}], global checkpoints will be [{}]", nodes.getMaster().getVersion(),
             checkGlobalCheckpoints ? "checked" : "not be checked");
-        if (checkGlobalCheckpoints) {
-            settings.put(IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getKey(), "100ms");
-        }
         final String index = "test";
         createIndex(index, settings.build());
         try (RestClient newNodeClient = buildClient(restClientSettings(),

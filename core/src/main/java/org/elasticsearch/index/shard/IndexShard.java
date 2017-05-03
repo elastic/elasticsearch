@@ -217,8 +217,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final IndexSearcherWrapper searcherWrapper;
 
-    private final Runnable globalCheckpointSyncer;
-
     /**
      * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
      * IndexingMemoryController}).
@@ -233,7 +231,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                       Supplier<Sort> indexSortSupplier, IndexCache indexCache, MapperService mapperService, SimilarityService similarityService,
                       IndexFieldDataService indexFieldDataService, @Nullable EngineFactory engineFactory,
                       IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, ThreadPool threadPool, BigArrays bigArrays,
-                      Engine.Warmer warmer, Runnable globalCheckpointSyncer, List<SearchOperationListener> searchOperationListener, List<IndexingOperationListener> listeners) throws IOException {
+                      Engine.Warmer warmer, List<SearchOperationListener> searchOperationListener, List<IndexingOperationListener> listeners) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -257,7 +255,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<SearchOperationListener> searchListenersList = new ArrayList<>(searchOperationListener);
         searchListenersList.add(searchStats);
         this.searchOperationListener = new SearchOperationListener.CompositeListener(searchListenersList, logger);
-        this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.requestCacheStats = new ShardRequestCache();
@@ -1483,6 +1480,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void markAllocationIdAsInSync(final String allocationId, final long localCheckpoint) throws InterruptedException {
         verifyPrimary();
         getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
+        /*
+         * We could have blocked waiting for the replica to catch up that we fell idle and there will not be a background sync to the
+         * replica; update the global checkpoint and mark our self as active to force a future background sync.
+         */
+        updateGlobalCheckpointOnPrimary();
+        active.compareAndSet(false, true);
     }
 
     /**
@@ -1509,9 +1512,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateGlobalCheckpointOnPrimary() {
         verifyPrimary();
-        if (getEngine().seqNoService().updateGlobalCheckpointOnPrimary()) {
-            globalCheckpointSyncer.run();
-        }
+        getEngine().seqNoService().updateGlobalCheckpointOnPrimary();
     }
 
     /**
@@ -1553,6 +1554,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (engine != null) {
             engine.seqNoService().updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
         }
+    }
+
+    /**
+     * Check if there are any recoveries pending in-sync.
+     *
+     * @return {@code true} if there is at least one shard pending in-sync, otherwise false
+     */
+    public boolean pendingInSync() {
+        verifyPrimary();
+        return getEngine().seqNoService().pendingInSync();
     }
 
     /**
@@ -2066,11 +2077,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         protected void delete(Engine engine, Engine.Delete engineDelete) throws IOException {
             IndexShard.this.delete(engine, engineDelete);
         }
-    }
-
-    // for tests
-    Runnable getGlobalCheckpointSyncer() {
-        return globalCheckpointSyncer;
     }
 
 }

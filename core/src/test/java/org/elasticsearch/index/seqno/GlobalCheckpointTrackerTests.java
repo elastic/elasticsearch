@@ -44,10 +44,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SEQ_NO;
-import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class GlobalCheckpointTrackerTests extends ESTestCase {
@@ -66,7 +64,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
     }
 
     public void testEmptyShards() {
-        assertFalse("checkpoint shouldn't be updated when the are no active shards", tracker.updateCheckpointOnPrimary());
+        assertFalse("checkpoint shouldn't be updated when the are no active shards", tracker.updateGlobalCheckpointOnPrimary());
         assertThat(tracker.getCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
     }
 
@@ -116,7 +114,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
 
         assertThat(tracker.getCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
 
-        assertThat(tracker.updateCheckpointOnPrimary(), equalTo(maxLocalCheckpoint != UNASSIGNED_SEQ_NO));
+        assertThat(tracker.updateGlobalCheckpointOnPrimary(), equalTo(maxLocalCheckpoint != UNASSIGNED_SEQ_NO));
         assertThat(tracker.getCheckpoint(), equalTo(maxLocalCheckpoint));
 
         // increment checkpoints
@@ -136,14 +134,14 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         tracker.updateAllocationIdsFromMaster(newActive, initializing);
 
         // we should ask for a refresh , but not update the checkpoint
-        assertTrue(tracker.updateCheckpointOnPrimary());
+        assertTrue(tracker.updateGlobalCheckpointOnPrimary());
         assertThat(tracker.getCheckpoint(), equalTo(maxLocalCheckpoint));
 
         // now notify for the new id
         tracker.updateLocalCheckpoint(extraId, maxLocalCheckpoint + 1 + randomInt(4));
 
         // now it should be incremented
-        assertTrue(tracker.updateCheckpointOnPrimary());
+        assertTrue(tracker.updateGlobalCheckpointOnPrimary());
         assertThat(tracker.getCheckpoint(), greaterThan(maxLocalCheckpoint));
     }
 
@@ -163,12 +161,12 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         tracker.updateAllocationIdsFromMaster(active.keySet(), initializing.keySet());
 
         // global checkpoint can't be advanced, but we need a sync
-        assertTrue(tracker.updateCheckpointOnPrimary());
+        assertTrue(tracker.updateGlobalCheckpointOnPrimary());
         assertThat(tracker.getCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
 
         // update again
         assigned.forEach(tracker::updateLocalCheckpoint);
-        assertTrue(tracker.updateCheckpointOnPrimary());
+        assertTrue(tracker.updateGlobalCheckpointOnPrimary());
         assertThat(tracker.getCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
@@ -183,12 +181,12 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         active.forEach(tracker::updateLocalCheckpoint);
 
         // global checkpoint can't be advanced, but we need a sync
-        assertTrue(tracker.updateCheckpointOnPrimary());
+        assertTrue(tracker.updateGlobalCheckpointOnPrimary());
         assertThat(tracker.getCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
 
         // update again
         initializing.forEach(tracker::updateLocalCheckpoint);
-        assertTrue(tracker.updateCheckpointOnPrimary());
+        assertTrue(tracker.updateGlobalCheckpointOnPrimary());
         assertThat(tracker.getCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
@@ -205,7 +203,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         allocations.forEach(a -> a.forEach(tracker::updateLocalCheckpoint));
 
         // global checkpoint can be advanced, but we need a sync
-        assertTrue(tracker.updateCheckpointOnPrimary());
+        assertTrue(tracker.updateGlobalCheckpointOnPrimary());
         assertThat(tracker.getCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
@@ -236,7 +234,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         }
 
         // global checkpoint may be advanced, but we need a sync in any case
-        assertTrue(tracker.updateCheckpointOnPrimary());
+        assertTrue(tracker.updateGlobalCheckpointOnPrimary());
 
         // now remove shards
         if (randomBoolean()) {
@@ -251,7 +249,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
             .min(Long::compare).get() + 10; // we added 10 to make sure it's advanced in the second time
 
         // global checkpoint is advanced and we need a sync
-        assertTrue(tracker.updateCheckpointOnPrimary());
+        assertTrue(tracker.updateGlobalCheckpointOnPrimary());
         assertThat(tracker.getCheckpoint(), equalTo(checkpoint));
     }
 
@@ -264,7 +262,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final String trackingAllocationId = randomAlphaOfLength(16);
         tracker.updateAllocationIdsFromMaster(Collections.singleton(inSyncAllocationId), Collections.singleton(trackingAllocationId));
         tracker.updateLocalCheckpoint(inSyncAllocationId, globalCheckpoint);
-        tracker.updateCheckpointOnPrimary();
+        tracker.updateGlobalCheckpointOnPrimary();
         final Thread thread = new Thread(() -> {
             try {
                 // synchronize starting with the test thread
@@ -313,7 +311,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final String trackingAllocationId = randomAlphaOfLength(32);
         tracker.updateAllocationIdsFromMaster(Collections.singleton(inSyncAllocationId), Collections.singleton(trackingAllocationId));
         tracker.updateLocalCheckpoint(inSyncAllocationId, globalCheckpoint);
-        tracker.updateCheckpointOnPrimary();
+        tracker.updateGlobalCheckpointOnPrimary();
         final Thread thread = new Thread(() -> {
             try {
                 // synchronize starting with the test thread
@@ -426,7 +424,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                         .entrySet()
                         .stream()
                         .allMatch(e -> tracker.trackingLocalCheckpoints.get(e.getKey()) == e.getValue()));
-        assertTrue(tracker.updateCheckpointOnPrimary());
+        assertTrue(tracker.updateGlobalCheckpointOnPrimary());
         final long minimumActiveLocalCheckpoint = (long) activeLocalCheckpoints.values().stream().min(Integer::compareTo).get();
         assertThat(tracker.getCheckpoint(), equalTo(minimumActiveLocalCheckpoint));
         final long minimumInitailizingLocalCheckpoint = (long) initializingLocalCheckpoints.values().stream().min(Integer::compareTo).get();

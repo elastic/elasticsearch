@@ -52,13 +52,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -191,9 +189,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         @Override
         public synchronized MockIndexService createIndex(
-            IndexMetaData indexMetaData,
-            List<IndexEventListener> buildInIndexListener,
-            Consumer<ShardId> globalCheckPointSyncer) throws IOException {
+                IndexMetaData indexMetaData,
+                List<IndexEventListener> buildInIndexListener) throws IOException {
             MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetaData, Settings.EMPTY));
             indices = newMapBuilder(indices).put(indexMetaData.getIndexUUID(), indexService).immutableMap();
             return indexService;

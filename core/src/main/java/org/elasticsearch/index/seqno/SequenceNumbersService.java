@@ -161,7 +161,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * active allocations is not known.
      */
     public boolean updateGlobalCheckpointOnPrimary() {
-        return globalCheckpointTracker.updateCheckpointOnPrimary();
+        return globalCheckpointTracker.updateGlobalCheckpointOnPrimary();
     }
 
     /**
@@ -182,6 +182,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public void updateAllocationIdsFromMaster(final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
         globalCheckpointTracker.updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
+    }
+
+    /**
+     * Check if there are any recoveries pending in-sync.
+     *
+     * @return {@code true} if there is at least one shard pending in-sync, otherwise false
+     */
+    public boolean pendingInSync() {
+        return globalCheckpointTracker.pendingInSync();
     }
 
 }

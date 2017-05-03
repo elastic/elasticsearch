@@ -141,7 +141,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @return {@code true} if the checkpoint has been updated or if it can not be updated since the local checkpoints of one of the active
      * allocations is not known.
      */
-    synchronized boolean updateCheckpointOnPrimary() {
+    synchronized boolean updateGlobalCheckpointOnPrimary() {
         long minLocalCheckpoint = Long.MAX_VALUE;
         if (inSyncLocalCheckpoints.isEmpty() || !pendingInSync.isEmpty()) {
             return false;
@@ -163,7 +163,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                             globalCheckpoint);
             throw new IllegalStateException(message);
         }
-        if (globalCheckpoint != minLocalCheckpoint) {
+        if (minLocalCheckpoint >= 0 && globalCheckpoint != minLocalCheckpoint) {
             logger.trace("global checkpoint updated to [{}]", minLocalCheckpoint);
             globalCheckpoint = minLocalCheckpoint;
             return true;
@@ -296,6 +296,15 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     @SuppressForbidden(reason = "Object#wait for local checkpoint advancement")
     private synchronized void waitForLocalCheckpointToAdvance() throws InterruptedException {
         this.wait();
+    }
+
+    /**
+     * Check if there are any recoveries pending in-sync.
+     *
+     * @return {@code true} if there is at least one shard pending in-sync, otherwise false
+     */
+    public boolean pendingInSync() {
+        return !pendingInSync.isEmpty();
     }
 
     /**

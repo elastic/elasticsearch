@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -36,6 +35,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -95,7 +95,7 @@ public class MockClientBuilder {
 
     @SuppressWarnings({ "unchecked" })
     public MockClientBuilder addClusterStatusYellowResponse() throws InterruptedException, ExecutionException {
-        ListenableActionFuture<ClusterHealthResponse> actionFuture = mock(ListenableActionFuture.class);
+        PlainActionFuture<ClusterHealthResponse> actionFuture = mock(PlainActionFuture.class);
         ClusterHealthRequestBuilder clusterHealthRequestBuilder = mock(ClusterHealthRequestBuilder.class);
 
         when(clusterAdminClient.prepareHealth()).thenReturn(clusterHealthRequestBuilder);
@@ -107,7 +107,7 @@ public class MockClientBuilder {
 
     @SuppressWarnings({ "unchecked" })
     public MockClientBuilder addClusterStatusYellowResponse(String index) throws InterruptedException, ExecutionException {
-        ListenableActionFuture<ClusterHealthResponse> actionFuture = mock(ListenableActionFuture.class);
+        PlainActionFuture<ClusterHealthResponse> actionFuture = mock(PlainActionFuture.class);
         ClusterHealthRequestBuilder clusterHealthRequestBuilder = mock(ClusterHealthRequestBuilder.class);
 
         when(clusterAdminClient.prepareHealth(index)).thenReturn(clusterHealthRequestBuilder);
@@ -267,7 +267,7 @@ public class MockClientBuilder {
     @SuppressWarnings("unchecked")
     public MockClientBuilder prepareIndex(String index, String type, String responseId, ArgumentCaptor<XContentBuilder> getSource) {
         IndexRequestBuilder builder = mock(IndexRequestBuilder.class);
-        ListenableActionFuture<IndexResponse> actionFuture = mock(ListenableActionFuture.class);
+        PlainActionFuture<IndexResponse> actionFuture = mock(PlainActionFuture.class);
         IndexResponse response = mock(IndexResponse.class);
         when(response.getId()).thenReturn(responseId);
 
@@ -299,7 +299,7 @@ public class MockClientBuilder {
 
     @SuppressWarnings("unchecked")
     public MockClientBuilder prepareBulk(BulkResponse response) {
-        ListenableActionFuture<BulkResponse> actionFuture = mock(ListenableActionFuture.class);
+        PlainActionFuture<BulkResponse> actionFuture = mock(PlainActionFuture.class);
         BulkRequestBuilder builder = mock(BulkRequestBuilder.class);
         when(client.prepareBulk()).thenReturn(builder);
         when(builder.execute()).thenReturn(actionFuture);

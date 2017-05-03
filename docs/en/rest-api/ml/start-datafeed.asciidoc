@@ -43,12 +43,11 @@ zone designators must be encoded as `%2B`.
 If the system restarts, any jobs that had {dfeeds} running are also restarted.
 
 When a stopped {dfeed} is restarted, it continues processing input data from
-the next millisecond after it was stopped. If your data contains the same
-timestamp (for example, it is summarized by minute), then data loss is possible
-for the timestamp value when the {dfeed} stopped.  This situation can occur
-because the job might not have completely processed all data for that millisecond.
+the next millisecond after it was stopped. If new data was indexed for that
+exact millisecond, between stopping and starting, it will be ignored.
 If you specify a `start` value that is earlier than the timestamp of the latest
-processed record, that value is ignored.
+processed record, the {dfeed} continues from 1 millisecond after the timestamp
+of the latest processed record.
 
 
 ===== Path Parameters

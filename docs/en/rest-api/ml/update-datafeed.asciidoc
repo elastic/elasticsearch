@@ -33,7 +33,7 @@ The following properties can be updated after the {dfeed} is created:
   bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
   span. For example: "150s".
 
-`indexes` (required)::
+`indexes`::
   (array) An array of index names. For example: ["it_ops_metrics"].
 
 `job_id`::
@@ -55,7 +55,7 @@ The following properties can be updated after the {dfeed} is created:
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
-`types` (required)::
+`types`::
   (array) A list of types to search for within the specified indices.
   For example: ["network","sql","kpi"].
 
@@ -70,89 +70,44 @@ For more information, see <<privileges-list-cluster>>.
 
 ===== Examples
 
-The following example updates the `datafeed-it-ops-kpi` {dfeed}:
+The following example updates the query for `datafeed-it-ops-kpi` {dfeed} so that
+only log entries of error level are analyzed:
 
 [source,js]
 --------------------------------------------------
 POST _xpack/ml/datafeeds/datafeed-it-ops-kpi/_update
 {
-  "query_delay": "60s",
-  "frequency": "150s",
-  "aggregations": {
-        "buckets": {
-          "date_histogram": {
-            "field": "@timestamp",
-            "interval": 30000,
-            "offset": 0,
-            "order": {
-              "_key": "asc"
-            },
-            "keyed": false,
-            "min_doc_count": 0
-          },
-          "aggregations": {
-            "events_per_min": {
-              "sum": {
-                "field": "events_per_min"
-              }
-            },
-            "@timestamp": {
-              "max": {
-                "field": "@timestamp"
-              }
-            }
-          }
-        }
-      },
-  "scroll_size": 1000,
-  "chunking_config": {
-  "mode": "manual",
-  "time_span": "30000000ms"
+  "query": {
+    "term": {
+      "level": "error"
+    }
   }
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]
 
-When the {dfeed} is updated, you receive the following results:
+When the {dfeed} is updated, you receive the full datafeed configuration with
+with the updated values:
 [source,js]
 ----
 {
   "datafeed_id": "datafeed-it-ops-kpi",
   "job_id": "it-ops-kpi",
-  "query_delay": "60s",
-  "frequency": "150s",
-  ...
-  "aggregations": {
-    "buckets": {
-      "date_histogram": {
-        "field": "@timestamp",
-        "interval": 30000,
-        "offset": 0,
-        "order": {
-          "_key": "asc"
-        },
-        "keyed": false,
-        "min_doc_count": 0
-      },
-      "aggregations": {
-        "events_per_min": {
-          "sum": {
-            "field": "events_per_min"
-          }
-        },
-        "@timestamp": {
-          "max": {
-            "field": "@timestamp"
-          }
-        }
+  "query_delay": "1m",
+  "indexes": ["it-ops"],
+  "types": ["logs"],
+  "query": {
+    "term": {
+      "level": {
+        "value": "error",
+        "boost": 1
       }
     }
   },
   "scroll_size": 1000,
   "chunking_config": {
-    "mode": "manual",
-    "time_span": "30000000ms"
+    "mode": "auto"
   }
 }
 ----

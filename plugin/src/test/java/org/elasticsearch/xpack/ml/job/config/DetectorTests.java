@@ -418,6 +418,8 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         difference.remove(Detector.LOW_AVG);
         difference.remove(Detector.HIGH_AVG);
         difference.remove(Detector.MEDIAN);
+        difference.remove(Detector.LOW_MEDIAN);
+        difference.remove(Detector.HIGH_MEDIAN);
         difference.remove(Detector.MIN);
         difference.remove(Detector.MAX);
         difference.remove(Detector.SUM);
@@ -475,16 +477,9 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         builder.build();
 
         // some functions require a fieldname
-        for (String f : new String[]{Detector.METRIC, Detector.MEAN, Detector.HIGH_MEAN,
-                Detector.LOW_MEAN, Detector.AVG, Detector.HIGH_AVG, Detector.LOW_AVG,
-                Detector.MEDIAN, Detector.MAX, Detector.MIN, Detector.SUM, Detector.LOW_SUM,
-                Detector.HIGH_SUM, Detector.NON_NULL_SUM, Detector.LOW_NON_NULL_SUM,
-                Detector.HIGH_NON_NULL_SUM, Detector.POPULATION_VARIANCE,
-                Detector.LOW_POPULATION_VARIANCE, Detector.HIGH_POPULATION_VARIANCE,
-                Detector.DISTINCT_COUNT, Detector.DC,
-                Detector.HIGH_DISTINCT_COUNT, Detector.HIGH_DC, Detector.LOW_DISTINCT_COUNT,
-                Detector.LOW_DC, Detector.INFO_CONTENT, Detector.LOW_INFO_CONTENT,
-                Detector.HIGH_INFO_CONTENT, Detector.LAT_LONG}) {
+        int testedFunctionsCount = 0;
+        for (String f : Detector.FIELD_NAME_FUNCTIONS) {
+            testedFunctionsCount++;
             builder = new Detector.Builder(f, "f");
             builder.setByFieldName("b");
             builder.build();
@@ -496,13 +491,12 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
                 Assert.assertEquals(Detector.METRIC, f);
             }
         }
-
+        Assert.assertEquals(Detector.FIELD_NAME_FUNCTIONS.size(), testedFunctionsCount);
 
         // these functions don't work with fieldname
-        for (String f : new String[]{Detector.COUNT, Detector.HIGH_COUNT,
-                Detector.LOW_COUNT, Detector.NON_ZERO_COUNT, Detector.NZC,
-                Detector.RARE, Detector.FREQ_RARE, Detector.TIME_OF_DAY,
-                Detector.TIME_OF_WEEK}) {
+        testedFunctionsCount = 0;
+        for (String f : Detector.COUNT_WITHOUT_FIELD_FUNCTIONS) {
+            testedFunctionsCount++;
             try {
                 builder = new Detector.Builder(f, "field");
                 builder.setByFieldName("b");
@@ -518,27 +512,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             } catch (IllegalArgumentException e) {
             }
         }
-
-
-        for (String f : new String[]{Detector.HIGH_COUNT,
-                Detector.LOW_COUNT, Detector.NON_ZERO_COUNT, Detector.NZC,
-                Detector.RARE, Detector.FREQ_RARE, Detector.TIME_OF_DAY,
-                Detector.TIME_OF_WEEK}) {
-            try {
-                builder = new Detector.Builder(f, "field");
-                builder.setByFieldName("b");
-                builder.build();
-                Assert.fail("IllegalArgumentException not thrown when expected");
-            } catch (IllegalArgumentException e) {
-            }
-            try {
-                builder = new Detector.Builder(f, "field");
-                builder.setByFieldName("b");
-                builder.build(true);
-                Assert.fail("IllegalArgumentException not thrown when expected");
-            } catch (IllegalArgumentException e) {
-            }
-        }
+        Assert.assertEquals(Detector.COUNT_WITHOUT_FIELD_FUNCTIONS.size(), testedFunctionsCount);
 
         builder = new Detector.Builder(Detector.FREQ_RARE, "field");
         builder.setByFieldName("b");

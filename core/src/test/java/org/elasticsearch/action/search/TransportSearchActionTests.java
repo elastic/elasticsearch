@@ -90,14 +90,14 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             ShardId remoteShardId = new ShardId("remote_index", "remote_index_uuid", 2);
             ShardRouting remoteShardRouting = TestShardRouting.newShardRouting(remoteShardId, "remote_node", true, STARTED);
-            SearchShardIterator remoteShardIterator = new SearchShardIterator(remoteShardId,
+            SearchShardIterator remoteShardIterator = new SearchShardIterator("remote", remoteShardId,
                     Collections.singletonList(remoteShardRouting), remoteIndices);
             remoteShardIterators.add(remoteShardIterator);
         }
         {
             ShardId remoteShardId2 = new ShardId("remote_index_2", "remote_index_2_uuid", 3);
             ShardRouting remoteShardRouting2 = TestShardRouting.newShardRouting(remoteShardId2, "remote_node", true, STARTED);
-            SearchShardIterator remoteShardIterator2 = new SearchShardIterator(remoteShardId2,
+            SearchShardIterator remoteShardIterator2 = new SearchShardIterator("remote", remoteShardId2,
                     Collections.singletonList(remoteShardRouting2), remoteIndices);
             remoteShardIterators.add(remoteShardIterator2);
         }
@@ -106,7 +106,7 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             ShardId remoteShardId3 = new ShardId("remote_index_3", "remote_index_3_uuid", 4);
             ShardRouting remoteShardRouting3 = TestShardRouting.newShardRouting(remoteShardId3, "remote_node", true, STARTED);
-            SearchShardIterator remoteShardIterator3 = new SearchShardIterator(remoteShardId3,
+            SearchShardIterator remoteShardIterator3 = new SearchShardIterator("remote", remoteShardId3,
                     Collections.singletonList(remoteShardRouting3), remoteIndices2);
             remoteShardIterators.add(remoteShardIterator3);
         }
@@ -188,7 +188,7 @@ public class TransportSearchActionTests extends ESTestCase {
             remoteIndicesByCluster.put("test_cluster_2",
                 new OriginalIndices(new String[]{"x*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
             Map<String, AliasFilter> remoteAliases = new HashMap<>();
-            TransportSearchAction.processRemoteShards(service, searchShardsResponseMap, remoteIndicesByCluster, iteratorList,
+            TransportSearchAction.processRemoteShards(searchShardsResponseMap, remoteIndicesByCluster, iteratorList,
                 remoteAliases);
             assertEquals(4, iteratorList.size());
             for (SearchShardIterator iterator : iteratorList) {

@@ -1275,9 +1275,10 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
-                    super.indexTranslogOperations(operations, totalTranslogOps);
+                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
                     assertFalse(replica.getTranslog().syncNeeded());
+                    return localCheckpoint;
                 }
             }, true);
 
@@ -1331,10 +1332,11 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
 
                 @Override
-                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
-                    super.indexTranslogOperations(operations, totalTranslogOps);
+                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
                     // Shard should now be active since we did recover:
                     assertTrue(replica.isActive());
+                    return localCheckpoint;
                 }
             }, false);
 

@@ -44,7 +44,7 @@ public class TcpFrameDecoder {
             if (totalLength > currentBufferSize) {
                 nextReadLength = totalLength - currentBufferSize;
                 return null;
-            } else if (totalLength == currentBufferSize) {
+            } else if (totalLength == bytesReference.length()) {
                 nextReadLength = DEFAULT_READ_LENGTH;
                 return bytesReference;
             } else {

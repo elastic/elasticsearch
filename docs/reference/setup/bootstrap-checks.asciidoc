@@ -99,6 +99,7 @@ that *if* the `bootstrap.memory_lock` setting is enabled, that the JVM
 was successfully able to lock the heap. To pass the memory lock check,
 you might have to configure <<mlockall,`mlockall`>>.
 
+[[max-number-threads-check]]
 === Maximum number of threads check
 
 Elasticsearch executes requests by breaking the request down into stages

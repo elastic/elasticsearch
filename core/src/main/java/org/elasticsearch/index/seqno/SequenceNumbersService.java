@@ -127,12 +127,13 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     /**
      * Marks the shard with the provided allocation ID as in-sync with the primary shard. See
-     * {@link GlobalCheckpointTracker#markAllocationIdAsInSync(String)} for additional details.
+     * {@link GlobalCheckpointTracker#markAllocationIdAsInSync(String, long)} for additional details.
      *
-     * @param allocationId the allocation ID of the shard to mark as in-sync
+     * @param allocationId    the allocation ID of the shard to mark as in-sync
+     * @param localCheckpoint the current local checkpoint on the shard
      */
-    public void markAllocationIdAsInSync(final String allocationId) {
-        globalCheckpointTracker.markAllocationIdAsInSync(allocationId);
+    public void markAllocationIdAsInSync(final String allocationId, final long localCheckpoint) throws InterruptedException {
+        globalCheckpointTracker.markAllocationIdAsInSync(allocationId, localCheckpoint);
     }
 
     /**
@@ -166,10 +167,10 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     /**
      * Updates the global checkpoint on a replica shard after it has been updated by the primary.
      *
-     * @param checkpoint the global checkpoint
+     * @param globalCheckpoint the global checkpoint
      */
-    public void updateGlobalCheckpointOnReplica(final long checkpoint) {
-        globalCheckpointTracker.updateCheckpointOnReplica(checkpoint);
+    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint) {
+        globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint);
     }
 
     /**

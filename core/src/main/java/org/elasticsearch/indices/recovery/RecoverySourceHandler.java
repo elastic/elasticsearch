@@ -58,6 +58,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
@@ -179,14 +180,16 @@ public class RecoverySourceHandler {
             }
 
             logger.trace("snapshot translog for recovery; current size is [{}]", translogView.totalOperations());
+            final long targetLocalCheckpoint;
             try {
-                phase2(isSequenceNumberBasedRecoveryPossible ? request.startingSeqNo() : SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                    translogView.snapshot());
+                final long startingSeqNo =
+                        isSequenceNumberBasedRecoveryPossible ? request.startingSeqNo() : SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                targetLocalCheckpoint = phase2(startingSeqNo, translogView.snapshot());
             } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
             }
 
-            finalizeRecovery();
+            finalizeRecovery(targetLocalCheckpoint);
         }
         return response;
     }
@@ -410,8 +413,10 @@ public class RecoverySourceHandler {
      * @param startingSeqNo the sequence number to start recovery from, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if all
      *                      ops should be sent
      * @param snapshot      a snapshot of the translog
+     *
+     * @return the local checkpoint on the target
      */
-    void phase2(final long startingSeqNo, final Translog.Snapshot snapshot) throws IOException {
+    long phase2(final long startingSeqNo, final Translog.Snapshot snapshot) throws IOException {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -422,18 +427,19 @@ public class RecoverySourceHandler {
         logger.trace("recovery [phase2]: sending transaction log operations");
 
         // send all the snapshot's translog operations to the target
-        final int totalOperations = sendSnapshot(startingSeqNo, snapshot);
+        final SendSnapshotResult result = sendSnapshot(startingSeqNo, snapshot);
 
         stopWatch.stop();
         logger.trace("recovery [phase2]: took [{}]", stopWatch.totalTime());
         response.phase2Time = stopWatch.totalTime().millis();
-        response.phase2Operations = totalOperations;
+        response.phase2Operations = result.totalOperations;
+        return result.targetLocalCheckpoint;
     }
 
     /*
      * finalizes the recovery process
      */
-    public void finalizeRecovery() {
+    public void finalizeRecovery(final long targetLocalCheckpoint) {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -441,7 +447,7 @@ public class RecoverySourceHandler {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("finalizing recovery");
         cancellableThreads.execute(() -> {
-            shard.markAllocationIdAsInSync(request.targetAllocationId());
+            shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint);
             recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint());
         });
 
@@ -467,6 +473,18 @@ public class RecoverySourceHandler {
         logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
     }
 
+    static class SendSnapshotResult {
+
+        final long targetLocalCheckpoint;
+        final int totalOperations;
+
+        SendSnapshotResult(final long targetLocalCheckpoint, final int totalOperations) {
+            this.targetLocalCheckpoint = targetLocalCheckpoint;
+            this.totalOperations = totalOperations;
+        }
+
+    }
+
     /**
      * Send the given snapshot's operations with a sequence number greater than the specified staring sequence number to this handler's
      * target node.
@@ -475,18 +493,24 @@ public class RecoverySourceHandler {
      *
      * @param startingSeqNo the sequence number for which only operations with a sequence number greater than this will be sent
      * @param snapshot      the translog snapshot to replay operations from
-     * @return the total number of translog operations that were sent
+     * @return the local checkpoint on the target and the total number of operations sent
      * @throws IOException if an I/O exception occurred reading the translog snapshot
      */
-    protected int sendSnapshot(final long startingSeqNo, final Translog.Snapshot snapshot) throws IOException {
+    protected SendSnapshotResult sendSnapshot(final long startingSeqNo, final Translog.Snapshot snapshot) throws IOException {
         int ops = 0;
         long size = 0;
-        int totalOperations = 0;
+        int skippedOps = 0;
+        int totalSentOps = 0;
+        final AtomicLong targetLocalCheckpoint = new AtomicLong(SequenceNumbersService.UNASSIGNED_SEQ_NO);
         final List<Translog.Operation> operations = new ArrayList<>();
 
-        if (snapshot.totalOperations() == 0) {
+        final int expectedTotalOps = snapshot.totalOperations();
+        if (expectedTotalOps == 0) {
             logger.trace("no translog operations to send");
         }
+
+        final CancellableThreads.Interruptable sendBatch =
+                () -> targetLocalCheckpoint.set(recoveryTarget.indexTranslogOperations(operations, expectedTotalOps));
 
         // send operations in batches
         Translog.Operation operation;
@@ -495,39 +519,41 @@ public class RecoverySourceHandler {
                 throw new IndexShardClosedException(request.shardId());
             }
             cancellableThreads.checkForCancel();
-            // if we are doing a sequence-number-based recovery, we have to skip older ops for which no sequence number was assigned, and
-            // any ops before the starting sequence number
+            /*
+             * If we are doing a sequence-number-based recovery, we have to skip older ops for which no sequence number was assigned, and
+             * any ops before the starting sequence number.
+             */
             final long seqNo = operation.seqNo();
-            if (startingSeqNo >= 0 && (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) continue;
+            if (startingSeqNo >= 0 && (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) {
+                skippedOps++;
+                continue;
+            }
             operations.add(operation);
             ops++;
             size += operation.estimateSize();
-            totalOperations++;
+            totalSentOps++;
 
             // check if this request is past bytes threshold, and if so, send it off
             if (size >= chunkSizeInBytes) {
-                cancellableThreads.execute(() -> recoveryTarget.indexTranslogOperations(operations, snapshot.totalOperations()));
-                if (logger.isTraceEnabled()) {
-                    logger.trace("sent batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size),
-                        snapshot.totalOperations());
-                }
+                cancellableThreads.execute(sendBatch);
+                logger.trace("sent batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size), expectedTotalOps);
                 ops = 0;
                 size = 0;
                 operations.clear();
             }
         }
 
-        // send the leftover operations
-        if (!operations.isEmpty()) {
-            cancellableThreads.execute(() -> recoveryTarget.indexTranslogOperations(operations, snapshot.totalOperations()));
+        if (!operations.isEmpty() || totalSentOps == 0) {
+            // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
+            cancellableThreads.execute(sendBatch);
         }
 
-        if (logger.isTraceEnabled()) {
-            logger.trace("sent final batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size),
-                snapshot.totalOperations());
-        }
+        assert expectedTotalOps == skippedOps + totalSentOps
+                : "expected total [" + expectedTotalOps + "], skipped [" + skippedOps + "], total sent [" + totalSentOps + "]";
 
-        return totalOperations;
+        logger.trace("sent final batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size), expectedTotalOps);
+
+        return new SendSnapshotResult(targetLocalCheckpoint.get(), totalSentOps);
     }
 
     /**

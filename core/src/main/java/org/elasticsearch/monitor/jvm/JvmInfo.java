@@ -461,6 +461,8 @@ public class JvmInfo implements Writeable, ToXContent {
 
         builder.field(Fields.USING_COMPRESSED_OOPS, useCompressedOops);
 
+        builder.field(Fields.INPUT_ARGUMENTS, inputArguments);
+
         builder.endObject();
         return builder;
     }
@@ -489,6 +491,7 @@ public class JvmInfo implements Writeable, ToXContent {
         static final String GC_COLLECTORS = "gc_collectors";
         static final String MEMORY_POOLS = "memory_pools";
         static final String USING_COMPRESSED_OOPS = "using_compressed_ordinary_object_pointers";
+        static final String INPUT_ARGUMENTS = "input_arguments";
     }
 
     public static class Mem implements Writeable {

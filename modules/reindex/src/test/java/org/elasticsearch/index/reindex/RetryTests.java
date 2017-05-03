@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -30,13 +30,11 @@ import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestBuilder
 import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
 import org.elasticsearch.action.bulk.byscroll.BulkIndexByScrollResponseMatcher;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.plugins.Plugin;
@@ -151,7 +149,7 @@ public class RetryTests extends ESSingleNodeTestCase {
         request.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
 
         logger.info("Starting request");
-        ListenableActionFuture<BulkByScrollResponse> responseListener = request.execute();
+        ActionFuture<BulkByScrollResponse> responseListener = request.execute();
 
         try {
             logger.info("Waiting for search rejections on the initial search");

@@ -146,7 +146,7 @@ PUT /_xpack/security/user/jacknich/_disable
 // TEST[continued]
 
 [[security-api-enable-user]]
-To disable a user, submit a PUT request to the
+To enable a user, submit a PUT request to the
 `/_xpack/security/user/<username>/_enable` endpoint:
 
 [source,js]

@@ -39,14 +39,13 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
-import static org.elasticsearch.search.internal.InternalSearchResponse.readInternalSearchResponse;
 
 /**
  * A response of a search request.
  */
 public class SearchResponse extends ActionResponse implements StatusToXContentObject {
 
-    private InternalSearchResponse internalResponse;
+    private SearchResponseSections internalResponse;
 
     private String scrollId;
 
@@ -61,7 +60,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     public SearchResponse() {
     }
 
-    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards,
+    public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
                           long tookInMillis, ShardSearchFailure[] shardFailures) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
@@ -209,7 +208,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        internalResponse = readInternalSearchResponse(in);
+        internalResponse = new InternalSearchResponse(in);
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         int size = in.readVInt();

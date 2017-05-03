@@ -21,19 +21,14 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class ParsedDateHistogram extends ParsedMultiBucketAggregation implements Histogram {
 
@@ -79,35 +74,7 @@ public class ParsedDateHistogram extends ParsedMultiBucketAggregation implements
         }
 
         static ParsedBucket fromXContent(XContentParser parser, boolean keyed) throws IOException {
-            final ParsedBucket bucket = new ParsedBucket();
-            bucket.setKeyed(keyed);
-
-            XContentParser.Token token = parser.currentToken();
-            String currentFieldName = parser.currentName();
-            if (keyed) {
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            }
-
-            final List<Aggregation> aggregations = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if (CommonFields.KEY_AS_STRING.getPreferredName().equals(currentFieldName)) {
-                        bucket.setKeyAsString(parser.text());
-                    } else if (CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
-                        bucket.setKey(parser.longValue());
-                    } else if (CommonFields.DOC_COUNT.getPreferredName().equals(currentFieldName)) {
-                        bucket.setDocCount(parser.longValue());
-                    }
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    aggregations.add(XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class));
-                }
-            }
-
-            bucket.setAggregations(aggregations);
-            return bucket;
+            return parseXContent(parser, keyed, ParsedBucket::new, XContentParser::longValue);
         }
     }
 }

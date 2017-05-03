@@ -23,12 +23,15 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public abstract class ParsedMultiBucketAggregation extends ParsedAggregation implements MultiBucketsAggregation {
 
@@ -42,7 +45,7 @@ public abstract class ParsedMultiBucketAggregation extends ParsedAggregation imp
         } else {
             builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
-        for (ParsedMultiBucketAggregation.ParsedBucket<?> bucket : buckets) {
+        for (ParsedBucket<?> bucket : buckets) {
             bucket.toXContent(builder, params);
         }
         if (keyed) {
@@ -75,7 +78,7 @@ public abstract class ParsedMultiBucketAggregation extends ParsedAggregation imp
 
     public static class ParsedBucket<T> implements MultiBucketsAggregation.Bucket {
 
-        private List<? extends Aggregation> aggregations = Collections.emptyList();
+        private Aggregations aggregations;
         private T key;
         private String keyAsString;
         private long docCount;
@@ -112,18 +115,21 @@ public abstract class ParsedMultiBucketAggregation extends ParsedAggregation imp
             this.keyed = keyed;
         }
 
-        protected void setAggregations(List<? extends Aggregation> aggregations) {
+        protected void setAggregations(Aggregations aggregations) {
             this.aggregations = aggregations;
         }
 
         @Override
         public Aggregations getAggregations() {
-            return new Aggregations(aggregations) {};
+            return aggregations;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (keyed) {
+                // Subclasses can override the getKeyAsString method to handle specific cases like
+                // keyed bucket with RAW doc value format where the key_as_string field is not printed
+                // out but we still need to have a string version of the key to use as the bucket's name.
                 builder.startObject(getKeyAsString());
             } else {
                 builder.startObject();
@@ -133,13 +139,43 @@ public abstract class ParsedMultiBucketAggregation extends ParsedAggregation imp
             }
             builder.field(CommonFields.KEY.getPreferredName(), key);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
-            for (Aggregation aggregation : aggregations) {
-                if (aggregation instanceof ParsedAggregation) {
-                    ((ParsedAggregation) aggregation).toXContent(builder, params);
-                }
-            }
+            aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
+        }
+
+        protected static <T, B extends ParsedBucket<T>> B parseXContent(final XContentParser parser,
+                                                                        final boolean keyed,
+                                                                        final Supplier<B> bucketSupplier,
+                                                                        final CheckedFunction<XContentParser, T, IOException> keyParser)
+                                                                        throws IOException {
+            final B bucket = bucketSupplier.get();
+            bucket.setKeyed(keyed);
+            XContentParser.Token token = parser.currentToken();
+            String currentFieldName = parser.currentName();
+            if (keyed) {
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            }
+
+            List<Aggregation> aggregations = new ArrayList<>();
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if (CommonFields.KEY_AS_STRING.getPreferredName().equals(currentFieldName)) {
+                        bucket.setKeyAsString(parser.text());
+                    } else if (CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
+                        bucket.setKey(keyParser.apply(parser));
+                    } else if (CommonFields.DOC_COUNT.getPreferredName().equals(currentFieldName)) {
+                        bucket.setDocCount(parser.longValue());
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    aggregations.add(XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class));
+                }
+            }
+            bucket.setAggregations(new Aggregations(aggregations));
+            return bucket;
         }
     }
 }

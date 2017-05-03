@@ -21,9 +21,6 @@ public class GetModelSnapshotsActionRequestTests extends AbstractStreamableXCont
     protected Request createTestInstance() {
         Request request = new Request(randomAlphaOfLengthBetween(1, 20), randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
-            request.setDescriptionString(randomAlphaOfLengthBetween(1, 20));
-        }
-        if (randomBoolean()) {
             request.setStart(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {

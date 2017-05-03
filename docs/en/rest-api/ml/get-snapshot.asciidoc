@@ -27,11 +27,6 @@ The get model snapshots API enables you to retrieve information about model snap
 `desc`::
   (boolean) If true, the results are sorted in descending order.
 
-`description`::
-  (string) Returns snapshots that match this description.
-//TBD: I couldn't get this to work. What description value is it using?
-NOTE: It might be necessary to URL encode the description.
-
 `end`::
   (date) Returns snapshots with timestamps earlier than this time.
 
@@ -43,7 +38,7 @@ NOTE: It might be necessary to URL encode the description.
 
 `sort`::
   (string) Specifies the sort field for the requested snapshots.
-//By default, the snapshots are sorted by the xxx value.
+  By default, the snapshots are sorted by their timestamp.
 
 `start`::
   (string) Returns snapshots with timestamps after this time.

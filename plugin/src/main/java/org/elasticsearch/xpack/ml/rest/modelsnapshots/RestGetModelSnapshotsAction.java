@@ -15,8 +15,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction.Request;
-import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
+import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 
@@ -67,9 +67,6 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
             }
             if (restRequest.hasParam(Request.END.getPreferredName())) {
                 getModelSnapshots.setEnd(restRequest.param(Request.END.getPreferredName(), DEFAULT_END));
-            }
-            if (restRequest.hasParam(Request.DESCRIPTION.getPreferredName())) {
-                getModelSnapshots.setDescriptionString(restRequest.param(Request.DESCRIPTION.getPreferredName(), DEFAULT_DESCRIPTION));
             }
             getModelSnapshots.setDescOrder(restRequest.paramAsBoolean(Request.DESC.getPreferredName(), DEFAULT_DESC_ORDER));
             getModelSnapshots.setPageParams(new PageParams(

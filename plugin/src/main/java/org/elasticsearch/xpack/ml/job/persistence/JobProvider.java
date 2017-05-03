@@ -796,7 +796,6 @@ public class JobProvider {
      * @param sortField      optional sort field name (may be null)
      * @param sortDescending Sort in descending order
      * @param snapshotId     optional snapshot ID to match (null for all)
-     * @param description    optional description to match (null for all)
      */
     public void modelSnapshots(String jobId,
                                int from,
@@ -806,24 +805,11 @@ public class JobProvider {
                                String sortField,
                                boolean sortDescending,
                                String snapshotId,
-                               String description,
                                Consumer<QueryPage<ModelSnapshot>> handler,
                                Consumer<Exception> errorHandler) {
-        boolean haveId = snapshotId != null && !snapshotId.isEmpty();
-        boolean haveDescription = description != null && !description.isEmpty();
-        ResultsFilterBuilder fb;
-        if (haveId || haveDescription) {
-            BoolQueryBuilder query = QueryBuilders.boolQuery();
-            if (haveId) {
-                query.filter(QueryBuilders.termQuery(ModelSnapshot.SNAPSHOT_ID.getPreferredName(), snapshotId));
-            }
-            if (haveDescription) {
-                query.filter(QueryBuilders.termQuery(ModelSnapshot.DESCRIPTION.getPreferredName(), description));
-            }
-
-            fb = new ResultsFilterBuilder(query);
-        } else {
-            fb = new ResultsFilterBuilder();
+        ResultsFilterBuilder fb = new ResultsFilterBuilder();
+        if (snapshotId != null && !snapshotId.isEmpty()) {
+            fb.term(ModelSnapshot.SNAPSHOT_ID.getPreferredName(), snapshotId);
         }
 
         QueryBuilder qb = fb.timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs).build();

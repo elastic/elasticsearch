@@ -135,7 +135,6 @@ public final class Messages {
 
     public static final String REST_CANNOT_DELETE_HIGHEST_PRIORITY =
             "Model snapshot ''{0}'' is the active snapshot for job ''{1}'', so cannot be deleted";
-    public static final String REST_DESCRIPTION_ALREADY_USED = "Model snapshot description ''{0}'' has already been used for job ''{1}''";
     public static final String REST_INVALID_DATETIME_PARAMS =
             "Query param ''{0}'' with value ''{1}'' cannot be parsed as a date or converted to a number (epoch).";
     public static final String REST_INVALID_FLUSH_PARAMS_MISSING = "Invalid flush parameters: ''{0}'' has not been specified.";

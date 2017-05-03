@@ -38,9 +38,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.Request,
         UpdateModelSnapshotAction.Response, UpdateModelSnapshotAction.RequestBuilder> {
@@ -272,54 +270,19 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
             logger.debug("Received request to update model snapshot [{}] for job [{}]", request.getSnapshotId(), request.getJobId());
-            getChangeCandidates(request, changeCandidates -> {
-                checkForClashes(request, aVoid -> {
-                    if (changeCandidates.size() > 1) {
-                        logger.warn("More than one model found for [{}: {}, {}: {}] tuple.", Job.ID.getPreferredName(), request.getJobId(),
-                                ModelSnapshot.SNAPSHOT_ID.getPreferredName(), request.getSnapshotId());
-                    }
-                    ModelSnapshot updatedSnapshot = applyUpdate(request, changeCandidates.get(0));
+            jobProvider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
+                if (modelSnapshot == null) {
+                    listener.onFailure(new ResourceNotFoundException(Messages.getMessage(
+                            Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())));
+                } else {
+                    ModelSnapshot updatedSnapshot = applyUpdate(request, modelSnapshot);
                     jobManager.updateModelSnapshot(updatedSnapshot, b -> {
                         // The quantiles can be large, and totally dominate the output -
                         // it's clearer to remove them
                         listener.onResponse(new Response(new ModelSnapshot.Builder(updatedSnapshot).setQuantiles(null).build()));
                     }, listener::onFailure);
-                }, listener::onFailure);
-            }, listener::onFailure);
-        }
-
-        private void getChangeCandidates(Request request, Consumer<List<ModelSnapshot>> handler, Consumer<Exception> errorHandler) {
-            getModelSnapshots(request.getJobId(), request.getSnapshotId(), null,
-                    changeCandidates -> {
-                        if (changeCandidates == null || changeCandidates.isEmpty()) {
-                            errorHandler.accept(new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT,
-                                    request.getSnapshotId(), request.getJobId())));
-                        } else {
-                            handler.accept(changeCandidates);
-                        }
-                    }, errorHandler);
-        }
-
-        private void checkForClashes(Request request, Consumer<Void> handler, Consumer<Exception> errorHandler) {
-            if (request.getDescription() == null) {
-                handler.accept(null);
-                return;
-            }
-
-            getModelSnapshots(request.getJobId(), null, request.getDescription(), clashCandidates -> {
-                if (clashCandidates != null && !clashCandidates.isEmpty()) {
-                    errorHandler.accept(new IllegalArgumentException(Messages.getMessage(
-                            Messages.REST_DESCRIPTION_ALREADY_USED, request.getDescription(), request.getJobId())));
-                } else {
-                    handler.accept(null);
                 }
-            }, errorHandler);
-        }
-
-        private void getModelSnapshots(String jobId, String snapshotId, String description,
-                                       Consumer<List<ModelSnapshot>> handler, Consumer<Exception> errorHandler) {
-            jobProvider.modelSnapshots(jobId, 0, 1, null, null, null, true, snapshotId, description,
-                    page -> handler.accept(page.results()), errorHandler);
+            }, listener::onFailure);
         }
 
         private static ModelSnapshot applyUpdate(Request request, ModelSnapshot target) {
@@ -332,7 +295,5 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
             }
             return updatedSnapshotBuilder.build();
         }
-
     }
-
 }

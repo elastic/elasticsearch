@@ -153,7 +153,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         protected void doExecute(Request request, ActionListener<Response> listener) {
             // Verify the snapshot exists
             jobProvider.modelSnapshots(
-                    request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(), null,
+                    request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(),
                     page -> {
                         List<ModelSnapshot> deleteCandidates = page.results();
                         if (deleteCandidates.size() > 1) {

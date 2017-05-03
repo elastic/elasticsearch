@@ -811,60 +811,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(6, snapshots.get(1).getSnapshotDocCount());
     }
 
-    public void testModelSnapshots_WithDescription()
-            throws InterruptedException, ExecutionException, IOException {
-        String jobId = "TestJobIdentificationForInfluencers";
-        Date now = new Date();
-        List<Map<String, Object>> source = new ArrayList<>();
-
-        Map<String, Object> recordMap1 = new HashMap<>();
-        recordMap1.put("job_id", "foo");
-        recordMap1.put("description", "snapshot1");
-        recordMap1.put("timestamp", now.getTime());
-        recordMap1.put("snapshot_doc_count", 5);
-        recordMap1.put("latest_record_time_stamp", now.getTime());
-        recordMap1.put("latest_result_time_stamp", now.getTime());
-        Map<String, Object> recordMap2 = new HashMap<>();
-        recordMap2.put("job_id", "foo");
-        recordMap2.put("description", "snapshot2");
-        recordMap2.put("timestamp", now.getTime());
-        recordMap2.put("snapshot_doc_count", 6);
-        recordMap2.put("latest_record_time_stamp", now.getTime());
-        recordMap2.put("latest_result_time_stamp", now.getTime());
-        source.add(recordMap1);
-        source.add(recordMap2);
-
-        int from = 4;
-        int size = 3;
-        QueryBuilder[] qbHolder = new QueryBuilder[1];
-        SearchResponse response = createSearchResponse(source);
-        Client client = getMockedClient(qb -> qbHolder[0] = qb, response);
-        JobProvider provider = createProvider(client);
-
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<ModelSnapshot>[] hodor = new QueryPage[1];
-        provider.modelSnapshots(jobId, from, size, null, null, "sortfield", true, "snappyId", "description1",
-                p -> hodor[0] = p, RuntimeException::new);
-        QueryPage<ModelSnapshot> page = hodor[0];
-        assertEquals(2L, page.count());
-        List<ModelSnapshot> snapshots = page.results();
-
-        assertEquals(now, snapshots.get(0).getTimestamp());
-        assertEquals(now, snapshots.get(0).getLatestRecordTimeStamp());
-        assertEquals(now, snapshots.get(0).getLatestResultTimeStamp());
-        assertEquals("snapshot1", snapshots.get(0).getDescription());
-        assertEquals(5, snapshots.get(0).getSnapshotDocCount());
-
-        assertEquals(now, snapshots.get(1).getTimestamp());
-        assertEquals(now, snapshots.get(1).getLatestRecordTimeStamp());
-        assertEquals(now, snapshots.get(1).getLatestResultTimeStamp());
-        assertEquals("snapshot2", snapshots.get(1).getDescription());
-        assertEquals(6, snapshots.get(1).getSnapshotDocCount());
-
-        String queryString = qbHolder[0].toString();
-        assertTrue(queryString.matches("(?s).*snapshot_id.*value. : .snappyId.*description.*value. : .description1.*"));
-    }
-
     public void testRestoreStateToStream() throws Exception {
         Map<String, Object> categorizerState = new HashMap<>();
         categorizerState.put("catName", "catVal");

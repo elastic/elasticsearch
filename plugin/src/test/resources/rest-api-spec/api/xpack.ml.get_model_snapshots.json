@@ -42,10 +42,6 @@
         "desc": {
           "type": "boolean",
           "description": "True if the results should be sorted in descending order"
-        },
-        "description": {
-          "type": "string",
-          "description": "Description to filter on"
         }
       }
     },

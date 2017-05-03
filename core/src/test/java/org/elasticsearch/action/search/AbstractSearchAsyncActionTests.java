@@ -60,35 +60,19 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                     System::nanoTime);
         }
 
-        return new AbstractSearchAsyncAction<SearchPhaseResult>(
-                "test",
-                null,
-                null,
-                null,
-                Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())),
-                Collections.singletonMap("foo", 2.0f),
-                null,
-                new SearchRequest(),
-                null,
-                new GroupShardsIterator<>(Collections.singletonList(new SearchShardIterator(null, null, Collections.emptyList(), null))),
-                timeProvider,
-                0,
-                null,
-                new InitialSearchPhase.SearchPhaseResults<>(10)
-        ) {
+        return new AbstractSearchAsyncAction<SearchPhaseResult>("test", null, null, null,
+                Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f), null,
+                new SearchRequest(), null, new GroupShardsIterator<>(Collections.singletonList(
+                new SearchShardIterator(null, null, Collections.emptyList(), null))), timeProvider, 0, null,
+            new InitialSearchPhase.SearchPhaseResults<>(10)) {
             @Override
-            protected SearchPhase getNextPhase(
-                    final SearchPhaseResults<SearchPhaseResult> results,
-                    final SearchPhaseContext context) {
+            protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
                 return null;
             }
 
             @Override
-            protected void executePhaseOnShard(
-                    final SearchShardIterator shardIt,
-                    final ShardRouting shard,
-                    final SearchActionListener<SearchPhaseResult> listener) {
-
+            protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
+                                               final SearchActionListener<SearchPhaseResult> listener) {
             }
 
             @Override

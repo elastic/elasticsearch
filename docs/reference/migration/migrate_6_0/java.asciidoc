@@ -8,14 +8,22 @@ an object source did not require the XContentType to be specified. The auto-dete
 type is no longer used, so these methods now require the XContentType as an additional argument when
 providing the source in bytes or as a string.
 
-=== `DeleteByQueryRequest` requires an explicitly set query
+==== `DeleteByQueryRequest` requires an explicitly set query
 
 In previous versions of Elasticsearch, delete by query requests without an explicit query
 were accepted, match_all was used as the default query and all documents were deleted
 as a result. From version 6.0.0, a `DeleteByQueryRequest` requires an explicit query be set.
 
-=== `InternalStats` and `Stats` getCountAsString() method removed
+==== `InternalStats` and `Stats` getCountAsString() method removed
 
 The `count` value in the stats aggregation represents a doc count that shouldnn't require a formatted 
 version. This method was deprecated in 5.4 in favour of just using
 `String.valueOf(getCount())` if needed
+
+==== `ActionRequestBuilder#execute` returns `ActionFuture` rather than `ListenableActionFuture`
+
+When sending a request through the request builders e.g. client.prepareSearch().execute(), it used to
+be possible to call `addListener` against the returned `ListenableActionFuture`. With this change an
+`ActionFuture` is returned instead, which is consistent with what the `Client` methods return, hence
+it is not possible to associate the future with listeners. The `execute` method that accept a listener
+as an argument can be used instead.

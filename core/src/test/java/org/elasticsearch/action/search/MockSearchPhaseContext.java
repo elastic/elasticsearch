@@ -20,7 +20,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.SearchShardTarget;
@@ -100,7 +99,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public Transport.Connection getConnection(String nodeId) {
+    public Transport.Connection getConnection(String clusterAlias, String nodeId) {
         return null; // null is ok here for this test
     }
 
@@ -111,7 +110,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public ShardSearchTransportRequest buildShardSearchRequest(SearchShardIterator shardIt, ShardRouting shard) {
+    public ShardSearchTransportRequest buildShardSearchRequest(SearchShardIterator shardIt) {
         Assert.fail("should not be called");
         return null;
     }

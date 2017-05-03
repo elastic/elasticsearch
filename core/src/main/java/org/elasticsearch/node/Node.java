@@ -412,7 +412,7 @@ public class Node implements Closeable {
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
             final SearchTransportService searchTransportService =  new SearchTransportService(settings,
-                settingsModule.getClusterSettings(), transportService);
+                transportService);
             final Consumer<Binder> httpBind;
             final HttpServerTransport httpServerTransport;
             if (networkModule.isHttpEnabled()) {

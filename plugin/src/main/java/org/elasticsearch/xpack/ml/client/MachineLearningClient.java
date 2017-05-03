@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
@@ -51,8 +51,7 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<CloseJobAction.Response> closeJob(CloseJobAction.Request request) {
-        PlainListenableActionFuture<CloseJobAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<CloseJobAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(CloseJobAction.INSTANCE, request, listener);
         return listener;
     }
@@ -64,8 +63,7 @@ public class MachineLearningClient {
 
     public ActionFuture<DeleteDatafeedAction.Response> deleteDatafeed(
             DeleteDatafeedAction.Request request) {
-        PlainListenableActionFuture<DeleteDatafeedAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<DeleteDatafeedAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(DeleteDatafeedAction.INSTANCE, request, listener);
         return listener;
     }
@@ -77,8 +75,7 @@ public class MachineLearningClient {
 
     public ActionFuture<DeleteFilterAction.Response> deleteFilter(
             DeleteFilterAction.Request request) {
-        PlainListenableActionFuture<DeleteFilterAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<DeleteFilterAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(DeleteFilterAction.INSTANCE, request, listener);
         return listener;
     }
@@ -89,8 +86,7 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<DeleteJobAction.Response> deleteJob(DeleteJobAction.Request request) {
-        PlainListenableActionFuture<DeleteJobAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<DeleteJobAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(DeleteJobAction.INSTANCE, request, listener);
         return listener;
     }
@@ -102,8 +98,7 @@ public class MachineLearningClient {
 
     public ActionFuture<DeleteModelSnapshotAction.Response> deleteModelSnapshot(
             DeleteModelSnapshotAction.Request request) {
-        PlainListenableActionFuture<DeleteModelSnapshotAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<DeleteModelSnapshotAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(DeleteModelSnapshotAction.INSTANCE, request, listener);
         return listener;
     }
@@ -114,8 +109,7 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<FlushJobAction.Response> flushJob(FlushJobAction.Request request) {
-        PlainListenableActionFuture<FlushJobAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<FlushJobAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(FlushJobAction.INSTANCE, request, listener);
         return listener;
     }
@@ -126,8 +120,7 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<GetBucketsAction.Response> getBuckets(GetBucketsAction.Request request) {
-        PlainListenableActionFuture<GetBucketsAction.Response> listener =
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<GetBucketsAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetBucketsAction.INSTANCE, request, listener);
         return listener;
     }
@@ -139,8 +132,7 @@ public class MachineLearningClient {
 
     public ActionFuture<GetCategoriesAction.Response> getCategories(
             GetCategoriesAction.Request request) {
-        PlainListenableActionFuture<GetCategoriesAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<GetCategoriesAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetCategoriesAction.INSTANCE, request, listener);
         return listener;
     }
@@ -152,8 +144,7 @@ public class MachineLearningClient {
 
     public ActionFuture<GetDatafeedsAction.Response> getDatafeeds(
             GetDatafeedsAction.Request request) {
-        PlainListenableActionFuture<GetDatafeedsAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<GetDatafeedsAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetDatafeedsAction.INSTANCE, request, listener);
         return listener;
     }
@@ -165,8 +156,7 @@ public class MachineLearningClient {
 
     public ActionFuture<GetDatafeedsStatsAction.Response> getDatafeedsStats(
             GetDatafeedsStatsAction.Request request) {
-        PlainListenableActionFuture<GetDatafeedsStatsAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<GetDatafeedsStatsAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetDatafeedsStatsAction.INSTANCE, request, listener);
         return listener;
     }
@@ -177,21 +167,19 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<GetFiltersAction.Response> getFilters(GetFiltersAction.Request request) {
-        PlainListenableActionFuture<GetFiltersAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<GetFiltersAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetFiltersAction.INSTANCE, request, listener);
         return listener;
     }
 
     public void getInfluencers(GetInfluencersAction.Request request,
-            ActionListener<GetInfluencersAction.Response> listener) {
+                               ActionListener<GetInfluencersAction.Response> listener) {
         client.execute(GetInfluencersAction.INSTANCE, request, listener);
     }
 
     public ActionFuture<GetInfluencersAction.Response> getInfluencers(
             GetInfluencersAction.Request request) {
-        PlainListenableActionFuture<GetInfluencersAction.Response> listener =
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<GetInfluencersAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetInfluencersAction.INSTANCE, request, listener);
         return listener;
     }
@@ -202,8 +190,7 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<GetJobsAction.Response> getJobs(GetJobsAction.Request request) {
-        PlainListenableActionFuture<GetJobsAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<GetJobsAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetJobsAction.INSTANCE, request, listener);
         return listener;
     }
@@ -215,8 +202,7 @@ public class MachineLearningClient {
 
     public ActionFuture<GetJobsStatsAction.Response> getJobsStats(
             GetJobsStatsAction.Request request) {
-        PlainListenableActionFuture<GetJobsStatsAction.Response> listener =
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<GetJobsStatsAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetJobsStatsAction.INSTANCE, request, listener);
         return listener;
     }
@@ -228,8 +214,7 @@ public class MachineLearningClient {
 
     public ActionFuture<GetModelSnapshotsAction.Response> getModelSnapshots(
             GetModelSnapshotsAction.Request request) {
-        PlainListenableActionFuture<GetModelSnapshotsAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<GetModelSnapshotsAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetModelSnapshotsAction.INSTANCE, request, listener);
         return listener;
     }
@@ -240,8 +225,7 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<GetRecordsAction.Response> getRecords(GetRecordsAction.Request request) {
-        PlainListenableActionFuture<GetRecordsAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<GetRecordsAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(GetRecordsAction.INSTANCE, request, listener);
         return listener;
     }
@@ -252,8 +236,7 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<OpenJobAction.Response> openJob(OpenJobAction.Request request) {
-        PlainListenableActionFuture<OpenJobAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<OpenJobAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(OpenJobAction.INSTANCE, request, listener);
         return listener;
     }
@@ -264,8 +247,7 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<PostDataAction.Response> postData(PostDataAction.Request request) {
-        PlainListenableActionFuture<PostDataAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<PostDataAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(PostDataAction.INSTANCE, request, listener);
         return listener;
     }
@@ -276,8 +258,7 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<PutDatafeedAction.Response> putDatafeed(PutDatafeedAction.Request request) {
-        PlainListenableActionFuture<PutDatafeedAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<PutDatafeedAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(PutDatafeedAction.INSTANCE, request, listener);
         return listener;
     }
@@ -288,8 +269,7 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<PutFilterAction.Response> putFilter(PutFilterAction.Request request) {
-        PlainListenableActionFuture<PutFilterAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<PutFilterAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(PutFilterAction.INSTANCE, request, listener);
         return listener;
     }
@@ -300,8 +280,7 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<PutJobAction.Response> putJob(PutJobAction.Request request) {
-        PlainListenableActionFuture<PutJobAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<PutJobAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(PutJobAction.INSTANCE, request, listener);
         return listener;
     }
@@ -313,8 +292,7 @@ public class MachineLearningClient {
 
     public ActionFuture<RevertModelSnapshotAction.Response> revertModelSnapshot(
             RevertModelSnapshotAction.Request request) {
-        PlainListenableActionFuture<RevertModelSnapshotAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<RevertModelSnapshotAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(RevertModelSnapshotAction.INSTANCE, request, listener);
         return listener;
     }
@@ -326,8 +304,7 @@ public class MachineLearningClient {
 
     public ActionFuture<StartDatafeedAction.Response> startDatafeed(
             StartDatafeedAction.Request request) {
-        PlainListenableActionFuture<StartDatafeedAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<StartDatafeedAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(StartDatafeedAction.INSTANCE, request, listener);
         return listener;
     }
@@ -339,8 +316,7 @@ public class MachineLearningClient {
 
     public ActionFuture<StopDatafeedAction.Response> stopDatafeed(
             StopDatafeedAction.Request request) {
-        PlainListenableActionFuture<StopDatafeedAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<StopDatafeedAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(StopDatafeedAction.INSTANCE, request, listener);
         return listener;
     }
@@ -352,8 +328,7 @@ public class MachineLearningClient {
 
     public ActionFuture<PutDatafeedAction.Response> updateDatafeed(
             UpdateDatafeedAction.Request request) {
-        PlainListenableActionFuture<PutDatafeedAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<PutDatafeedAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(UpdateDatafeedAction.INSTANCE, request, listener);
         return listener;
     }
@@ -364,8 +339,7 @@ public class MachineLearningClient {
     }
 
     public ActionFuture<PutJobAction.Response> updateJob(UpdateJobAction.Request request) {
-        PlainListenableActionFuture<PutJobAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<PutJobAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(UpdateJobAction.INSTANCE, request, listener);
         return listener;
     }
@@ -377,8 +351,7 @@ public class MachineLearningClient {
 
     public ActionFuture<UpdateModelSnapshotAction.Response> updateModelSnapshot(
             UpdateModelSnapshotAction.Request request) {
-        PlainListenableActionFuture<UpdateModelSnapshotAction.Response> listener = 
-                new PlainListenableActionFuture<>(client.threadPool());
+        PlainActionFuture<UpdateModelSnapshotAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(UpdateModelSnapshotAction.INSTANCE, request, listener);
         return listener;
     }

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
@@ -36,14 +35,12 @@ import java.util.Map;
 /**
  * Base class that holds the various sections which a search response is
  * composed of (hits, aggs, suggestions etc.) and allows to retrieve them.
- * It implements {@link Writeable} as it is required by {@link SearchResponse},
- * but this implementation doesn't support serialization over the wire, for which it should be sub-classed.
  *
  * The reason why this class exists is that the high level REST client uses its own classes
  * to parse aggregations into, which are not serializable. This is the common part that can be
  * shared between core and client.
  */
-public class SearchResponseSections implements ToXContent, Writeable {
+public class SearchResponseSections implements ToXContent {
 
     protected final SearchHits hits;
     protected final Aggregations aggregations;
@@ -119,8 +116,7 @@ public class SearchResponseSections implements ToXContent, Writeable {
         return builder;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException();
     }
 }

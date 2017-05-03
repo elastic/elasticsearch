@@ -34,7 +34,8 @@ The following properties can be updated after the {dfeed} is created:
   span. For example: "150s".
 
 `indexes`::
-  (array) An array of index names. For example: ["it_ops_metrics"].
+  (array) An array of index names. Wildcards are supported. For example:
+  ["it_ops_metrics", "server*"].
 
 `job_id`::
  (string) A numerical character string that uniquely identifies the job.
@@ -70,8 +71,8 @@ For more information, see <<privileges-list-cluster>>.
 
 ===== Examples
 
-The following example updates the query for `datafeed-it-ops-kpi` {dfeed} so that
-only log entries of error level are analyzed:
+The following example updates the query for the `datafeed-it-ops-kpi` {dfeed}
+so that only log entries of error level are analyzed:
 
 [source,js]
 --------------------------------------------------
@@ -87,8 +88,9 @@ POST _xpack/ml/datafeeds/datafeed-it-ops-kpi/_update
 // CONSOLE
 // TEST[skip:todo]
 
-When the {dfeed} is updated, you receive the full datafeed configuration with
+When the {dfeed} is updated, you receive the full {dfeed} configuration with
 with the updated values:
+
 [source,js]
 ----
 {

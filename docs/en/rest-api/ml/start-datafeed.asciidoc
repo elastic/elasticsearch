@@ -44,7 +44,7 @@ If the system restarts, any jobs that had {dfeeds} running are also restarted.
 
 When a stopped {dfeed} is restarted, it continues processing input data from
 the next millisecond after it was stopped. If new data was indexed for that
-exact millisecond, between stopping and starting, it will be ignored.
+exact millisecond between stopping and starting, it will be ignored.
 If you specify a `start` value that is earlier than the timestamp of the latest
 processed record, the {dfeed} continues from 1 millisecond after the timestamp
 of the latest processed record.

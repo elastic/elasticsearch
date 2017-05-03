@@ -135,7 +135,7 @@ public abstract class ParsedMultiBucketAggregation extends ParsedAggregation imp
                 builder.startObject();
             }
             if (keyAsString != null) {
-                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), keyAsString);
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), getKeyAsString());
             }
             builder.field(CommonFields.KEY.getPreferredName(), key);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);

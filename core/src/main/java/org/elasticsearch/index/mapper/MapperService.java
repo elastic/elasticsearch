@@ -99,7 +99,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final Setting<Boolean> INDEX_MAPPING_SINGLE_TYPE_SETTING;
     static {
         Function<Settings, String> defValue = settings -> {
-            // TODO: uncomment this
             boolean singleType = true;
             if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null) {
                 singleType = Version.indexCreated(settings).onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED);

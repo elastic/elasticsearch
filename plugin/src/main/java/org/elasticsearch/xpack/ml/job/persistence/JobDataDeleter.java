@@ -105,18 +105,16 @@ public class JobDataDeleter {
      * Delete all results marked as interim
      */
     public void deleteInterimResults() {
-        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
-        request.setRefresh(false);
-        request.setSlices(5);
+        DeleteByQueryHolder deleteByQueryHolder = new DeleteByQueryHolder(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
+        deleteByQueryHolder.dbqRequest.setRefresh(false);
 
-        searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        searchRequest.types(Result.TYPE.getPreferredName());
+        deleteByQueryHolder.searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        deleteByQueryHolder.searchRequest.types(Result.TYPE.getPreferredName());
         QueryBuilder qb = QueryBuilders.termQuery(Bucket.IS_INTERIM.getPreferredName(), true);
-        searchRequest.source(new SearchSourceBuilder().query(new ConstantScoreQueryBuilder(qb)));
+        deleteByQueryHolder.searchRequest.source(new SearchSourceBuilder().query(new ConstantScoreQueryBuilder(qb)));
 
         try {
-            client.execute(XPackDeleteByQueryAction.INSTANCE, request).get();
+            client.execute(XPackDeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest).get();
         } catch (Exception e) {
             LOGGER.error("[" + jobId + "] An error occurred while deleting interim results", e);
         }

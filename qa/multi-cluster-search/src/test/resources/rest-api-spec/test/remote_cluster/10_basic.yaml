@@ -2,6 +2,54 @@
 "Index data and search on the old cluster":
 
   - do:
+        indices.create:
+          index: field_caps_index_1
+          body:
+              mappings:
+                t:
+                  properties:
+                    text:
+                      type:     text
+                    keyword:
+                      type:     keyword
+                    number:
+                      type:     double
+                    geo:
+                      type:     geo_point
+                    object:
+                      type: object
+                      properties:
+                        nested1 :
+                          type : text
+                          index: false
+                        nested2:
+                          type: float
+                          doc_values: false
+  - do:
+        indices.create:
+          index: field_caps_index_3
+          body:
+              mappings:
+                t:
+                  properties:
+                    text:
+                      type:     text
+                    keyword:
+                      type:     keyword
+                    number:
+                      type:     long
+                    geo:
+                      type:     keyword
+                    object:
+                      type: object
+                      properties:
+                        nested1 :
+                          type : long
+                          index: false
+                        nested2:
+                          type: keyword
+                          doc_values: false
+  - do:
       indices.create:
         index: test_index
         body:

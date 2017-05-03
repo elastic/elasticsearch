@@ -178,35 +178,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final SearchTimeProvider timeProvider =
                 new SearchTimeProvider(absoluteStartMillis, relativeStartNanos, System::nanoTime);
 
-        final OriginalIndices localIndices;
-        final Map<String, OriginalIndices> remoteClusterIndices;
-        final ClusterState clusterState = clusterService.state();
-        if (remoteClusterService.isCrossClusterSearchEnabled()) {
-            final Map<String, List<String>> groupedIndices = remoteClusterService.groupClusterIndices(searchRequest.indices(),
-                // empty string is not allowed
-                idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
-            List<String> remove = groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            String[] indices = remove == null ? Strings.EMPTY_ARRAY : remove.toArray(new String[remove.size()]);
-            localIndices = new OriginalIndices(indices, searchRequest.indicesOptions());
-            Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-            for (Map.Entry<String, List<String>> entry : groupedIndices.entrySet()) {
-                String clusterAlias = entry.getKey();
-                List<String> originalIndices = entry.getValue();
-                originalIndicesMap.put(clusterAlias,
-                        new OriginalIndices(originalIndices.toArray(new String[originalIndices.size()]), searchRequest.indicesOptions()));
-            }
-            remoteClusterIndices = Collections.unmodifiableMap(originalIndicesMap);
-        } else {
-            remoteClusterIndices = Collections.emptyMap();
-            localIndices = new OriginalIndices(searchRequest);
-        }
 
+        final ClusterState clusterState = clusterService.state();
+        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(searchRequest.indicesOptions(),
+            searchRequest.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
+        OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         if (remoteClusterIndices.isEmpty()) {
             executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, Collections.emptyList(),
                 (clusterName, nodeId) -> null, clusterState, Collections.emptyMap(), listener);
         } else {
-            remoteClusterService.collectSearchShards(searchRequest, remoteClusterIndices,
-                ActionListener.wrap((searchShardsResponses) -> {
+            remoteClusterService.collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
+                remoteClusterIndices, ActionListener.wrap((searchShardsResponses) -> {
                     List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
                     Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
                     BiFunction<String, String, DiscoveryNode> clusterNodeLookup = processRemoteShards(searchShardsResponses,

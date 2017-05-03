@@ -22,104 +22,107 @@ package org.elasticsearch.transport.nio.channel;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.StreamCorruptedException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 public class TcpReadContextTests extends ESTestCase {
 
     private static String PROFILE = "profile";
     private TcpReadHandler handler;
     private int messageLength;
-    private ReadChannelImpl channel;
-    private NewTcpReadContext readContext;
+    private NioSocketChannel channel;
+    private TcpReadContext readContext;
+    private TcpFrameDecoder frameDecoder;
 
     @Before
     public void init() throws IOException {
         handler = mock(TcpReadHandler.class);
 
         messageLength = randomInt(96) + 4;
-        channel = new ReadChannelImpl();
-        readContext = new NewTcpReadContext(channel, handler);
+        channel = mock(NioSocketChannel.class);
+        readContext = new TcpReadContext(channel, handler);
+
+        when(channel.getProfile()).thenReturn(PROFILE);
     }
 
     public void testSuccessfulRead() throws IOException {
         byte[] bytes = createMessage(messageLength);
         byte[] fullMessage = combineMessageAndHeader(bytes);
 
-        channel.setBytes(fullMessage);
+        final AtomicInteger bufferCapacity = new AtomicInteger();
+        when(channel.read(any(ByteBuffer.class))).thenAnswer(invocationOnMock -> {
+            ByteBuffer buffer = (ByteBuffer) invocationOnMock.getArguments()[0];
+            bufferCapacity.set(buffer.capacity());
+            buffer.put(fullMessage);
+            return fullMessage.length;
+        });
 
         readContext.read();
 
         verify(handler).handleMessage(new BytesArray(bytes), channel, PROFILE, messageLength);
+        assertEquals(1024 * 16, bufferCapacity.get());
+
+        BytesArray bytesArray = new BytesArray(new byte[10]);
+        bytesArray.slice(5, 5);
+        bytesArray.slice(5, 0);
     }
 
-//    public void testPartialHeaderRead() throws IOException {
-//        byte[] fullMessage = createMessage(messageLength);
-//        byte[] fullMessageWithHeader = combineMessageAndHeader(fullMessage);
-//        ByteBuffer buffer = ByteBuffer.wrap(fullMessageWithHeader);
-//        byte[] part1 = new byte[5];
-//        byte[] part2 = new byte[fullMessageWithHeader.length - 5];
-//        buffer.get(part1);
-//        buffer.get(part2);
-//
-//        channel.setBytes(part1);
-//
-//        readContext.read();
-//
-//        verifyZeroInteractions(handler);
-//
-//        channel.setBytes(part2);
-//
-//        readContext.read();
-//
-//        verify(handler).handleMessage(new BytesArray(fullMessage), channel, PROFILE, messageLength);
-//    }
-//
-//    public void testPartialMessageRead() throws IOException {
-//        byte[] part1 = createMessage(messageLength);
-//        byte[] fullPart1 = combineMessageAndHeader(part1, messageLength + messageLength);
-//        byte[] part2 = createMessage(messageLength);
-//
-//        channel.setBytes(fullPart1);
-//
-//        readContext.read();
-//
-//        verifyZeroInteractions(handler);
-//
-//        channel.setBytes(part2);
-//
-//        readContext.read();
-//
-//        CompositeBytesReference reference = new CompositeBytesReference(new BytesArray(part1), new BytesArray(part2));
-//        verify(handler).handleMessage(reference, channel, PROFILE, messageLength + messageLength);
-//    }
+    public void testPartialRead() throws IOException {
+        byte[] part1 = createMessage(messageLength);
+        byte[] fullPart1 = combineMessageAndHeader(part1, messageLength + messageLength);
+        byte[] part2 = createMessage(messageLength);
+
+        final AtomicInteger bufferCapacity = new AtomicInteger();
+        final AtomicReference<byte[]> bytes = new AtomicReference<>();
+
+        when(channel.read(any(ByteBuffer.class))).thenAnswer(invocationOnMock -> {
+            ByteBuffer buffer = (ByteBuffer) invocationOnMock.getArguments()[0];
+            bufferCapacity.set(buffer.limit() - buffer.position());
+            buffer.put(bytes.get());
+            return bytes.get().length;
+        });
+
+
+        bytes.set(fullPart1);
+        readContext.read();
+
+        assertEquals(1024 * 16, bufferCapacity.get());
+        verifyZeroInteractions(handler);
+
+        bytes.set(part2);
+        readContext.read();
+
+        assertEquals(1024 * 16 - fullPart1.length, bufferCapacity.get());
+
+        CompositeBytesReference reference = new CompositeBytesReference(new BytesArray(part1), new BytesArray(part2));
+        verify(handler).handleMessage(reference, channel, PROFILE, messageLength + messageLength);
+    }
 
     public void testReadThrowsIOException() throws IOException {
-        byte[] fullMessage = combineMessageAndHeader(createMessage(messageLength));
-
-        channel.setBytes(fullMessage);
-        channel.setThrowException(true);
+        IOException ioException = new IOException();
+        when(channel.read(any())).thenThrow(ioException);
 
         try {
             readContext.read();
             fail("Expected exception");
         } catch (Exception ex) {
-            assertThat(ex, instanceOf(IOException.class));
-            assertEquals("Boom!", ex.getMessage());
+            assertSame(ioException, ex);
         }
     }
+
+    // TODO: More extensive testing.
 
     private static byte[] combineMessageAndHeader(byte[] bytes) {
         return combineMessageAndHeader(bytes, bytes.length);
@@ -143,62 +146,4 @@ public class TcpReadContextTests extends ESTestCase {
         return bytes;
     }
 
-    private static byte[] createPing() {
-        byte[] fullMessage = new byte[6];
-        ByteBuffer wrapped = ByteBuffer.wrap(fullMessage);
-        wrapped.put((byte) 'E');
-        wrapped.put((byte) 'S');
-        wrapped.putInt(-1);
-        return fullMessage;
-    }
-
-    private static class ReadChannelImpl extends NioSocketChannel {
-
-        private byte[] bytes;
-        private int currentPosition = 0;
-        private boolean shouldThrow;
-
-        ReadChannelImpl() throws IOException {
-            this(mock(SocketChannel.class));
-        }
-
-        ReadChannelImpl(SocketChannel socketChannel) throws IOException {
-            super(PROFILE, socketChannel);
-        }
-
-        @Override
-        public int read(ByteBuffer buffer) throws IOException {
-            if (shouldThrow) {
-                throw new IOException("Boom!");
-            }
-
-            int startPosition = currentPosition;
-            while (buffer.hasRemaining() && currentPosition != bytes.length) {
-                buffer.put(bytes[currentPosition++]);
-            }
-            return currentPosition - startPosition;
-        }
-
-        @Override
-        public long vectorizedRead(ByteBuffer[] buffers) throws IOException {
-            if (shouldThrow) {
-                throw new IOException("Boom!");
-            }
-
-            int startPosition = currentPosition;
-            while (buffers[0].hasRemaining() && currentPosition != bytes.length) {
-                buffers[0].put(bytes[currentPosition++]);
-            }
-            return currentPosition - startPosition;
-        }
-
-        void setBytes(byte[] bytes) {
-            this.currentPosition = 0;
-            this.bytes = bytes;
-        }
-
-        void setThrowException(boolean shouldThrow) {
-            this.shouldThrow = shouldThrow;
-        }
-    }
 }

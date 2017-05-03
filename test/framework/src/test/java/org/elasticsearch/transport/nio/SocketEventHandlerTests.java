@@ -25,8 +25,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.DoNotRegisterChannel;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.channel.ReadContext;
 import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
-import org.elasticsearch.transport.nio.channel.TcpReadContext;
 import org.elasticsearch.transport.nio.channel.TcpWriteContext;
 import org.junit.Before;
 
@@ -47,7 +47,7 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     private SocketEventHandler handler;
     private NioSocketChannel channel;
-    private TcpReadContext readContext;
+    private ReadContext readContext;
     private SocketChannel rawChannel;
 
     @Before
@@ -58,7 +58,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         handler = new SocketEventHandler(logger, exceptionHandler);
         rawChannel = mock(SocketChannel.class);
         channel = new DoNotRegisterChannel("", rawChannel);
-        readContext = mock(TcpReadContext.class);
+        readContext = mock(ReadContext.class);
         when(rawChannel.finishConnect()).thenReturn(true);
 
         channel.setContexts(readContext, new TcpWriteContext(channel));

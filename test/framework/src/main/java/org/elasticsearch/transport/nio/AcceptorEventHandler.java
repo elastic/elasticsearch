@@ -39,24 +39,50 @@ public class AcceptorEventHandler extends EventHandler {
         this.selectorSupplier = selectorSupplier;
     }
 
+    /**
+     * This method is called when a NioServerSocketChannel is successfully registered. It should only be
+     * called once per channel.
+     *
+     * @param nioServerSocketChannel that was registered
+     */
     public void serverChannelRegistered(NioServerSocketChannel nioServerSocketChannel) {
         SelectionKeyUtils.setAcceptInterested(nioServerSocketChannel);
         openChannels.serverChannelOpened(nioServerSocketChannel);
     }
 
-    public void acceptChannel(NioServerSocketChannel nioChannel) throws IOException {
-        ChannelFactory channelFactory = nioChannel.getChannelFactory();
-        NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioChannel);
+    /**
+     * This method is called when a server channel signals it is ready to accept a connection. All of the
+     * accept logic should occur in this call.
+     *
+     * @param nioServerChannel that can accept a connection
+     */
+    public void acceptChannel(NioServerSocketChannel nioServerChannel) throws IOException {
+        ChannelFactory channelFactory = nioServerChannel.getChannelFactory();
+        NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioServerChannel);
         openChannels.acceptedChannelOpened(nioSocketChannel);
         nioSocketChannel.getCloseFuture().setListener(openChannels::channelClosed);
         selectorSupplier.get().registerSocketChannel(nioSocketChannel);
     }
 
-    public void acceptException(NioServerSocketChannel nioChannel, IOException exception) {
+    /**
+     * This method is called when an attempt to accept a connection throws an exception.
+     *
+     * @param nioServerChannel that accepting a connection
+     * @param exception that occurred
+     */
+    public void acceptException(NioServerSocketChannel nioServerChannel, Exception exception) {
         logger.debug("exception while accepting new channel", exception);
     }
 
-    public void genericServerChannelException(NioServerSocketChannel channel, Exception e) {
-        logger.trace("event handling exception", e);
+    /**
+     * This method is called when handling an event from a channel fails due to an unexpected exception.
+     * An example would be if checking ready ops on a {@link java.nio.channels.SelectionKey} threw
+     * {@link java.nio.channels.CancelledKeyException}.
+     *
+     * @param channel that caused the exception
+     * @param exception that was thrown
+     */
+    public void genericServerChannelException(NioServerSocketChannel channel, Exception exception) {
+        logger.trace("event handling exception", exception);
     }
 }

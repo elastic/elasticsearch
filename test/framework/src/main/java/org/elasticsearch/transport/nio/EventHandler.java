@@ -22,8 +22,10 @@ package org.elasticsearch.transport.nio;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
+import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.io.IOException;
+import java.nio.channels.Selector;
 
 public abstract class EventHandler {
 
@@ -33,15 +35,30 @@ public abstract class EventHandler {
         this.logger = logger;
     }
 
-    public void selectException(IOException e) {
-        logger.warn("io exception during select", e);
+    /**
+     * This method handles an IOException that was thrown during a call to {@link Selector#select(long)}.
+     *
+     * @param exception that was uncaught
+     */
+    public void selectException(IOException exception) {
+        logger.warn("io exception during select", exception);
     }
 
-    public void uncaughtException(Exception e) {
+    /**
+     * This method handles an exception that was uncaught during a select loop.
+     *
+     * @param exception that was uncaught
+     */
+    public void uncaughtException(Exception exception) {
         Thread thread = Thread.currentThread();
-        thread.getUncaughtExceptionHandler().uncaughtException(thread, e);
+        thread.getUncaughtExceptionHandler().uncaughtException(thread, exception);
     }
 
+    /**
+     * This method handles the closing of an NioChannel
+     *
+     * @param channel that should be closed
+     */
     public void handleClose(NioChannel channel) throws IOException {
         channel.closeFromSelector();
         CloseFuture closeFuture = channel.getCloseFuture();
@@ -52,7 +69,13 @@ public abstract class EventHandler {
         }
     }
 
-    public void closeException(NioChannel channel, Exception e) {
-        logger.trace("exception while closing channel", e);
+    /**
+     * This method is called when an attempt to close a channel throws an exception.
+     *
+     * @param channel that was closed
+     * @param exception that occurred during close()
+     */
+    public void closeException(NioChannel channel, Exception exception) {
+        logger.trace("exception while closing channel", exception);
     }
 }

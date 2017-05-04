@@ -215,6 +215,14 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackOnlyWithDocValuesDisabledAndDatafeedSourceDisabled() throws Exception {
         new LookbackOnlyTestHelper("lookback-3", "airline-data-disabled-doc-values").setShouldSucceedInput(false)
                 .setShouldSucceedProcessing(false).execute();
+
+        // Assert the error notification for doc values is there
+        client().performRequest("post", ".ml-notifications/_refresh");
+        String query = "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"job_id\":\"lookback-3\"}}, {\"term\":{\"level\":\"error\"}}]}}}";
+        Response response = client().performRequest("get", ".ml-notifications/_search", Collections.emptyMap(),
+                new StringEntity(query, ContentType.APPLICATION_JSON));
+        assertThat(responseEntityToString(response), containsString("One or more fields do not have doc values; please enable doc values " +
+                "for all analysis fields or enable _source on the datafeed"));
     }
 
     public void testLookbackOnlyWithDocValuesDisabledAndDatafeedSourceEnabled() throws Exception {

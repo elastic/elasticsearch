@@ -159,6 +159,16 @@ class DatafeedJob {
                 // When extraction problems are encountered, we do not want to advance time.
                 // Instead, it is preferable to retry the given interval next time an extraction
                 // is triggered.
+
+                // A common issue for our users is that they have fields without doc values.
+                // Yet, they did not enable _source on the datafeed. It is really useful
+                // to display a specific error message for this situation. Unfortunately,
+                // there are no great ways to identify the issue but search for 'doc values'
+                // deep in the exception.
+                if (e.toString().contains("doc values")) {
+                    throw new ExtractionProblemException(new IllegalArgumentException("One or more fields do not have doc values; " +
+                            "please enable doc values for all analysis fields or enable _source on the datafeed"));
+                }
                 throw new ExtractionProblemException(e);
             }
             if (extractedData.isPresent()) {

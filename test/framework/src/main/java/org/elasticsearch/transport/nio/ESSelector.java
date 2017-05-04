@@ -33,6 +33,15 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * This is a basic selector abstraction used by {@link org.elasticsearch.transport.nio.NioTransport}. This
+ * selector wraps a raw nio {@link Selector}. When you call {@link #runLoop()}, the selector will run until
+ * {@link #close()} is called. This instance handles closing of channels. Users should call
+ * {@link #queueChannelClose(NioChannel)} to schedule a channel for close by this selector.
+ * <p>
+ * Children of this class should implement the specific {@link #doSelect(int)} and {@link #cleanup()}
+ * functionality.
+ */
 public abstract class ESSelector implements Closeable {
 
     protected final Selector selector;
@@ -55,6 +64,10 @@ public abstract class ESSelector implements Closeable {
         this.selector = selector;
     }
 
+    /**
+     * Starts this selector. The selector will run until {@link #close()} or {@link #close(boolean)} is
+     * called.
+     */
     public void runLoop() {
         if (runLock.tryLock()) {
             try {
@@ -89,6 +102,13 @@ public abstract class ESSelector implements Closeable {
         }
     }
 
+    /**
+     * Should implement the specific select logic. This will be called once per {@link #singleLoop()}
+     *
+     * @param timeout to pass to the raw select operation
+     * @throws IOException             thrown by the raw select operation
+     * @throws ClosedSelectorException thrown if the raw selector is closed
+     */
     public abstract void doSelect(int timeout) throws IOException, ClosedSelectorException;
 
     protected void setThread() {
@@ -110,7 +130,7 @@ public abstract class ESSelector implements Closeable {
 
     @Override
     public void close() throws IOException {
-        close(true);
+        close(false);
     }
 
     public void close(boolean shouldInterrupt) throws IOException {
@@ -118,6 +138,8 @@ public abstract class ESSelector implements Closeable {
             selector.close();
             if (shouldInterrupt && thread != null) {
                 thread.interrupt();
+            } else {
+                wakeup();
             }
             runLock.lock(); // wait for the shutdown to complete
         }
@@ -135,6 +157,10 @@ public abstract class ESSelector implements Closeable {
         }
     }
 
+
+    /**
+     * Called once as the selector is being closed.
+     */
     protected abstract void cleanup();
 
     public BigArrays getBigArrays() {

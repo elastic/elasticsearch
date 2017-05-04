@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 
 import java.io.IOException;
@@ -32,6 +33,10 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+/**
+ * Selector implementation that handles {@link NioServerSocketChannel}. It's main piece of functionality is
+ * accepting new channels.
+ */
 public class AcceptingSelector extends ESSelector {
 
     private static final CancelledKeyException CANCELLED_KEY_EXCEPTION = new CancelledKeyException();
@@ -71,8 +76,14 @@ public class AcceptingSelector extends ESSelector {
         closePendingChannels();
     }
 
-    public void registerServerChannel(NioServerSocketChannel serverSocketChannel) throws ClosedChannelException {
+    /**
+     * Registers a NioServerSocketChannel to be handled by this selector. The channel will by queued and
+     * eventually registered next time through the event loop.
+     * @param serverSocketChannel the channel to register
+     */
+    public void registerServerChannel(NioServerSocketChannel serverSocketChannel) {
         newChannels.add(serverSocketChannel);
+        wakeup();
     }
 
     private void setUpNewServerChannels() throws ClosedChannelException {

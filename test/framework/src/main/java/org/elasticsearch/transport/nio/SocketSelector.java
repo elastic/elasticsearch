@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.channel.WriteContext;
@@ -34,6 +35,10 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+/**
+ * Selector implementation that handles {@link NioSocketChannel}. It's main piece of functionality is
+ * handling connect, read, and write events.
+ */
 public class SocketSelector extends ESSelector {
 
     private static final ClosedSelectorException CLOSED_SELECTOR_EXCEPTION = new ClosedSelectorException();
@@ -78,11 +83,23 @@ public class SocketSelector extends ESSelector {
         closePendingChannels();
     }
 
+    /**
+     * Registers a NioSocketChannel to be handled by this selector. The channel will by queued and eventually
+     * registered next time through the event loop.
+     * @param nioSocketChannel the channel to register
+     */
     public void registerSocketChannel(NioSocketChannel nioSocketChannel) {
         newChannels.offer(nioSocketChannel);
         wakeup();
     }
 
+
+    /**
+     * Queues a write operation to be handled by the event loop. This can be called by any thread and is the
+     * api available for non-selector threads to schedule writes.
+     *
+     * @param writeOperation to be queued
+     */
     public void queueWrite(WriteOperation writeOperation) {
         queuedWrites.offer(writeOperation);
         if (isOpen() == false) {
@@ -95,6 +112,12 @@ public class SocketSelector extends ESSelector {
         }
     }
 
+    /**
+     * Queues a write operation directly in a channel's buffer. Channel buffers are only safe to be accessed
+     * by the selector thread. As a result, this method should only be called by the selector thread.
+     *
+     * @param writeOperation to be queued in a channel's buffer
+     */
     public void queueWriteInChannelBuffer(WriteOperation writeOperation) {
         assert isOnCurrentThread() : "Must be on selector thread";
         NioSocketChannel channel = writeOperation.getChannel();

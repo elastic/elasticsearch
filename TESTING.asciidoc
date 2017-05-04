@@ -350,7 +350,7 @@ These are the linux flavors the Vagrantfile currently supports:
 * debian-8 aka jessie, the current debian stable distribution
 * centos-6
 * centos-7
-* fedora-24
+* fedora-25
 * oel-6 aka Oracle Enterprise Linux 6
 * oel-7 aka Oracle Enterprise Linux 7
 * sles-12
@@ -436,13 +436,13 @@ vagrantUbuntu1604#up.
 Once up, you can then connect to the VM using SSH from the elasticsearch directory:
 
 -------------------------------------------------
-vagrant ssh fedora-24
+vagrant ssh fedora-25
 -------------------------------------------------
 
 Or from another directory:
 
 -------------------------------------------------
-VAGRANT_CWD=/path/to/elasticsearch vagrant ssh fedora-24
+VAGRANT_CWD=/path/to/elasticsearch vagrant ssh fedora-25
 -------------------------------------------------
 
 Note: Starting vagrant VM outside of the elasticsearch folder requires to

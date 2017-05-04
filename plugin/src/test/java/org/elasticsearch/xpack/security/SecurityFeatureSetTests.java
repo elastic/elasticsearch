@@ -40,6 +40,8 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
@@ -237,7 +239,8 @@ public class SecurityFeatureSetTests extends ESTestCase {
                     assertThat(source.getValue("role_mapping.native.size"), is(12));
                     assertThat(source.getValue("role_mapping.native.enabled"), is(10));
                 } else {
-                    assertThat(((Map) source.getValue("role_mapping")).isEmpty(), is(true));
+                    final Map<String, Object> roleMapping = source.getValue("role_mapping.native");
+                    assertThat(roleMapping.entrySet(), emptyIterable());
                 }
 
                 // system key

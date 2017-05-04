@@ -323,6 +323,26 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             }
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            final RoleMappingEntry that = (RoleMappingEntry) o;
+            return Objects.equals(this.fileContent, that.fileContent)
+                    && Objects.equals(this.nativeContent, that.nativeContent);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hashCode(fileContent);
+            result = 31 * result + Objects.hashCode(nativeContent);
+            return result;
+        }
     }
 
     /**

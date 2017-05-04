@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -40,8 +41,10 @@ public class MultipleAdRealmTests extends AbstractAdLdapRealmTestCase {
 
         // It's easier to test 2 realms when using file based role mapping, and for the purposes of
         // this test, there's no need to test native mappings.
-        AbstractAdLdapRealmTestCase.roleMappings = new ArrayList<>(realmConfig.selectRoleMappings(() -> true));
-        AbstractAdLdapRealmTestCase.roleMappings.addAll(secondaryRealmConfig.selectRoleMappings(() -> true));
+        AbstractAdLdapRealmTestCase.roleMappings = Stream.concat(
+                realmConfig.selectRoleMappings(() -> true).stream(),
+                secondaryRealmConfig.selectRoleMappings(() -> true).stream()
+        ).distinct().collect(Collectors.toList());
     }
 
     @Override

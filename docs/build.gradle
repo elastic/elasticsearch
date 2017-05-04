@@ -82,7 +82,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/query-dsl/exists-query.asciidoc',
   'reference/search/field-stats.asciidoc',
   'reference/search/profile.asciidoc',
-  'reference/search/request/inner-hits.asciidoc',
 ]
 
 integTestCluster {

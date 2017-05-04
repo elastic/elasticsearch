@@ -59,7 +59,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/modules/cross-cluster-search.asciidoc', // this is hard to test since we need 2 clusters -- maybe we can trick it into referencing itself...
   'reference/search/field-stats.asciidoc',
   'reference/search/profile.asciidoc',
-  'reference/search/request/inner-hits.asciidoc',
 ]
 
 integTestCluster {

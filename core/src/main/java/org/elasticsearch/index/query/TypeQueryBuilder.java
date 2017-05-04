@@ -133,7 +133,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
             // no type means no documents
             return new MatchNoDocsQuery();
         } else {
-            return documentMapper.typeFilter();
+            return documentMapper.typeFilter(context);
         }
     }
 

@@ -30,11 +30,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -252,8 +252,8 @@ public class DocumentMapper implements ToXContent {
         return metadataMapper(IndexFieldMapper.class);
     }
 
-    public Query typeFilter() {
-        return typeMapper().fieldType().termQuery(type, null);
+    public Query typeFilter(QueryShardContext context) {
+        return typeMapper().fieldType().termQuery(type, context);
     }
 
     public boolean hasNestedObjects() {

@@ -98,8 +98,8 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<P
             parentType = parentFieldMapper.type();
             DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
             if (parentDocMapper != null) {
-                parentFilter = parentDocMapper.typeFilter();
-                childFilter = childDocMapper.typeFilter();
+                parentFilter = parentDocMapper.typeFilter(context.getQueryShardContext());
+                childFilter = childDocMapper.typeFilter(context.getQueryShardContext());
                 ParentChildIndexFieldData parentChildIndexFieldData = context.fieldData()
                         .getForField(parentFieldMapper.fieldType());
                 config.fieldContext(new FieldContext(parentFieldMapper.fieldType().name(), parentChildIndexFieldData,

@@ -22,13 +22,61 @@ setup:
               "cluster": ["monitor"],
               "indices": [
                 {
-                  "names": ["test_index", "aliased_test_index"],
+                  "names": ["test_index", "aliased_test_index", "field_caps_index_1", "field_caps_index_3"],
                   "privileges": ["read", "read_cross_cluster"]
                 }
               ]
             }
 ---
 "Index data and search on the remote cluster":
+  - do:
+        indices.create:
+          index: field_caps_index_1
+          body:
+              mappings:
+                t:
+                  properties:
+                    text:
+                      type:     text
+                    keyword:
+                      type:     keyword
+                    number:
+                      type:     double
+                    geo:
+                      type:     geo_point
+                    object:
+                      type: object
+                      properties:
+                        nested1 :
+                          type : text
+                          index: false
+                        nested2:
+                          type: float
+                          doc_values: false
+  - do:
+        indices.create:
+          index: field_caps_index_3
+          body:
+              mappings:
+                t:
+                  properties:
+                    text:
+                      type:     text
+                    keyword:
+                      type:     keyword
+                    number:
+                      type:     long
+                    geo:
+                      type:     keyword
+                    object:
+                      type: object
+                      properties:
+                        nested1 :
+                          type : long
+                          index: false
+                        nested2:
+                          type: keyword
+                          doc_values: false
 
   - do:
       indices.create:

@@ -71,7 +71,7 @@ setup:
           }
   - match: { datafeed_id: "test-datafeed-1" }
   - match: { job_id: "datafeeds-crud-1" }
-  - match: { indexes: ["index-foo"] }
+  - match: { indices: ["index-foo"] }
   - match: { types: ["type-bar"] }
   - match: { scroll_size: 1000 }
   - is_true: query.match_all
@@ -166,7 +166,7 @@ setup:
           }
   - match: { datafeed_id: "test-datafeed-1" }
   - match: { job_id: "datafeeds-crud-1" }
-  - match: { indexes: ["index-*"] }
+  - match: { indices: ["index-*"] }
   - match: { types: ["type-bar"] }
   - match: { scroll_size: 10000 }
   - match: { frequency: "2m" }
@@ -194,7 +194,7 @@ setup:
           }
   - match: { datafeed_id: "test-datafeed-1" }
   - match: { job_id: "datafeeds-crud-2" }
-  - match: { indexes: ["index-foo"] }
+  - match: { indices: ["index-foo"] }
   - match: { types: ["type-bar"] }
 
 ---
@@ -275,7 +275,7 @@ setup:
         body:  >
           {
             "job_id":"datafeeds-crud-1",
-            "indexes":["index-foo"],
+            "indices":["index-foo"],
             "types":["type-bar"],
             "chunking_config": {"mode":"manual","time_span": "1h"}
           }

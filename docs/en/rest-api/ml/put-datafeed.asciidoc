@@ -38,7 +38,7 @@ You must create a job before you create a {dfeed}.  You can associate only one
   bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
   span. For example: "150s".
 
-`indexes` (required)::
+`indices` (required)::
   (array) An array of index names. Wildcards are supported. For example: 
   ["it_ops_metrics", "server*"].
 
@@ -83,7 +83,7 @@ The following example creates the `datafeed-it-ops-kpi` {dfeed}:
 PUT _xpack/ml/datafeeds/datafeed-it-ops-kpi
 {
   "job_id": "it-ops-kpi",
-  "indexes": ["it_ops_metrics"],
+  "indices": ["it_ops_metrics"],
   "types": ["kpi","network","sql"],
   "query": {
     "match_all": {
@@ -102,7 +102,7 @@ When the {dfeed} is created, you receive the following results:
   "datafeed_id": "datafeed-it-ops-kpi",
   "job_id": "it-ops-kpi",
   "query_delay": "1m",
-  "indexes": [
+  "indices": [
     "it_ops_metrics"
   ],
   "types": [

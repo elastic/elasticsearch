@@ -233,8 +233,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
                 // We just check for permission to use the search action.  In reality we'll also
                 // use the scroll action, but that's considered an implementation detail.
                 privRequest.indexPrivileges(RoleDescriptor.IndicesPrivileges.builder()
-                        .indices(request.getDatafeed().getIndexes()
-                                .toArray(new String[0]))
+                        .indices(request.getDatafeed().getIndices().toArray(new String[0]))
                         .privileges(SearchAction.NAME)
                         .build());
 
@@ -259,7 +258,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
                 builder.endObject();
 
                 listener.onFailure(Exceptions.authorizationError("Cannot create datafeed [{}]" +
-                                " because user {} lacks permissions on the indexes to be" +
+                                " because user {} lacks permissions on the indices to be" +
                                 " searched: {}",
                         request.getDatafeed().getId(), username, builder.string()));
             }

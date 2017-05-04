@@ -107,7 +107,7 @@ class AggregationDataExtractor implements DataExtractor {
 
     private SearchRequestBuilder buildSearchRequest() {
         SearchRequestBuilder searchRequestBuilder = SearchAction.INSTANCE.newRequestBuilder(client)
-                .setIndices(context.indexes)
+                .setIndices(context.indices)
                 .setTypes(context.types)
                 .setSize(0)
                 .setQuery(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end));

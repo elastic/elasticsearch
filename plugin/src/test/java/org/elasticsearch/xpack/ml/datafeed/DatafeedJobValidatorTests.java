@@ -145,7 +145,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
 
     private static DatafeedConfig.Builder createValidDatafeedConfig() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("my-datafeed", "my-job");
-        builder.setIndexes(Collections.singletonList("myIndex"));
+        builder.setIndices(Collections.singletonList("myIndex"));
         builder.setTypes(Collections.singletonList("myType"));
         return builder;
     }

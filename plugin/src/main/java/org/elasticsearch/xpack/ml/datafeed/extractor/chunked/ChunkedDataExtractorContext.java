@@ -16,7 +16,7 @@ class ChunkedDataExtractorContext {
 
     final String jobId;
     final String timeField;
-    final String[] indexes;
+    final String[] indices;
     final String[] types;
     final QueryBuilder query;
     final int scrollSize;
@@ -24,11 +24,11 @@ class ChunkedDataExtractorContext {
     final long end;
     final TimeValue chunkSpan;
 
-    ChunkedDataExtractorContext(String jobId, String timeField, List<String> indexes, List<String> types,
+    ChunkedDataExtractorContext(String jobId, String timeField, List<String> indices, List<String> types,
                                 QueryBuilder query, int scrollSize, long start, long end, @Nullable TimeValue chunkSpan) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
-        this.indexes = indexes.toArray(new String[indexes.size()]);
+        this.indices = indices.toArray(new String[indices.size()]);
         this.types = types.toArray(new String[types.size()]);
         this.query = Objects.requireNonNull(query);
         this.scrollSize = scrollSize;

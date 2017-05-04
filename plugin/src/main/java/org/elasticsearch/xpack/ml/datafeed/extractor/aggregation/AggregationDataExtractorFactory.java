@@ -30,7 +30,7 @@ public class AggregationDataExtractorFactory implements DataExtractorFactory {
         AggregationDataExtractorContext dataExtractorContext = new AggregationDataExtractorContext(
                 job.getId(),
                 job.getDataDescription().getTimeField(),
-                datafeedConfig.getIndexes(),
+                datafeedConfig.getIndices(),
                 datafeedConfig.getTypes(),
                 datafeedConfig.getQuery(),
                 datafeedConfig.getAggregations(),

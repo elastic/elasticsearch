@@ -50,7 +50,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     private String jobId;
     private String timeField;
     private List<String> types;
-    private List<String> indexes;
+    private List<String> indices;
     private QueryBuilder query;
     private AggregatorFactories.Builder aggs;
 
@@ -79,7 +79,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         capturedSearchRequests = new ArrayList<>();
         jobId = "test-job";
         timeField = "time";
-        indexes = Arrays.asList("index-1", "index-2");
+        indices = Arrays.asList("index-1", "index-2");
         types = Arrays.asList("type-1", "type-2");
         query = QueryBuilders.matchAllQuery();
         aggs = new AggregatorFactories.Builder()
@@ -270,7 +270,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     private AggregationDataExtractorContext createContext(long start, long end) {
-        return new AggregationDataExtractorContext(jobId, timeField, indexes, types, query, aggs, start, end, true);
+        return new AggregationDataExtractorContext(jobId, timeField, indices, types, query, aggs, start, end, true);
     }
 
     @SuppressWarnings("unchecked")

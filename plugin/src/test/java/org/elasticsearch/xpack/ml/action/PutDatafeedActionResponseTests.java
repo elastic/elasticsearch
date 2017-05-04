@@ -18,7 +18,7 @@ public class PutDatafeedActionResponseTests extends AbstractStreamableTestCase<R
     protected Response createTestInstance() {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(
                 DatafeedConfigTests.randomValidDatafeedId(), randomAlphaOfLength(10));
-        datafeedConfig.setIndexes(Arrays.asList(randomAlphaOfLength(10)));
+        datafeedConfig.setIndices(Arrays.asList(randomAlphaOfLength(10)));
         datafeedConfig.setTypes(Arrays.asList(randomAlphaOfLength(10)));
         return new Response(randomBoolean(), datafeedConfig.build());
     }

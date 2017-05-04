@@ -33,7 +33,7 @@ The following properties can be updated after the {dfeed} is created:
   bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
   span. For example: "150s".
 
-`indexes`::
+`indices`::
   (array) An array of index names. Wildcards are supported. For example:
   ["it_ops_metrics", "server*"].
 
@@ -97,7 +97,7 @@ with the updated values:
   "datafeed_id": "datafeed-it-ops-kpi",
   "job_id": "it-ops-kpi",
   "query_delay": "1m",
-  "indexes": ["it-ops"],
+  "indices": ["it-ops"],
   "types": ["logs"],
   "query": {
     "term": {

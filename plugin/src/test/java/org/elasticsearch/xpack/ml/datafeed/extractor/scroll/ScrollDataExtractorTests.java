@@ -51,7 +51,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private String jobId;
     private ExtractedFields extractedFields;
     private List<String> types;
-    private List<String> indexes;
+    private List<String> indices;
     private QueryBuilder query;
     private List<SearchSourceBuilder.ScriptField> scriptFields;
     private int scrollSize;
@@ -100,7 +100,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         ExtractedField timeField = ExtractedField.newField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
         extractedFields = new ExtractedFields(timeField,
                 Arrays.asList(timeField, ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE)));
-        indexes = Arrays.asList("index-1", "index-2");
+        indices = Arrays.asList("index-1", "index-2");
         types = Arrays.asList("type-1", "type-2");
         query = QueryBuilders.matchAllQuery();
         scriptFields = Collections.emptyList();
@@ -285,7 +285,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
                 "script2", new Script(ScriptType.INLINE, "painless", "return domainSplit('foo.com', params);", emptyMap()), false);
 
         List<SearchSourceBuilder.ScriptField> sFields = Arrays.asList(withoutSplit, withSplit);
-        ScrollDataExtractorContext context =  new ScrollDataExtractorContext(jobId, extractedFields, indexes,
+        ScrollDataExtractorContext context =  new ScrollDataExtractorContext(jobId, extractedFields, indices,
                 types, query, sFields, scrollSize, 1000, 2000);
 
         TestDataExtractor extractor = new TestDataExtractor(context);
@@ -332,7 +332,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     private ScrollDataExtractorContext createContext(long start, long end) {
-        return new ScrollDataExtractorContext(jobId, extractedFields, indexes, types, query, scriptFields, scrollSize, start, end);
+        return new ScrollDataExtractorContext(jobId, extractedFields, indices, types, query, scriptFields, scrollSize, start, end);
     }
 
     private SearchResponse createEmptySearchResponse() {

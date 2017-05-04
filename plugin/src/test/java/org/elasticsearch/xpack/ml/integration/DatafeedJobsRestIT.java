@@ -265,7 +265,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         assertThat(e.getMessage(), containsString("Cannot create datafeed"));
         assertThat(e.getMessage(),
-                containsString("user ml_admin lacks permissions on the indexes to be searched"));
+                containsString("user ml_admin lacks permissions on the indices to be searched"));
     }
 
     public void testInsufficientSearchPrivilegesOnPreview() throws Exception {

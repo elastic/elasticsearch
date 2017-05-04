@@ -108,7 +108,7 @@ public class ChunkedDataExtractor implements DataExtractor {
     private DataSummary requestDataSummary() throws IOException {
         SearchRequestBuilder searchRequestBuilder = SearchAction.INSTANCE.newRequestBuilder(client)
                 .setSize(0)
-                .setIndices(context.indexes)
+                .setIndices(context.indices)
                 .setTypes(context.types)
                 .setQuery(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, currentStart, context.end))
                 .addAggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))

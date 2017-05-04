@@ -99,7 +99,7 @@ class ScrollDataExtractor implements DataExtractor {
         SearchRequestBuilder searchRequestBuilder = SearchAction.INSTANCE.newRequestBuilder(client)
                 .setScroll(SCROLL_TIMEOUT)
                 .addSort(context.extractedFields.timeField(), SortOrder.ASC)
-                .setIndices(context.indexes)
+                .setIndices(context.indices)
                 .setTypes(context.types)
                 .setSize(context.scrollSize)
                 .setQuery(ExtractorUtils.wrapInTimeRangeQuery(

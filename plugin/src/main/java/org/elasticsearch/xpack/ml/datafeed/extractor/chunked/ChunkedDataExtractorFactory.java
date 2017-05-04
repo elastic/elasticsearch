@@ -32,7 +32,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
                 job.getId(),
                 job.getDataDescription().getTimeField(),
-                datafeedConfig.getIndexes(),
+                datafeedConfig.getIndices(),
                 datafeedConfig.getTypes(),
                 datafeedConfig.getQuery(),
                 datafeedConfig.getScrollSize(),

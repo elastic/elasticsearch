@@ -602,7 +602,7 @@ public class StartDatafeedAction
 
     private static String verifyIndicesActive(Logger logger, DatafeedConfig datafeed, ClusterState clusterState,
                                               IndexNameExpressionResolver resolver) {
-        List<String> indices = datafeed.getIndexes();
+        List<String> indices = datafeed.getIndices();
         for (String index : indices) {
             String[] concreteIndices;
             String reason = "cannot start datafeed [" + datafeed.getId() + "] because index ["

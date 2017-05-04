@@ -30,7 +30,7 @@ A {dfeed} resource has the following properties:
   bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
   span. For example: "150s"
 
-`indexes` (required)::
+`indices` (required)::
   (array) An array of index names. For example: ["it_ops_metrics"]
 
 `job_id` (required)::

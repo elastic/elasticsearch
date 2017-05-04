@@ -356,7 +356,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     public static DatafeedConfig.Builder createDatafeedConfig(String datafeedId, String jobId) {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, jobId);
-        datafeedConfig.setIndexes(Arrays.asList("myIndex"));
+        datafeedConfig.setIndices(Arrays.asList("myIndex"));
         datafeedConfig.setTypes(Arrays.asList("myType"));
         return datafeedConfig;
     }

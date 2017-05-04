@@ -251,7 +251,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         DatafeedConfig updatedDatafeed = updatedMetadata.getDatafeed(datafeedConfig1.getId());
         assertThat(updatedDatafeed.getJobId(), equalTo(datafeedConfig1.getJobId()));
-        assertThat(updatedDatafeed.getIndexes(), equalTo(datafeedConfig1.getIndexes()));
+        assertThat(updatedDatafeed.getIndices(), equalTo(datafeedConfig1.getIndices()));
         assertThat(updatedDatafeed.getTypes(), equalTo(datafeedConfig1.getTypes()));
         assertThat(updatedDatafeed.getScrollSize(), equalTo(5000));
     }

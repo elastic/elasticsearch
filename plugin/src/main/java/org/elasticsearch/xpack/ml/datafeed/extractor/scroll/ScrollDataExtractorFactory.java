@@ -32,7 +32,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         ScrollDataExtractorContext dataExtractorContext = new ScrollDataExtractorContext(
                 job.getId(),
                 extractedFields,
-                datafeedConfig.getIndexes(),
+                datafeedConfig.getIndices(),
                 datafeedConfig.getTypes(),
                 datafeedConfig.getQuery(),
                 datafeedConfig.getScriptFields(),

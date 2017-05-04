@@ -296,6 +296,34 @@
       catch: /Cannot delete job \[jobs-crud-datafeed-job\] because datafeed \[jobs-crud-test-datafeed-1\] refers to it/
       xpack.ml.delete_job:
         job_id: jobs-crud-datafeed-job
+
+---
+"Test delete job that is opened":
+  - do:
+      xpack.ml.put_job:
+        job_id: delete-opened-job
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+  - match: { job_id: "delete-opened-job" }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: delete-opened-job
+  - match: { opened: true }
+
+  - do:
+      catch: /Cannot delete job \[delete-opened-job\] because the job is opened/
+      xpack.ml.delete_job:
+        job_id: delete-opened-job
+
 ---
 "Test close job":
 

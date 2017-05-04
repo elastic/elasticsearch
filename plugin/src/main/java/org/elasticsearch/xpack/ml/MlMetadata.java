@@ -362,7 +362,7 @@ public class MlMetadata implements MetaData.Custom {
             PersistentTask<?> jobTask = getJobTask(jobId, tasks);
             if (jobTask != null) {
                 throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because the job is "
-                        + jobTask.getStatus());
+                        + ((JobTaskStatus) jobTask.getStatus()).getState());
             }
             Job.Builder jobBuilder = new Job.Builder(job);
             jobBuilder.setDeleted(true);

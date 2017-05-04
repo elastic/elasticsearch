@@ -466,7 +466,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                     case FAILED:
                         return true;
                     default:
-                        throw new IllegalStateException("Unexpected job state [" + jobState + "]");
+                        throw new IllegalStateException("Unexpected job state [" + jobState.getState() + "]");
 
                 }
             }

@@ -76,7 +76,7 @@ setup:
 ---
 "Get simple field caps":
   - skip:
-      version: " - 5.99.99" # temporarily disabled until bwc code is backported and propagated
+      version: " - 5.3.99"
       reason:  this uses a new API that has been added in 5.4.0
 
   - do:
@@ -117,7 +117,7 @@ setup:
 ---
 "Get nested field caps":
   - skip:
-      version: " - 5.99.99" # temporarily disabled until bwc code is backported and propagated
+      version: " - 5.3.99"
       reason:  this uses a new API that has been added in 5.4.0
 
   - do:
@@ -148,7 +148,7 @@ setup:
 ---
 "Get prefix field caps":
   - skip:
-      version: " - 5.99.99" # temporarily disabled until bwc code is backported and propagated
+      version: " - 5.3.99"
       reason:  this uses a new API that has been added in 5.4.0
 
   - do:

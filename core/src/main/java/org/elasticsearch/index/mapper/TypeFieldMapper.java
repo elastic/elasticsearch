@@ -36,7 +36,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldstats.FieldStats;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -160,8 +159,12 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 if (values.stream()
                         .map(this::indexedValueForSearch)
                         .anyMatch(indexType::equals)) {
-                    // type filters are expected not to match nested docs
-                    return Queries.newNonNestedFilter();
+                    if (context.getMapperService().hasNested()) {
+                        // type filters are expected not to match nested docs
+                        return Queries.newNonNestedFilter();
+                    } else {
+                        return new MatchAllDocsQuery();
+                    }
                 } else {
                     return new MatchNoDocsQuery("Type list does not contain the index type");
                 }

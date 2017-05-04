@@ -563,6 +563,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testChildrenAggregation() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
+                        .setSettings("mapping.single_type", false)
                         .addMapping("type1", "field1", "type=text", "field2", "type=text")
                         .addMapping("type2", "_parent", "type=type1", "field3", "type=text,fielddata=true")
         );
@@ -619,6 +620,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testParentChild() {
         assertAcked(prepareCreate("test")
+                .setSettings("mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent", "field1", "type=text", "field2", "type=text", "field3", "type=text"));
         ensureGreen();

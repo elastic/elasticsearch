@@ -2,6 +2,7 @@
   "index_patterns" : ".security",
   "order" : 1000,
   "settings" : {
+    "mapping.single_type": false,
     "number_of_shards" : 1,
     "number_of_replicas" : 0,
     "auto_expand_replicas" : "0-all",

@@ -51,6 +51,7 @@ import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -185,31 +186,6 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
         // local exporter is now enabled
         assertAcked(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(exporterSettings));
-
-        if (randomBoolean()) {
-            // export some documents now, before starting the monitoring service
-            final int nbDocs = randomIntBetween(1, 20);
-            List<MonitoringBulkDoc> monitoringDocs = new ArrayList<>(nbDocs);
-            for (int i = 0; i < nbDocs; i++) {
-                monitoringDocs.add(createMonitoringBulkDoc(String.valueOf(i)));
-            }
-
-            assertBusy(() -> {
-                MonitoringBulkRequestBuilder bulk = monitoringClient().prepareMonitoringBulk();
-                monitoringDocs.forEach(bulk::add);
-                assertEquals(RestStatus.OK, bulk.get().status());
-                refresh();
-
-                SearchResponse response = client().prepareSearch(".monitoring-*").get();
-                assertEquals(nbDocs, response.getHits().getTotalHits());
-            });
-
-            checkMonitoringTemplates();
-            checkMonitoringPipeline();
-            checkMonitoringAliases();
-            checkMonitoringMappings();
-            checkMonitoringDocs();
-        }
 
         // monitoring service is started
         exporterSettings = Settings.builder()
@@ -396,7 +372,7 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
                     expectedIndex.add(".monitoring-data-2");
                 }
             }
-            assertTrue(expectedIndex.contains(hit.getIndex()));
+            assertTrue("Expected " + expectedIndex + " but got " + hit.getIndex(), expectedIndex.contains(hit.getIndex()));
 
             @SuppressWarnings("unchecked")
             Map<String, Object> sourceNode = (Map<String, Object>) source.get("source_node");
@@ -425,11 +401,7 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
             source = builder.bytes();
         }
 
-        // Aligns the type with the monitoring index and monitored system so that we can later
-        // check if the document is indexed in the correct index.
-        String type = index.name().toLowerCase(Locale.ROOT) + "_" + monitoringId;
-
-        return new MonitoringBulkDoc(monitoringId, monitoringVersion, index, type, id, source,
+        return new MonitoringBulkDoc(monitoringId, monitoringVersion, index, monitoringId, id, source,
                 xContentType);
     }
 }

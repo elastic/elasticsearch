@@ -1280,6 +1280,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testParentChild() {
         assertAcked(prepareCreate("test")
+                .setSettings("mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();

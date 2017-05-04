@@ -187,6 +187,7 @@ public class LocalExporterTemplateTests extends MonitoringIntegTestCase {
                                 .startObject("settings")
                                     .field("index.number_of_shards", 1)
                                     .field("index.number_of_replicas", 1)
+                                    .field("index.mapping.single_type", false)
                                 .endObject()
                                 .startObject("mappings")
                                     .startObject("_default_")

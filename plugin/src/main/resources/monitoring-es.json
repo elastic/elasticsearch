@@ -4,7 +4,8 @@
     "index.number_of_shards": 1,
     "index.number_of_replicas": 1,
     "index.codec": "best_compression",
-    "index.mapper.dynamic": false
+    "index.mapper.dynamic": false,
+    "index.mapping.single_type": false
   },
   "mappings": {
     "_default_": {

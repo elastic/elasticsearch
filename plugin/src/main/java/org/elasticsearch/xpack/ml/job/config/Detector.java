@@ -54,16 +54,12 @@ public class Detector extends ToXContentToBytes implements Writeable {
         }
 
         public static ExcludeFrequent readFromStream(StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown ExcludeFrequent ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(ExcludeFrequent.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
+            out.writeEnum(this);
         }
 
         @Override

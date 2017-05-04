@@ -27,16 +27,12 @@ public enum Connective implements Writeable {
     }
 
     public static Connective readFromStream(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown Connective ordinal [" + ordinal + "]");
-        }
-        return values()[ordinal];
+        return in.readEnum(Connective.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(ordinal());
+        out.writeEnum(this);
     }
 
     @Override

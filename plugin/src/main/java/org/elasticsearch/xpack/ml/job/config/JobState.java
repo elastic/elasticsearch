@@ -29,16 +29,12 @@ public enum JobState implements ToXContent, Writeable {
     }
 
     public static JobState fromStream(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown public enum JobState {\n ordinal [" + ordinal + "]");
-        }
-        return values()[ordinal];
+        return in.readEnum(JobState.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(ordinal());
+        out.writeEnum(this);
     }
 
     @Override

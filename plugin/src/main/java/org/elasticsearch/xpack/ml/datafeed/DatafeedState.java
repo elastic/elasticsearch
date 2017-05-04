@@ -37,11 +37,7 @@ public enum DatafeedState implements Task.Status {
     }
 
     public static DatafeedState fromStream(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown public enum DatafeedState ordinal [" + ordinal + "]");
-        }
-        return values()[ordinal];
+        return in.readEnum(DatafeedState.class);
     }
 
     @Override
@@ -51,7 +47,7 @@ public enum DatafeedState implements Task.Status {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(ordinal());
+        out.writeEnum(this);
     }
 
     @Override

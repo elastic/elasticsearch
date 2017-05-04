@@ -41,6 +41,12 @@ A tribe node, configured via the `tribe.*` settings, is a special type  of
 coordinating only node that can connect to multiple clusters and perform
 search and other operations across all connected clusters.
 
+<<machine-learning-node,Machine learning node>>::
+A node that has `xpack.ml.enabled` and `node.ml` set to `true`, which is the
+default behavior when X-Pack is installed. If you want to use X-Pack machine
+learning features, there must be at least one machine learning node in your
+cluster.
+
 By default a node is a master-eligible node and a data node, plus it can
 pre-process documents through ingest pipelines. This is very convenient for
 small clusters but, as the cluster grows, it becomes important to consider
@@ -82,7 +88,7 @@ cluster health to have a stable master node.
 Any master-eligible node (all nodes by default) may be elected to become the
 master node by the <<modules-discovery-zen,master election process>>.
 
-IMPORTANT: Master nodes must have access to the `data/` directory (just like 
+IMPORTANT: Master nodes must have access to the `data/` directory (just like
 `data` nodes) as this is where the cluster state is persisted between node restarts.
 
 Indexing and searching your data is CPU-, memory-, and I/O-intensive work
@@ -104,10 +110,14 @@ To create a standalone master-eligible node, set:
 node.master: true <1>
 node.data: false <2>
 node.ingest: false <3>
+node.ml: false <4>
+xpack.ml.enabled: true <5>
 -------------------
 <1> The `node.master` role is enabled by default.
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
+<4> Disable the `node.ml` role (enabled by default in X-Pack).
+<5> The `xpack.ml.enabled` setting is enabled by default in X-Pack.
 
 [float]
 [[split-brain]]
@@ -188,10 +198,12 @@ To create a dedicated data node, set:
 node.master: false <1>
 node.data: true <2>
 node.ingest: false <3>
+node.ml: false <4>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.data` role is enabled by default.
 <3> Disable the `node.ingest` role (enabled by default).
+<4> Disable the `node.ml` role (enabled by default in X-Pack).
 
 [float]
 [[node-ingest-node]]
@@ -210,11 +222,13 @@ node.master: false <1>
 node.data: false <2>
 node.ingest: true <3>
 search.remote.connect: false <4>
+node.ml: false <5>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
 <3> The `node.ingest` role is enabled by default.
 <4> Disable cross-cluster search (enabled by default).
+<5> Disable the `node.ml` role (enabled by default in X-Pack).
 
 [float]
 [[coordinating-only-node]]
@@ -245,11 +259,46 @@ node.master: false <1>
 node.data: false <2>
 node.ingest: false <3>
 search.remote.connect: false <4>
+node.ml: false <5>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
 <4> Disable cross-cluster search (enabled by default).
+<5> Disable the `node.ml` role (enabled by default in X-Pack).
+
+[float]
+[[machine-learning-node]]
+=== Machine learning node
+
+Machine learning nodes run jobs and handle machine learning API requests.
+If `xpack.ml.enabled` is set to true and `node.ml` is set to `false`, the node
+can service API requests but it cannot run jobs.
+
+IMPORTANT: If you want to use X-Pack machine learning features in your cluster,
+you must enable machine learning (set `xpack.ml.enabled` to `true`) on all
+master-eligible nodes.
+
+For more information about this setting,
+see {xpack}//ml-settings.html[Machine Learning Settings].
+
+To create a dedicated machine learning node, set:
+
+[source,yaml]
+-------------------
+node.master: false <1>
+node.data: false <2>
+node.ingest: false <3>
+search.remote.connect: false <4>
+node.ml: true <5>
+xpack.ml.enabled: true <6>
+-------------------
+<1> Disable the `node.master` role (enabled by default).
+<2> Disable the `node.data` role (enabled by default).
+<3> Disable the `node.ingest` role (enabled by default).
+<4> Disable cross-cluster search (enabled by default).
+<5> The `node.ml` role is enabled by default in X-Pack.
+<6> The `xpack.ml.enabled` setting is enabled by default in X-Pack.
 
 [float]
 == Node data path settings

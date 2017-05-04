@@ -72,8 +72,6 @@ public class MiniHDFS {
 
         // optionally configure security
         if (secure) {
-            // hdfs/hdfs.build.elastic.co@BUILD.ELASTIC.CO
-            // /Users/james.baiera/Documents/source/elasticsearch/test/fixtures/krb5kdc-fixture/build/keytabs/hdfs_hdfs.build.elastic.co.keytab
             String kerberosPrincipal = args[1];
             String keytabFile = args[2];
 

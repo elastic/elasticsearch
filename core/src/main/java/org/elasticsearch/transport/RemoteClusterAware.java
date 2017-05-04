@@ -159,4 +159,8 @@ public abstract class RemoteClusterAware extends AbstractComponent {
             throw new IllegalArgumentException("port must be a number", e);
         }
     }
+
+    public static final String buildRemoteIndexName(String clusterAlias, String indexName) {
+        return clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + indexName;
+    }
 }

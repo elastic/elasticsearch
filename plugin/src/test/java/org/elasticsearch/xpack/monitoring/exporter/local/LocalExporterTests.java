@@ -169,11 +169,6 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
             }
         }
 
-        if (randomBoolean()) {
-            // create the monitoring data index to check if its mappings are correctly updated
-            createIndex(DATA_INDEX);
-        }
-
         Settings.Builder exporterSettings = Settings.builder()
                 .put("xpack.monitoring.exporters._local.enabled", true);
 

@@ -212,25 +212,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             for (DiscoveryNode remoteNode : searchShardsResponse.getNodes()) {
                 idToDiscoveryNode.put(remoteNode.getId(), remoteNode);
             }
-            Map<String, AliasFilter> indicesAndFilters = searchShardsResponse.getIndicesAndFilters();
+            final Map<String, AliasFilter> indicesAndFilters = searchShardsResponse.getIndicesAndFilters();
             for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
                 //add the cluster name to the remote index names for indices disambiguation
                 //this ends up in the hits returned with the search response
                 ShardId shardId = clusterSearchShardsGroup.getShardId();
                 Index remoteIndex = shardId.getIndex();
-                Index index = new Index(clusterAlias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + remoteIndex.getName(),
+                Index index = new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, remoteIndex.getName()),
                     remoteIndex.getUUID());
                 OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
                 assert originalIndices != null;
                 SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, new ShardId(index, shardId.getId()),
                     Arrays.asList(clusterSearchShardsGroup.getShards()), originalIndices);
                 remoteShardIterators.add(shardIterator);
-                AliasFilter aliasFilter;
+                final AliasFilter aliasFilter;
                 if (indicesAndFilters == null) {
-                    aliasFilter = new AliasFilter(null, Strings.EMPTY_ARRAY);
+                    aliasFilter = AliasFilter.EMPTY;
                 } else {
                     aliasFilter = indicesAndFilters.get(shardId.getIndexName());
-                    assert aliasFilter != null;
+                    assert aliasFilter != null : "alias filter must not be null for index: " + shardId.getIndex();
                 }
                 // here we have to map the filters to the UUID since from now on we use the uuid for the lookup
                 aliasFilterMap.put(remoteIndex.getUUID(), aliasFilter);

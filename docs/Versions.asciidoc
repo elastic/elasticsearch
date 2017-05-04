@@ -9,7 +9,7 @@
 release-state can be: released | prerelease | unreleased
 //////////
 
-:release-state:   unreleased
+:release-state:   released
 
 :ref:             https://www.elastic.co/guide/en/elasticsearch/reference/{branch}
 :defguide:        https://www.elastic.co/guide/en/elasticsearch/guide/2.x

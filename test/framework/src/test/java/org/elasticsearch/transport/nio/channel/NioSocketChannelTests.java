@@ -49,7 +49,6 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
         assertTrue(socketChannel.isConnectComplete());
         assertTrue(socketChannel.isOpen());
         assertFalse(connectFuture.connectFailed());
-        assertSame(connectFuture.getChannel(), socketChannel);
         assertNull(connectFuture.getException());
 
         thread.join();
@@ -70,7 +69,6 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
         assertTrue(connectFuture.connectFailed());
         assertThat(connectFuture.getException(), instanceOf(ConnectException.class));
         assertThat(connectFuture.getException().getMessage(), containsString("Connection refused"));
-        assertNull(connectFuture.getChannel());
 
         thread.join();
     }

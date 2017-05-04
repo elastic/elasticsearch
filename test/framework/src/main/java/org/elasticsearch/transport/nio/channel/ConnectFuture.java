@@ -37,22 +37,6 @@ public class ConnectFuture extends BaseFuture<NioSocketChannel> {
         }
     }
 
-    public NioSocketChannel getChannel() {
-        if (isDone()) {
-            try {
-                // Get should always return without blocking as we already checked 'isDone'
-                return super.get();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return null;
-            } catch (ExecutionException e) {
-                return null;
-            }
-        } else {
-            return null;
-        }
-    }
-
     public Exception getException() {
         if (isDone()) {
             try {
@@ -90,5 +74,21 @@ public class ConnectFuture extends BaseFuture<NioSocketChannel> {
 
     void setConnectionFailed(RuntimeException e) {
         setException(e);
+    }
+
+    private NioSocketChannel getChannel() {
+        if (isDone()) {
+            try {
+                // Get should always return without blocking as we already checked 'isDone'
+                return super.get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            } catch (ExecutionException e) {
+                return null;
+            }
+        } else {
+            return null;
+        }
     }
 }

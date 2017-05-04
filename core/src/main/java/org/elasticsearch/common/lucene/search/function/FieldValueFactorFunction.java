@@ -191,15 +191,11 @@ public class FieldValueFactorFunction extends ScoreFunction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.ordinal());
+            out.writeEnum(this);
         }
 
         public static Modifier readFromStream(StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown Modifier ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(Modifier.class);
         }
 
         @Override

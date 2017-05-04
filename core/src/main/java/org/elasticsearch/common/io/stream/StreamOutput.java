@@ -935,4 +935,12 @@ public abstract class StreamOutput extends OutputStream {
             writeNamedWriteable(obj);
         }
     }
+
+    /**
+     * Writes an enum with type E that by serialized it based on it's ordinal value
+     */
+    public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
+        writeVInt(enumValue.ordinal());
+    }
+
 }

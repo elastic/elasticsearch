@@ -239,11 +239,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
         int rolesSize = in.readVInt();
         this.roles = EnumSet.noneOf(Role.class);
         for (int i = 0; i < rolesSize; i++) {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= Role.values().length) {
-                throw new IOException("Unknown Role ordinal [" + ordinal + "]");
-            }
-            this.roles.add(Role.values()[ordinal]);
+            this.roles.add(in.readEnum(Role.class));
         }
         this.version = Version.readVersion(in);
     }
@@ -263,7 +259,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
         }
         out.writeVInt(roles.size());
         for (Role role : roles) {
-            out.writeVInt(role.ordinal());
+            out.writeEnum(role);
         }
         Version.writeVersion(version, out);
     }

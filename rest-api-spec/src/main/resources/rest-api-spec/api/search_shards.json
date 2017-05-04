@@ -24,6 +24,10 @@
           "type": "boolean",
           "description": "Return local information, do not retrieve the state from master node (default: false)"
         },
+        "include_all_aliases": {
+          "type": "boolean",
+          "description": "Include all including non-filtering aliases (default: false)"
+        },
         "ignore_unavailable": {
           "type" : "boolean",
           "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"

@@ -166,3 +166,7 @@ routing values have been specified.
     A boolean value whether to read the cluster state locally in order to
     determine where shards are allocated instead of using the Master node's
     cluster state.
+
+`include_all_aliases`::
+    A boolean value whether to include all aliases in the response even if the aliases
+    don't have a filter associated with them. The default is `false`.

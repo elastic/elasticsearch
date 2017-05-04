@@ -40,6 +40,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
     @Nullable
     private String preference;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
+    private boolean includeNonFilteringAliases;
 
 
     public ClusterSearchShardsRequest() {
@@ -52,6 +53,22 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    /**
+     * Iff set to <code>true</code> the response will contain all aliases expanded form the index expressions even if
+     * they don't have a filter associated with it.
+     */
+    public void setIncludeNonFilteringAliases(boolean includeNonFilteringAliases) {
+        this.includeNonFilteringAliases = includeNonFilteringAliases;
+    }
+
+    /**
+     * Returns <code>true</code> if the response will contain all aliases expanded form the index expressions even if
+     * they don't have a filter associated with it.
+     */
+    public boolean isIncludeNonFilteringAliases() {
+        return includeNonFilteringAliases;
     }
 
     /**
@@ -139,6 +156,9 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
             in.readStringArray();
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            includeNonFilteringAliases = in.readBoolean();
+        }
     }
 
     @Override
@@ -158,6 +178,9 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         indicesOptions.writeIndicesOptions(out);
+        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            out.writeBoolean(includeNonFilteringAliases);
+        }
     }
 
 }

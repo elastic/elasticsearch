@@ -71,4 +71,13 @@ public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRe
         request().indicesOptions(indicesOptions);
         return this;
     }
+
+    /**
+     * Iff set to <code>true</code> the response will contain all aliases expanded form the index expressions even if
+     * they don't have a filter associated with it.
+     */
+    public ClusterSearchShardsRequestBuilder setIncludeNonFilteringAliases(boolean includeNonFilteringAliases) {
+        request().setIncludeNonFilteringAliases(includeNonFilteringAliases);
+        return this;
+    }
 }

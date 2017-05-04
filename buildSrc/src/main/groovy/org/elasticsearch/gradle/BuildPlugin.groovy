@@ -468,7 +468,7 @@ class BuildPlugin implements Plugin<Project> {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()
             jvmArg '-XX:HeapDumpPath=' + heapdumpDir
-            final String testsJvmArgline = System.getProperty('tests.jvm.argline')
+            argLine System.getProperty('tests.jvm.argline')
 
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
             systemProperty 'java.io.tmpdir', './temp'

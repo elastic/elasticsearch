@@ -1530,6 +1530,12 @@ public class IndexShardTests extends IndexShardTestCase {
             return null;
         }
 
+
+        @Override
+        public SnapshotInfo getSnapshotInfo(RepositoryData repositoryData, SnapshotId snapshotId) {
+            return null;
+        }
+
         @Override
         public MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<IndexId> indices) throws IOException {
             return null;

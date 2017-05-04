@@ -168,7 +168,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *                          if false, they will throw an error
      * @return list of snapshots
      */
-    public List<SnapshotInfo> snapshots(final String repositoryName, List<SnapshotId> snapshotIds, final boolean ignoreUnavailable) {
+    public List<SnapshotInfo> snapshots(final String repositoryName, final RepositoryData repositoryData, final List<SnapshotId> snapshotIds, final boolean ignoreUnavailable) {
         final Set<SnapshotInfo> snapshotSet = new HashSet<>();
         final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);
         // first, look at the snapshots in progress
@@ -182,7 +182,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Repository repository = repositoriesService.repository(repositoryName);
         for (SnapshotId snapshotId : snapshotIdsToIterate) {
             try {
-                snapshotSet.add(repository.getSnapshotInfo(snapshotId));
+                snapshotSet.add(repository.getSnapshotInfo(repositoryData, snapshotId));
             } catch (Exception ex) {
                 if (ignoreUnavailable) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to get snapshot [{}]", snapshotId), ex);

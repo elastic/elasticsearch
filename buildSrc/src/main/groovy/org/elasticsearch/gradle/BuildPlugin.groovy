@@ -468,18 +468,7 @@ class BuildPlugin implements Plugin<Project> {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()
             jvmArg '-XX:HeapDumpPath=' + heapdumpDir
-            /*
-             * We only want to append -XX:-OmitStackTraceInFastThrow if a flag for OmitStackTraceInFastThrow is not already included in
-             * tests.jvm.argline.
-             */
-            final String testsJvmArgline = System.getProperty('tests.jvm.argline')
-            if (testsJvmArgline == null) {
-                argLine '-XX:-OmitStackTraceInFastThrow'
-            } else if (testsJvmArgline.indexOf("OmitStackTraceInFastThrow") < 0) {
-                argLine testsJvmArgline.trim() + ' ' + '-XX:-OmitStackTraceInFastThrow'
-            } else {
-                argLine testsJvmArgline.trim()
-            }
+            argLine System.getProperty('tests.jvm.argline')
 
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
             systemProperty 'java.io.tmpdir', './temp'

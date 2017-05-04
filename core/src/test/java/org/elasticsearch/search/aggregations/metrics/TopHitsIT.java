@@ -519,9 +519,9 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchHits hits = topHits.getHits();
             assertThat(hits.getTotalHits(), equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
-            assertThat((Long) hits.getAt(0).getSortValues()[0], equalTo(higestSortValue));
-            assertThat((Long) hits.getAt(1).getSortValues()[0], equalTo(higestSortValue - 1));
-            assertThat((Long) hits.getAt(2).getSortValues()[0], equalTo(higestSortValue - 2));
+            assertThat(hits.getAt(0).getSortValues()[0], equalTo(higestSortValue));
+            assertThat(hits.getAt(1).getSortValues()[0], equalTo(higestSortValue - 1));
+            assertThat(hits.getAt(2).getSortValues()[0], equalTo(higestSortValue - 2));
             Max max = bucket.getAggregations().get("max_sort");
             assertThat(max.getValue(), equalTo(((Long) higestSortValue).doubleValue()));
             higestSortValue -= 10;
@@ -544,7 +544,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(3));
 
-        Iterator<Terms.Bucket> bucketIterator = terms.getBuckets().iterator();
+        Iterator<? extends Terms.Bucket> bucketIterator = terms.getBuckets().iterator();
         Terms.Bucket bucket = bucketIterator.next();
         assertThat(key(bucket), equalTo("b"));
         TopHits topHits = bucket.getAggregations().get("hits");

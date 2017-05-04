@@ -76,7 +76,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         }
 
         @Override
-        int compareTerm(Terms.Bucket other) {
+        public int compareTerm(Terms.Bucket other) {
             return Double.compare(term, ((Number) other.getKey()).doubleValue());
         }
 

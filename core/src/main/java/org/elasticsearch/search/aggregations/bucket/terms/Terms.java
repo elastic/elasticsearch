@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.Arrays;
@@ -33,50 +32,23 @@ import java.util.List;
  */
 public interface Terms extends MultiBucketsAggregation {
 
-    enum ValueType {
-
-        STRING(org.elasticsearch.search.aggregations.support.ValueType.STRING),
-        LONG(org.elasticsearch.search.aggregations.support.ValueType.LONG),
-        DOUBLE(org.elasticsearch.search.aggregations.support.ValueType.DOUBLE);
-
-        final org.elasticsearch.search.aggregations.support.ValueType scriptValueType;
-
-        ValueType(org.elasticsearch.search.aggregations.support.ValueType scriptValueType) {
-            this.scriptValueType = scriptValueType;
-        }
-
-        static ValueType resolveType(String type) {
-            if ("string".equals(type)) {
-                return STRING;
-            }
-            if ("double".equals(type) || "float".equals(type)) {
-                return DOUBLE;
-            }
-            if ("long".equals(type) || "integer".equals(type) || "short".equals(type) || "byte".equals(type)) {
-                return LONG;
-            }
-            return null;
-        }
-    }
-
     /**
      * A bucket that is associated with a single term
      */
-    abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
+    interface Bucket extends MultiBucketsAggregation.Bucket {
 
-        public abstract Number getKeyAsNumber();
+        Number getKeyAsNumber();
 
-        abstract int compareTerm(Terms.Bucket other);
+        int compareTerm(Terms.Bucket other);
 
-        public abstract long getDocCountError();
-
+        long getDocCountError();
     }
 
     /**
      * Return the sorted list of the buckets in this terms aggregation.
      */
     @Override
-    List<Bucket> getBuckets();
+    List<? extends Bucket> getBuckets();
 
     /**
      * Get the bucket for the given term, or null if there is no such bucket.

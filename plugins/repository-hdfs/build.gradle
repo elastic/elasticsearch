@@ -60,7 +60,7 @@ dependencyLicenses {
   mapping from: /hadoop-.*/, to: 'hadoop'
 }
 
-task hdfsFixture(type: org.elasticsearch.gradle.test.Fixture) {
+task hdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
   dependsOn project.configurations.hdfsFixture
   executable = new File(project.javaHome, 'bin/java')
   env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"

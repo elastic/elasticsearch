@@ -240,6 +240,16 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         validateIndexRecoveryState(nodeBRecoveryState.getIndex());
     }
 
+    @TestLogging(
+            "_root:DEBUG,"
+                    + "org.elasticsearch.action.bulk:TRACE,"
+                    + "org.elasticsearch.action.get:TRACE,"
+                    + "org.elasticsearch.cluster.service:TRACE,"
+                    + "org.elasticsearch.discovery:TRACE,"
+                    + "org.elasticsearch.indices.cluster:TRACE,"
+                    + "org.elasticsearch.indices.recovery:TRACE,"
+                    + "org.elasticsearch.index.seqno:TRACE,"
+                    + "org.elasticsearch.index.shard:TRACE")
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();

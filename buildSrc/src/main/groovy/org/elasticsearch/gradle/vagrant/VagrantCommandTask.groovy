@@ -51,10 +51,14 @@ public class VagrantCommandTask extends LoggedExec {
 
     public VagrantCommandTask() {
         executable = 'vagrant'
+
+        // We're using afterEvaluate here to slot in some logic that captures configurations and
+        // modifies the command line right before the main execution happens. The reason that we
+        // call doFirst instead of just doing the work in the afterEvaluate is that the latter
+        // restricts how subclasses can extend functionality. Calling afterEvaluate is like having
+        // all the logic of a task happening at construction time, instead of at execution time
+        // where a subclass can override or extend the logic.
         project.afterEvaluate {
-            // Schedule an action to set the values for exec before it runs.
-            // If you don't do this from within 'afterEvaluate', then
-            // the exec and configure actions are run out of order.
             doFirst {
                 if (environmentVars != null) {
                     environment environmentVars

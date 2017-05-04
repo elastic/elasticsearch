@@ -77,7 +77,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         fields = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
             mergeResults = in.readBoolean();
         } else {
             mergeResults = true;
@@ -88,7 +88,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(fields);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
             out.writeBoolean(mergeResults);
         }
     }

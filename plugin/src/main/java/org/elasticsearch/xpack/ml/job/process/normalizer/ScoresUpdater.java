@@ -94,7 +94,8 @@ public class ScoresUpdater {
                                long windowExtensionMs, int[] counts, boolean perPartitionNormalization) {
         BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<Bucket>> bucketsIterator =
                 jobProvider.newBatchedBucketsIterator(job.getId())
-                        .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs);
+                        .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs)
+                        .includeInterim(false);
 
         // Make a list of buckets to be renormalized.
         // This may be shorter than the original list of buckets for two
@@ -149,7 +150,8 @@ public class ScoresUpdater {
     private List<RecordNormalizable> bucketRecordsAsNormalizables(long bucketTimeStamp) {
         BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>>
                 recordsIterator = jobProvider.newBatchedRecordsIterator(job.getId())
-                .timeRange(bucketTimeStamp, bucketTimeStamp + 1);
+                .timeRange(bucketTimeStamp, bucketTimeStamp + 1)
+                .includeInterim(false);
 
         List<RecordNormalizable> recordNormalizables = new ArrayList<>();
         while (recordsIterator.hasNext()) {
@@ -204,7 +206,8 @@ public class ScoresUpdater {
                                    long windowExtensionMs, int[] counts) {
         BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<Influencer>> influencersIterator =
                 jobProvider.newBatchedInfluencersIterator(job.getId())
-                .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs);
+                .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs)
+                .includeInterim(false);
 
         while (influencersIterator.hasNext()) {
             Deque<BatchedResultsIterator.ResultWithIndex<Influencer>> influencers = influencersIterator.next();

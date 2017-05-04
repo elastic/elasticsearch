@@ -387,7 +387,7 @@ public class JobProvider {
         } else {
             rfb.timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                     .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
-                    .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim());
+                    .interim(query.isIncludeInterim());
         }
 
         SortBuilder<?> sortBuilder = new FieldSortBuilder(query.getSortField())
@@ -562,8 +562,7 @@ public class JobProvider {
         // bucket timestamp.
         QueryBuilder recordFilter = QueryBuilders.termQuery(Result.TIMESTAMP.getPreferredName(), bucket.getTimestamp().getTime());
 
-        ResultsFilterBuilder builder = new ResultsFilterBuilder(recordFilter)
-                .interim(AnomalyRecord.IS_INTERIM.getPreferredName(), includeInterim);
+        ResultsFilterBuilder builder = new ResultsFilterBuilder(recordFilter).interim(includeInterim);
         if (partitionFieldValue != null) {
             builder.term(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue);
         }
@@ -641,7 +640,7 @@ public class JobProvider {
         QueryBuilder fb = new ResultsFilterBuilder()
                 .timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                 .score(AnomalyRecord.RECORD_SCORE.getPreferredName(), query.getRecordScoreThreshold())
-                .interim(AnomalyRecord.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
+                .interim(query.isIncludeInterim())
                 .term(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), query.getPartitionFieldValue()).build();
         FieldSortBuilder sb = null;
         if (query.getSortField() != null) {
@@ -710,7 +709,7 @@ public class JobProvider {
         QueryBuilder fb = new ResultsFilterBuilder()
                 .timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                 .score(Influencer.INFLUENCER_SCORE.getPreferredName(), query.getInfluencerScoreFilter())
-                .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
+                .interim(query.isIncludeInterim())
                 .build();
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);

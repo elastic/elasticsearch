@@ -110,7 +110,7 @@ public class JobDataDeleter {
 
         deleteByQueryHolder.searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         deleteByQueryHolder.searchRequest.types(Result.TYPE.getPreferredName());
-        QueryBuilder qb = QueryBuilders.termQuery(Bucket.IS_INTERIM.getPreferredName(), true);
+        QueryBuilder qb = QueryBuilders.termQuery(Result.IS_INTERIM.getPreferredName(), true);
         deleteByQueryHolder.searchRequest.source(new SearchSourceBuilder().query(new ConstantScoreQueryBuilder(qb)));
 
         try {

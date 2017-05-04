@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.Deque;
@@ -18,14 +19,14 @@ public class MockBatchedDocumentsIterator<T> extends BatchedDocumentsIterator<T>
     private final List<Deque<T>> batches;
     private int index;
     private boolean wasTimeRangeCalled;
-    private String interimFieldName;
+    private Boolean includeInterim;
+    private Boolean requireIncludeInterim;
 
     public MockBatchedDocumentsIterator(List<Deque<T>> batches) {
         super(mock(Client.class), "foo");
         this.batches = batches;
         index = 0;
         wasTimeRangeCalled = false;
-        interimFieldName = "";
     }
 
     @Override
@@ -35,13 +36,17 @@ public class MockBatchedDocumentsIterator<T> extends BatchedDocumentsIterator<T>
     }
 
     @Override
-    public BatchedDocumentsIterator<T> includeInterim(String interimFieldName) {
-        this.interimFieldName = interimFieldName;
+    public BatchedDocumentsIterator<T> includeInterim(boolean includeInterim) {
+        this.includeInterim = includeInterim;
         return this;
     }
 
     @Override
     public Deque<T> next() {
+        if (requireIncludeInterim != null && requireIncludeInterim != includeInterim) {
+            throw new IllegalStateException("Required include interim value [" + requireIncludeInterim + "]; actual was ["
+                    + includeInterim + "]");
+        }
         if ((!wasTimeRangeCalled) || !hasNext()) {
             throw new NoSuchElementException();
         }
@@ -63,10 +68,12 @@ public class MockBatchedDocumentsIterator<T> extends BatchedDocumentsIterator<T>
         return index != batches.size();
     }
 
-    /**
-     * If includeInterim has not been called this is an empty string
-     */
-    public String getInterimFieldName() {
-        return interimFieldName;
+    @Nullable
+    public Boolean isIncludeInterim() {
+        return includeInterim;
+    }
+
+    public void requireIncludeInterim(boolean value) {
+        this.requireIncludeInterim = value;
     }
 }

@@ -37,7 +37,6 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
     public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
     public static final ParseField RAW_ANOMALY_SCORE = new ParseField("raw_anomaly_score");
     public static final ParseField PROBABILITY = new ParseField("probability");
-    public static final ParseField IS_INTERIM = new ParseField("is_interim");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     public static final ParseField SEQUENCE_NUM = new ParseField("sequence_num");
 
@@ -69,7 +68,7 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
         PARSER.declareDouble(BucketInfluencer::setAnomalyScore, ANOMALY_SCORE);
         PARSER.declareDouble(BucketInfluencer::setRawAnomalyScore, RAW_ANOMALY_SCORE);
         PARSER.declareDouble(BucketInfluencer::setProbability, PROBABILITY);
-        PARSER.declareBoolean(BucketInfluencer::setIsInterim, IS_INTERIM);
+        PARSER.declareBoolean(BucketInfluencer::setIsInterim, Result.IS_INTERIM);
     }
 
     private final String jobId;
@@ -132,7 +131,7 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
         builder.dateField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(SEQUENCE_NUM.getPreferredName(), sequenceNum);
-        builder.field(IS_INTERIM.getPreferredName(), isInterim);
+        builder.field(Result.IS_INTERIM.getPreferredName(), isInterim);
         builder.endObject();
         return builder;
     }

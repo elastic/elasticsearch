@@ -60,7 +60,7 @@ class ResultsFilterBuilder {
         return this;
     }
 
-    public ResultsFilterBuilder interim(String fieldName, boolean includeInterim) {
+    public ResultsFilterBuilder interim(boolean includeInterim) {
         if (includeInterim) {
             // Including interim results does not stop final results being
             // shown, so including interim results means no filtering on the
@@ -72,8 +72,7 @@ class ResultsFilterBuilder {
         // are equivalent to false.  This improves backwards compatibility.
         // Also, note how for a boolean field, unlike numeric term queries, the
         // term value is supplied as a string.
-        TermQueryBuilder interimFilter = QueryBuilders.termQuery(fieldName,
-                Boolean.TRUE.toString());
+        TermQueryBuilder interimFilter = QueryBuilders.termQuery(Result.IS_INTERIM.getPreferredName(), true);
         QueryBuilder notInterimFilter = QueryBuilders.boolQuery().mustNot(interimFilter);
         addQuery(notInterimFilter);
         return this;

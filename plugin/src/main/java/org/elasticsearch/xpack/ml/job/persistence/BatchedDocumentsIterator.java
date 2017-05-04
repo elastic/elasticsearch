@@ -72,12 +72,12 @@ public abstract class BatchedDocumentsIterator<T>  {
     }
 
     /**
-     * Include interim documents
+     * Sets whether interim results should be included
      *
-     * @param interimFieldName Name of the include interim field
+     * @param includeInterim Whether interim results should be included
      */
-    public BatchedDocumentsIterator<T> includeInterim(String interimFieldName) {
-        filterBuilder.interim(interimFieldName, true);
+    public BatchedDocumentsIterator<T> includeInterim(boolean includeInterim) {
+        filterBuilder.interim(includeInterim);
         return this;
     }
 

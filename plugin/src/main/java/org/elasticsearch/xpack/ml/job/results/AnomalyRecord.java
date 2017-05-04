@@ -54,7 +54,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     public static final ParseField FUNCTION_DESCRIPTION = new ParseField("function_description");
     public static final ParseField TYPICAL = new ParseField("typical");
     public static final ParseField ACTUAL = new ParseField("actual");
-    public static final ParseField IS_INTERIM = new ParseField("is_interim");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
 
@@ -101,7 +100,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         PARSER.declareDouble(AnomalyRecord::setRecordScore, RECORD_SCORE);
         PARSER.declareDouble(AnomalyRecord::setInitialRecordScore, INITIAL_RECORD_SCORE);
         PARSER.declareInt(AnomalyRecord::setDetectorIndex, DETECTOR_INDEX);
-        PARSER.declareBoolean(AnomalyRecord::setInterim, IS_INTERIM);
+        PARSER.declareBoolean(AnomalyRecord::setInterim, Result.IS_INTERIM);
         PARSER.declareString(AnomalyRecord::setByFieldName, BY_FIELD_NAME);
         PARSER.declareString(AnomalyRecord::setByFieldValue, BY_FIELD_VALUE);
         PARSER.declareString(AnomalyRecord::setCorrelatedByFieldValue, CORRELATED_BY_FIELD_VALUE);
@@ -244,7 +243,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         builder.field(SEQUENCE_NUM.getPreferredName(), sequenceNum);
-        builder.field(IS_INTERIM.getPreferredName(), isInterim);
+        builder.field(Result.IS_INTERIM.getPreferredName(), isInterim);
         builder.dateField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         if (byFieldName != null) {
             builder.field(BY_FIELD_NAME.getPreferredName(), byFieldName);

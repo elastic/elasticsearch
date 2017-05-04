@@ -38,7 +38,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
 
     public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
     public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initial_anomaly_score");
-    public static final ParseField IS_INTERIM = new ParseField("is_interim");
     public static final ParseField RECORD_COUNT = new ParseField("record_count");
     public static final ParseField EVENT_COUNT = new ParseField("event_count");
     public static final ParseField RECORDS = new ParseField("records");
@@ -73,7 +72,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareDouble(Bucket::setAnomalyScore, ANOMALY_SCORE);
         PARSER.declareDouble(Bucket::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
-        PARSER.declareBoolean(Bucket::setInterim, IS_INTERIM);
+        PARSER.declareBoolean(Bucket::setInterim, Result.IS_INTERIM);
         PARSER.declareInt(Bucket::setRecordCount, RECORD_COUNT);
         PARSER.declareLong(Bucket::setEventCount, EVENT_COUNT);
         PARSER.declareObjectArray(Bucket::setRecords, AnomalyRecord.PARSER, RECORDS);
@@ -166,7 +165,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
             builder.field(RECORDS.getPreferredName(), records);
         }
         builder.field(EVENT_COUNT.getPreferredName(), eventCount);
-        builder.field(IS_INTERIM.getPreferredName(), isInterim);
+        builder.field(Result.IS_INTERIM.getPreferredName(), isInterim);
         builder.field(BUCKET_INFLUENCERS.getPreferredName(), bucketInfluencers);
         builder.field(PROCESSING_TIME_MS.getPreferredName(), processingTimeMs);
         if (partitionScores.isEmpty() == false) {

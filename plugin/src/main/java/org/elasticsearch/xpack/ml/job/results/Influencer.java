@@ -66,7 +66,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
         PARSER.declareDouble(Influencer::setProbability, PROBABILITY);
         PARSER.declareDouble(Influencer::setInfluencerScore, INFLUENCER_SCORE);
         PARSER.declareDouble(Influencer::setInitialInfluencerScore, INITIAL_INFLUENCER_SCORE);
-        PARSER.declareBoolean(Influencer::setInterim, Bucket.IS_INTERIM);
+        PARSER.declareBoolean(Influencer::setInterim, Result.IS_INTERIM);
     }
 
     private final String jobId;
@@ -131,7 +131,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
         builder.field(PROBABILITY.getPreferredName(), probability);
         builder.field(SEQUENCE_NUM.getPreferredName(), sequenceNum);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
-        builder.field(Bucket.IS_INTERIM.getPreferredName(), isInterim);
+        builder.field(Result.IS_INTERIM.getPreferredName(), isInterim);
         builder.dateField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         builder.endObject();
         return builder;

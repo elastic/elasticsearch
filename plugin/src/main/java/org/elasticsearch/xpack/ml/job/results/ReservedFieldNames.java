@@ -65,7 +65,6 @@ public final class ReservedFieldNames {
             AnomalyRecord.FUNCTION_DESCRIPTION.getPreferredName(),
             AnomalyRecord.TYPICAL.getPreferredName(),
             AnomalyRecord.ACTUAL.getPreferredName(),
-            AnomalyRecord.IS_INTERIM.getPreferredName(),
             AnomalyRecord.INFLUENCERS.getPreferredName(),
             AnomalyRecord.FIELD_NAME.getPreferredName(),
             AnomalyRecord.OVER_FIELD_NAME.getPreferredName(),
@@ -79,7 +78,6 @@ public final class ReservedFieldNames {
             Bucket.ANOMALY_SCORE.getPreferredName(),
             Bucket.BUCKET_INFLUENCERS.getPreferredName(),
             Bucket.BUCKET_SPAN.getPreferredName(),
-            Bucket.IS_INTERIM.getPreferredName(),
             Bucket.RECORD_COUNT.getPreferredName(),
             Bucket.EVENT_COUNT.getPreferredName(),
             Bucket.INITIAL_ANOMALY_SCORE.getPreferredName(),
@@ -149,7 +147,8 @@ public final class ReservedFieldNames {
             PerPartitionMaxProbabilities.MAX_RECORD_SCORE.getPreferredName(),
 
             Result.RESULT_TYPE.getPreferredName(),
-            Result.TIMESTAMP.getPreferredName()
+            Result.TIMESTAMP.getPreferredName(),
+            Result.IS_INTERIM.getPreferredName()
     };
 
     /**

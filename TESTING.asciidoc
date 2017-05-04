@@ -426,12 +426,12 @@ sudo -E bats $BATS_TESTS/*.bats
 You can also use Gradle to prepare the test environment and then starts a single VM:
 
 -------------------------------------------------
-gradle vagrantFedora24#up
+gradle vagrantFedora25#up
 -------------------------------------------------
 
-Or any of vagrantCentos6#up, vagrantDebian8#up, vagrantFedora24#up, vagrantOel6#up,
-vagrantOel7#up, vagrantOpensuse13#up, vagrantSles12#up, vagrantUbuntu1404#up,
-vagrantUbuntu1604#up.
+Or any of vagrantCentos6#up, vagrantCentos7#up, vagrantDebian8#up,
+vagrantFedora25#up, vagrantOel6#up, vagrantOel7#up, vagrantOpensuse13#up,
+vagrantSles12#up, vagrantUbuntu1404#up, vagrantUbuntu1604#up.
 
 Once up, you can then connect to the VM using SSH from the elasticsearch directory:
 

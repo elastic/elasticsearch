@@ -147,10 +147,10 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
                 "transform.**",
                 "actions.**",
                 "metadata.**",
-                "_status.version",
-                "_status.last_checked",
-                "_status.last_met_condition",
-                "_status.actions.**");
+                "status.version",
+                "status.last_checked",
+                "status.last_met_condition",
+                "status.actions.**");
 
         XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), new BytesStreamOutput(), filters);
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);

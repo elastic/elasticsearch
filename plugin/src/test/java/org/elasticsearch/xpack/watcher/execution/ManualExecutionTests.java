@@ -147,7 +147,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                         is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
             }
         } else {
-            String ackState = executeWatchResponse.getRecordSource().getValue("_status.actions.log.ack.state");
+            String ackState = executeWatchResponse.getRecordSource().getValue("status.actions.log.ack.state");
             if (ignoreCondition || conditionAlwaysTrue) {
                 assertThat(ackState, is(ActionStatus.AckStatus.State.ACKABLE.toString().toLowerCase(Locale.ROOT)));
             } else {

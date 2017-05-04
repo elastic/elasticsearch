@@ -19,7 +19,7 @@ GET _xpack/watcher/watch/my_watch
 {
   "found": true,
   "_id": "my_watch",
-  "_status": {
+  "status": {
     "state" : {
       "active" : true,
       "timestamp" : "2015-08-20T12:21:32.734Z"
@@ -30,10 +30,10 @@ GET _xpack/watcher/watch/my_watch
   "watch": ...
 }
 --------------------------------------------------
-// TESTRESPONSE[s/2015-08-20T12:21:32.734Z/$body._status.state.timestamp/]
-// TESTRESPONSE[s/"actions": \.\.\./"actions": "$body._status.actions"/]
+// TESTRESPONSE[s/2015-08-20T12:21:32.734Z/$body.status.state.timestamp/]
+// TESTRESPONSE[s/"actions": \.\.\./"actions": "$body.status.actions"/]
 // TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
-// TESTRESPONSE[s/"version": 1/"version": $body._status.version/]
+// TESTRESPONSE[s/"version": 1/"version": $body.status.version/]
 
 You can deactivate the watch by executing the following API call:
 
@@ -49,7 +49,7 @@ The new state of the watch is returned as part of its overall status:
 [source,js]
 --------------------------------------------------
 {
-  "_status": {
+  "status": {
     "state" : {
       "active" : false,
       "timestamp" : "2015-09-04T08:39:46.816Z"
@@ -59,6 +59,6 @@ The new state of the watch is returned as part of its overall status:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/2015-09-04T08:39:46.816Z/$body._status.state.timestamp/]
-// TESTRESPONSE[s/"actions": \.\.\./"actions": "$body._status.actions"/]
-// TESTRESPONSE[s/"version": 1/"version": $body._status.version/]
+// TESTRESPONSE[s/2015-09-04T08:39:46.816Z/$body.status.state.timestamp/]
+// TESTRESPONSE[s/"actions": \.\.\./"actions": "$body.status.actions"/]
+// TESTRESPONSE[s/"version": 1/"version": $body.status.version/]

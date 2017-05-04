@@ -3,7 +3,7 @@
 
 <<actions-ack-throttle, Acknowledging>> a watch enables you to manually throttle
 execution of the watch's actions. An action's _acknowledgement state_ is stored
-in the `_status.actions.<id>.ack.state` structure.
+in the `status.actions.<id>.ack.state` structure.
 
 To demonstrate let's create a new watch:
 
@@ -58,7 +58,7 @@ The action state of a newly-created watch is `awaits_successful_execution`:
 {
   "found": true,
   "_id": "my_watch",
-  "_status": {
+  "status": {
     "version": 1,
     "actions": {
       "test_index": {
@@ -73,9 +73,9 @@ The action state of a newly-created watch is `awaits_successful_execution`:
   "watch": ...
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"state": \.\.\./"state": "$body._status.state"/]
+// TESTRESPONSE[s/"state": \.\.\./"state": "$body.status.state"/]
 // TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
-// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body._status.actions.test_index.ack.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body.status.actions.test_index.ack.timestamp"/]
 
 When the watch executes and the condition matches, the value of the `ack.state`
 changes to `ackable`. Let's force execution of the watch and fetch it again to
@@ -95,7 +95,7 @@ and the action is now in `ackable` state:
 {
   "found": true,
   "_id": "my_watch",
-  "_status": {
+  "status": {
     "version": 1,
     "actions": {
       "test_index": {
@@ -110,9 +110,9 @@ and the action is now in `ackable` state:
   "watch": ...
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"state": \.\.\./"state": "$body._status.state"/]
+// TESTRESPONSE[s/"state": \.\.\./"state": "$body.status.state"/]
 // TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
-// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body._status.actions.test_index.ack.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body.status.actions.test_index.ack.timestamp"/]
 
 Now we can acknowledge it:
 
@@ -128,7 +128,7 @@ GET _xpack/watcher/watch/my_watch
 {
   "found": true,
   "_id": "my_watch",
-  "_status": {
+  "status": {
     "version": 1,
     "actions": {
       "test_index": {
@@ -143,9 +143,9 @@ GET _xpack/watcher/watch/my_watch
   "watch": ...
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"state": \.\.\./"state": "$body._status.state"/]
+// TESTRESPONSE[s/"state": \.\.\./"state": "$body.status.state"/]
 // TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
-// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body._status.actions.test_index.ack.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body.status.actions.test_index.ack.timestamp"/]
 
 Acknowledging an action throttles further executions of that action until its
 `ack.state` is reset to `awaits_successful_execution`. This happens when the
@@ -195,7 +195,7 @@ The response format looks like:
 [source,js]
 --------------------------------------------------
 {
-   "_status": {
+   "status": {
       "last_checked": "2015-05-26T18:21:08.630Z",
       "last_met_condition": "2015-05-26T18:21:08.630Z",
       "actions": {

@@ -41,40 +41,40 @@
 
   - match: { found : true}
   - match: { _id: "my_watch" }
-  - match: { _status.state.active: true }
+  - match: { status.state.active: true }
 
   - do:
       xpack.watcher.deactivate_watch:
         watch_id: "my_watch"
 
-  - match: { _status.state.active : false }
+  - match: { status.state.active : false }
 
   - do:
       search:
         index: .watches
         body: { "query": { "term": { "_id": "my_watch" } } }
   - match: { hits.total: 1 }
-  - match: { hits.hits.0._source._status.state.active: false }
+  - match: { hits.hits.0._source.status.state.active: false }
 
   - do:
       xpack.watcher.get_watch:
         id: "my_watch"
   - match: { found : true}
   - match: { _id: "my_watch" }
-  - match: { _status.state.active: false }
+  - match: { status.state.active: false }
 
   - do:
       xpack.watcher.activate_watch:
         watch_id: "my_watch"
 
-  - match: { _status.state.active : true }
+  - match: { status.state.active : true }
 
   - do:
       search:
         index: .watches
         body: { "query": { "term": { "_id": "my_watch" } } }
   - match: { hits.total: 1 }
-  - match: { hits.hits.0._source._status.state.active: true }
+  - match: { hits.hits.0._source.status.state.active: true }
 
   - do:
       xpack.watcher.get_watch:
@@ -82,7 +82,7 @@
 
   - match: { found : true}
   - match: { _id: "my_watch" }
-  - match: { _status.state.active: true }
+  - match: { status.state.active: true }
 
   - do:
       xpack.watcher.delete_watch:

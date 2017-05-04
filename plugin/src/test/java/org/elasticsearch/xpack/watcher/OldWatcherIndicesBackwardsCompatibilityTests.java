@@ -21,12 +21,15 @@ import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsRespo
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -57,6 +60,17 @@ public class OldWatcherIndicesBackwardsCompatibilityTests extends AbstractOldXPa
                     .stream().map(WatcherStatsResponse.Node::getWatcherState).collect(Collectors.toList());
             assertThat(states, everyItem(is(WatcherState.STARTED)));
         });
+
+        // in order to go from 5.x to master, we assume someone executed the upgrade API, which will install the new index templates
+        // in this test we just do this manually, by adding the _status field to the mapping
+        // this can be removed once the API supports regular upgrade from 5.x to 6.x
+        assertAcked(client().admin().indices().preparePutMapping(Watch.INDEX).setType(Watch.DOC_TYPE)
+                .setSource(jsonBuilder().startObject().startObject("properties").startObject("status")
+                        .field("type", "object")
+                        .field("enabled", false)
+                        .field("dynamic", true).endObject().endObject().endObject())
+                .get());
+
         try {
             assertWatchIndexContentsWork(version);
             assertBasicWatchInteractions();

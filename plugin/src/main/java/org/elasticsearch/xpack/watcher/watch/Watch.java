@@ -303,7 +303,7 @@ public class Watch implements ToXContentObject {
                     actions = actionRegistry.parseActions(id, parser);
                 } else if (Field.METADATA.match(currentFieldName)) {
                     metatdata = parser.map();
-                } else if (Field.STATUS.match(currentFieldName)) {
+                } else if (Field.STATUS.match(currentFieldName) || Field.STATUS_V5.match(currentFieldName)) {
                     if (includeStatus) {
                         status = WatchStatus.parse(id, parser, clock);
                     } else {
@@ -349,7 +349,8 @@ public class Watch implements ToXContentObject {
         ParseField THROTTLE_PERIOD = new ParseField("throttle_period_in_millis");
         ParseField THROTTLE_PERIOD_HUMAN = new ParseField("throttle_period");
         ParseField METADATA = new ParseField("metadata");
-        ParseField STATUS = new ParseField("_status");
+        ParseField STATUS = new ParseField("status");
+        ParseField STATUS_V5 = new ParseField("_status");
     }
 
     private static final Pattern NO_WS_PATTERN = Pattern.compile("\\S+");

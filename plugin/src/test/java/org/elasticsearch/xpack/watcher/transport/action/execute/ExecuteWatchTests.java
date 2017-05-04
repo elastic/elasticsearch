@@ -81,7 +81,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
         assertValue(record, "result.actions.0.type", is("logging"));
         assertValue(record, "result.actions.0.status", is("success"));
         assertValue(record, "result.actions.0.logging.logged_text", is("_text"));
-        assertValue(record, "_status.actions.log.ack.state", is("ackable"));
+        assertValue(record, "status.actions.log.ack.state", is("ackable"));
     }
 
     public void testExecuteCustomTriggerData() throws Exception {

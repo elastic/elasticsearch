@@ -104,7 +104,7 @@ This is an example of the output:
       }
     },
     "state": "executed",
-    "_status": {
+    "status": {
       "version": 1,
       "state": {
         "active": true,
@@ -179,10 +179,10 @@ This is an example of the output:
 // TESTRESPONSE[s/"triggered_time": "2015-06-02T23:17:55.124Z"/"triggered_time": "$body.watch_record.trigger_event.triggered_time"/]
 // TESTRESPONSE[s/"scheduled_time": "2015-06-02T23:17:55.124Z"/"scheduled_time": "$body.watch_record.trigger_event.manual.schedule.scheduled_time"/]
 // TESTRESPONSE[s/"execution_time": "2015-06-02T23:17:55.124Z"/"execution_time": "$body.watch_record.result.execution_time"/]
-// TESTRESPONSE[s/"timestamp": "2015-06-02T23:17:55.111Z"/"timestamp": "$body.watch_record._status.state.timestamp"/]
-// TESTRESPONSE[s/"timestamp": "2015-06-02T23:17:55.124Z"/"timestamp": "$body.watch_record._status.actions.test_index.ack.timestamp"/]
-// TESTRESPONSE[s/"last_checked": "2015-06-02T23:17:55.124Z"/"last_checked": "$body.watch_record._status.last_checked"/]
-// TESTRESPONSE[s/"last_met_condition": "2015-06-02T23:17:55.124Z"/"last_met_condition": "$body.watch_record._status.last_met_condition"/]
+// TESTRESPONSE[s/"timestamp": "2015-06-02T23:17:55.111Z"/"timestamp": "$body.watch_record.status.state.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-06-02T23:17:55.124Z"/"timestamp": "$body.watch_record.status.actions.test_index.ack.timestamp"/]
+// TESTRESPONSE[s/"last_checked": "2015-06-02T23:17:55.124Z"/"last_checked": "$body.watch_record.status.last_checked"/]
+// TESTRESPONSE[s/"last_met_condition": "2015-06-02T23:17:55.124Z"/"last_met_condition": "$body.watch_record.status.last_met_condition"/]
 // TESTRESPONSE[s/"execution_duration": 12608/"execution_duration": "$body.watch_record.result.execution_duration"/]
 // TESTRESPONSE[s/"id": "AVSHKzPa9zx62AzUzFXY"/"id": "$body.watch_record.result.actions.0.index.response.id"/]
 // TESTRESPONSE[s/"node": "my_node"/"node": "$body.watch_record.node"/]

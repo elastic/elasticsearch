@@ -53,17 +53,17 @@ teardown:
           {
             "record_execution" : true
           }
-  - match: { watch_record._status.actions.indexme.ack.state: "ackable" }
+  - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
 
   - do:
       xpack.watcher.ack_watch:
         watch_id: "my_watch"
-  - match: { "_status.actions.indexme.ack.state" : "acked" }
+  - match: { "status.actions.indexme.ack.state" : "acked" }
 
   - do:
       xpack.watcher.get_watch:
         id: "my_watch"
-  - match: { "_status.actions.indexme.ack.state" : "acked" }
+  - match: { "status.actions.indexme.ack.state" : "acked" }
 
   # having a false result will reset the ack state
   - do:
@@ -79,12 +79,12 @@ teardown:
               "indexme" : "force_execute"
             }
           }
-  - match: { watch_record._status.actions.indexme.ack.state: "awaits_successful_execution" }
+  - match: { watch_record.status.actions.indexme.ack.state: "awaits_successful_execution" }
 
   - do:
       xpack.watcher.get_watch:
         id: "my_watch"
-  - match: { "_status.actions.indexme.ack.state" : "awaits_successful_execution" }
+  - match: { "status.actions.indexme.ack.state" : "awaits_successful_execution" }
 
   - do:
       xpack.watcher.execute_watch:
@@ -96,10 +96,10 @@ teardown:
               "indexme" : "force_execute"
             }
           }
-  - match: { watch_record._status.actions.indexme.ack.state: "ackable" }
+  - match: { watch_record.status.actions.indexme.ack.state: "ackable" }
 
   - do:
       xpack.watcher.get_watch:
         id: "my_watch"
-  - match: { "_status.actions.indexme.ack.state" : "ackable" }
+  - match: { "status.actions.indexme.ack.state" : "ackable" }
 

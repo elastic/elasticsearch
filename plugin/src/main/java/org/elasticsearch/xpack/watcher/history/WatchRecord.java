@@ -137,7 +137,7 @@ public abstract class WatchRecord implements ToXContentObject {
         builder.field(Field.STATE.getPreferredName(), state.id());
 
         if (watch != null && watch.status() != null) {
-            builder.field("_status", watch.status(), params);
+            builder.field(Field.STATUS.getPreferredName(), watch.status(), params);
         }
 
         builder.field(Field.TRIGGER_EVENT.getPreferredName());
@@ -195,7 +195,7 @@ public abstract class WatchRecord implements ToXContentObject {
         ParseField TRIGGER_EVENT = new ParseField("trigger_event");
         ParseField MESSAGES = new ParseField("messages");
         ParseField STATE = new ParseField("state");
-        ParseField STATUS = new ParseField("_status");
+        ParseField STATUS = new ParseField("status");
         ParseField VARS = new ParseField("vars");
         ParseField METADATA = new ParseField("metadata");
         ParseField EXECUTION_RESULT = new ParseField("result");

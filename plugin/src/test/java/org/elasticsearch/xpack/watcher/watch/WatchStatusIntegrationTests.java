@@ -48,7 +48,7 @@ public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestC
         GetResponse getResponse = client().prepareGet(".watches", "watch", "_name").get();
         getResponse.getSource();
         XContentSource source = new XContentSource(getResponse.getSourceAsBytesRef(), XContentType.JSON);
-        String lastChecked = source.getValue("_status.last_checked");
+        String lastChecked = source.getValue("status.last_checked");
 
         assertThat(lastChecked, is(notNullValue()));
         assertThat(getWatchResponse.getStatus().lastChecked().toString(), is(lastChecked));

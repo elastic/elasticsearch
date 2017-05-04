@@ -45,7 +45,7 @@ public class RestGetWatchAction extends WatcherRestHandler {
                         .field("_id", response.getId());
                         if (response.isFound()) {
                             ToXContent.MapParams xContentParams = new ToXContent.MapParams(request.params());
-                            builder.field("_status", response.getStatus(), xContentParams);
+                            builder.field("status", response.getStatus(), xContentParams);
                             builder.field("watch", response.getSource(), xContentParams);
                         }
                         builder.endObject();

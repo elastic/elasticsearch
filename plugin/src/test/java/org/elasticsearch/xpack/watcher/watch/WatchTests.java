@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -112,6 +112,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -127,6 +128,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
@@ -201,7 +203,7 @@ public class WatchTests extends ESTestCase {
 
         Watch watch = new Watch("_name", trigger, input, condition, transform, throttlePeriod, actions, metadata, watchStatus);
 
-        BytesReference bytes = XContentFactory.jsonBuilder().value(watch).bytes();
+        BytesReference bytes = jsonBuilder().value(watch).bytes();
         logger.info("{}", bytes.utf8ToString());
         Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
 
@@ -220,6 +222,49 @@ public class WatchTests extends ESTestCase {
         assertThat(parsedWatch.actions(), equalTo(actions));
     }
 
+    public void testThatBothStatusFieldsCanBeRead() throws Exception {
+        InputRegistry inputRegistry = mock(InputRegistry.class);
+        ActionRegistry actionRegistry = mock(ActionRegistry.class);
+        // a fake trigger service that advances past the trigger end object, which cannot be done with mocking
+        TriggerService triggerService = new TriggerService(Settings.EMPTY, Collections.emptySet()) {
+            @Override
+            public Trigger parseTrigger(String jobName, XContentParser parser) throws IOException {
+                XContentParser.Token token;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                }
+
+                return new ScheduleTrigger(randomSchedule());
+            }
+        };
+
+        DateTime now = new DateTime(UTC);
+        ClockMock clock = ClockMock.frozen();
+        clock.setTime(now);
+
+        List<ActionWrapper> actions = randomActions();
+        Map<String, ActionStatus> actionsStatuses = new HashMap<>();
+        for (ActionWrapper action : actions) {
+            actionsStatuses.put(action.id(), new ActionStatus(now));
+        }
+        WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), unmodifiableMap(actionsStatuses));
+
+        Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
+        XContentBuilder builder = jsonBuilder().startObject()
+                .startObject("trigger").endObject();
+        if (randomBoolean()) {
+            builder.field("_status", watchStatus);
+        } else {
+            builder.field("status", watchStatus);
+        }
+
+        builder.endObject();
+        Watch watch = watchParser.parse("foo", true, builder.bytes(), XContentType.JSON);
+        assertThat(watch.status().state().getTimestamp().getMillis(), is(clock.millis()));
+        for (ActionWrapper action : actions) {
+            assertThat(watch.status().actionStatus(action.id()), is(actionsStatuses.get(action.id())));
+        }
+    }
+
     public void testParserBadActions() throws Exception {
         ClockMock clock = ClockMock.frozen();
         ScheduleRegistry scheduleRegistry = registry(randomSchedule());
@@ -235,7 +280,7 @@ public class WatchTests extends ESTestCase {
         ActionRegistry actionRegistry = registry(actions,conditionRegistry, transformRegistry);
 
 
-        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()
+        XContentBuilder jsonBuilder = jsonBuilder()
                 .startObject()
                     .startArray("actions").endArray()
                 .endObject();
@@ -259,7 +304,7 @@ public class WatchTests extends ESTestCase {
         TransformRegistry transformRegistry = transformRegistry();
         ActionRegistry actionRegistry = registry(Collections.emptyList(), conditionRegistry, transformRegistry);
 
-        XContentBuilder builder = XContentFactory.jsonBuilder();
+        XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.startObject(Watch.Field.TRIGGER.getPreferredName())
                 .field(ScheduleTrigger.TYPE, schedule(schedule).build())
@@ -290,7 +335,7 @@ public class WatchTests extends ESTestCase {
 
         WatcherSearchTemplateService searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, xContentRegistry());
 
-        XContentBuilder builder = XContentFactory.jsonBuilder();
+        XContentBuilder builder = jsonBuilder();
         builder.startObject();
 
         builder.startObject("trigger");

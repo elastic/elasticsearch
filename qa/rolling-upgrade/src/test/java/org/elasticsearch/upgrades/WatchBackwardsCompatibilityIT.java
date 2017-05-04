@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -20,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -104,6 +108,20 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
 
     }
 
+    @Override
+    protected boolean preserveIndicesUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = "Basic " + Base64.getEncoder()
+                .encodeToString("elastic:changeme".getBytes(StandardCharsets.UTF_8));
+        return Settings.builder()
+                .put(ThreadContext.PREFIX + ".Authorization", token)
+                .build();
+    }
+
     public void testWatcherStats() throws Exception {
         executeAgainstAllNodes(client ->
             assertOK(client.performRequest("GET", "/_xpack/watcher/stats"))
@@ -128,15 +146,12 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                 ContentType.APPLICATION_JSON);
 
         executeAgainstAllNodes(client -> {
-            assertOK(client.performRequest("PUT", "/_xpack/watcher/watch/my-watch",
-                    Collections.emptyMap(), entity));
+            fakeUpgradeFrom5x(client);
 
+            assertOK(client.performRequest("PUT", "/_xpack/watcher/watch/my-watch", Collections.emptyMap(), entity));
             assertOK(client.performRequest("GET", "/_xpack/watcher/watch/my-watch"));
-
             assertOK(client.performRequest("POST", "/_xpack/watcher/watch/my-watch/_execute"));
-
             assertOK(client.performRequest("PUT", "/_xpack/watcher/watch/my-watch/_deactivate"));
-
             assertOK(client.performRequest("PUT", "/_xpack/watcher/watch/my-watch/_activate"));
         });
     }
@@ -156,22 +171,24 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         }
     }
 
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        String token = "Basic " + Base64.getEncoder()
-                .encodeToString("elastic:changeme".getBytes(StandardCharsets.UTF_8));
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
-    }
-
     private void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    // This is needed for fake the upgrade from 5.x to 6.0, where a new watches template is created, that contains mapping for the status
+    // field, as _status will be moved to status
+    // This can be removed once the upgrade API supports everything
+    private void fakeUpgradeFrom5x(RestClient client) throws IOException {
+        BytesReference mappingJson = jsonBuilder().startObject().startObject("properties").startObject("status")
+                .field("type", "object")
+                .field("enabled", false)
+                .field("dynamic", true)
+                .endObject().endObject().endObject()
+                .bytes();
+        HttpEntity data = new ByteArrayEntity(mappingJson.toBytesRef().bytes, ContentType.APPLICATION_JSON);
+
+        Response response = client.performRequest("PUT", "/" + Watch.INDEX + "/_mapping/" + Watch.DOC_TYPE, Collections.emptyMap(), data);
+        assertOK(response);
     }
 
     private Nodes buildNodeAndVersions() throws IOException {

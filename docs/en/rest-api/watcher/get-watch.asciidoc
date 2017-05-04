@@ -19,7 +19,7 @@ Response:
 {
   "found": true,
   "_id": "my_watch",
-  "_status": { <1>
+  "status": { <1>
     "version": 1,
     "state": {
       "active": true,
@@ -63,5 +63,5 @@ Response:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"timestamp": "2015-05-26T18:21:08.630Z"/"timestamp": "$body._status.state.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:21:08.630Z"/"timestamp": "$body.status.state.timestamp"/]
 <1> The current status of the watch

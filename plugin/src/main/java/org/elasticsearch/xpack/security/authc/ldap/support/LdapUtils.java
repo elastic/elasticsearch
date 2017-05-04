@@ -309,6 +309,17 @@ public final class LdapUtils {
         return attributes == null ? new String[] { SearchRequest.NO_ATTRIBUTES } : attributes;
     }
 
+    public static String[] attributesToSearchFor(String[]... args) {
+        List<String> attributes = new ArrayList<>();
+        for (String[] array : args) {
+            if (array != null) {
+                attributes.addAll(Arrays.asList(array));
+            }
+        }
+        return attributes.isEmpty() ? attributesToSearchFor((String[]) null)
+                : attributes.toArray(new String[attributes.size()]);
+    }
+
     static String[] encodeFilterValues(String... arguments) {
         for (int i = 0; i < arguments.length; i++) {
             arguments[i] = Filter.encodeValue(arguments[i]);

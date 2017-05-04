@@ -268,7 +268,8 @@ public class IndexLifecycleManager extends AbstractComponent {
             Map<String, Object> meta =
                     (Map<String, Object>) mappingMetaData.sourceAsMap().get("_meta");
             if (meta == null) {
-                throw new IllegalStateException("Cannot read security-version string");
+                logger.info("Missing _meta field in mapping [{}] of index [{}]", mappingMetaData.type(), indexName);
+                throw new IllegalStateException("Cannot read security-version string in index " + indexName);
             }
             return Version.fromString((String) meta.get(SECURITY_VERSION_STRING));
         } catch (IOException e) {
@@ -305,6 +306,11 @@ public class IndexLifecycleManager extends AbstractComponent {
                                     "failed to upgrade security [{}] data from version [{}] ",
                                     indexName, previousVersion),
                             e);
+                }
+
+                @Override
+                public String toString() {
+                    return getClass() + "{" + indexName + " migrator}";
                 }
             });
             return true;
@@ -383,6 +389,11 @@ public class IndexLifecycleManager extends AbstractComponent {
                                 "failed to update mapping for type [{}] on index [{}]",
                                 type, indexName), e);
                     }
+
+                    @Override
+                    public String toString() {
+                        return getClass() + "{" + indexName + " PutMapping}";
+                    }
                 });
     }
 
@@ -416,6 +427,11 @@ public class IndexLifecycleManager extends AbstractComponent {
                         templateCreationPending.set(false);
                         logger.warn(new ParameterizedMessage(
                                 "failed to put template [{}]", templateName), e);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return getClass() + "{" + indexName + " PutTemplate}";
                     }
                 });
     }

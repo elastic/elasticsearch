@@ -138,6 +138,20 @@
         "expiration_time": {
           "type": "date",
           "format": "date_time"
+        },
+        "roles": {
+          "type": "keyword"
+        },
+        "rules": {
+          "type" : "object",
+          "dynamic" : true
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "metadata" : {
+          "type" : "object",
+          "dynamic" : true
         }
       }
     }

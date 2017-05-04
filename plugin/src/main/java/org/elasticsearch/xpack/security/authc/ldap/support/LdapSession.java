@@ -12,9 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Represents a LDAP connection with an authenticated/bound user that needs closing.
@@ -22,9 +25,11 @@ import java.util.List;
 public class LdapSession implements Releasable {
 
     protected final Logger logger;
+    protected final RealmConfig realm;
     protected final LDAPInterface ldap;
     protected final String userDn;
     protected final GroupsResolver groupsResolver;
+    private LdapMetaDataResolver metaDataResolver;
     protected final TimeValue timeout;
     protected final Collection<Attribute> attributes;
 
@@ -36,12 +41,14 @@ public class LdapSession implements Releasable {
      * outside of and be reused across all connections. We can't keep a static logger in this class
      * since we want the logger to be contextual (i.e. aware of the settings and its environment).
      */
-    public LdapSession(Logger logger, LDAPInterface connection, String userDn, GroupsResolver groupsResolver, TimeValue timeout,
-                       Collection<Attribute> attributes) {
+    public LdapSession(Logger logger, RealmConfig realm, LDAPInterface connection, String userDn, GroupsResolver groupsResolver,
+                       LdapMetaDataResolver metaDataResolver, TimeValue timeout, Collection<Attribute> attributes) {
         this.logger = logger;
+        this.realm = realm;
         this.ldap = connection;
         this.userDn = userDn;
         this.groupsResolver = groupsResolver;
+        this.metaDataResolver = metaDataResolver;
         this.timeout = timeout;
         this.attributes = attributes;
     }
@@ -66,10 +73,46 @@ public class LdapSession implements Releasable {
     }
 
     /**
+     * @return the realm for which this session was created
+     */
+    public RealmConfig realm() {
+        return realm;
+    }
+
+    /**
      * Asynchronously retrieves a list of group distinguished names
      */
     public void groups(ActionListener<List<String>> listener) {
         groupsResolver.resolve(ldap, userDn, timeout, logger, attributes, listener);
+    }
+
+    public void metaData(ActionListener<Map<String, Object>> listener) {
+        metaDataResolver.resolve(ldap, userDn, timeout, logger, attributes, listener);
+    }
+
+    public void resolve(ActionListener<LdapUserData> listener) {
+        logger.debug("Resolving LDAP groups + meta-data for user [{}]", userDn);
+        groups(ActionListener.wrap(
+                groups -> {
+                    logger.debug("Resolved {} LDAP groups [{}] for user [{}]",  groups.size(), groups, userDn);
+                    metaData(ActionListener.wrap(
+                            meta -> {
+                                logger.debug("Resolved {} meta-data fields [{}] for user [{}]",  meta.size(), meta, userDn);
+                                listener.onResponse(new LdapUserData(groups, meta));
+                            },
+                            listener::onFailure));
+                },
+                listener::onFailure));
+    }
+
+    public static class LdapUserData {
+        public final List<String> groups;
+        public final Map<String, Object> metaData;
+
+        public LdapUserData(List<String> groups, Map<String, Object> metaData) {
+            this.groups = groups;
+            this.metaData = metaData;
+        }
     }
 
     /**

@@ -73,6 +73,12 @@ import org.elasticsearch.xpack.security.action.role.TransportClearRolesCacheActi
 import org.elasticsearch.xpack.security.action.role.TransportDeleteRoleAction;
 import org.elasticsearch.xpack.security.action.role.TransportGetRolesAction;
 import org.elasticsearch.xpack.security.action.role.TransportPutRoleAction;
+import org.elasticsearch.xpack.security.action.rolemapping.DeleteRoleMappingAction;
+import org.elasticsearch.xpack.security.action.rolemapping.GetRoleMappingsAction;
+import org.elasticsearch.xpack.security.action.rolemapping.PutRoleMappingAction;
+import org.elasticsearch.xpack.security.action.rolemapping.TransportDeleteRoleMappingAction;
+import org.elasticsearch.xpack.security.action.rolemapping.TransportGetRoleMappingsAction;
+import org.elasticsearch.xpack.security.action.rolemapping.TransportPutRoleMappingAction;
 import org.elasticsearch.xpack.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
@@ -109,6 +115,8 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
@@ -130,6 +138,9 @@ import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheActi
 import org.elasticsearch.xpack.security.rest.action.role.RestDeleteRoleAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestGetRolesAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestPutRoleAction;
+import org.elasticsearch.xpack.security.rest.action.rolemapping.RestDeleteRoleMappingAction;
+import org.elasticsearch.xpack.security.rest.action.rolemapping.RestGetRoleMappingsAction;
+import org.elasticsearch.xpack.security.rest.action.rolemapping.RestPutRoleMappingAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
@@ -243,6 +254,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
                 b.bind(CryptoService.class).toProvider(Providers.of(null));
                 b.bind(Realms.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(CompositeRolesStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
+                b.bind(NativeRoleMappingStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(AuditTrailService.class)
                     .toInstance(new AuditTrailService(settings, Collections.emptyList(), licenseState));
             });
@@ -298,8 +310,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             }
         }
         final AuditTrailService auditTrailService =
-            new AuditTrailService(settings,
-                    auditTrails.stream().collect(Collectors.toList()), licenseState);
+                new AuditTrailService(settings,  auditTrails.stream().collect(Collectors.toList()), licenseState);
         components.add(auditTrailService);
 
         final SecurityLifecycleService securityLifecycleService =
@@ -308,24 +319,25 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         components.add(tokenService);
 
         // realms construction
-        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client,
-                securityLifecycleService);
+        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityLifecycleService);
+        final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityLifecycleService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
                 anonymousUser, securityLifecycleService, threadPool.getThreadContext());
         Map<String, Realm.Factory> realmFactories = new HashMap<>();
-        realmFactories.putAll(InternalRealms.getFactories(threadPool, resourceWatcherService, sslService, nativeUsersStore));
+        realmFactories.putAll(InternalRealms.getFactories(threadPool, resourceWatcherService,
+                sslService, nativeUsersStore, nativeRoleMappingStore));
         for (XPackExtension extension : extensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
                 if (realmFactories.put(entry.getKey(), entry.getValue()) != null) {
-                    throw new IllegalArgumentException("Realm type [" + entry.getKey() +
-                            "] is already registered");
+                    throw new IllegalArgumentException("Realm type [" + entry.getKey() + "] is already registered");
                 }
             }
         }
         final Realms realms = new Realms(settings, env, realmFactories, licenseState, threadPool.getThreadContext(), reservedRealm);
         components.add(nativeUsersStore);
+        components.add(nativeRoleMappingStore);
         components.add(realms);
         components.add(reservedRealm);
 
@@ -334,7 +346,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         for (XPackExtension extension : extensions) {
             AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
             if (extensionFailureHandler != null && failureHandler != null) {
-                throw new IllegalStateException("Extensions [" + extensionName +"] and [" + extension.name() + "] " +
+                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.name() + "] " +
                     "both set an authentication failure handler");
             }
             failureHandler = extensionFailureHandler;
@@ -532,7 +544,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         if (enabled == false) {
             return emptyList();
         }
-        return Arrays.asList(new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
+        return Arrays.asList(
+                new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
                 new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
                 new ActionHandler<>(GetUsersAction.INSTANCE, TransportGetUsersAction.class),
                 new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
@@ -544,8 +557,12 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
                 new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
                 new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
                 new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
+                new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
+                new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
+                new ActionHandler<>(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
                 new ActionHandler<>(CreateTokenAction.INSTANCE, TransportCreateTokenAction.class),
-                new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class));
+                new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class)
+        );
     }
 
     @Override
@@ -580,8 +597,12 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
                 new RestChangePasswordAction(settings, restController, securityContext.get()),
                 new RestSetEnabledAction(settings, restController),
                 new RestHasPrivilegesAction(settings, restController, securityContext.get()),
+                new RestGetRoleMappingsAction(settings, restController),
+                new RestPutRoleMappingAction(settings, restController),
+                new RestDeleteRoleMappingAction(settings, restController),
                 new RestGetTokenAction(settings, licenseState, restController),
-                new RestInvalidateTokenAction(settings, licenseState, restController));
+                new RestInvalidateTokenAction(settings, licenseState, restController)
+        );
     }
 
     @Override
@@ -814,6 +835,10 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             return null;
         }
         return handler -> new SecurityRestFilter(settings, licenseState, sslService, threadContext, authcService.get(), handler);
+    }
+
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Arrays.asList(ExpressionParser.NAMED_WRITEABLES);
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {

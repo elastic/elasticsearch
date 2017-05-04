@@ -7,8 +7,9 @@ package org.elasticsearch.integration.ldap;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -27,13 +28,14 @@ public class MultipleAdRealmTests extends AbstractAdLdapRealmTestCase {
 
     @BeforeClass
     public static void setupSecondaryRealm() {
+        // It's easier to test 2 realms when using file based role mapping, and for the purposes of
+        // this test, there's no need to test native mappings.
+        AbstractAdLdapRealmTestCase.roleMappings = realmConfig.selectRoleMappings(() -> true);
+
         // Pick a secondary realm that has the inverse value for 'loginWithCommonName' compare with the primary realm
-        final List<RealmConfig> configs = new ArrayList<>();
-        for (RealmConfig config : RealmConfig.values()) {
-            if (config.loginWithCommonName != AbstractAdLdapRealmTestCase.realmConfig.loginWithCommonName) {
-                configs.add(config);
-            }
-        }
+        final List<RealmConfig> configs = Arrays.stream(RealmConfig.values())
+                .filter(config -> config.loginWithCommonName != AbstractAdLdapRealmTestCase.realmConfig.loginWithCommonName)
+                .collect(Collectors.toList());
         secondaryRealmConfig = randomFrom(configs);
         ESLoggerFactory.getLogger("test")
                 .info("running test with secondary realm configuration [{}], with direct group to role mapping [{}]. Settings [{}]",

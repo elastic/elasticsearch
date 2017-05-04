@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
@@ -49,6 +50,7 @@ public class LdapSessionFactory extends SessionFactory {
 
     private final String[] userDnTemplates;
     private final GroupsResolver groupResolver;
+    private final LdapMetaDataResolver metaDataResolver;
 
     public LdapSessionFactory(RealmConfig config, SSLService sslService) {
         super(config, sslService);
@@ -60,6 +62,7 @@ public class LdapSessionFactory extends SessionFactory {
         }
         logger.info("Realm [{}] is in user-dn-template mode: [{}]", config.name(), userDnTemplates);
         groupResolver = groupResolver(settings);
+        metaDataResolver = new LdapMetaDataResolver(settings, ignoreReferralErrors);
     }
 
     /**
@@ -81,7 +84,7 @@ public class LdapSessionFactory extends SessionFactory {
                 String dn = buildDnFromTemplate(username, template);
                 try {
                     connection.bind(new SimpleBindRequest(dn, passwordBytes));
-                    ldapSession = new LdapSession(logger, connection, dn, groupResolver, timeout, null);
+                    ldapSession = new LdapSession(logger, config, connection, dn, groupResolver, metaDataResolver, timeout, null);
                     success = true;
                     break;
                 } catch (LDAPException e) {

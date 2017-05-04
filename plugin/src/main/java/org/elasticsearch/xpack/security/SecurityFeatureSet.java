@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -24,11 +26,13 @@ import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 
 /**
@@ -44,17 +48,21 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     @Nullable
     private final CompositeRolesStore rolesStore;
     @Nullable
+    private final NativeRoleMappingStore roleMappingStore;
+    @Nullable
     private final IPFilter ipFilter;
     private final boolean systemKeyUsed;
 
     @Inject
-    public SecurityFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, @Nullable Realms realms,
-                              @Nullable CompositeRolesStore rolesStore, @Nullable IPFilter ipFilter,
-                              Environment environment) {
+    public SecurityFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState,
+                              @Nullable Realms realms, @Nullable CompositeRolesStore rolesStore,
+                              @Nullable NativeRoleMappingStore roleMappingStore,
+                              @Nullable IPFilter ipFilter, Environment environment) {
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.licenseState = licenseState;
         this.realms = realms;
         this.rolesStore = rolesStore;
+        this.roleMappingStore = roleMappingStore;
         this.settings = settings;
         this.ipFilter = ipFilter;
         this.systemKeyUsed = enabled && Files.exists(CryptoService.resolveSystemKey(environment));
@@ -92,14 +100,41 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         Map<String, Object> auditUsage = auditUsage(settings);
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
         Map<String, Object> systemKeyUsage = systemKeyUsage();
-        Map<String, Object> anonymousUsage = Collections.singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
+        Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
+
+        final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
+        final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
+        final CountDown countDown = new CountDown(2);
+        final Runnable doCountDown = () -> {
+            if (countDown.countDown()) {
+                listener.onResponse(new Usage(available(), enabled(), realmsUsage,
+                        rolesUsageRef.get(), roleMappingUsageRef.get(),
+                        sslUsage, auditUsage, ipFilterUsage, systemKeyUsage, anonymousUsage));
+            }
+        };
+
         final ActionListener<Map<String, Object>> rolesStoreUsageListener =
-                ActionListener.wrap(rolesStoreUsage -> listener.onResponse(new Usage(available(), enabled(), realmsUsage, rolesStoreUsage,
-                        sslUsage, auditUsage, ipFilterUsage, systemKeyUsage, anonymousUsage)),listener::onFailure);
+                ActionListener.wrap(rolesStoreUsage -> {
+                    rolesUsageRef.set(rolesStoreUsage);
+                    doCountDown.run();
+                }, listener::onFailure);
+
+        final ActionListener<Map<String, Object>> roleMappingStoreUsageListener =
+                ActionListener.wrap(nativeRoleMappingStoreUsage -> {
+                    Map<String, Object> usage = singletonMap("native", nativeRoleMappingStoreUsage);
+                    roleMappingUsageRef.set(usage);
+                    doCountDown.run();
+                }, listener::onFailure);
+
         if (rolesStore == null) {
             rolesStoreUsageListener.onResponse(Collections.emptyMap());
         } else {
             rolesStore.usageStats(rolesStoreUsageListener);
+        }
+        if (roleMappingStore == null) {
+            roleMappingStoreUsageListener.onResponse(Collections.emptyMap());
+        } else {
+            roleMappingStore.usageStats(roleMappingStoreUsageListener);
         }
     }
 
@@ -111,7 +146,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     }
 
     static Map<String, Object> sslUsage(Settings settings) {
-        return Collections.singletonMap("http", Collections.singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
+        return singletonMap("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
     }
 
     static Map<String, Object> auditUsage(Settings settings) {
@@ -130,13 +165,14 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     Map<String, Object> systemKeyUsage() {
         // we can piggy back on the encryption enabled method as it is only enabled if there is a system key
-        return Collections.singletonMap("enabled", systemKeyUsed);
+        return singletonMap("enabled", systemKeyUsed);
     }
 
     public static class Usage extends XPackFeatureSet.Usage {
 
         private static final String REALMS_XFIELD = "realms";
         private static final String ROLES_XFIELD = "roles";
+        private static final String ROLE_MAPPING_XFIELD = "role_mapping";
         private static final String SSL_XFIELD = "ssl";
         private static final String AUDIT_XFIELD = "audit";
         private static final String IP_FILTER_XFIELD = "ipfilter";
@@ -150,6 +186,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         private Map<String, Object> ipFilterUsage;
         private Map<String, Object> systemKeyUsage;
         private Map<String, Object> anonymousUsage;
+        private Map<String, Object> roleMappingStoreUsage;
 
         public Usage(StreamInput in) throws IOException {
             super(in);
@@ -160,14 +197,18 @@ public class SecurityFeatureSet implements XPackFeatureSet {
             ipFilterUsage = in.readMap();
             systemKeyUsage = in.readMap();
             anonymousUsage = in.readMap();
+            roleMappingStoreUsage = in.readMap();
         }
 
-        public Usage(boolean available, boolean enabled, Map<String, Object> realmsUsage, Map<String, Object> rolesStoreUsage,
-                     Map<String, Object> sslUsage, Map<String, Object> auditUsage, Map<String, Object> ipFilterUsage,
-                     Map<String, Object> systemKeyUsage, Map<String, Object> anonymousUsage) {
+        public Usage(boolean available, boolean enabled, Map<String, Object> realmsUsage,
+                     Map<String, Object> rolesStoreUsage, Map<String, Object> roleMappingStoreUsage,
+                     Map<String, Object> sslUsage, Map<String, Object> auditUsage,
+                     Map<String, Object> ipFilterUsage, Map<String, Object> systemKeyUsage,
+                     Map<String, Object> anonymousUsage) {
             super(XPackPlugin.SECURITY, available, enabled);
             this.realmsUsage = realmsUsage;
             this.rolesStoreUsage = rolesStoreUsage;
+            this.roleMappingStoreUsage = roleMappingStoreUsage;
             this.sslUsage = sslUsage;
             this.auditUsage = auditUsage;
             this.ipFilterUsage = ipFilterUsage;
@@ -185,6 +226,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
             out.writeMap(ipFilterUsage);
             out.writeMap(systemKeyUsage);
             out.writeMap(anonymousUsage);
+            out.writeMap(roleMappingStoreUsage);
         }
 
         @Override
@@ -193,6 +235,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
             if (enabled) {
                 builder.field(REALMS_XFIELD, realmsUsage);
                 builder.field(ROLES_XFIELD, rolesStoreUsage);
+                builder.field(ROLE_MAPPING_XFIELD, roleMappingStoreUsage);
                 builder.field(SSL_XFIELD, sslUsage);
                 builder.field(AUDIT_XFIELD, auditUsage);
                 builder.field(IP_FILTER_XFIELD, ipFilterUsage);

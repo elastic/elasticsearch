@@ -23,12 +23,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
 
     @After
     public void stopESNativeStores() throws Exception {
-        try {
-            // this is a hack to clean up the .security index since only the XPack user can delete it
-            internalClient().admin().indices().prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME).get();
-        } catch (IndexNotFoundException e) {
-            // ignore it since not all tests create this index...
-        }
+        deleteSecurityIndex();
 
         if (getCurrentClusterScope() == Scope.SUITE) {
             // Clear the realm cache for all realms since we use a SUITE scoped cluster

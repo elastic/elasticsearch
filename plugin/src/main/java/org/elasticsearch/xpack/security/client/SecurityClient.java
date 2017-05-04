@@ -30,6 +30,14 @@ import org.elasticsearch.xpack.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
+import org.elasticsearch.xpack.security.action.rolemapping.DeleteRoleMappingAction;
+import org.elasticsearch.xpack.security.action.rolemapping.DeleteRoleMappingRequestBuilder;
+import org.elasticsearch.xpack.security.action.rolemapping.GetRoleMappingsAction;
+import org.elasticsearch.xpack.security.action.rolemapping.GetRoleMappingsRequest;
+import org.elasticsearch.xpack.security.action.rolemapping.GetRoleMappingsRequestBuilder;
+import org.elasticsearch.xpack.security.action.rolemapping.GetRoleMappingsResponse;
+import org.elasticsearch.xpack.security.action.rolemapping.PutRoleMappingAction;
+import org.elasticsearch.xpack.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.security.action.token.CreateTokenRequestBuilder;
@@ -237,6 +245,28 @@ public class SecurityClient {
 
     public void putRole(PutRoleRequest request, ActionListener<PutRoleResponse> listener) {
         client.execute(PutRoleAction.INSTANCE, request, listener);
+    }
+
+    /** Role Mappings */
+
+    public GetRoleMappingsRequestBuilder prepareGetRoleMappings(String... names) {
+        return new GetRoleMappingsRequestBuilder(client, GetRoleMappingsAction.INSTANCE)
+                .names(names);
+    }
+
+    public void getRoleMappings(GetRoleMappingsRequest request,
+                                ActionListener<GetRoleMappingsResponse> listener) {
+        client.execute(GetRoleMappingsAction.INSTANCE, request, listener);
+    }
+
+    public PutRoleMappingRequestBuilder preparePutRoleMapping(
+            String name, BytesReference content, XContentType xContentType) throws IOException {
+        return new PutRoleMappingRequestBuilder(client, PutRoleMappingAction.INSTANCE).source(name, content, xContentType);
+    }
+
+    public DeleteRoleMappingRequestBuilder prepareDeleteRoleMapping(String name) {
+        return new DeleteRoleMappingRequestBuilder(client, DeleteRoleMappingAction.INSTANCE)
+                .name(name);
     }
 
     public CreateTokenRequestBuilder prepareCreateToken() {

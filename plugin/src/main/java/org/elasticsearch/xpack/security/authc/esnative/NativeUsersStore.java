@@ -34,6 +34,7 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
@@ -77,7 +78,7 @@ public class NativeUsersStore extends AbstractComponent {
     public NativeUsersStore(Settings settings, InternalClient client, SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
-        this.isTribeNode = settings.getGroups("tribe", true).isEmpty() == false;
+        this.isTribeNode = XPackPlugin.isTribeNode(settings);
         this.securityLifecycleService = securityLifecycleService;
     }
 

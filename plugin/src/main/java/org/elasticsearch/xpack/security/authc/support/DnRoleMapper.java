@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -24,6 +25,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,7 +45,7 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.rela
 /**
  * This class loads and monitors the file defining the mappings of DNs to internal ES Roles.
  */
-public class DnRoleMapper {
+public class DnRoleMapper implements UserRoleMapper {
 
     private static final String DEFAULT_FILE_NAME = "role_mapping.yml";
     public static final Setting<String> ROLE_MAPPING_FILE_SETTING = new Setting<>("files.role_mapping", DEFAULT_FILE_NAME,
@@ -77,7 +80,12 @@ public class DnRoleMapper {
         }
     }
 
-    public synchronized void addListener(Runnable listener) {
+    @Override
+    public void refreshRealmOnChange(CachingUsernamePasswordRealm realm) {
+        addListener(realm::expireAll);
+    }
+
+    synchronized void addListener(Runnable listener) {
         listeners.add(Objects.requireNonNull(listener, "listener cannot be null"));
     }
 
@@ -113,9 +121,7 @@ public class DnRoleMapper {
         }
 
         try (InputStream in = Files.newInputStream(path)) {
-            Settings settings = Settings.builder()
-                    .loadFromStream(path.toString(), in)
-                    .build();
+            Settings settings = Settings.builder().loadFromStream(path.toString(), in).build();
 
             Map<DN, Set<String>> dnToRoles = new HashMap<>();
             Set<String> roles = settings.names();
@@ -130,8 +136,7 @@ public class DnRoleMapper {
                         }
                         dnRoles.add(role);
                     } catch (LDAPException e) {
-                        logger.error(
-                                (Supplier<?>) () -> new ParameterizedMessage(
+                        logger.error(new ParameterizedMessage(
                                         "invalid DN [{}] found in [{}] role mappings [{}] for realm [{}/{}]. skipping... ",
                                         providedDn,
                                         realmType,
@@ -157,10 +162,19 @@ public class DnRoleMapper {
         return dnRoles.size();
     }
 
+    @Override
+    public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
+        try {
+            listener.onResponse(resolveRoles(user.getDn(), user.getGroups()));
+        } catch( Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
     /**
      * This will map the groupDN's to ES Roles
      */
-    public Set<String> resolveRoles(String userDnString, List<String> groupDns) {
+    public Set<String> resolveRoles(String userDnString, Collection<String> groupDns) {
         Set<String> roles = new HashSet<>();
         for (String groupDnString : groupDns) {
             DN groupDn = dn(groupDnString);
@@ -171,8 +185,8 @@ public class DnRoleMapper {
             }
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("the roles [{}], are mapped from these [{}] groups [{}] for realm [{}/{}]", roles, realmType, groupDns,
-                    realmType, config.name());
+            logger.debug("the roles [{}], are mapped from these [{}] groups [{}] using file [{}] for realm [{}/{}]", roles, realmType,
+                    groupDns, file.getFileName(), realmType, config.name());
         }
 
         DN userDn = dn(userDnString);
@@ -181,8 +195,9 @@ public class DnRoleMapper {
             roles.addAll(rolesMappedToUserDn);
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("the roles [{}], are mapped from the user [{}] for realm [{}/{}]",
-                    (rolesMappedToUserDn == null) ? Collections.emptySet() : rolesMappedToUserDn, userDnString, realmType, config.name());
+            logger.debug("the roles [{}], are mapped from the user [{}] using file [{}] for realm [{}/{}]",
+                    (rolesMappedToUserDn == null) ? Collections.emptySet() : rolesMappedToUserDn, userDnString, file.getFileName(),
+                    realmType, config.name());
         }
         return roles;
     }
@@ -191,9 +206,8 @@ public class DnRoleMapper {
         listeners.forEach(Runnable::run);
     }
 
-    public static void getSettings(Set<Setting<?>> settings) {
-        settings.add(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING);
-        settings.add(ROLE_MAPPING_FILE_SETTING);
+    public static List<Setting<?>> getSettings() {
+        return Arrays.asList(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, ROLE_MAPPING_FILE_SETTING);
     }
 
     private class FileListener implements FileChangesListener {

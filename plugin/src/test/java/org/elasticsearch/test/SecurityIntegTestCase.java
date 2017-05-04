@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -460,6 +461,15 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                     assertTrue(indexRoutingTable.allPrimaryShardsActive());
                 }
             });
+        }
+    }
+
+    protected void deleteSecurityIndex() {
+        try {
+            // this is a hack to clean up the .security index since only the XPack user can delete it
+            internalClient().admin().indices().prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME).get();
+        } catch (IndexNotFoundException e) {
+            // ignore it since not all tests create this index...
         }
     }
 }

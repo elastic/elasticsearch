@@ -149,8 +149,8 @@ public class SecuritySettingsTests extends ESTestCase {
             assertThat(e.getMessage(), not(containsString(IndexAuditTrail.INDEX_NAME_PREFIX)));
         }
 
-        Security.validateAutoCreateIndex(Settings.builder()
-                .putArray("action.auto_create_index", ".security", ".security-invalidated-tokens").build());
+        Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".security").build());
+        Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".security*").build());
         Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*s*").build());
         Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".s*").build());
 
@@ -170,7 +170,7 @@ public class SecuritySettingsTests extends ESTestCase {
         }
 
         Security.validateAutoCreateIndex(Settings.builder()
-                        .putArray("action.auto_create_index", ".security", ".security-invalidated-tokens")
+                        .put("action.auto_create_index", ".security")
                         .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
                         .build());
 
@@ -187,7 +187,7 @@ public class SecuritySettingsTests extends ESTestCase {
         }
 
         Security.validateAutoCreateIndex(Settings.builder()
-                .put("action.auto_create_index", ".security_audit_log*,.security,.security-invalidated-tokens")
+                .put("action.auto_create_index", ".security_audit_log*,.security")
                 .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
                 .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), randomFrom("index", "logfile,index"))
                 .build());

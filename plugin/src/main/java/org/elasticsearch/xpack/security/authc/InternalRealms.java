@@ -14,13 +14,13 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
+import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -57,16 +57,20 @@ public class InternalRealms {
      * This excludes the {@link ReservedRealm}, as it cannot be created dynamically.
      * @return A map from <em>realm-type</em> to <code>Factory</code>
      */
-    public static Map<String, Realm.Factory> getFactories(ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
-                                                          SSLService sslService, NativeUsersStore nativeUsersStore){
+    public static Map<String, Realm.Factory> getFactories(
+            ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
+            SSLService sslService, NativeUsersStore nativeUsersStore,
+            NativeRoleMappingStore nativeRoleMappingStore) {
+
         Map<String, Realm.Factory> map = new HashMap<>();
         map.put(FileRealm.TYPE, config -> new FileRealm(config, resourceWatcherService));
         map.put(NativeRealm.TYPE, config -> new NativeRealm(config, nativeUsersStore));
-        map.put(LdapRealm.AD_TYPE,
-                config -> new LdapRealm(LdapRealm.AD_TYPE, config, resourceWatcherService, sslService, threadPool));
-        map.put(LdapRealm.LDAP_TYPE,
-                config -> new LdapRealm(LdapRealm.LDAP_TYPE, config, resourceWatcherService, sslService, threadPool));
-        map.put(PkiRealm.TYPE, config -> new PkiRealm(config, resourceWatcherService, sslService));
+        map.put(LdapRealm.AD_TYPE, config -> new LdapRealm(LdapRealm.AD_TYPE, config, sslService,
+                resourceWatcherService, nativeRoleMappingStore, threadPool));
+        map.put(LdapRealm.LDAP_TYPE, config -> new LdapRealm(LdapRealm.LDAP_TYPE, config,
+                sslService, resourceWatcherService, nativeRoleMappingStore, threadPool));
+        map.put(PkiRealm.TYPE, config -> new PkiRealm(config, sslService, resourceWatcherService,
+                nativeRoleMappingStore));
         return Collections.unmodifiableMap(map);
     }
 

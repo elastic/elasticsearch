@@ -20,7 +20,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
-import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 
@@ -93,6 +92,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         }
 
         securityIndex.clusterChanged(event);
+
         try {
             if (Security.indexAuditLoggingEnabled(settings) &&
                     indexAuditTrail.state() == IndexAuditTrail.State.INITIALIZED) {

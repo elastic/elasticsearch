@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
@@ -71,14 +72,15 @@ class ActiveDirectorySessionFactory extends SessionFactory {
                     "] setting for active directory");
         }
         String domainDN = buildDnFromDomain(domainName);
-        GroupsResolver groupResolver = new ActiveDirectoryGroupsResolver(
-                settings.getAsSettings("group_search"), domainDN, ignoreReferralErrors);
-        defaultADAuthenticator = new DefaultADAuthenticator(settings, timeout,
-                ignoreReferralErrors, logger, groupResolver, domainDN);
-        downLevelADAuthenticator = new DownLevelADAuthenticator(config, timeout,
-                ignoreReferralErrors, logger, groupResolver, domainDN, sslService);
-        upnADAuthenticator = new UpnADAuthenticator(settings, timeout,
-                ignoreReferralErrors, logger, groupResolver, domainDN);
+        GroupsResolver groupResolver = new ActiveDirectoryGroupsResolver(settings.getAsSettings("group_search"), domainDN,
+                ignoreReferralErrors);
+        LdapMetaDataResolver metaDataResolver = new LdapMetaDataResolver(config.settings(), ignoreReferralErrors);
+        defaultADAuthenticator = new DefaultADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver, 
+                metaDataResolver, domainDN);
+        downLevelADAuthenticator = new DownLevelADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver, 
+                metaDataResolver, domainDN, sslService);
+        upnADAuthenticator = new UpnADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver, 
+                metaDataResolver, domainDN);
     }
 
     @Override
@@ -143,21 +145,26 @@ class ActiveDirectorySessionFactory extends SessionFactory {
 
     abstract static class ADAuthenticator {
 
+        private final RealmConfig realm;
         final TimeValue timeout;
         final boolean ignoreReferralErrors;
         final Logger logger;
         final GroupsResolver groupsResolver;
+        final LdapMetaDataResolver metaDataResolver;
         final String userSearchDN;
         final LdapSearchScope userSearchScope;
         final String userSearchFilter;
 
-        ADAuthenticator(Settings settings, TimeValue timeout, boolean ignoreReferralErrors,
-                        Logger logger, GroupsResolver groupsResolver, String domainDN, String userSearchFilterSetting,
-                        String defaultUserSearchFilter) {
+        ADAuthenticator(RealmConfig realm, TimeValue timeout, boolean ignoreReferralErrors, Logger logger,
+                        GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN,
+                        String userSearchFilterSetting, String defaultUserSearchFilter) {
+            this.realm = realm;
             this.timeout = timeout;
             this.ignoreReferralErrors = ignoreReferralErrors;
             this.logger = logger;
             this.groupsResolver = groupsResolver;
+            this.metaDataResolver = metaDataResolver;
+            final Settings settings = realm.settings();
             userSearchDN = settings.get(AD_USER_SEARCH_BASEDN_SETTING, domainDN);
             userSearchScope = LdapSearchScope.resolve(settings.get(AD_USER_SEARCH_SCOPE_SETTING), LdapSearchScope.SUB_TREE);
             userSearchFilter = settings.get(userSearchFilterSetting, defaultUserSearchFilter);
@@ -176,7 +183,8 @@ class ActiveDirectorySessionFactory extends SessionFactory {
                                 + "] by principle name yielded no results"));
                     } else {
                         final String dn = entry.getDN();
-                        listener.onResponse(new LdapSession(logger, connection, dn, groupsResolver, timeout, null));
+                        listener.onResponse(new LdapSession(logger, realm, connection, dn, groupsResolver, metaDataResolver,
+                                timeout, null));
                     }
                 }, (e) -> {
                     IOUtils.closeWhileHandlingException(connection);
@@ -213,12 +221,15 @@ class ActiveDirectorySessionFactory extends SessionFactory {
     static class DefaultADAuthenticator extends ADAuthenticator {
 
         final String domainName;
+        DefaultADAuthenticator(RealmConfig realm, TimeValue timeout, boolean ignoreReferralErrors,
+                               Logger logger, GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN) {
+            super(realm, timeout, ignoreReferralErrors, logger, groupsResolver, metaDataResolver, domainDN, AD_USER_SEARCH_FILTER_SETTING,
+                    "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@" + domainName(realm) + ")))");
+            domainName = domainName(realm);
+        }
 
-        DefaultADAuthenticator(Settings settings, TimeValue timeout, boolean ignoreReferralErrors,
-                               Logger logger, GroupsResolver groupsResolver, String domainDN) {
-            super(settings, timeout, ignoreReferralErrors, logger, groupsResolver, domainDN, AD_USER_SEARCH_FILTER_SETTING,
-                    "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@" + settings.get(AD_DOMAIN_NAME_SETTING) + ")))");
-            domainName = settings.get(AD_DOMAIN_NAME_SETTING);
+        private static String domainName(RealmConfig realm) {
+            return realm.settings().get(AD_DOMAIN_NAME_SETTING);
         }
 
         @Override
@@ -253,11 +264,10 @@ class ActiveDirectorySessionFactory extends SessionFactory {
         final SSLService sslService;
         final RealmConfig config;
 
-        DownLevelADAuthenticator(RealmConfig config, TimeValue timeout,
-                                 boolean ignoreReferralErrors, Logger logger,
-                                 GroupsResolver groupsResolver, String domainDN,
+        DownLevelADAuthenticator(RealmConfig config, TimeValue timeout, boolean ignoreReferralErrors, Logger logger,
+                                 GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN,
                                  SSLService sslService) {
-            super(config.settings(), timeout, ignoreReferralErrors, logger, groupsResolver, domainDN,
+            super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metaDataResolver, domainDN,
                     AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING, DOWN_LEVEL_FILTER);
             this.domainDN = domainDN;
             this.settings = config.settings();
@@ -388,9 +398,9 @@ class ActiveDirectorySessionFactory extends SessionFactory {
 
         static final String UPN_USER_FILTER = "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={1})))";
 
-        UpnADAuthenticator(Settings settings, TimeValue timeout, boolean ignoreReferralErrors,
-                           Logger logger, GroupsResolver groupsResolver, String domainDN) {
-            super(settings, timeout, ignoreReferralErrors, logger, groupsResolver, domainDN,
+        UpnADAuthenticator(RealmConfig config, TimeValue timeout, boolean ignoreReferralErrors, Logger logger,
+                           GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN) {
+            super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metaDataResolver, domainDN,
                     AD_UPN_USER_SEARCH_FILTER_SETTING, UPN_USER_FILTER);
         }
 

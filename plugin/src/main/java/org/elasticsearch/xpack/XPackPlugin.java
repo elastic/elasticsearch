@@ -458,6 +458,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         entries.addAll(watcher.getNamedWriteables());
         entries.addAll(machineLearning.getNamedWriteables());
         entries.addAll(licensing.getNamedWriteables());
+        entries.addAll(Security.getNamedWriteables());
         return entries;
     }
 
@@ -489,6 +490,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     public static boolean isTribeNode(Settings settings) {
         return settings.getGroups("tribe", true).isEmpty() == false;
     }
+
     public static boolean isTribeClientNode(Settings settings) {
         return settings.get("tribe.name") != null;
     }

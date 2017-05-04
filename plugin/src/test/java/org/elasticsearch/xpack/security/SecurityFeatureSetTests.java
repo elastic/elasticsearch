@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -55,6 +56,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
     private Realms realms;
     private IPFilter ipFilter;
     private CompositeRolesStore rolesStore;
+    private NativeRoleMappingStore roleMappingStore;
     private AuditTrailService auditTrail;
     private CryptoService cryptoService;
 
@@ -66,11 +68,12 @@ public class SecurityFeatureSetTests extends ESTestCase {
         realms = mock(Realms.class);
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
+        roleMappingStore = mock(NativeRoleMappingStore.class);
     }
 
     public void testAvailable() throws Exception {
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
-                ipFilter, environment);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
+                rolesStore, roleMappingStore, ipFilter, environment);
         boolean available = randomBoolean();
         when(licenseState.isAuthAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -82,14 +85,14 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 .put(this.settings)
                 .put("xpack.security.enabled", enabled)
                 .build();
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
-                ipFilter, environment);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
+                rolesStore, roleMappingStore, ipFilter, environment);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() throws Exception {
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
-                        ipFilter, environment);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
+                rolesStore, roleMappingStore, ipFilter, environment);
         assertThat(featureSet.enabled(), is(true));
     }
 
@@ -100,8 +103,8 @@ public class SecurityFeatureSetTests extends ESTestCase {
             Files.createDirectories(path.getParent());
             Files.write(path, new byte[0]);
         }
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
-                ipFilter, environment);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
+                rolesStore, roleMappingStore, ipFilter, environment);
         assertThat(featureSet.systemKeyUsage(), hasEntry("enabled", enabled));
     }
 
@@ -119,7 +122,11 @@ public class SecurityFeatureSetTests extends ESTestCase {
         settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
         final boolean auditingEnabled = randomBoolean();
         settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
-        final String[] auditOutputs = randomFrom(new String[] {"logfile"}, new String[] {"index"}, new String[] {"logfile", "index"});
+        final String[] auditOutputs = randomFrom(
+                new String[] { "logfile" },
+                new String[] { "index" },
+                new String[] { "logfile", "index" }
+        );
         settings.putArray(Security.AUDIT_OUTPUTS_SETTING.getKey(), auditOutputs);
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
@@ -140,6 +147,21 @@ public class SecurityFeatureSetTests extends ESTestCase {
             }
             return Void.TYPE;
         }).when(rolesStore).usageStats(any(ActionListener.class));
+
+        final boolean roleMappingStoreEnabled = randomBoolean();
+        doAnswer(invocationOnMock -> {
+            ActionListener<Map<String, Object>> listener = (ActionListener) invocationOnMock.getArguments()[0];
+            if (roleMappingStoreEnabled) {
+                final Map<String, Object> map = new HashMap<>();
+                map.put("size", 12L);
+                map.put("enabled", 10L);
+                listener.onResponse(map);
+            } else {
+                listener.onResponse(Collections.emptyMap());
+            }
+            return Void.TYPE;
+        }).when(roleMappingStore).usageStats(any(ActionListener.class));
+
         final boolean useSystemKey = randomBoolean();
         if (useSystemKey) {
             Path path = CryptoService.resolveSystemKey(environment);
@@ -162,7 +184,8 @@ public class SecurityFeatureSetTests extends ESTestCase {
             settings.put(AnonymousUser.ROLES_SETTING.getKey(), "foo");
         }
 
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState, realms, rolesStore, ipFilter, environment);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState,
+                realms, rolesStore, roleMappingStore, ipFilter, environment);
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage securityUsage = future.get();
@@ -207,6 +230,14 @@ public class SecurityFeatureSetTests extends ESTestCase {
                     assertThat(source.getValue("roles.count"), is(1));
                 } else {
                     assertThat(((Map) source.getValue("roles")).isEmpty(), is(true));
+                }
+
+                // role-mapping
+                if (roleMappingStoreEnabled) {
+                    assertThat(source.getValue("role_mapping.native.size"), is(12));
+                    assertThat(source.getValue("role_mapping.native.enabled"), is(10));
+                } else {
+                    assertThat(((Map) source.getValue("role_mapping")).isEmpty(), is(true));
                 }
 
                 // system key

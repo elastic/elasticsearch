@@ -5,15 +5,32 @@
  */
 package org.elasticsearch.integration.ldap;
 
-import org.elasticsearch.test.junit.annotations.Network;
-
 import java.io.IOException;
+import java.util.ArrayList;
+
+import org.elasticsearch.test.junit.annotations.Network;
+import org.junit.BeforeClass;
 
 /**
- * This tests the mapping of multiple groups to a role
+ * This tests the mapping of multiple groups to a role in a file based role-mapping
  */
 @Network
 public class MultiGroupMappingTests extends AbstractAdLdapRealmTestCase {
+
+    @BeforeClass
+    public static void setRoleMappingType() {
+        final String extraContent = "MarvelCharacters:\n" +
+                "  - \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n" +
+                "  - \"CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n" +
+                "  - \"CN=Gods,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n" +
+                "  - \"CN=Philanthropists,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n" +
+                "  - \"cn=SHIELD,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n" +
+                "  - \"cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n" +
+                "  - \"cn=Gods,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n" +
+                "  - \"cn=Philanthropists,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n";
+        roleMappings = new ArrayList<>(roleMappings);
+        roleMappings.add(new RoleMappingEntry(extraContent, null));
+    }
 
     @Override
     protected String configRoles() {
@@ -24,19 +41,6 @@ public class MultiGroupMappingTests extends AbstractAdLdapRealmTestCase {
                 "  indices:\n" +
                 "    - names: 'marvel_comics'\n" +
                 "      privileges: [ all ]\n";
-    }
-
-    @Override
-    protected String configRoleMappings(RealmConfig realm) {
-        return "MarvelCharacters:  \n" +
-                "  - \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n" +
-                "  - \"CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n" +
-                "  - \"CN=Gods,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n" +
-                "  - \"CN=Philanthropists,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n" +
-                "  - \"cn=SHIELD,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n" +
-                "  - \"cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n" +
-                "  - \"cn=Gods,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n" +
-                "  - \"cn=Philanthropists,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"";
     }
 
     public void testGroupMapping() throws IOException {

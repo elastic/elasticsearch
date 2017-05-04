@@ -1,0 +1,19 @@
+{
+  "xpack.security.get_role_mapping": {
+    "documentation": "Retrieves a native role mapping (Documentation WIP)",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_xpack/security/role_mapping/{name}",
+      "paths": [ "/_xpack/security/role_mapping/{name}", "/_xpack/security/role_mapping" ],
+      "parts": {
+        "name": {
+          "type" : "string",
+          "description" : "Role-Mapping name",
+          "required" : false
+        }
+      },
+      "params": {}
+    },
+    "body": null
+  }
+}

@@ -29,7 +29,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.XLRUQueryCache;
+import org.apache.lucene.search.LRUQueryCache;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.ShardCoreKeyMap;
 import org.elasticsearch.common.settings.Setting;
@@ -50,15 +50,15 @@ import java.util.function.Predicate;
 
 public class IndicesQueryCache extends AbstractComponent implements QueryCache, Closeable {
 
-    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = 
+    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING =
             Setting.memorySizeSetting("indices.queries.cache.size", "10%", Property.NodeScope);
-    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING = 
+    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING =
             Setting.intSetting("indices.queries.cache.count", 10000, 1, Property.NodeScope);
     // enables caching on all segments instead of only the larger ones, for testing only
-    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING = 
+    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING =
             Setting.boolSetting("indices.queries.cache.all_segments", false, Property.NodeScope);
 
-    private final XLRUQueryCache cache;
+    private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
@@ -228,7 +228,7 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
         shardStats.remove(shardId);
     }
 
-    private class ElasticsearchLRUQueryCache extends XLRUQueryCache {
+    private class ElasticsearchLRUQueryCache extends LRUQueryCache {
 
         ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache) {
             super(maxSize, maxRamBytesUsed, leavesToCache);

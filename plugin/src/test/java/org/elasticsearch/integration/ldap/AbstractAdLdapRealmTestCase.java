@@ -7,7 +7,7 @@ package org.elasticsearch.integration.ldap;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
@@ -164,7 +164,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             return;
         }
         SecurityClient securityClient = securityClient();
-        Map<String, ListenableActionFuture<PutRoleMappingResponse>> futures
+        Map<String, ActionFuture<PutRoleMappingResponse>> futures
                 = new LinkedHashMap<>(content.size());
         for (int i = 0; i < content.size(); i++) {
             final String name = "external_" + i;

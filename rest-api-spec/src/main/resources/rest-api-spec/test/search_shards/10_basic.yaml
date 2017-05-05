@@ -14,7 +14,7 @@
 ---
 "Search shards aliases with and without filters":
   - skip:
-      version: " - 5.0.99"
+      version: " - 5.99.99" # temporarily disabled
       reason: indices section was added in 5.1.0
 
   - do:
@@ -49,7 +49,7 @@
   - match: { shards.0.0.index: test_index }
   - is_true: indices.test_index
   - is_false: indices.test_index.filter
-  - is_false: indices.test_index.aliases
+  - match: { indices.test_index.aliases: [test_alias_no_filter]}
 
   - do:
       search_shards:
@@ -78,3 +78,30 @@
   - match: { indices.test_index.filter.bool.adjust_pure_negative: true}
   - lte: { indices.test_index.filter.bool.boost: 1.0 }
   - gte: { indices.test_index.filter.bool.boost: 1.0 }
+
+  - do:
+      search_shards:
+        index:  "test*"
+
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: test_index }
+  - match: { indices.test_index.aliases: [test_alias_filter_1, test_alias_filter_2, test_alias_no_filter]}
+  - is_false: indices.test_index.filter
+
+  - do:
+      search_shards:
+        index:  ["test_alias_filter_1","test_alias_no_filter"]
+
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: test_index }
+  - match: { indices.test_index.aliases: [test_alias_filter_1, test_alias_no_filter]}
+  - is_false: indices.test_index.filter
+
+  - do:
+      search_shards:
+        index:  ["test_alias_no_filter"]
+
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: test_index }
+  - match: { indices.test_index.aliases: [test_alias_no_filter]}
+  - is_false: indices.test_index.filter

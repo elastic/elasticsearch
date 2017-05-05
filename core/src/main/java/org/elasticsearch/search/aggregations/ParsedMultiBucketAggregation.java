@@ -36,7 +36,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public abstract class ParsedMultiBucketAggregation extends ParsedAggregation implements MultiBucketsAggregation {
 
     protected final List<ParsedBucket<?>> buckets = new ArrayList<>();
-    protected boolean keyed;
+    protected boolean keyed = false;
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

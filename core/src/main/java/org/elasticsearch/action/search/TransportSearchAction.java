@@ -178,35 +178,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final SearchTimeProvider timeProvider =
                 new SearchTimeProvider(absoluteStartMillis, relativeStartNanos, System::nanoTime);
 
-        final OriginalIndices localIndices;
-        final Map<String, OriginalIndices> remoteClusterIndices;
-        final ClusterState clusterState = clusterService.state();
-        if (remoteClusterService.isCrossClusterSearchEnabled()) {
-            final Map<String, List<String>> groupedIndices = remoteClusterService.groupClusterIndices(searchRequest.indices(),
-                // empty string is not allowed
-                idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
-            List<String> remove = groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            String[] indices = remove == null ? Strings.EMPTY_ARRAY : remove.toArray(new String[remove.size()]);
-            localIndices = new OriginalIndices(indices, searchRequest.indicesOptions());
-            Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-            for (Map.Entry<String, List<String>> entry : groupedIndices.entrySet()) {
-                String clusterAlias = entry.getKey();
-                List<String> originalIndices = entry.getValue();
-                originalIndicesMap.put(clusterAlias,
-                        new OriginalIndices(originalIndices.toArray(new String[originalIndices.size()]), searchRequest.indicesOptions()));
-            }
-            remoteClusterIndices = Collections.unmodifiableMap(originalIndicesMap);
-        } else {
-            remoteClusterIndices = Collections.emptyMap();
-            localIndices = new OriginalIndices(searchRequest);
-        }
 
+        final ClusterState clusterState = clusterService.state();
+        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(searchRequest.indicesOptions(),
+            searchRequest.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
+        OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         if (remoteClusterIndices.isEmpty()) {
             executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, Collections.emptyList(),
                 (clusterName, nodeId) -> null, clusterState, Collections.emptyMap(), listener);
         } else {
-            remoteClusterService.collectSearchShards(searchRequest, remoteClusterIndices,
-                ActionListener.wrap((searchShardsResponses) -> {
+            remoteClusterService.collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
+                remoteClusterIndices, ActionListener.wrap((searchShardsResponses) -> {
                     List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
                     Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
                     BiFunction<String, String, DiscoveryNode> clusterNodeLookup = processRemoteShards(searchShardsResponses,
@@ -230,28 +212,31 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             for (DiscoveryNode remoteNode : searchShardsResponse.getNodes()) {
                 idToDiscoveryNode.put(remoteNode.getId(), remoteNode);
             }
-            Map<String, AliasFilter> indicesAndFilters = searchShardsResponse.getIndicesAndFilters();
+            final Map<String, AliasFilter> indicesAndFilters = searchShardsResponse.getIndicesAndFilters();
             for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
                 //add the cluster name to the remote index names for indices disambiguation
                 //this ends up in the hits returned with the search response
                 ShardId shardId = clusterSearchShardsGroup.getShardId();
                 Index remoteIndex = shardId.getIndex();
-                Index index = new Index(clusterAlias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + remoteIndex.getName(),
+                Index index = new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, remoteIndex.getName()),
                     remoteIndex.getUUID());
-                OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
-                assert originalIndices != null;
-                SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, new ShardId(index, shardId.getId()),
-                    Arrays.asList(clusterSearchShardsGroup.getShards()), originalIndices);
-                remoteShardIterators.add(shardIterator);
-                AliasFilter aliasFilter;
+                final AliasFilter aliasFilter;
                 if (indicesAndFilters == null) {
-                    aliasFilter = new AliasFilter(null, Strings.EMPTY_ARRAY);
+                    aliasFilter = AliasFilter.EMPTY;
                 } else {
                     aliasFilter = indicesAndFilters.get(shardId.getIndexName());
-                    assert aliasFilter != null;
+                    assert aliasFilter != null : "alias filter must not be null for index: " + shardId.getIndex();
                 }
+                String[] aliases = aliasFilter.getAliases();
+                String[] finalIndices = aliases.length == 0 ? new String[] {shardId.getIndexName()} : aliases;
                 // here we have to map the filters to the UUID since from now on we use the uuid for the lookup
                 aliasFilterMap.put(remoteIndex.getUUID(), aliasFilter);
+                final OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
+                assert originalIndices != null : "original indices are null for clusterAlias: " + clusterAlias;
+                SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, new ShardId(index, shardId.getId()),
+                    Arrays.asList(clusterSearchShardsGroup.getShards()), new OriginalIndices(finalIndices,
+                    originalIndices.indicesOptions()));
+                remoteShardIterators.add(shardIterator);
             }
         }
         return (clusterAlias, nodeId) -> {

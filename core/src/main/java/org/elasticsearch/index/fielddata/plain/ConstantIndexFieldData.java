@@ -44,26 +44,33 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Function;
 
-public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
+public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
+
+        private final Function<MapperService, String> valueFunction;
+
+        public Builder(Function<MapperService, String> valueFunction) {
+            this.valueFunction = valueFunction;
+        }
 
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                 CircuitBreakerService breakerService, MapperService mapperService) {
-            return new IndexIndexFieldData(indexSettings, fieldType.name());
+            return new ConstantIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService));
         }
 
     }
 
-    private static class IndexAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
+    private static class ConstantAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
-        private final String index;
+        private final String value;
 
-        IndexAtomicFieldData(String index) {
+        ConstantAtomicFieldData(String value) {
             super(DEFAULT_SCRIPT_FUNCTION);
-            this.index = index;
+            this.value = value;
         }
 
         @Override
@@ -78,7 +85,7 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         @Override
         public SortedSetDocValues getOrdinalsValues() {
-            final BytesRef term = new BytesRef(index);
+            final BytesRef term = new BytesRef(value);
             final SortedDocValues sortedValues = new AbstractSortedDocValues() {
 
                 private int docID = -1;
@@ -120,12 +127,12 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private final AtomicOrdinalsFieldData atomicFieldData;
 
-    private IndexIndexFieldData(IndexSettings indexSettings, String name) {
+    private ConstantIndexFieldData(IndexSettings indexSettings, String name, String value) {
         super(indexSettings, name, null, null,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
-        atomicFieldData = new IndexAtomicFieldData(index().getName());
+        atomicFieldData = new ConstantAtomicFieldData(value);
     }
 
     @Override
@@ -144,7 +151,8 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
+    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
+            boolean reverse) {
         final XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
     }

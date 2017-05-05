@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -57,11 +56,6 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
         super(Objects.requireNonNull(settings));
         this.transportService = Objects.requireNonNull(transportService);
         this.clusterApplier = clusterApplier;
-    }
-
-    @Override
-    public void setAllocationService(final AllocationService allocationService) {
-
     }
 
     @Override

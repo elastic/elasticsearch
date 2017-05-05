@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -98,11 +99,12 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     public Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
                                                               NamedWriteableRegistry namedWriteableRegistry,
                                                               MasterService masterService, ClusterApplier clusterApplier,
-                                                              ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider) {
+                                                              ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider,
+                                                              AllocationService allocationService) {
         // this is for backcompat with pre 5.1, where users would set discovery.type to use ec2 hosts provider
         return Collections.singletonMap(EC2, () ->
             new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier,
-                clusterSettings, hostsProvider));
+                clusterSettings, hostsProvider, allocationService));
     }
 
     @Override

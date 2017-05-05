@@ -80,8 +80,10 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
         Map<String, FieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
             MappedFieldType ft = mapperService.fullName(field);
-            FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable());
-            responseMap.put(field, fieldCap);
+            if (ft != null) {
+                FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable());
+                responseMap.put(field, fieldCap);
+            }
         }
         return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), responseMap);
     }

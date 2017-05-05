@@ -1,9 +1,9 @@
 :version:               6.0.0-alpha1
 :major-version:         6.x
-:lucene_version:        6.4.0
-:lucene_version_path:   6_4_0
+:lucene_version:        7.0.0-SNAPSHOT
+:lucene_version_path:   7_0_0
 :branch:                master
-:jdk:                   1.8.0_73
+:jdk:                   1.8.0_131
 
 //////////
 release-state can be: released | prerelease | unreleased

@@ -71,12 +71,13 @@
 
   - match: { hits.total: 1 }
 
+  # We actively ignore indexing requests made to .monitoring-data-N starting with 5.5
   - do:
       search:
         index: .monitoring-data-*
         type:  kibana
 
-  - match: { hits.total: 1 }
+  - match: { hits.total: 0 }
 
   # Missing a system_id causes it to fail
   - do:

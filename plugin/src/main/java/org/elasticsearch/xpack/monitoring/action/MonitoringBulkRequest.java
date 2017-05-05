@@ -94,13 +94,19 @@ public class MonitoringBulkRequest extends ActionRequest {
 
         for (DocWriteRequest request : bulkRequest.requests()) {
             if (request instanceof IndexRequest) {
-                IndexRequest indexRequest = (IndexRequest) request;
+                final IndexRequest indexRequest = (IndexRequest) request;
+
+                // we no longer accept non-timestamped indexes from Kibana, LS, or Beats because we do not use the data
+                // and it was duplicated anyway; by simply dropping it, we allow BWC for older clients that still send it
+                if (MonitoringIndex.from(indexRequest.index()) != MonitoringIndex.TIMESTAMPED) {
+                    continue;
+                }
 
                 // builds a new monitoring document based on the index request
                 MonitoringBulkDoc doc =
                         new MonitoringBulkDoc(defaultMonitoringId,
                                               defaultMonitoringApiVersion,
-                                              MonitoringIndex.from(indexRequest.index()),
+                                              MonitoringIndex.TIMESTAMPED,
                                               indexRequest.type(),
                                               indexRequest.id(),
                                               indexRequest.source(),

@@ -114,6 +114,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         final MonitoringIndex[] indices = new MonitoringIndex[nbDocs];
         final String[] types = new String[nbDocs];
         final XContentType xContentType = XContentType.JSON;
+        int dataCount = 0;
         int i;
 
         try (BytesStreamOutput content = new BytesStreamOutput()) {
@@ -123,8 +124,13 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                     if (rarely()) {
                         indices[i] = MonitoringIndex.DATA;
                         builder.field("_index", "_data");
+                        dataCount++;
                     } else {
                         indices[i] = MonitoringIndex.TIMESTAMPED;
+
+                        if (rarely()) {
+                            builder.field("_index", "");
+                        }
                     }
                     if (randomBoolean()) {
                         types[i] = randomAlphaOfLength(5);
@@ -143,17 +149,20 @@ public class MonitoringBulkRequestTests extends ESTestCase {
 
             MonitoringBulkRequest request = new MonitoringBulkRequest();
             request.add(content.bytes(), defaultMonitoringId, defaultMonitoringVersion, defaultType, xContentType);
-            assertThat(request.getDocs(), hasSize(nbDocs));
+            assertThat(request.getDocs(), hasSize(nbDocs - dataCount));
 
             i = 0;
 
-            for (MonitoringBulkDoc doc : request.getDocs()) {
-                String expectedType = types[i] != null ? types[i] : defaultType;
+            for (final MonitoringBulkDoc doc : request.getDocs()) {
+                // we actively ignore IndexRequests for the _data index; this provides BWC to older versions
+                if (indices[i] != MonitoringIndex.DATA) {
+                    final String expectedType = types[i] != null ? types[i] : defaultType;
 
-                assertThat(doc.getMonitoringId(), equalTo(defaultMonitoringId));
-                assertThat(doc.getMonitoringVersion(), equalTo(defaultMonitoringVersion));
-                assertThat(doc.getIndex(), sameInstance(indices[i]));
-                assertThat(doc.getType(), equalTo(expectedType));
+                    assertThat(doc.getMonitoringId(), equalTo(defaultMonitoringId));
+                    assertThat(doc.getMonitoringVersion(), equalTo(defaultMonitoringVersion));
+                    assertThat(doc.getIndex(), sameInstance(MonitoringIndex.TIMESTAMPED));
+                    assertThat(doc.getType(), equalTo(expectedType));
+                }
 
                 ++i;
             }

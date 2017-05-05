@@ -72,8 +72,8 @@ task hdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
 }
 
 // MIT Kerberos Vagrant Testing Fixture
-def box = "krb5kdc"
-def vagrantEnvVars = [
+String box = "krb5kdc"
+Map<String,String> vagrantEnvVars = [
         'VAGRANT_CWD'           : "${project(':test:fixtures:krb5kdc-fixture').projectDir}",
         'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
         'VAGRANT_PROJECT_DIR'   : "${project(':test:fixtures:krb5kdc-fixture').projectDir}"
@@ -86,7 +86,7 @@ task krb5kdcUpdate(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
   environmentVars vagrantEnvVars
 }
 
-Fixture krb5kdcFixture = project.tasks.create("krb5kdcFixture", org.elasticsearch.gradle.test.VagrantFixture) {
+task krb5kdcFixture(type: org.elasticsearch.gradle.test.VagrantFixture) {
   command 'up'
   args '--provision', '--provider', 'virtualbox'
   boxName box

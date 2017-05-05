@@ -169,8 +169,8 @@ setup:
 ---
 "Mix in non-existing field field caps":
   - skip:
-      version: " - 6.0.0" # temporarily disabled
-      reason:  this bug has been fixed in 5.4.0
+      version: " - 5.4.0"
+      reason:  "#24504 fixed a bug in this API in 5.4.1"
 
   - do:
       field_caps:

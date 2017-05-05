@@ -70,13 +70,11 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     @Override
     public ScriptDocValues<?> get(Object key) {
-        // assume its a string...
-        String fieldName = key.toString();
-        ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
+        ScriptDocValues<?> scriptValues = localCacheFieldData.get(key);
         if (scriptValues == null) {
-            final MappedFieldType fieldType = mapperService.fullName(fieldName);
+            final MappedFieldType fieldType = mapperService.fullName((String) key);
             if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types) + "");
+                throw new IllegalArgumentException("No field found for [" + key + "] in mapping with types " + Arrays.toString(types) + "");
             }
             // load fielddata on behalf of the script: otherwise it would need additional permissions
             // to deal with pagedbytes/ramusagestimator/etc
@@ -86,7 +84,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
                     return fieldDataService.getForField(fieldType).load(reader).getScriptValues();
                 }
             });
-            localCacheFieldData.put(fieldName, scriptValues);
+            localCacheFieldData.put((String) key, scriptValues);
         }
         try {
             scriptValues.setNextDocId(docId);
@@ -98,11 +96,9 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     @Override
     public boolean containsKey(Object key) {
-        // assume its a string...
-        String fieldName = key.toString();
-        ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
+        ScriptDocValues<?> scriptValues = localCacheFieldData.get(key);
         if (scriptValues == null) {
-            MappedFieldType fieldType = mapperService.fullName(fieldName);
+            MappedFieldType fieldType = mapperService.fullName((String) key);
             if (fieldType == null) {
                 return false;
             }

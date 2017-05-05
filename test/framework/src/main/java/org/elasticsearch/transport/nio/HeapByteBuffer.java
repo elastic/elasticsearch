@@ -30,7 +30,8 @@ public class HeapByteBuffer extends BytesReference {
     private final BytesArray bytesArray;
     private int writeIndex;
     private int readIndex;
-    private final ByteBuffer buffer;
+    private final ByteBuffer writeBuffer;
+    private final ByteBuffer readBuffer;
 
     public HeapByteBuffer(BytesArray bytesArray) {
         this(bytesArray, 0, 0);
@@ -40,7 +41,8 @@ public class HeapByteBuffer extends BytesReference {
         this.bytesArray = bytesArray;
         this.writeIndex = writeIndex;
         this.readIndex = readIndex;
-        this.buffer = ByteBuffer.wrap(bytesArray.array(), bytesArray.offset() + writeIndex, bytesArray.length());
+        this.writeBuffer = ByteBuffer.wrap(bytesArray.array(), bytesArray.offset() + writeIndex, bytesArray.length());
+        this.readBuffer = ByteBuffer.wrap(bytesArray.array(), bytesArray.offset() + writeIndex, bytesArray.length());
     }
 
     @Override
@@ -75,8 +77,16 @@ public class HeapByteBuffer extends BytesReference {
         return bytesArray.ramBytesUsed();
     }
 
+    public int getWriteIndex() {
+        return writeIndex;
+    }
+
     public void incrementWrite(int delta) {
         writeIndex += delta;
+    }
+
+    public int getReadIndex() {
+        return readIndex;
     }
 
     public void incrementRead(int delta) {
@@ -84,7 +94,12 @@ public class HeapByteBuffer extends BytesReference {
     }
 
     public ByteBuffer getWriteByteBuffer() {
-        buffer.position(bytesArray.offset() + writeIndex);
-        return buffer;
+        writeBuffer.position(bytesArray.offset() + writeIndex);
+        return writeBuffer;
+    }
+
+    public ByteBuffer getReadByteBuffer() {
+        readBuffer.position(bytesArray.offset() + readIndex);
+        return readBuffer;
     }
 }

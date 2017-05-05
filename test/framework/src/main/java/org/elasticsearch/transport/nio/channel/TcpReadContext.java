@@ -29,6 +29,7 @@ import org.elasticsearch.transport.nio.TcpReadHandler;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.Iterator;
 import java.util.LinkedList;
 
@@ -38,7 +39,6 @@ public class TcpReadContext implements ReadContext {
     private final NioSocketChannel channel;
     private final TcpFrameDecoder frameDecoder;
     private LinkedList<HeapByteBuffer> references = new LinkedList<>();
-    private BytesReference partialMessage;
 
     public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler) {
         this(channel, handler, new TcpFrameDecoder());
@@ -62,40 +62,56 @@ public class TcpReadContext implements ReadContext {
 
 
         int i = 0;
+        int currentBytes = 0;
         for (HeapByteBuffer buffer : references) {
-            buffers[i++] = buffer.getWriteByteBuffer();
+            int writeIndex = buffer.getWriteIndex();
+            currentBytes += writeIndex;
+            if (buffer.length() != writeIndex) {
+                buffers[i++] = buffer.getWriteByteBuffer();
+            }
         }
 
         int bytesRead;
         if (buffers.length == 1) {
             bytesRead = channel.read(buffers[0]);
         } else {
+            // The buffers are bounded by Integer.MAX_VALUE
             bytesRead = (int) channel.vectorizedRead(buffers);
         }
 
-        // The buffers are bounded by Integer.MAX_VALUE
         if (bytesRead == -1) {
             return bytesRead;
         }
 
-//        BytesReference message;
-//        int currentBufferSize = (partialMessage != null ? partialMessage.length() : 0) + bytesRead;
-//        while ((message = frameDecoder.decode(combineWithPartial(partialMessage, reference), currentBufferSize)) != null) {
-//            partialMessage = null;
-//            int messageLength = message.length();
-//            reference = reference.slice(message.length(), reference.length() - messageLength);
-//            currentBufferSize -= messageLength;
-//
-//            try {
-//                message = message.slice(6, message.length() - 6);
-//                handler.handleMessage(message, channel, channel.getProfile(), message.length());
-//            } catch (Exception e) {
-//                handler.handleException(channel, e);
-//            }
-//        }
+        BytesReference message;
+        int currentBufferSize = currentBytes + bytesRead;
+        BytesReference composite = new CompositeBytesReference(references.toArray(new BytesReference[references.size()]));
+        int bytesMessagesProduced = 0;
+        while ((message = frameDecoder.decode(composite, currentBufferSize)) != null) {
+            int messageLength = message.length();
+            bytesMessagesProduced += messageLength;
+            composite = composite.slice(message.length(), composite.length() - messageLength);
+            currentBufferSize -= messageLength;
+
+            try {
+                message = message.slice(6, message.length() - 6);
+                handler.handleMessage(message, channel, channel.getProfile(), message.length());
+            } catch (Exception e) {
+                handler.handleException(channel, e);
+            }
+        }
 //        int remainderBytes = currentBufferSize - (partialMessage != null ? partialMessage.length() : 0);
-//        partialMessage = combineWithPartial(partialMessage, reference.slice(0, remainderBytes));
-//        reference = reference.slice(bytesRead, reference.length() - bytesRead);
+
+        HeapByteBuffer buffer;
+        while ((buffer = references.peek()) != null) {
+            int bufferLength = buffer.length();
+            if (bufferLength <= bytesMessagesProduced) {
+                references.poll();
+                bytesMessagesProduced -= bufferLength;
+            } else {
+                break;
+            }
+        }
 
         return bytesRead;
     }

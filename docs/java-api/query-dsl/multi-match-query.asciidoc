@@ -3,12 +3,9 @@
 
 See {ref}/query-dsl-multi-match-query.html[Multi Match Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = multiMatchQuery(
-    "kimchy elasticsearch", <1>
-    "user", "message"       <2>
-);
+include-tagged::{query-dsl-test}[multi_match]
 --------------------------------------------------
 <1> text
 <2> fields

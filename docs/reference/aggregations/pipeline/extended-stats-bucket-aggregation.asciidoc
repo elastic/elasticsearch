@@ -20,6 +20,7 @@ A `extended_stats_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 .`extended_stats_bucket` Parameters
 |===

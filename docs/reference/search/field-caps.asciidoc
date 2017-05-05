@@ -47,11 +47,11 @@ Supported request options:
 The field capabilities api returns the following information per field:
 
 [horizontal]
-`is_searchable`::
+`searchable`::
 
 Whether this field is indexed for search on all indices.
 
-`is_aggregatable`::
+`aggregatable`::
 
 Whether this field can be aggregated on all indices.
 
@@ -88,22 +88,22 @@ GET _field_caps?fields=rating,title
     "fields": {
         "rating": { <1>
             "long": {
-                "is_searchable": true,
-                "is_aggregatable": false,
+                "searchable": true,
+                "aggregatable": false,
                 "indices": ["index1", "index2"],
                 "non_aggregatable_indices": ["index1"] <2>
             },
             "keyword": {
-                "is_searchable": false,
-                "is_aggregatable": true,
+                "searchable": false,
+                "aggregatable": true,
                 "indices": ["index3", "index4"],
                 "non_searchable_indices": ["index4"] <3>
             }
         },
         "title": { <4>
             "text": {
-                "is_searchable": true,
-                "is_aggregatable": false
+                "searchable": true,
+                "aggregatable": false
 
             }
         }

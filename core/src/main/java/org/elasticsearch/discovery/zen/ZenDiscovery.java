@@ -109,7 +109,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     private final TransportService transportService;
     private final MasterService masterService;
-    private AllocationService allocationService;
     private final ClusterName clusterName;
     private final DiscoverySettings discoverySettings;
     protected final ZenPing zenPing; // protected to allow tests access
@@ -140,9 +139,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     private final JoinThreadControl joinThreadControl;
 
-    // must initialized in doStart(), when we have the allocationService set
-    private volatile NodeJoinController nodeJoinController;
-    private volatile NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
+    private final NodeJoinController nodeJoinController;
+    private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
 
     private final ClusterApplier clusterApplier;
     private final AtomicReference<ClusterState> state; // last committed cluster state
@@ -151,7 +149,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                         NamedWriteableRegistry namedWriteableRegistry, MasterService masterService, ClusterApplier clusterApplier,
-                        ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider) {
+                        ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider, AllocationService allocationService) {
         super(settings);
         this.masterService = masterService;
         this.clusterApplier = clusterApplier;
@@ -213,6 +211,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.membership = new MembershipAction(settings, transportService, new MembershipListener());
         this.joinThreadControl = new JoinThreadControl();
 
+        this.nodeJoinController = new NodeJoinController(masterService, allocationService, electMaster, settings);
+        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::submitRejoin, logger);
+
         transportService.registerRequestHandler(
             DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
     }
@@ -221,11 +222,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                                  UnicastHostsProvider hostsProvider) {
         return new UnicastZenPing(settings, threadPool, transportService, hostsProvider);
-    }
-
-    @Override
-    public void setAllocationService(AllocationService allocationService) {
-        this.allocationService = allocationService;
     }
 
     @Override
@@ -239,8 +235,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             joinThreadControl.start();
         }
         zenPing.start(this);
-        this.nodeJoinController = new NodeJoinController(masterService, allocationService, electMaster, settings);
-        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::submitRejoin, logger);
     }
 
     @Override
@@ -258,7 +252,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         masterFD.stop("zen disco stop");
         nodesFD.stop();
         Releasables.close(zenPing); // stop any ongoing pinging
-        DiscoveryNodes nodes = nodes();
+        DiscoveryNodes nodes = clusterState().nodes();
         if (sendLeaveRequest) {
             if (nodes.getMasterNode() == null) {
                 // if we don't know who the master is, nothing to do here
@@ -290,20 +284,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         IOUtils.close(masterFD, nodesFD);
     }
 
-    /** start of {@link PingContextProvider } implementation */
-    @Override
-    public DiscoveryNodes nodes() {
-        return clusterState().nodes();
-    }
-
     @Override
     public ClusterState clusterState() {
         ClusterState clusterState = state.get();
         assert clusterState != null : "accessing cluster state before it is set";
         return clusterState;
     }
-
-    /** end of {@link PingContextProvider } implementation */
 
     @Override
     public void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener) {
@@ -677,7 +663,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
         if (localNodeMaster()) {
             removeNode(node, "zen-disco-node-left", "left");
-        } else if (node.equals(nodes().getMasterNode())) {
+        } else if (node.equals(clusterState().nodes().getMasterNode())) {
             handleMasterGone(node, null, "shut_down");
         }
     }
@@ -1041,7 +1027,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     }
 
     private boolean localNodeMaster() {
-        return nodes().isLocalNodeElectedMaster();
+        return clusterState().nodes().isLocalNodeElectedMaster();
     }
 
     private void handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {

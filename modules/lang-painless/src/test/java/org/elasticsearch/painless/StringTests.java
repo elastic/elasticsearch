@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.util.Constants;
+
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -248,5 +250,12 @@ public class StringTests extends ScriptTestCase {
 
         String rando = randomRealisticUnicodeOfLength(between(5, 1000));
         assertEquals(rando, exec("params.rando.encodeBase64().decodeBase64()", singletonMap("rando", rando), true));
+    }
+    
+    public void testJava9StringConcatBytecode() {
+        assumeTrue("Needs Java 9 to test indified String concat", Constants.JRE_IS_MINIMUM_JAVA9);
+        assertNotNull(WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
+        assertBytecodeExists("String s = \"cat\"; return s + true + 'abc' + null;", 
+                "INVOKEDYNAMIC concat(Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Object;)Ljava/lang/String;");
     }
 }

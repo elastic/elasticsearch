@@ -128,12 +128,13 @@ public abstract class ScriptTestCase extends ESTestCase {
             if (e instanceof ScriptException) {
                 boolean hasEmptyScriptStack = ((ScriptException) e).getScriptStack().isEmpty();
                 if (shouldHaveScriptStack && hasEmptyScriptStack) {
-                    if (0 != e.getCause().getStackTrace().length) {
-                        // Without -XX:-OmitStackTraceInFastThrow the jvm can eat the stack trace which causes us to ignore script_stack
-                        AssertionFailedError assertion = new AssertionFailedError("ScriptException should have a scriptStack");
-                        assertion.initCause(e);
-                        throw assertion;
-                    }
+                    /* If this fails you *might* be missing -XX:-OmitStackTraceInFastThrow in the test jvm
+                     * In Eclipse you can add this by default by going to Preference->Java->Installed JREs,
+                     * clicking on the default JRE, clicking edit, and adding the flag to the
+                     * "Default VM Arguments". */
+                    AssertionFailedError assertion = new AssertionFailedError("ScriptException should have a scriptStack");
+                    assertion.initCause(e);
+                    throw assertion;
                 } else if (false == shouldHaveScriptStack && false == hasEmptyScriptStack) {
                     AssertionFailedError assertion = new AssertionFailedError("ScriptException shouldn't have a scriptStack");
                     assertion.initCause(e);

@@ -847,7 +847,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         assertThat(tags.getName(), equalTo("num_tags"));
         assertThat(tags.getBuckets().size(), equalTo(2));
 
-        Iterator<Terms.Bucket> iters = tags.getBuckets().iterator();
+        Iterator<? extends Terms.Bucket> iters = tags.getBuckets().iterator();
 
         Terms.Bucket tag = iters.next();
         assertThat(tag, notNullValue());
@@ -889,7 +889,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         assertThat(tags.getName(), equalTo("tags"));
         assertThat(tags.getBuckets().size(), equalTo(2));
 
-        Iterator<Terms.Bucket> iters = tags.getBuckets().iterator();
+        Iterator<? extends Terms.Bucket> iters = tags.getBuckets().iterator();
 
         // the max for "1" is 2
         // the max for "0" is 4

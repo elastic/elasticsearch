@@ -22,12 +22,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Result of the {@link TermsAggregator} when the field is some kind of whole number like a integer, long, or a date.
@@ -73,7 +76,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
 
         @Override
-        int compareTerm(Terms.Bucket other) {
+        public int compareTerm(Terms.Bucket other) {
             return Long.compare(term, ((Number) other.getKey()).longValue());
         }
 
@@ -89,6 +92,16 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
                 builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term));
             }
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return super.equals(obj) && Objects.equals(term, ((Bucket) obj).term);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), term);
         }
     }
 

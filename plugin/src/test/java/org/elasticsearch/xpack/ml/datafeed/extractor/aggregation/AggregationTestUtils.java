@@ -61,6 +61,7 @@ public final class AggregationTestUtils {
         return singleValue;
     }
 
+    @SuppressWarnings("unchecked")
     static Terms createTerms(String name, Term... terms) {
         Terms termsAgg = mock(Terms.class);
         when(termsAgg.getName()).thenReturn(name);
@@ -79,7 +80,7 @@ public final class AggregationTestUtils {
             }
             buckets.add(bucket);
         }
-        when(termsAgg.getBuckets()).thenReturn(buckets);
+        when((List<Terms.Bucket>) termsAgg.getBuckets()).thenReturn(buckets);
         return termsAgg;
     }
 

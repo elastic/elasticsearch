@@ -72,7 +72,7 @@ public final class IndexWarmer extends AbstractComponent {
         }
         shard.warmerService().onPreWarm();
         long time = System.nanoTime();
-        final List<TerminationHandle> terminationHandles = new ArrayList<>();
+        final List<TerminationHandle> terminationHandles = new ArrayList<>(listeners.size());
         // get a handle on pending tasks
         for (final Listener listener : listeners) {
             terminationHandles.add(listener.warmReader(shard, searcher));

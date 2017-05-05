@@ -324,7 +324,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             storeStatusesBuilder.put(index, shardEntries.build());
         }
         int numFailure = in.readVInt();
-        List<Failure> failureBuilder = new ArrayList<>();
+        List<Failure> failureBuilder = new ArrayList<>(numFailure);
         for (int i = 0; i < numFailure; i++) {
             failureBuilder.add(Failure.readFailure(in));
         }

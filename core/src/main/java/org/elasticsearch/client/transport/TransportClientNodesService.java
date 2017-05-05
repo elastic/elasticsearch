@@ -146,7 +146,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
     }
 
     public List<TransportAddress> transportAddresses() {
-        List<TransportAddress> lstBuilder = new ArrayList<>();
+        List<TransportAddress> lstBuilder = new ArrayList<>(listedNodes.size());
         for (DiscoveryNode listedNode : listedNodes) {
             lstBuilder.add(listedNode.getAddress());
         }

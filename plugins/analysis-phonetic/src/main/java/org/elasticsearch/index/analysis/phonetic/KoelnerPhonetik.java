@@ -181,7 +181,7 @@ public class KoelnerPhonetik implements StringEncoder {
             }
             if (substPos >= position) {
                 i--;
-                List<String> varNew = new ArrayList<>();
+                List<String> varNew = new ArrayList<>(variations.size());
                 String prevPart = str.substring(position, substPos);
                 for (int ii = 0; ii < variations.size(); ii++) {
                     String tmp = variations.get(ii);

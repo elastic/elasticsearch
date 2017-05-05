@@ -1676,7 +1676,7 @@ public final class InternalTestCluster extends TestCluster {
         } else {
             defaultMinMasterNodes = -1;
         }
-        List<NodeAndClient> nodes = new ArrayList<>();
+        List<NodeAndClient> nodes = new ArrayList<>(settings.length);
         for (Settings nodeSettings: settings) {
             nodes.add(buildNode(nodeSettings, defaultMinMasterNodes));
         }

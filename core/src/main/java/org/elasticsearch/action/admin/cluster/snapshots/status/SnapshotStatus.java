@@ -127,7 +127,7 @@ public class SnapshotStatus implements ToXContent, Streamable {
         snapshot = new Snapshot(in);
         state = State.fromValue(in.readByte());
         int size = in.readVInt();
-        List<SnapshotIndexShardStatus> builder = new ArrayList<>();
+        List<SnapshotIndexShardStatus> builder = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             builder.add(SnapshotIndexShardStatus.readShardSnapshotStatus(in));
         }

@@ -557,7 +557,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 posQuery = new SynonymQuery(terms);
             } else {
-                List<BooleanClause> innerClauses = new ArrayList<>();
+                List<BooleanClause> innerClauses = new ArrayList<>(plist.size());
                 for (String token : plist) {
                     innerClauses.add(new BooleanClause(super.getPrefixQuery(field, token),
                         BooleanClause.Occur.SHOULD));

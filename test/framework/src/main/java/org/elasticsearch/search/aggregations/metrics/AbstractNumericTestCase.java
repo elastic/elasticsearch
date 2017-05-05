@@ -35,9 +35,8 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
         createIndex("idx");
         createIndex("idx_unmapped");
 
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-
         final int numDocs = 10;
+        List<IndexRequestBuilder> builders = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) { // TODO randomize the size and the params in here?
             builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()

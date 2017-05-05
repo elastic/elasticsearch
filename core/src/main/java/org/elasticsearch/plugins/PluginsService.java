@@ -193,7 +193,7 @@ public class PluginsService extends AbstractComponent {
     }
 
     public Collection<Module> createGuiceModules() {
-        List<Module> modules = new ArrayList<>();
+        List<Module> modules = new ArrayList<>(plugins.size());
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             modules.addAll(plugin.v2().createGuiceModules());
         }
@@ -201,7 +201,7 @@ public class PluginsService extends AbstractComponent {
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        final ArrayList<ExecutorBuilder<?>> builders = new ArrayList<>();
+        final ArrayList<ExecutorBuilder<?>> builders = new ArrayList<>(plugins.size());
         for (final Tuple<PluginInfo, Plugin> plugin : plugins) {
             builders.addAll(plugin.v2().getExecutorBuilders(settings));
         }
@@ -210,7 +210,7 @@ public class PluginsService extends AbstractComponent {
 
     /** Returns all classes injected into guice by plugins which extend {@link LifecycleComponent}. */
     public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
-        List<Class<? extends LifecycleComponent>> services = new ArrayList<>();
+        List<Class<? extends LifecycleComponent>> services = new ArrayList<>(plugins.size());
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             services.addAll(plugin.v2().getGuiceServiceClasses());
         }

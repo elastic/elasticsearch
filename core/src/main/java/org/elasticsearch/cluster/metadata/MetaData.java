@@ -910,7 +910,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
             // When doing an operation across all indices, most of the time is spent on actually going to all shards and
             // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            List<String> allIndicesLst = new ArrayList<>();
+            List<String> allIndicesLst = new ArrayList<>(indices.size());
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 allIndicesLst.add(cursor.value.getIndex().getName());
             }

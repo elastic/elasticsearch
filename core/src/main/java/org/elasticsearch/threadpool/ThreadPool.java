@@ -264,7 +264,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     public ThreadPoolStats stats() {
-        List<ThreadPoolStats.Stats> stats = new ArrayList<>();
+        List<ThreadPoolStats.Stats> stats = new ArrayList<>(executors.size());
         for (ExecutorHolder holder : executors.values()) {
             String name = holder.info.getName();
             // no need to have info on "same" thread pool

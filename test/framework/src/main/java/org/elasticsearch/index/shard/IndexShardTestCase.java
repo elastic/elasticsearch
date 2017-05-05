@@ -221,7 +221,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData,
                                   @Nullable IndexSearcherWrapper indexSearcherWrapper, IndexingOperationListener... listeners)
         throws IOException {
-        // add node id as name to settings for popper logging
+        // add node id as name to settings for proper logging
         final ShardId shardId = routing.shardId();
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);

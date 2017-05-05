@@ -124,14 +124,13 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
     }
 
     private void assertMonitoringDocs(Collection<MonitoringDoc> results, final int nbShards) {
-        assertThat("expecting 1 document for cluster state and 2 documents per node", results, hasSize(1 + internalCluster().size() * 2));
+        assertThat("expecting 1 document for cluster state and 1 document per node", results, hasSize(1 + internalCluster().size()));
 
         final ClusterState clusterState = securedClient().admin().cluster().prepareState().get().getState();
         final String clusterUUID = clusterState.getMetaData().clusterUUID();
         final String stateUUID = clusterState.stateUUID();
 
         List<ClusterStateNodeMonitoringDoc> clusterStateNodes = new ArrayList<>();
-        List<DiscoveryNodeMonitoringDoc> discoveryNodes = new ArrayList<>();
 
         for (MonitoringDoc doc : results) {
             assertThat(doc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
@@ -139,8 +138,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
             assertThat(doc.getClusterUUID(), equalTo(clusterUUID));
             assertThat(doc.getTimestamp(), greaterThan(0L));
             assertThat(doc.getSourceNode(), notNullValue());
-            assertThat(doc, anyOf(instanceOf(ClusterStateMonitoringDoc.class),
-                    instanceOf(ClusterStateNodeMonitoringDoc.class), instanceOf(DiscoveryNodeMonitoringDoc.class)));
+            assertThat(doc, anyOf(instanceOf(ClusterStateMonitoringDoc.class), instanceOf(ClusterStateNodeMonitoringDoc.class)));
 
             if (doc instanceof ClusterStateMonitoringDoc) {
                 ClusterStateMonitoringDoc clusterStateMonitoringDoc = (ClusterStateMonitoringDoc) doc;
@@ -153,18 +151,12 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
                 assertThat(clusterStateNodeMonitoringDoc.getNodeId(), not(isEmptyOrNullString()));
                 clusterStateNodes.add(clusterStateNodeMonitoringDoc);
 
-            } else if (doc instanceof DiscoveryNodeMonitoringDoc) {
-                DiscoveryNodeMonitoringDoc discoveryNodeMonitoringDoc = (DiscoveryNodeMonitoringDoc) doc;
-                assertNotNull(discoveryNodeMonitoringDoc.getNode());
-                discoveryNodes.add(discoveryNodeMonitoringDoc);
-
             } else {
                 fail("unknown monitoring document type " + doc);
             }
         }
 
         assertThat(clusterStateNodes, hasSize(internalCluster().size()));
-        assertThat(discoveryNodes, hasSize(internalCluster().size()));
 
         for (final String nodeName : internalCluster().getNodeNames()) {
             final String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
@@ -172,15 +164,6 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
             boolean found = false;
             for (ClusterStateNodeMonitoringDoc doc : clusterStateNodes) {
                 if (nodeId.equals(doc.getNodeId())) {
-                    found = true;
-                    break;
-                }
-            }
-            assertTrue("Could not find node id [" + nodeName + "]", found);
-
-            found = false;
-            for (DiscoveryNodeMonitoringDoc doc : discoveryNodes) {
-                if (nodeName.equals(doc.getNode().getName())) {
                     found = true;
                     break;
                 }

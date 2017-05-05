@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterInfoMonitorin
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateNodeMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsMonitoringDoc;
-import org.elasticsearch.xpack.monitoring.collector.cluster.DiscoveryNodeMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndicesStatsMonitoringDoc;
@@ -27,7 +26,6 @@ import org.elasticsearch.xpack.monitoring.resolver.cluster.ClusterInfoResolver;
 import org.elasticsearch.xpack.monitoring.resolver.cluster.ClusterStateNodeResolver;
 import org.elasticsearch.xpack.monitoring.resolver.cluster.ClusterStateResolver;
 import org.elasticsearch.xpack.monitoring.resolver.cluster.ClusterStatsResolver;
-import org.elasticsearch.xpack.monitoring.resolver.cluster.DiscoveryNodeResolver;
 import org.elasticsearch.xpack.monitoring.resolver.indices.IndexRecoveryResolver;
 import org.elasticsearch.xpack.monitoring.resolver.indices.IndexStatsResolver;
 import org.elasticsearch.xpack.monitoring.resolver.indices.IndicesStatsResolver;
@@ -62,7 +60,6 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
         registrations.add(resolveByClass(ClusterStateNodeMonitoringDoc.class, new ClusterStateNodeResolver(id, settings)));
         registrations.add(resolveByClass(ClusterStateMonitoringDoc.class, new ClusterStateResolver(id, settings)));
         registrations.add(resolveByClass(ClusterStatsMonitoringDoc.class, new ClusterStatsResolver(id, settings)));
-        registrations.add(resolveByClass(DiscoveryNodeMonitoringDoc.class, new DiscoveryNodeResolver()));
         registrations.add(resolveByClass(IndexRecoveryMonitoringDoc.class, new IndexRecoveryResolver(id, settings)));
         registrations.add(resolveByClass(IndexStatsMonitoringDoc.class, new IndexStatsResolver(id, settings)));
         registrations.add(resolveByClass(IndicesStatsMonitoringDoc.class, new IndicesStatsResolver(id, settings)));

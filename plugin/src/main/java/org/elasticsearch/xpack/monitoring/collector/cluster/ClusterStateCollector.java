@@ -68,10 +68,6 @@ public class ClusterStateCollector extends Collector {
                 // Adds a document for every node in the monitoring timestamped index
                 results.add(new ClusterStateNodeMonitoringDoc(monitoringId(), monitoringVersion(),
                         clusterUUID, timestamp, sourceNode, stateUUID, node.getId()));
-
-                // Adds a document for every node in the monitoring data index
-                results.add(new DiscoveryNodeMonitoringDoc(monitoringId(), monitoringVersion(),
-                        clusterUUID, timestamp, node));
             }
         }
 

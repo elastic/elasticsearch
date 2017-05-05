@@ -215,9 +215,6 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
             assertThat(client().prepareSearch(".monitoring-data-2").setTypes("cluster_info")
                     .get().getHits().getTotalHits(), greaterThan(0L));
 
-            assertEquals(numNodes, client().prepareSearch(".monitoring-data-2").setTypes("node")
-                    .get().getHits().getTotalHits());
-
             SearchResponse response = client().prepareSearch(".monitoring-es-2-*")
                     .setTypes("node_stats")
                     .setSize(0)

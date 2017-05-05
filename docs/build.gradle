@@ -10,13 +10,6 @@ apply plugin: 'elasticsearch.docs-test'
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
         'en/ml/getting-started.asciidoc',
-        'en/ml/functions/count.asciidoc',
-        'en/ml/functions/geo.asciidoc',
-        'en/ml/functions/info.asciidoc',
-        'en/ml/functions/metric.asciidoc',
-        'en/ml/functions/rare.asciidoc',
-        'en/ml/functions/sum.asciidoc',
-        'en/ml/functions/time.asciidoc',
         'en/rest-api/security/users.asciidoc',
         'en/rest-api/security/tokens.asciidoc',
         'en/rest-api/watcher/put-watch.asciidoc',

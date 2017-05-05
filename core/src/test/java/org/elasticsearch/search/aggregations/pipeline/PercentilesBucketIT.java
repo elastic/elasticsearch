@@ -145,7 +145,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         for (int i = 0; i < interval; ++i) {
@@ -187,7 +187,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(interval));
 
         double[] values = new double[interval];
@@ -220,7 +220,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(interval));
 
         double[] values = new double[interval];
@@ -261,7 +261,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         for (int i = 0; i < interval; ++i) {
@@ -316,7 +316,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         for (int i = 0; i < interval; ++i) {
@@ -361,7 +361,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(0));
 
         PercentilesBucket percentilesBucketValue = response.getAggregations().get("percentiles_bucket");
@@ -384,7 +384,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(0));
 
         PercentilesBucket percentilesBucketValue = response.getAggregations().get("percentiles_bucket");
@@ -479,7 +479,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         double[] values = new double[termsBuckets.size()];
@@ -539,7 +539,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         double[] values = new double[termsBuckets.size()];

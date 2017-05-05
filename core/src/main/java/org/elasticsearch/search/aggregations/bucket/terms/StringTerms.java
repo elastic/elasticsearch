@@ -75,7 +75,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         }
 
         @Override
-        int compareTerm(Terms.Bucket other) {
+        public int compareTerm(Terms.Bucket other) {
             return termBytes.compareTo(((Bucket) other).termBytes);
         }
 

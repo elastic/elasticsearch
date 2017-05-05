@@ -78,10 +78,6 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
         PARSER.declareField(Builder::setMemoryStatus, p -> MemoryStatus.fromString(p.text()), MEMORY_STATUS_FIELD, ValueType.STRING);
     }
 
-    public static String documentId(String jobId) {
-        return jobId + "-" + RESULT_TYPE_VALUE;
-    }
-
     /**
      * The status of the memory monitored by the ResourceMonitor. OK is default,
      * SOFT_LIMIT means that the models have done some aggressive pruning to
@@ -260,6 +256,12 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
                 && Objects.equals(this.memoryStatus, that.memoryStatus) && Objects.equals(this.timestamp, that.timestamp)
                 && Objects.equals(this.logTime, that.logTime)
                 && Objects.equals(this.jobId, that.jobId);
+    }
+
+    public String documentId() {
+        // We choose to create IDs manually here to ensure that we'll have only one
+        // document for a given log_time (which is in seconds granularity).
+        return jobId + "-" + RESULT_TYPE_VALUE + "-" + logTime.getTime();
     }
 
     public static class Builder {

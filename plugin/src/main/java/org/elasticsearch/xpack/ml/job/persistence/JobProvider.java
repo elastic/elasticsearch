@@ -248,7 +248,7 @@ public class JobProvider {
         String stateIndex = AnomalyDetectorsIndex.jobStateIndexName();
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
                 .add(createDocIdSearch(resultsIndex, DataCounts.TYPE.getPreferredName(), DataCounts.documentId(jobId)))
-                .add(createDocIdSearch(resultsIndex, Result.TYPE.getPreferredName(), ModelSizeStats.documentId(jobId)))
+                .add(createLatestModelSizeStatsSearch(resultsIndex))
                 .add(createDocIdSearch(resultsIndex, ModelSnapshot.TYPE.getPreferredName(),
                         ModelSnapshot.documentId(jobId, job.getModelSnapshotId())))
                 .add(createDocIdSearch(stateIndex, Quantiles.TYPE.getPreferredName(), Quantiles.documentId(jobId)));
@@ -277,15 +277,15 @@ public class JobProvider {
                                         + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
                             } else {
                                 SearchHits hits = searchResponse.getHits();
-                                long totalHits = hits.getTotalHits();
-                                if (totalHits == 0) {
+                                long hitsCount = hits.getHits().length;
+                                if (hitsCount == 0) {
                                     SearchRequest searchRequest = msearch.request().requests().get(i);
                                     LOGGER.debug("Found 0 hits for [{}/{}]", searchRequest.indices(), searchRequest.types());
-                                } else if (totalHits == 1) {
+                                } else if (hitsCount == 1) {
                                     parseAutodetectParamSearchHit(paramsBuilder, hits.getAt(0), errorHandler);
-                                } else if (totalHits > 1) {
-                                    errorHandler.accept(new IllegalStateException("Expected total hits 0 or 1, but got [" + totalHits +
-                                            "] total hits"));
+                                } else if (hitsCount > 1) {
+                                    errorHandler.accept(new IllegalStateException("Expected hits count to be 0 or 1, but got ["
+                                            + hitsCount + "]"));
                                 }
                             }
                         }
@@ -950,16 +950,29 @@ public class JobProvider {
      * Get the job's model size stats.
      */
     public void modelSizeStats(String jobId, Consumer<ModelSizeStats> handler, Consumer<Exception> errorHandler) {
-        LOGGER.trace("ES API CALL: get result type {} ID {} for job {}",
-                ModelSizeStats.RESULT_TYPE_VALUE, ModelSizeStats.RESULT_TYPE_FIELD, jobId);
+        LOGGER.trace("ES API CALL: search latest {} for job {}", ModelSizeStats.RESULT_TYPE_VALUE, jobId);
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        get(indexName, Result.TYPE.getPreferredName(), ModelSizeStats.documentId(jobId),
-                handler, errorHandler, (parser, context) -> ModelSizeStats.PARSER.apply(parser, null).build(),
-                () -> {
-                    LOGGER.trace("No memory usage details for job with id {}", jobId);
-                    return new ModelSizeStats.Builder(jobId).build();
-                });
+        createLatestModelSizeStatsSearch(indexName).execute(ActionListener.wrap(
+                response -> {
+                    SearchHit[] hits = response.getHits().getHits();
+                    if (hits.length == 0) {
+                        LOGGER.trace("No {} for job with id {}", ModelSizeStats.RESULT_TYPE_VALUE, jobId);
+                        handler.accept(new ModelSizeStats.Builder(jobId).build());
+                    } else if (hits.length == 1) {
+                        handler.accept(parseSearchHit(hits[0], ModelSizeStats.PARSER, errorHandler).build());
+                    } else {
+                        errorHandler.accept(new IllegalStateException("Search returned " + hits.length + " hits even though size was 1"));
+                    }
+                }, errorHandler
+        ));
+    }
+
+    private SearchRequestBuilder createLatestModelSizeStatsSearch(String indexName) {
+        return client.prepareSearch(indexName)
+                .setSize(1)
+                .setQuery(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_VALUE))
+                .addSort(SortBuilders.fieldSort(ModelSizeStats.LOG_TIME_FIELD.getPreferredName()).order(SortOrder.DESC));
     }
 
     /**

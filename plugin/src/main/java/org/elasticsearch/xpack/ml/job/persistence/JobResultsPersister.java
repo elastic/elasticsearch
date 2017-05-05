@@ -250,9 +250,7 @@ public class JobResultsPersister extends AbstractComponent {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
         Persistable persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE.getPreferredName(),
-                ModelSizeStats.documentId(jobId));
-        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
-        persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE.getPreferredName(), null);
+                modelSizeStats.documentId());
         persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         // Don't commit as we expect masses of these updates and they're only
         // for information at the API level

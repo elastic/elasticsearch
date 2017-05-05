@@ -105,7 +105,7 @@
   - do:
       count:
         index: .ml-anomalies-shared
-  - match: {count: 8}
+  - match: {count: 6}
 
   - do:
       count:
@@ -117,7 +117,7 @@
                 term:
                   job_id: index-layout-job
 
-  - match: {count: 4}
+  - match: {count: 3}
 
   - do:
       count:
@@ -129,7 +129,7 @@
                 term:
                   job_id: index-layout-job
 
-  - match: {count: 4}
+  - match: {count: 3}
 
   - do:
       count:
@@ -141,7 +141,7 @@
                 term:
                   job_id: index-layout-job2
 
-  - match: {count: 4}
+  - match: {count: 3}
 
   - do:
       count:
@@ -152,7 +152,7 @@
               filter:
                 term:
                   job_id: index-layout-job2
-  - match: {count: 4}
+  - match: {count: 3}
 
 # Put some categorizer state
   - do:
@@ -203,7 +203,7 @@
   - do:
       count:
         index: .ml-anomalies-shared
-  - match: {count: 4}
+  - match: {count: 3}
 
 
   - do:
@@ -216,7 +216,7 @@
                 term:
                   job_id: index-layout-job2
 
-  - match: {count: 4}
+  - match: {count: 3}
 
   - do:
       count:
@@ -228,7 +228,7 @@
                 term:
                   job_id: index-layout-job2
 
-  - match: {count: 4}
+  - match: {count: 3}
 
   - do:
       xpack.ml.delete_job:

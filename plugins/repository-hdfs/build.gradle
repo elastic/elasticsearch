@@ -157,7 +157,10 @@ if (fixtureSupported) {
 boolean secureFixtureSupported = false;
 if (fixtureSupported) {
   // Only do secure fixture support if the regular fixture is supported,
-  // and if vagrant is installed
+  // and if vagrant is installed. The ignoreExitValue on exec only matters
+  // in cases where the command can be found and successfully started. In
+  // situations where the vagrant command isn't able to be started at all
+  // (it's not installed) then Gradle still throws ExecException.
   def pipe = new ByteArrayOutputStream()
   try {
     def runResult = exec {

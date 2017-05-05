@@ -162,8 +162,8 @@ public final class ELambda extends AExpression implements ILambda {
             }
         }
         // prepend capture list to lambda's arguments
-        List<String> paramTypes = new ArrayList<>(captures.size());
-        List<String> paramNames = new ArrayList<>(captures.size());
+        List<String> paramTypes = new ArrayList<>(captures.size() + actualParamTypeStrs.size());
+        List<String> paramNames = new ArrayList<>(captures.size() + paramNameStrs.size());
         for (Variable var : captures) {
             paramTypes.add(var.type.name);
             paramNames.add(var.name);

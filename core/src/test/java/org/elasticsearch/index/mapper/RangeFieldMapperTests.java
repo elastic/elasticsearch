@@ -273,7 +273,14 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("_all");
         assertEquals(1, fields.length);
 
-        assertThat(fields[0].stringValue(), containsString(type.equals("date_range") ? "1477872000000" : "5"));
+        String strVal = "5";
+        if (type.equals("date_range")) {
+            strVal = "1477872000000";
+        } else if (type.equals("ip_range")) {
+            strVal = InetAddresses.toAddrString(InetAddresses.forString("192.168.1.7")) + " : "
+                + InetAddresses.toAddrString(InetAddresses.forString("2001:db8:0:0:0:0:0:0"));
+        }
+        assertThat(fields[0].stringValue(), containsString(strVal));
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", type);

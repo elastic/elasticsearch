@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -262,8 +261,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         // it just resolves the date math to an actual date.
         return dateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null));
     }
-
-
 
     /**
      * Iterates through the list of indices and selects the effective list of filtering aliases for the

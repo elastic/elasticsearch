@@ -1,7 +1,7 @@
 [[breaking_60_indices_changes]]
-=== Templates changes
+=== Indices changes
 
-==== `template` is now `index_patterns`
+==== Index templates use `index_patterns` instead of `template`
 
 Previously templates expressed the indices that they should match using a glob
 style pattern in the `template` field. They should now use the `index_patterns`
@@ -29,7 +29,7 @@ PUT _template/template_2
 // CONSOLE
 
 
-=== Shadow Replicas have been removed
+==== Shadow Replicas have been removed
 
 Shadow replicas don't see enough usage, and have been removed. This includes the
 following settings:
@@ -38,7 +38,7 @@ following settings:
 - `index.shadow_replicas`
 - `node.add_lock_id_to_custom_path`
 
-=== Open/Close index API allows wildcard expressions that match no indices by default
+==== Open/Close index API allows wildcard expressions that match no indices by default
 
 The default value of the `allow_no_indices` option for the Open/Close index API
 has been changed from `false` to `true` so it is aligned with the behaviour of the

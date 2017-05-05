@@ -121,6 +121,14 @@ public class SearchTransportService extends AbstractComponent {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
         if (connection.getVersion().onOrBefore(Version.V_5_3_0_UNRELEASED) && fetchDocuments) {
+            if (connection.getVersion().before(Version.V_5_3_0_UNRELEASED) && request.scroll() != null) {
+                /**
+                 * This is needed for nodes pre 5.3 when the single shard optimization is used.
+                 * These nodes will set the last emitted doc only if the removed `query_and_fetch` search type is set
+                 * in the request. See {@link SearchType}.
+                 */
+                request.searchType(SearchType.fromId((byte) 3));
+            }
             // TODO this BWC layer can be removed once this is back-ported to 5.3
             transportService.sendChildRequest(connection, QUERY_FETCH_ACTION_NAME, request, task,
                 new ActionListenerResponseHandler<>(listener, supplier));

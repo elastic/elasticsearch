@@ -58,7 +58,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     private final TermsEnum termsEnum;
     private final IndexReader reader;
     private final long dictSize;
-    private final double logBase = 5;
+    private static final double logBase = 5;
     private final long frequencyPlateau;
     private final Analyzer preFilter;
     private final Analyzer postFilter;

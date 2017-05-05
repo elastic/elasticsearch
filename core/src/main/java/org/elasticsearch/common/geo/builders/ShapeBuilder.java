@@ -79,11 +79,11 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     /** It's possible that some geometries in a MULTI* shape might overlap. With the possible exception of GeometryCollection,
      * this normally isn't allowed.
      */
-    protected final boolean multiPolygonMayOverlap = false;
+    protected static final boolean multiPolygonMayOverlap = false;
     /** @see org.locationtech.spatial4j.shape.jts.JtsGeometry#validate() */
-    protected final boolean autoValidateJtsGeometry = true;
+    protected static final boolean autoValidateJtsGeometry = true;
     /** @see org.locationtech.spatial4j.shape.jts.JtsGeometry#index() */
-    protected final boolean autoIndexJtsGeometry = true;//may want to turn off once SpatialStrategy impls do it.
+    protected static final boolean autoIndexJtsGeometry = true;//may want to turn off once SpatialStrategy impls do it.
 
     protected ShapeBuilder() {
     }

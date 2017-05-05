@@ -72,13 +72,10 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/indices/recovery.asciidoc',
   'reference/indices/segments.asciidoc',
   'reference/indices/shard-stores.asciidoc',
-  'reference/ingest/ingest-node.asciidoc',
-  'reference/mapping/dynamic/templates.asciidoc',
   'reference/migration/migrate_5_0/docs.asciidoc',
   'reference/migration/migrate_5_0/mapping.asciidoc',
   'reference/migration/migrate_5_0/scripting.asciidoc',
   'reference/release-notes/5.0.0-alpha5.asciidoc',
-  'reference/modules/cross-cluster-search.asciidoc', // this is hart to test since we need 2 clusters -- maybe we can trick it into referencing itself...
   'reference/query-dsl/exists-query.asciidoc',
   'reference/search/field-stats.asciidoc',
   'reference/search/profile.asciidoc',

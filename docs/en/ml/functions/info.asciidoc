@@ -1,0 +1,20 @@
+[[ml-info-functions]]
+=== Information Content Functions
+
+The {xpackml} features include the following information content functions:
+
+* `info_content`, `high_info_content`, `low_info_content`
+
+The information content functions detect anomalies in the amount of information
+that is contained in strings within a bucket. These functions can be used as
+a more sophisticated method to identify incidences of data exfiltration or
+C2C activity, when analyzing the size in bytes of the data might not be sufficient.
+
+If you want to monitor for unusually high amounts of information, use `high_info_content`.
+If want to look at drops in information content, use `low_info_content`.
+
+////
+info_content:: information content
+
+high_info_content::: information content
+////

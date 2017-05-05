@@ -1,0 +1,34 @@
+[[ml-rare-functions]]
+=== Rare Functions
+
+The {xpackml} features include the following rare functions:
+
+* `rare`
+* `freq_rare`
+
+The rare functions detect values that occur rarely in time or rarely for a
+population.
+
+The `rare` analysis detects anomalies according to the number of distinct rare
+values. This differs from `freq_rare`, which detects anomalies according to the
+number of times (frequency) rare values occur.
+
+[NOTE]
+====
+* The `rare` and `freq_rare` functions should not be used in conjunction with
+`exclude_frequent`.
+* Shorter bucket spans (less than 1 hour, for example) are recommended when
+looking for rare events. The functions model whether something happens in a
+bucket at least once. With longer bucket spans, it is more likely that
+entities will be seen in a bucket and therefore they appear less rare.
+Picking the ideal the bucket span depends on the characteristics of the data
+with shorter bucket spans typically being measured in minutes, not hours.
+* To model rare data, a learning period of at least 20 buckets is required
+for typical data.
+====
+
+////
+rare:: rare items
+
+freq_rare:: frequently rare items
+////

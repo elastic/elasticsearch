@@ -182,7 +182,8 @@ NOTE: The `field_name` cannot contain double quotes or backslashes.
 
 `function` (required)::
   (string) The analysis function that is used.
-  For example, `count`, `rare`, `mean`, `min`, `max`, and `sum`.
+  For example, `count`, `rare`, `mean`, `min`, `max`, and `sum`. For more
+  information, see <<ml-functions>>.
 
 `over_field_name`::
   (string) The field used to split the data.

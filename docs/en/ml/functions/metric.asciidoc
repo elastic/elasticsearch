@@ -1,0 +1,36 @@
+[[ml-metric-functions]]
+=== Metric Functions
+
+The {xpackml} features include the following metric functions:
+
+* `min`
+* `max`
+* `mean`, `high_mean`, `low_mean`
+* `metric`
+* `varp`, `high_varp`, `low_varp`
+
+The metric functions include mean, min and max. These values are calculated for each bucket.
+Field values that cannot be converted to double precision floating point numbers
+are ignored.
+
+////
+metric:: all of mean, min, and max
+
+mean:: arithmetic mean
+
+high_mean::: arithmetic mean
+
+low_mean::: arithmetic mean
+
+median:: statistical median
+
+min:: arithmetic minimum
+
+max:: arithmetic maximum
+
+varp:: population variance
+
+high_varp::: ""
+
+low_varp::: ""
+////

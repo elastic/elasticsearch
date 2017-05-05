@@ -1,0 +1,13 @@
+[[ml-geo-functions]]
+=== Geographic Functions
+
+The {xpackml} features include the following geographic functions:
+
+* `lat_long`
+
+The geographic functions detect anomalies in the geographic location of the
+input data.
+
+The `field_name` that you supply must be a string of the form
+`latitude,longitude`. The `latitude` and `longitude` must be in the range -180
+to 180 and represent a point on the surface of the Earth.

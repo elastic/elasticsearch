@@ -1,0 +1,129 @@
+[[ml-count-functions]]
+=== Count Functions
+
+The {xpackml} features include the following count functions:
+
+* `count`, `high_count`, `low_count`
+* `non_zero_count`, `high_non_zero_count`, `low_non_zero_count`
+* `distinct_count`, `high_distinct_count`, `low_distinct_count`
+
+Count functions detect anomalies when the count of events in a bucket is
+anomalous.
+
+Use `non_zero_count` functions if your data is sparse and you want to ignore
+cases where the bucket count is zero.
+
+Use `distinct_count` functions to determine when the number of distinct values
+in one field is unusual, as opposed to the total count.
+
+Use high-sided functions if you want to monitor unusually high event rates.
+Use low-sided functions if you want to look at drops in event rate.
+
+
+////
+* <<ml-count>>
+* <<ml-high-count>>
+* <<ml-low-count>>
+* <<ml-nonzero-count>>
+* <<ml-high-nonzero-count>>
+* <<ml-low-nonzero-count>>
+
+[float]
+[[ml-count]]
+===== Count
+
+The `count` function detects anomalies when the count of events in a bucket is
+anomalous.
+
+* field_name: not applicable
+* by_field_name: optional
+* over_field_name: optional
+
+[source,js]
+--------------------------------------------------
+{ "function" : "count" }
+--------------------------------------------------
+
+This example is probably the simplest possible analysis! It identifies time
+buckets during which the overall count of events is higher or lower than usual.
+
+It models the event rate and detects when the event rate is unusual compared to
+the past.
+
+[float]
+[[ml-high-count]]
+===== High_count
+
+The `high_count` function detects anomalies when the count of events in a
+bucket are unusually high.
+
+* field_name: not applicable
+* by_field_name: optional
+* over_field_name: optional
+
+[source,js]
+--------------------------------------------------
+{ "function" : "high_count", "byFieldName" : "error_code", "overFieldName": "user" }
+--------------------------------------------------
+
+This example models the event rate for each error code. It detects users that
+generate an unusually high count of error codes compared to other users.
+
+[float]
+[[ml-low-count]]
+===== Low_count
+
+The `low_count` function detects anomalies when the count of events in a
+bucket are unusually low.
+
+* field_name: not applicable
+* by_field_name: optional
+* over_field_name: optional
+
+[source,js]
+--------------------------------------------------
+{ "function" : "low_count", "byFieldName" : "status_code" }
+--------------------------------------------------
+
+In this example, there is a data stream that contains a field “status”. The
+function detects when the count of events for a given status code is lower than
+usual. It models the event rate for each status code and detects when a status
+code has an unusually low count compared to its past behavior.
+
+If the data stream consists of web server access log records, for example,
+a drop in the count of events for a particular status code might be an indication
+that something isn’t working correctly.
+
+[float]
+[[ml-nonzero-count]]
+===== Non_zero_count
+
+non_zero_count:: count, but zeros are treated as null and ignored
+
+[float]
+[[ml-high-nonzero-count]]
+===== High_non_zero_count
+
+high_non_zero_count::: count, but zeros are treated as null and ignored
+
+[float]
+[[ml-low-nonzero-count]]
+===== Low_non_zero_count
+
+low_non_zero_count::: count, but zeros are treated as null and ignored
+
+[float]
+[[ml-low-count]]
+===== Low_count
+distinct_count:: distinct count
+
+[float]
+[[ml-low-count]]
+===== Low_count
+high_distinct_count::: distinct count
+
+[float]
+[[ml-low-count]]
+===== Low_count
+low_distinct_count::: distinct count
+////

@@ -1,0 +1,54 @@
+[float]
+[[ml-functions]]
+=== Analytical Functions
+
+The {xpackml} features include analysis functions that provide a wide variety of
+flexible ways to analyze data for anomalies.
+
+When you create jobs, you specify one or more detectors, which define the type of
+analysis that needs to be done. If you are creating your job by using {ml} APIs,
+you specify the functions in <<ml-detectorconfig,Detector Configuration Objects>>.
+If you are creating your job in {kib}, you specify the functions differently
+depending on whether you are creating single metric, multi-metric, or advanced
+jobs. For a demonstration of creating jobs in {kib}, see <<ml-getting-started>>.
+
+//TBD: Determine what these fields are called in Kibana, for people who aren't using APIs
+////
+TBD: Integrate from prelert docs?:
+By default, temporal (time-based) analysis is invoked, unless you also specify an
+`over_field_name`, which shifts the analysis to be population- or peer-based.
+
+When you specify `by_field_name` with a function, the analysis considers whether
+there is an anomaly for one of more specific values of `by_field_name`.
+
+NOTE: Some functions cannot be used with a `by_field_name` or `over_field_name`.
+
+You can specify a `partition_field_name` with any function. When this is used,
+the analysis is replicated for every distinct value of `partition_field_name`.
+
+You can specify a `summary_count_field_name` with any function except metric.
+When you use `summary_count_field_name`, the {ml} features expect the input
+data to be pre-summarized. The value of the `summary_count_field_name` field
+must contain the count of raw events that were summarized.
+
+Some functions can benefit from overlapping buckets. This improves the overall
+accuracy of the results but at the cost of a 2 bucket delay in seeing the results.
+////
+
+Most functions detect anomalies in both low and high values. In statistical
+terminology, they apply a two-sided test. Some functions offer low and high
+variations (for example, `count`, `low_count`, and `high_count`). These variations
+apply one-sided tests, detecting anomalies only when the values are low or
+high, depending one which alternative is used.
+
+////
+The table below provides a high-level summary of the analytical functions provided by the API. Each of the functions is described in detail over the following pages. Note the examples given in these pages use single Detector Configuration objects.
+////
+
+* <<ml-count-functions>>
+* <<ml-geo-functions>>
+* <<ml-info-functions>>
+* <<ml-metric-functions>>
+* <<ml-rare-functions>>
+* <<ml-sum-functions>>
+* <<ml-time-functions>>

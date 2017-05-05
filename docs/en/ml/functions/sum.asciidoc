@@ -1,0 +1,26 @@
+
+[[ml-sum-functions]]
+=== Sum Functions
+
+The {xpackml} features include the following sum functions:
+
+* `sum`, `high_sum`, `low_sum`
+* `non_null_sum`, `high_non_null_sum`, `low_non_null_sum`
+
+The sum functions detect anomalies when the sum of a field in a bucket is anomalous.
+
+Use high-sided functions if you want to monitor unusually high totals.
+
+Use low-sided functions if want to look at drops in totals.
+
+Use `non_null_sum` functions if your data is sparse. Buckets without values will
+be ignored; buckets with a zero value will be analyzed.
+
+NOTE: Input data can contain pre-calculated fields that give the total count of some value.  For
+example, transactions per minute.
+
+////
+TBD: Incorporate from prelert docs?:
+Ensure you are familiar with our advice on Summarization of Input Data, as this is likely to provide
+a more appropriate method to using the sum function.
+////

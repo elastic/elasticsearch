@@ -254,7 +254,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
      */
     @Override
     public List<InternalQueryContext> toInternalQueryContexts(List<GeoQueryContext> queryContexts) {
-        List<InternalQueryContext> internalQueryContextList = new ArrayList<>();
+        List<InternalQueryContext> internalQueryContextList = new ArrayList<>(queryContexts.size());
         for (GeoQueryContext queryContext : queryContexts) {
             int minPrecision = Math.min(this.precision, queryContext.getPrecision());
             GeoPoint point = queryContext.getGeoPoint();

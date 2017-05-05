@@ -147,7 +147,7 @@ public class RestoreInfo implements ToXContent, Streamable {
     public void readFrom(StreamInput in) throws IOException {
         name = in.readString();
         int size = in.readVInt();
-        List<String> indicesListBuilder = new ArrayList<>();
+        List<String> indicesListBuilder = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             indicesListBuilder.add(in.readString());
         }

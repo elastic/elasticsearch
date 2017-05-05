@@ -300,7 +300,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
         @Override
         public void close() {
-            List<Releasable> closeables = new ArrayList<>();
+            List<Releasable> closeables = new ArrayList<>(atomicFD.size());
             for (OrdinalMapAndAtomicFieldData fds : atomicFD.values()) {
                 closeables.addAll(Arrays.asList(fds.fieldData));
             }

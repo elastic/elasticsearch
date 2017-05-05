@@ -199,8 +199,8 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContent {
         int numShardsResults = in.readInt();
         for (int i =0 ; i< numShardsResults; i++) {
             String index = in.readString();
-            List<ShardsSyncedFlushResult> shardsSyncedFlushResults = new ArrayList<>();
             int numShards = in.readInt();
+            List<ShardsSyncedFlushResult> shardsSyncedFlushResults = new ArrayList<>(numShards);
             for (int j =0; j< numShards; j++) {
                 shardsSyncedFlushResults.add(ShardsSyncedFlushResult.readShardsSyncedFlushResult(in));
             }

@@ -118,7 +118,7 @@ public class RestTable {
     static List<Integer> getRowOrder(Table table, RestRequest request) {
         String[] columnOrdering = request.paramAsStringArray("s", null);
 
-        List<Integer> rowOrder = new ArrayList<>();
+        List<Integer> rowOrder = new ArrayList<>(table.getRows().size());
         for (int i = 0; i < table.getRows().size(); i++) {
             rowOrder.add(i);
         }

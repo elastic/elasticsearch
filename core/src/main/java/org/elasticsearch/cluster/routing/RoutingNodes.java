@@ -1133,7 +1133,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * all the nodes have been returned.
      */
     public Iterator<ShardRouting> nodeInterleavedShardIterator() {
-        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
+        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>(nodesToShards.size());
         for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
             queue.add(entry.getValue().copyShards().iterator());
         }

@@ -127,6 +127,52 @@
       $body: / (^|\n)test_2 .+ \n/
 
 ---
+"Multiple alias names":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  multiple aliases are supported only from 6.0.0 on
+
+  - do:
+        indices.create:
+            index: test
+
+  - do:
+        indices.create:
+            index: test2
+  - do:
+        indices.create:
+            index: test3
+
+  - do:
+        indices.put_alias:
+            index: test
+            name: foo
+
+  - do:
+        indices.put_alias:
+            index: test2
+            name: bar
+  - do:
+        indices.put_alias:
+            index: test3
+            name: baz
+
+  - do:
+        cat.aliases:
+            name: foo,bar
+            v: true
+            h: [alias, index]
+            s: [index]
+
+  - match:
+      $body: |
+               /^  alias \s+ index \n
+                   foo   \s+ test  \n
+                   bar   \s+ test2
+               $/
+
+---
 "Column headers":
 
   - do:

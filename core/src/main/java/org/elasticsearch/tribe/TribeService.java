@@ -43,6 +43,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -73,6 +74,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
@@ -129,7 +131,7 @@ public class TribeService extends AbstractLifecycleComponent {
         if (!NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.exists(settings)) {
             sb.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), nodesSettings.size());
         }
-        sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "none"); // a tribe node should not use zen discovery
+        sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "tribe"); // there is a special discovery implementation for tribe
         // nothing is going to be discovered, since no master will be elected
         sb.put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
         if (sb.get("cluster.name") == null) {
@@ -230,16 +232,6 @@ public class TribeService extends AbstractLifecycleComponent {
         this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
         this.blockIndicesRead = BLOCKS_READ_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
         this.blockIndicesWrite = BLOCKS_WRITE_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
-
-        if (!nodes.isEmpty()) {
-            if (BLOCKS_WRITE_SETTING.get(settings)) {
-                clusterService.addInitialStateBlock(TRIBE_WRITE_BLOCK);
-            }
-            if (BLOCKS_METADATA_SETTING.get(settings)) {
-                clusterService.addInitialStateBlock(TRIBE_METADATA_BLOCK);
-            }
-        }
-
         this.onConflict = ON_CONFLICT_SETTING.get(settings);
     }
 
@@ -290,12 +282,7 @@ public class TribeService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        if (nodes.isEmpty() == false) {
-            // remove the initial election / recovery blocks since we are not going to have a
-            // master elected in this single tribe  node local "cluster"
-            clusterService.removeInitialStateBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
-            clusterService.removeInitialStateBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
-        }
+
     }
 
     public void startNodes() {
@@ -516,7 +503,10 @@ public class TribeService extends AbstractLifecycleComponent {
             final List<Node> tribeClientNodes = TribeService.this.nodes;
             Map<String, MetaData.Custom> mergedCustomMetaDataMap = mergeChangedCustomMetaData(changedCustomMetaDataTypeSet,
                     customMetaDataType -> tribeClientNodes.stream()
-                            .map(TribeService::getClusterService).map(ClusterService::state)
+                            .map(TribeService::getClusterService)
+                            // cluster service might not have initial state yet (as tribeClientNodes are started after main node)
+                            .filter(cs -> cs.lifecycleState() == Lifecycle.State.STARTED)
+                            .map(ClusterService::state)
                             .map(ClusterState::metaData)
                             .map(clusterMetaData -> ((MetaData.Custom) clusterMetaData.custom(customMetaDataType)))
                             .filter(custom1 -> custom1 != null && custom1 instanceof MergableCustomMetaData)

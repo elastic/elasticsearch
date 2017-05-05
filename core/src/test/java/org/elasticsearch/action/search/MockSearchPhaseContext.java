@@ -19,8 +19,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.SearchShardTarget;
@@ -29,14 +28,11 @@ import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.transport.Transport;
 import org.junit.Assert;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -103,7 +99,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public Transport.Connection getConnection(String nodeId) {
+    public Transport.Connection getConnection(String clusterAlias, String nodeId) {
         return null; // null is ok here for this test
     }
 
@@ -114,7 +110,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public ShardSearchTransportRequest buildShardSearchRequest(ShardIterator shardIt, ShardRouting shard) {
+    public ShardSearchTransportRequest buildShardSearchRequest(SearchShardIterator shardIt) {
         Assert.fail("should not be called");
         return null;
     }
@@ -145,7 +141,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public void sendReleaseSearchContext(long contextId, Transport.Connection connection) {
+    public void sendReleaseSearchContext(long contextId, Transport.Connection connection, OriginalIndices originalIndices) {
         releasedSearchContexts.add(contextId);
     }
 }

@@ -39,7 +39,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
@@ -287,7 +286,7 @@ public class RequestTests extends ESTestCase {
                 expectedParams.put("doc_as_upsert", "true");
             }
         } else {
-            updateRequest.script(new Script("_value + 1"));
+            updateRequest.script(mockScript("_value + 1"));
             updateRequest.scriptedUpsert(randomBoolean());
         }
         if (randomBoolean()) {
@@ -520,7 +519,7 @@ public class RequestTests extends ESTestCase {
         {
             BulkRequest bulkRequest = new BulkRequest();
             bulkRequest.add(new DeleteRequest("index", "type", "0"));
-            bulkRequest.add(new UpdateRequest("index", "type", "1").script(new Script("test")));
+            bulkRequest.add(new UpdateRequest("index", "type", "1").script(mockScript("test")));
             bulkRequest.add(new DeleteRequest("index", "type", "2"));
 
             Request request = Request.bulk(bulkRequest);

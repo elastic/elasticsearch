@@ -88,7 +88,7 @@ public class SearchSliceIT extends ESIntegTestCase {
             builder.field("static_int", 0);
             builder.field("invalid_random_int", randomInt());
             builder.endObject();
-            requests.add(client().prepareIndex("test", "test").setSource(builder));
+            requests.add(client().prepareIndex("test", "type").setSource(builder));
         }
         indexRandom(true, requests);
         return numberOfShards;

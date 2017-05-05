@@ -52,6 +52,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -165,8 +166,8 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         when(mapperService.documentMapper(CHILD_TYPE)).thenReturn(childDocMapper);
         when(mapperService.documentMapper(PARENT_TYPE)).thenReturn(parentDocMapper);
         when(mapperService.docMappers(false)).thenReturn(Arrays.asList(new DocumentMapper[] { childDocMapper, parentDocMapper }));
-        when(parentDocMapper.typeFilter()).thenReturn(new TypeFieldMapper.TypesQuery(new BytesRef(PARENT_TYPE)));
-        when(childDocMapper.typeFilter()).thenReturn(new TypeFieldMapper.TypesQuery(new BytesRef(CHILD_TYPE)));
+        when(parentDocMapper.typeFilter(Mockito.any())).thenReturn(new TypeFieldMapper.TypesQuery(new BytesRef(PARENT_TYPE)));
+        when(childDocMapper.typeFilter(Mockito.any())).thenReturn(new TypeFieldMapper.TypesQuery(new BytesRef(CHILD_TYPE)));
         return mapperService;
     }
 

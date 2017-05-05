@@ -19,7 +19,8 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.elasticsearch.action.search.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -61,7 +62,6 @@ import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexingMemoryController;
@@ -255,7 +255,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                     ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
                     TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
-                    RemoteClusterService.REMOTE_CLUSTERS_SEEDS,
+                    RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
                     RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
                     RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
                     RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
@@ -345,7 +345,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.DEFAULT_KEEPALIVE_SETTING,
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
                     SearchService.LOW_LEVEL_CANCELLATION_SETTING,
-                    Node.WRITE_PORTS_FIELD_SETTING,
+                    Node.WRITE_PORTS_FILE_SETTING,
                     Node.NODE_NAME_SETTING,
                     Node.NODE_DATA_SETTING,
                     Node.NODE_MASTER_SETTING,

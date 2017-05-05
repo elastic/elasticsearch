@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -128,7 +129,8 @@ public class SearchHitTests extends ESTestCase {
         }
         if (randomBoolean()) {
             hit.shard(new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
-                    new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)), randomInt())));
+                    new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)), randomInt()), null,
+                    OriginalIndices.NONE));
         }
         return hit;
     }

@@ -69,6 +69,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                                 .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
+                                .put("index.mapping.single_type", false)
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -281,7 +282,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                             Client client1 = clientArray.get(i % clientArray.size());
                             Client client2 = clientArray.get((i + 1) % clientArray.size());
                             String indexName = i % 2 == 0 ? "test2" : "test1";
-                            String typeName = "type" + (i % 10);
+                            String typeName = "type";
                             String fieldName = Thread.currentThread().getName() + "_" + i;
 
                             PutMappingResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
@@ -341,7 +342,9 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     }
 
     public void testUpdateMappingOnAllTypes() throws IOException {
-        assertAcked(prepareCreate("index").addMapping("type1", "f", "type=keyword").addMapping("type2", "f", "type=keyword"));
+        assertAcked(prepareCreate("index")
+                .setSettings("index.mapping.single_type", false)
+                .addMapping("type1", "f", "type=keyword").addMapping("type2", "f", "type=keyword"));
 
         assertAcked(client().admin().indices().preparePutMapping("index")
                 .setType("type1")

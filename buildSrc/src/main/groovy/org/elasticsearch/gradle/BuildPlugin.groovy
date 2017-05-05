@@ -459,11 +459,6 @@ class BuildPlugin implements Plugin<Project> {
             // TODO: why are we not passing maxmemory to junit4?
             jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')
             jvmArg '-Xms' + System.getProperty('tests.heap.size', '512m')
-            if (JavaVersion.current().isJava7()) {
-                // some tests need a large permgen, but that only exists on java 7
-                jvmArg '-XX:MaxPermSize=128m'
-            }
-            jvmArg '-XX:MaxDirectMemorySize=512m'
             jvmArg '-XX:+HeapDumpOnOutOfMemoryError'
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()

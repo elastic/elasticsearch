@@ -53,11 +53,11 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public ShardSearchTransportRequest(){
     }
 
-    public ShardSearchTransportRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,
+    public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int numberOfShards,
                                        AliasFilter aliasFilter, float indexBoost, long nowInMillis) {
         this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, numberOfShards, aliasFilter, indexBoost,
             nowInMillis);
-        this.originalIndices = new OriginalIndices(searchRequest);
+        this.originalIndices = originalIndices;
     }
 
     @Override
@@ -75,7 +75,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         }
         return originalIndices.indicesOptions();
     }
-
 
     @Override
     public ShardId shardId() {

@@ -91,6 +91,13 @@ public class FunctionRefTests extends ScriptTestCase {
                  "return stats.getSum()"));
     }
 
+    public void testCtorWithParams() {
+        assertArrayEquals(new Object[] { "foo", "bar" },
+                (Object[]) exec("List l = new ArrayList(); l.add('foo'); l.add('bar'); " +
+                        "Stream stream = l.stream().map(StringBuilder::new);" +
+                        "return stream.map(Object::toString).toArray()"));
+    }
+
     public void testArrayCtorMethodRef() {
         assertEquals(1.0D,
                 exec("List l = new ArrayList(); l.add(1.0); l.add(2.0); " +

@@ -455,10 +455,9 @@ final class DocumentParser {
         }
     }
 
-    private static ObjectMapper parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
+    private static void parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
         assert currentFieldName != null;
 
-        ObjectMapper update = null;
         Mapper objectMapper = getMapper(mapper, currentFieldName);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
@@ -492,8 +491,6 @@ final class DocumentParser {
                 context.path().remove();
             }
         }
-
-        return update;
     }
 
     private static void parseArray(ParseContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {

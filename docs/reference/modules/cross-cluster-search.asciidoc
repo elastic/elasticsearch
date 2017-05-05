@@ -105,6 +105,8 @@ POST /cluster_one:twitter/tweet/_search
     "match_all": {}
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:we don't have two clusters set up during docs testing]
 
 In contrast to the `tribe` feature cross cluster search can also search indices with the same name on different
 clusters:
@@ -116,6 +118,8 @@ POST /cluster_one:twitter,twitter/tweet/_search
     "match_all": {}
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:we don't have two clusters set up during docs testing]
 
 Search results are disambiguated the same way as the indices are disambiguated in the request. Even if index names are
 identical these indices will be treated as different indices when results are merged. All results retrieved from a
@@ -124,7 +128,7 @@ will be prefixed with their remote cluster name:
 
 [source,js]
 --------------------------------------------------
- {
+{
   "took" : 89,
   "timed_out" : false,
   "_shards" : {
@@ -162,6 +166,7 @@ will be prefixed with their remote cluster name:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 [float]
 === Cross cluster search settings
@@ -188,5 +193,3 @@ will be prefixed with their remote cluster name:
   to `false` (defaults to `true`) to prevent certain nodes from connecting to
   remote clusters. Cross-cluster search requests must be sent to a node that
   is allowed to act as a cross-cluster client.
-
-

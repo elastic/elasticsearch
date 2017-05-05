@@ -181,7 +181,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
         indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated).build();
+                .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
+                .put("index.mapping.single_type", false).build();
 
         index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
 

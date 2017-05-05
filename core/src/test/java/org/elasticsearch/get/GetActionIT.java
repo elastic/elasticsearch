@@ -35,7 +35,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -255,7 +254,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", mapping1, XContentType.JSON)
                 .addMapping("type2", mapping2, XContentType.JSON)
-                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
+                .setSettings("index.refresh_interval", -1, "index.mapping.single_type", false));
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "type1", "1").get();
@@ -530,7 +529,7 @@ public class GetActionIT extends ESIntegTestCase {
                 .addMapping("parent")
                 .addMapping("my-type1", "_parent", "type=parent", "field1", "type=keyword,store=true")
                 .addAlias(new Alias("alias"))
-                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
+                .setSettings("index.refresh_interval", -1, "index.mapping.single_type", false));
 
         client().prepareIndex("test", "my-type1", "1")
                 .setRouting("1")
@@ -594,7 +593,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         assertAcked(prepareCreate("my-index")
-                .setSettings(Settings.builder().put("index.refresh_interval", -1))
+                .setSettings("index.refresh_interval", -1, "index.mapping.single_type", false)
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
@@ -726,6 +725,7 @@ public class GetActionIT extends ESIntegTestCase {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
+                "    \"index.mapping.single_type\": false," +
                 "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
@@ -738,7 +738,8 @@ public class GetActionIT extends ESIntegTestCase {
                 "    }\n" +
                 "  }\n" +
                 "}";
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
+        assertAcked(prepareCreate("test")
+                .addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
 
         client().prepareIndex("test", "doc").setId("1").setSource("{}", XContentType.JSON).setParent("1").get();

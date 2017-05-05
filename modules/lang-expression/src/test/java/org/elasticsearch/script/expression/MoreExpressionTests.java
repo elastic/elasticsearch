@@ -670,10 +670,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testBoolean() throws Exception {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("doc")
                 .startObject("properties").startObject("vip").field("type", "boolean");
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        assertAcked(prepareCreate("test").addMapping("doc", xContentBuilder));
         ensureGreen();
         indexRandom(true,
                 client().prepareIndex("test", "doc", "1").setSource("price", 1.0, "vip", true),

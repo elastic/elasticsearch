@@ -120,6 +120,7 @@ grant {
   permission java.io.FilePermission "/proc/sys/vm/max_map_count", "read";
 
   // io stats on Linux
+  permission java.io.FilePermission "/proc/self/mountinfo", "read";
   permission java.io.FilePermission "/proc/diskstats", "read";
 
   // control group stats on Linux

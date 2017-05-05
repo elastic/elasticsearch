@@ -53,8 +53,10 @@ public interface RecoveryTargetHandler {
      * Index a set of translog operations on the target
      * @param operations operations to index
      * @param totalTranslogOps current number of total operations expected to be indexed
+     *
+     * @return the local checkpoint on the target shard
      */
-    void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps);
+    long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps);
 
     /**
      * Notifies the target of the files it is going to receive
@@ -76,10 +78,5 @@ public interface RecoveryTargetHandler {
     /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                         boolean lastChunk, int totalTranslogOps) throws IOException;
-
-    /***
-     * @return the allocation id of the target shard.
-     */
-    String getTargetAllocationId();
 
 }

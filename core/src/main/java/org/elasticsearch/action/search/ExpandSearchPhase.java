@@ -32,6 +32,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -59,7 +60,7 @@ final class ExpandSearchPhase extends SearchPhase {
         final SearchRequest searchRequest = context.getRequest();
         return searchRequest.source() != null &&
             searchRequest.source().collapse() != null &&
-            searchRequest.source().collapse().getInnerHit() != null;
+            searchRequest.source().collapse().getInnerHits().isEmpty() == false;
     }
 
     @Override
@@ -67,6 +68,7 @@ final class ExpandSearchPhase extends SearchPhase {
         if (isCollapseRequest() && searchResponse.getHits().getHits().length > 0) {
             SearchRequest searchRequest = context.getRequest();
             CollapseBuilder collapseBuilder = searchRequest.source().collapse();
+            final List<InnerHitBuilder> innerHitBuilders = collapseBuilder.getInnerHits();
             MultiSearchRequest multiRequest = new MultiSearchRequest();
             if (collapseBuilder.getMaxConcurrentGroupRequests() > 0) {
                 multiRequest.maxConcurrentSearchRequests(collapseBuilder.getMaxConcurrentGroupRequests());
@@ -83,27 +85,31 @@ final class ExpandSearchPhase extends SearchPhase {
                 if (origQuery != null) {
                     groupQuery.must(origQuery);
                 }
-                SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(collapseBuilder.getInnerHit())
-                    .query(groupQuery);
-                SearchRequest groupRequest = new SearchRequest(searchRequest.indices())
-                    .types(searchRequest.types())
-                    .source(sourceBuilder);
-                multiRequest.add(groupRequest);
+                for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
+                    SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder)
+                        .query(groupQuery);
+                    SearchRequest groupRequest = new SearchRequest(searchRequest.indices())
+                        .types(searchRequest.types())
+                        .source(sourceBuilder);
+                    multiRequest.add(groupRequest);
+                }
             }
             context.getSearchTransport().sendExecuteMultiSearch(multiRequest, context.getTask(),
                 ActionListener.wrap(response -> {
                     Iterator<MultiSearchResponse.Item> it = response.iterator();
                     for (SearchHit hit : searchResponse.getHits()) {
-                        MultiSearchResponse.Item item = it.next();
-                        if (item.isFailure()) {
-                            context.onPhaseFailure(this, "failed to expand hits", item.getFailure());
-                            return;
+                        for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
+                            MultiSearchResponse.Item item = it.next();
+                            if (item.isFailure()) {
+                                context.onPhaseFailure(this, "failed to expand hits", item.getFailure());
+                                return;
+                            }
+                            SearchHits innerHits = item.getResponse().getHits();
+                            if (hit.getInnerHits() == null) {
+                                hit.setInnerHits(new HashMap<>(innerHitBuilders.size()));
+                            }
+                            hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
                         }
-                        SearchHits innerHits = item.getResponse().getHits();
-                        if (hit.getInnerHits() == null) {
-                            hit.setInnerHits(new HashMap<>(1));
-                        }
-                        hit.getInnerHits().put(collapseBuilder.getInnerHit().getName(), innerHits);
                     }
                     context.executeNextPhase(this, nextPhaseFactory.apply(searchResponse));
                 }, context::onFailure)

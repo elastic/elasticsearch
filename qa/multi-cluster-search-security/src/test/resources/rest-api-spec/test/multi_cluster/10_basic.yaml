@@ -22,7 +22,7 @@ setup:
               "cluster": ["all"],
               "indices": [
                 {
-                  "names": ["test_index", "my_remote_cluster:test_index", "my_remote_cluster:aliased_test_index", "test_remote_cluster:test_index"],
+                  "names": ["test_index", "my_remote_cluster:test_index", "my_remote_cluster:aliased_test_index", "test_remote_cluster:test_index", "my_remote_cluster:secure_alias"],
                   "privileges": ["read"]
                 }
               ]
@@ -174,3 +174,17 @@ teardown:
   - match: { hits.total: 2 }
   - match: { hits.hits.0._source.filter_field: 1 }
   - match: { hits.hits.0._index: "my_remote_cluster:test_index" }
+
+---
+"Search across clusters via a secured alias":
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      search:
+        index: my_remote_cluster:secure_alias # TODO make this a wildcard once
+
+  - match: { _shards.total: 2 }
+  - match: { hits.total: 1 }
+  - is_true: hits.hits.0._source.secure
+  - match: { hits.hits.0._index: "my_remote_cluster:secured_via_alias" }
+

@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,10 +37,18 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     private static List<HyperLogLogPlusPlus> algos;
     private static int p;
 
-    @Before
-    public void setup() {
+    @After //we force @After to have it run before ESTestCase#after otherwise it fails
+    @Override
+    public void setUp() {
         algos = new ArrayList<>();
         p = randomIntBetween(HyperLogLogPlusPlus.MIN_PRECISION, HyperLogLogPlusPlus.MAX_PRECISION);
+    }
+
+    @Override
+    public void tearDown() {
+        Releasables.close(algos);
+        algos.clear();
+        algos = null;
     }
 
     @Override
@@ -81,12 +88,5 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
 
         assertEquals(aggregation.getValue(), parsed.getValue(), Double.MIN_VALUE);
         assertEquals(aggregation.getValueAsString(), parsed.getValueAsString());
-    }
-
-    @After
-    public void cleanup() {
-        Releasables.close(algos);
-        algos.clear();
-        algos = null;
     }
 }

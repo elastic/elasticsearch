@@ -128,7 +128,6 @@ public class Aggregations implements Iterable<Aggregation>, ToXContent {
         return builder;
     }
 
-    //TODO add tests for this method
     public static Aggregations fromXContent(XContentParser parser) throws IOException {
         final List<Aggregation> aggregations = new ArrayList<>();
         XContentParser.Token token;

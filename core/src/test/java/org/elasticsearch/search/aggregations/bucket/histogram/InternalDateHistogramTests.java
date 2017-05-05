@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestC
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.joda.time.DateTime;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,8 +41,9 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
     private boolean keyed;
     private DocValueFormat format;
 
-    @Before
-    public void init() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         keyed = randomBoolean();
         format = randomNumericDocValueFormat();
     }

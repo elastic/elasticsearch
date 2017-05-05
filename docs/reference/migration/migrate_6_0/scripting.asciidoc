@@ -1,10 +1,10 @@
 [[breaking_60_scripting_changes]]
 === Scripting changes
 
-==== Groovy language removed
+==== Groovy, JavaScript, and Python languages removed
 
-The groovy scripting language was deprecated in elasticsearch 5.0 and is now removed.
-Use painless instead.
+The Groovy, JavaScript, and Python scripting languages were deprecated in
+elasticsearch 5.0 and have now been removed. Use painless instead.
 
 ==== Date fields now return dates
 

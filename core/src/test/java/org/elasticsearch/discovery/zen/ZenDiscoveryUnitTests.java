@@ -299,7 +299,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
             masterService, (source, clusterStateSupplier, listener) -> listener.clusterStateProcessed(source, clusterStateSupplier.get(), clusterStateSupplier.get()),
-            clusterSettings, Collections::emptyList);
+            clusterSettings, Collections::emptyList, null);
         zenDiscovery.start();
         return zenDiscovery;
     }

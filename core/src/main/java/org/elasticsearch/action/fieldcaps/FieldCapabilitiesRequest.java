@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -38,13 +39,14 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 
-public class FieldCapabilitiesRequest extends ActionRequest
-    implements IndicesRequest.Replaceable {
+public final class FieldCapabilitiesRequest extends ActionRequest implements IndicesRequest.Replaceable {
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     public static final String NAME = "field_caps_request";
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private String[] fields = Strings.EMPTY_ARRAY;
+    // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
+    private boolean mergeResults = true;
 
     private static ObjectParser<FieldCapabilitiesRequest, Void> PARSER =
         new ObjectParser<>(NAME, FieldCapabilitiesRequest::new);
@@ -56,16 +58,39 @@ public class FieldCapabilitiesRequest extends ActionRequest
 
     public FieldCapabilitiesRequest() {}
 
+    /**
+     * Returns <code>true</code> iff the results should be merged.
+     */
+    boolean isMergeResults() {
+        return mergeResults;
+    }
+
+    /**
+     * if set to <code>true</code> the response will contain only a merged view of the per index field capabilities. Otherwise only
+     * unmerged per index field capabilities are returned.
+     */
+    void setMergeResults(boolean mergeResults) {
+        this.mergeResults = mergeResults;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         fields = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            mergeResults = in.readBoolean();
+        } else {
+            mergeResults = true;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(fields);
+        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            out.writeBoolean(mergeResults);
+        }
     }
 
     public static FieldCapabilitiesRequest parseFields(XContentParser parser) throws IOException {

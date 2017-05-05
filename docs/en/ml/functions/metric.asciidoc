@@ -33,4 +33,13 @@ varp:: population variance
 high_varp::: ""
 
 low_varp::: ""
+
+
+[source,js]
+--------------------------------------------------
+{ "function" : "min", "fieldName" : "amt", "byFieldName" : "product" }
+--------------------------------------------------
+
+
+
 ////

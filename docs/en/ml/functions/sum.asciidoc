@@ -23,4 +23,12 @@ example, transactions per minute.
 TBD: Incorporate from prelert docs?:
 Ensure you are familiar with our advice on Summarization of Input Data, as this is likely to provide
 a more appropriate method to using the sum function.
+
+
+[source,js]
+--------------------------------------------------
+{ "function" : "high_sum", "fieldName" : "cs_bytes", "overFieldName" : "cs_host" }
+--------------------------------------------------
+
+
 ////

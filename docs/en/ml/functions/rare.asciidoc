@@ -31,4 +31,12 @@ for typical data.
 rare:: rare items
 
 freq_rare:: frequently rare items
+
+
+[source,js]
+--------------------------------------------------
+{ "function" : "min", "fieldName" : "amt", "byFieldName" : "product" }
+--------------------------------------------------
+
+
 ////

@@ -14,7 +14,10 @@ If you want to monitor for unusually high amounts of information, use `high_info
 If want to look at drops in information content, use `low_info_content`.
 
 ////
-info_content:: information content
 
-high_info_content::: information content
+[source,js]
+--------------------------------------------------
+{ "function" : "info_content", "fieldName" : "subdomain", "overFieldName" : "highest_registered_domain" }
+--------------------------------------------------
+
 ////

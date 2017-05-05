@@ -29,3 +29,14 @@ This situation occurs because the actual time of the event (as measured against 
 baseline) has changed. This situation is treated as a step change in behavior and the new
 times will be learned quickly.
 ====
+
+
+/////
+
+[source,js]
+--------------------------------------------------
+{ "function" : "time_of_day", "byFieldName" : "process" }
+--------------------------------------------------
+
+
+/////

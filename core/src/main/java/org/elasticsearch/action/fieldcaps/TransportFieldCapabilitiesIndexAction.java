@@ -41,34 +41,19 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class TransportFieldCapabilitiesIndexAction
-    extends TransportSingleShardAction<FieldCapabilitiesIndexRequest,
+public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardAction<FieldCapabilitiesIndexRequest,
     FieldCapabilitiesIndexResponse> {
 
     private static final String ACTION_NAME = FieldCapabilitiesAction.NAME + "[index]";
 
-    protected final ClusterService clusterService;
     private final IndicesService indicesService;
 
     @Inject
-    public TransportFieldCapabilitiesIndexAction(Settings settings,
-                                                 ClusterService clusterService,
-                                                 TransportService transportService,
-                                                 IndicesService indicesService,
-                                                 ThreadPool threadPool,
-                                                 ActionFilters actionFilters,
-                                                 IndexNameExpressionResolver
-                                                         indexNameExpressionResolver) {
-        super(settings,
-            ACTION_NAME,
-            threadPool,
-            clusterService,
-            transportService,
-            actionFilters,
-            indexNameExpressionResolver,
-            FieldCapabilitiesIndexRequest::new,
-            ThreadPool.Names.MANAGEMENT);
-        this.clusterService = clusterService;
+    public TransportFieldCapabilitiesIndexAction(Settings settings, ClusterService clusterService, TransportService transportService,
+                                                 IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
+                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+            FieldCapabilitiesIndexRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
 
@@ -86,11 +71,8 @@ public class TransportFieldCapabilitiesIndexAction
     }
 
     @Override
-    protected FieldCapabilitiesIndexResponse shardOperation(
-        final FieldCapabilitiesIndexRequest request,
-        ShardId shardId) {
-        MapperService mapperService =
-            indicesService.indexServiceSafe(shardId.getIndex()).mapperService();
+    protected FieldCapabilitiesIndexResponse shardOperation(final FieldCapabilitiesIndexRequest request, ShardId shardId) {
+        MapperService mapperService = indicesService.indexServiceSafe(shardId.getIndex()).mapperService();
         Set<String> fieldNames = new HashSet<>();
         for (String field : request.fields()) {
             fieldNames.addAll(mapperService.simpleMatchToIndexNames(field));
@@ -98,11 +80,10 @@ public class TransportFieldCapabilitiesIndexAction
         Map<String, FieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
             MappedFieldType ft = mapperService.fullName(field);
-            FieldCapabilities fieldCap = new FieldCapabilities(field,
-                ft.typeName(),
-                ft.isSearchable(),
-                ft.isAggregatable());
-            responseMap.put(field, fieldCap);
+            if (ft != null) {
+                FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable());
+                responseMap.put(field, fieldCap);
+            }
         }
         return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), responseMap);
     }
@@ -113,9 +94,7 @@ public class TransportFieldCapabilitiesIndexAction
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state,
-                                                      InternalRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ,
-            request.concreteIndex());
+    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, request.concreteIndex());
     }
 }

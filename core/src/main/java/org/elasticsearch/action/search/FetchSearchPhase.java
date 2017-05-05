@@ -136,7 +136,8 @@ final class FetchSearchPhase extends SearchPhase {
                         counter.countDown();
                     } else {
                         SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
-                        Transport.Connection connection = context.getConnection(searchShardTarget.getNodeId());
+                        Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(),
+                            searchShardTarget.getNodeId());
                         ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult().getRequestId(), i, entry,
                             lastEmittedDocPerShard, searchShardTarget.getOriginalIndices());
                         executeFetch(i, searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(),
@@ -191,7 +192,7 @@ final class FetchSearchPhase extends SearchPhase {
         if (context.getRequest().scroll() == null && queryResult.hasSearchContext()) {
             try {
                 SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
-                Transport.Connection connection = context.getConnection(searchShardTarget.getNodeId());
+                Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
                 context.sendReleaseSearchContext(queryResult.getRequestId(), connection, searchShardTarget.getOriginalIndices());
             } catch (Exception e) {
                 context.getLogger().trace("failed to release context", e);

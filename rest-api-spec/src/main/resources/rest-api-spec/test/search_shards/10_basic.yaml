@@ -14,7 +14,7 @@
 ---
 "Search shards aliases with and without filters":
   - skip:
-      version: " - 5.99.99" # temporarily disabled
+      version: " - 6.0.0" # temporarily disabled
       reason: indices section was added in 5.1.0
 
   - do:

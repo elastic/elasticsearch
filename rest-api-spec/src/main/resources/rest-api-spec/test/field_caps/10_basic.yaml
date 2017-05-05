@@ -169,7 +169,7 @@ setup:
 ---
 "Mix in non-existing field field caps":
   - skip:
-      version: " - 5.4.0"
+      version: " - 6.0.0" # temporarily disabled
       reason:  this bug has been fixed in 5.4.0
 
   - do:

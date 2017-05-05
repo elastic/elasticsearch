@@ -54,9 +54,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/indices/recovery.asciidoc',
   'reference/indices/segments.asciidoc',
   'reference/indices/shard-stores.asciidoc',
-  'reference/ingest/ingest-node.asciidoc',
-  'reference/mapping/dynamic/templates.asciidoc',
-  'reference/modules/cross-cluster-search.asciidoc', // this is hard to test since we need 2 clusters -- maybe we can trick it into referencing itself...
   'reference/search/field-stats.asciidoc',
   'reference/search/profile.asciidoc',
 ]

@@ -33,6 +33,7 @@ public class MultipleAdRealmTests extends AbstractAdLdapRealmTestCase {
         // Pick a secondary realm that has the inverse value for 'loginWithCommonName' compare with the primary realm
         final List<RealmConfig> configs = Arrays.stream(RealmConfig.values())
                 .filter(config -> config.loginWithCommonName != AbstractAdLdapRealmTestCase.realmConfig.loginWithCommonName)
+                .filter(config -> config.name().startsWith("AD"))
                 .collect(Collectors.toList());
         secondaryRealmConfig = randomFrom(configs);
         ESLoggerFactory.getLogger("test")

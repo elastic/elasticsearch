@@ -24,10 +24,12 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.transport.nio.HeapByteBuffer;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.LinkedList;
 
 public class TcpReadContext implements ReadContext {
@@ -35,7 +37,7 @@ public class TcpReadContext implements ReadContext {
     private final TcpReadHandler handler;
     private final NioSocketChannel channel;
     private final TcpFrameDecoder frameDecoder;
-    private BytesReference reference;
+    private LinkedList<HeapByteBuffer> references = new LinkedList<>();
     private BytesReference partialMessage;
 
     public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler) {
@@ -46,24 +48,23 @@ public class TcpReadContext implements ReadContext {
         this.handler = handler;
         this.channel = channel;
         this.frameDecoder = frameDecoder;
-        this.reference = new BytesArray(new byte[frameDecoder.nextReadLength()]);
+        this.references.add(new HeapByteBuffer(new BytesArray(new byte[frameDecoder.nextReadLength()])));
     }
 
     @Override
     public int read() throws IOException {
-        int diff = Math.min(frameDecoder.nextReadLength() - reference.length(), Integer.MAX_VALUE);
-        if (diff > 0) {
-            reference = new CompositeBytesReference(reference, new BytesArray(new byte[diff]));
-        }
+//        int diff = Math.min(frameDecoder.nextReadLength() - reference.length(), Integer.MAX_VALUE);
+//        if (diff > 0) {
+//            this.references.add(new HeapByteBuffer(new BytesArray(new byte[diff])));
+//        }
 
-        ByteBuffer[] buffers;
-        LinkedList<ByteBuffer> linkedBuffers = new LinkedList<>();
-        BytesRefIterator byteRefIterator = reference.iterator();
-        BytesRef r;
-        while ((r = byteRefIterator.next()) != null) {
-            linkedBuffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
+        ByteBuffer[] buffers = new ByteBuffer[references.size()];
+
+
+        int i = 0;
+        for (HeapByteBuffer buffer : references) {
+            buffers[i++] = buffer.getWriteByteBuffer();
         }
-        buffers = linkedBuffers.toArray(new ByteBuffer[linkedBuffers.size()]);
 
         int bytesRead;
         if (buffers.length == 1) {
@@ -77,35 +78,63 @@ public class TcpReadContext implements ReadContext {
             return bytesRead;
         }
 
-        BytesReference message;
-        int currentBufferSize = (partialMessage != null ? partialMessage.length() : 0) + bytesRead;
-        while ((message = frameDecoder.decode(combineWithPartial(partialMessage, reference), currentBufferSize)) != null) {
-            partialMessage = null;
-            int messageLength = message.length();
-            reference = reference.slice(message.length(), reference.length() - messageLength);
-            currentBufferSize -= messageLength;
-
-            try {
-                message = message.slice(6, message.length() - 6);
-                handler.handleMessage(message, channel, channel.getProfile(), message.length());
-            } catch (Exception e) {
-                handler.handleException(channel, e);
-            }
-        }
-        int remainderBytes = currentBufferSize - (partialMessage != null ? partialMessage.length() : 0);
-        partialMessage = combineWithPartial(partialMessage, reference.slice(0, remainderBytes));
-        reference = reference.slice(bytesRead, reference.length() - bytesRead);
+//        BytesReference message;
+//        int currentBufferSize = (partialMessage != null ? partialMessage.length() : 0) + bytesRead;
+//        while ((message = frameDecoder.decode(combineWithPartial(partialMessage, reference), currentBufferSize)) != null) {
+//            partialMessage = null;
+//            int messageLength = message.length();
+//            reference = reference.slice(message.length(), reference.length() - messageLength);
+//            currentBufferSize -= messageLength;
+//
+//            try {
+//                message = message.slice(6, message.length() - 6);
+//                handler.handleMessage(message, channel, channel.getProfile(), message.length());
+//            } catch (Exception e) {
+//                handler.handleException(channel, e);
+//            }
+//        }
+//        int remainderBytes = currentBufferSize - (partialMessage != null ? partialMessage.length() : 0);
+//        partialMessage = combineWithPartial(partialMessage, reference.slice(0, remainderBytes));
+//        reference = reference.slice(bytesRead, reference.length() - bytesRead);
 
         return bytesRead;
     }
 
-    private BytesReference combineWithPartial(BytesReference partialMessage, BytesReference reference) {
-        if (partialMessage == null || partialMessage.length() == 0) {
-            return reference;
-        } else if (reference.length() == 0) {
-            return partialMessage;
-        } else {
-            return new CompositeBytesReference(this.partialMessage, this.reference);
+//    private BytesReference combineWithPartial(BytesReference partialMessage, BytesReference reference) {
+//        if (partialMessage == null || partialMessage.length() == 0) {
+//            return reference;
+//        } else if (reference.length() == 0) {
+//            return partialMessage;
+//        } else {
+//            return new CompositeBytesReference(this.partialMessage, this.reference);
+//        }
+//    }
+
+    private class CompositeHeapByteBuffer extends BytesReference {
+
+        @Override
+        public byte get(int index) {
+            return 0;
+        }
+
+        @Override
+        public int length() {
+            return 0;
+        }
+
+        @Override
+        public BytesReference slice(int from, int length) {
+            return null;
+        }
+
+        @Override
+        public BytesRef toBytesRef() {
+            return null;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
         }
     }
 }

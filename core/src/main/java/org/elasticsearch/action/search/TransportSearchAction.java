@@ -220,11 +220,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 Index remoteIndex = shardId.getIndex();
                 Index index = new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, remoteIndex.getName()),
                     remoteIndex.getUUID());
-                OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
-                assert originalIndices != null;
-                SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, new ShardId(index, shardId.getId()),
-                    Arrays.asList(clusterSearchShardsGroup.getShards()), originalIndices);
-                remoteShardIterators.add(shardIterator);
                 final AliasFilter aliasFilter;
                 if (indicesAndFilters == null) {
                     aliasFilter = AliasFilter.EMPTY;
@@ -232,8 +227,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     aliasFilter = indicesAndFilters.get(shardId.getIndexName());
                     assert aliasFilter != null : "alias filter must not be null for index: " + shardId.getIndex();
                 }
+                String[] aliases = aliasFilter.getAliases();
+                String[] finalIndices = aliases.length == 0 ? new String[] {shardId.getIndexName()} : aliases;
                 // here we have to map the filters to the UUID since from now on we use the uuid for the lookup
                 aliasFilterMap.put(remoteIndex.getUUID(), aliasFilter);
+                final OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
+                assert originalIndices != null : "original indices are null for clusterAlias: " + clusterAlias;
+                SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, new ShardId(index, shardId.getId()),
+                    Arrays.asList(clusterSearchShardsGroup.getShards()), new OriginalIndices(finalIndices,
+                    originalIndices.indicesOptions()));
+                remoteShardIterators.add(shardIterator);
             }
         }
         return (clusterAlias, nodeId) -> {

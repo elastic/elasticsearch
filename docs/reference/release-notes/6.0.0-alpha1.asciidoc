@@ -147,6 +147,7 @@ Internal::
 
 Core::
 * Enable index-time sorting {pull}24055[#24055] (issue: {issue}6720[#6720])
+* Add new ip_range field type {pull}24433[#24433]
 
 
 

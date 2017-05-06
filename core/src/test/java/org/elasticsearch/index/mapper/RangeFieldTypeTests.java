@@ -21,6 +21,8 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.FloatRange;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
 import org.apache.lucene.index.IndexOptions;
@@ -37,6 +39,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
 import org.junit.Before;
 
+import java.net.InetAddress;
 import java.util.Locale;
 
 public class RangeFieldTypeTests extends FieldTypeTestCase {
@@ -100,6 +103,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
                 return getLongRangeQuery(relation, (long)from, (long)to, includeLower, includeUpper);
             case DOUBLE:
                 return getDoubleRangeQuery(relation, (double)from, (double)to, includeLower, includeUpper);
+            case IP:
+                return getInetAddressRangeQuery(relation, (InetAddress)from, (InetAddress)to, includeLower, includeUpper);
             default:
                 return getFloatRangeQuery(relation, (float)from, (float)to, includeLower, includeUpper);
         }
@@ -142,7 +147,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         return FloatRange.newIntersectsQuery(FIELDNAME, lower, upper);
     }
 
-    private Query getDoubleRangeQuery(ShapeRelation relation, double from, double to, boolean includeLower, boolean includeUpper) {
+    private Query getDoubleRangeQuery(ShapeRelation relation, double from, double to, boolean includeLower,
+                                      boolean includeUpper) {
         double[] lower = new double[] {includeLower ? from : Math.nextUp(from)};
         double[] upper = new double[] {includeUpper ? to : Math.nextDown(to)};
         if (relation == ShapeRelation.WITHIN) {
@@ -153,7 +159,19 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         return DoubleRange.newIntersectsQuery(FIELDNAME, lower, upper);
     }
 
-    private Object nextFrom() {
+    private Query getInetAddressRangeQuery(ShapeRelation relation, InetAddress from, InetAddress to, boolean includeLower,
+                                           boolean includeUpper) {
+        InetAddress lower = includeLower ? from : InetAddressPoint.nextUp(from);
+        InetAddress upper = includeUpper ? to : InetAddressPoint.nextDown(to);
+        if (relation == ShapeRelation.WITHIN) {
+            return InetAddressRange.newWithinQuery(FIELDNAME, lower, upper);
+        } else if (relation == ShapeRelation.CONTAINS) {
+            return InetAddressRange.newContainsQuery(FIELDNAME, lower, upper);
+        }
+        return InetAddressRange.newIntersectsQuery(FIELDNAME, lower, upper);
+    }
+
+    private Object nextFrom() throws Exception {
         switch (type) {
             case INTEGER:
                 return (int)(random().nextInt() * 0.5 - DISTANCE);
@@ -163,12 +181,14 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
                 return (long)(random().nextLong() * 0.5 - DISTANCE);
             case FLOAT:
                 return (float)(random().nextFloat() * 0.5 - DISTANCE);
+            case IP:
+                return InetAddress.getByName("::ffff:c0a8:107");
             default:
                 return random().nextDouble() * 0.5 - DISTANCE;
         }
     }
 
-    private Object nextTo(Object from) {
+    private Object nextTo(Object from) throws Exception {
         switch (type) {
             case INTEGER:
                 return (Integer)from + DISTANCE;
@@ -178,6 +198,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
                 return (Long)from + DISTANCE;
             case DOUBLE:
                 return (Double)from + DISTANCE;
+            case IP:
+                return InetAddress.getByName("2001:db8::");
             default:
                 return (Float)from + DISTANCE;
         }

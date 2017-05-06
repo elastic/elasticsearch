@@ -26,6 +26,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -101,7 +102,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     }
 
     @Override
-    public List<B> getBucketsInternal() {
+    public List<B> getBuckets() {
         return buckets;
     }
 

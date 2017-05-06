@@ -146,7 +146,7 @@ public class MinBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         for (int i = 0; i < interval; ++i) {
@@ -193,7 +193,7 @@ public class MinBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(interval));
 
         List<String> minKeys = new ArrayList<>();
@@ -239,7 +239,7 @@ public class MinBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         for (int i = 0; i < interval; ++i) {
@@ -298,7 +298,7 @@ public class MinBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         for (int i = 0; i < interval; ++i) {
@@ -347,7 +347,7 @@ public class MinBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(0));
 
         InternalBucketMetricValue minBucketValue = response.getAggregations().get("min_bucket");
@@ -375,7 +375,7 @@ public class MinBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         List<String> minTermsKeys = new ArrayList<>();

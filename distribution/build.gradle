@@ -248,6 +248,7 @@ configure(distributions.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.n
       }
       into('') {
         from {
+          dirMode 0755
           plugins.getParent()
         }
       }

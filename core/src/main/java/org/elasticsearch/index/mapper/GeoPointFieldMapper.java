@@ -79,6 +79,7 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
             if (context.indexCreatedVersion().before(Version.V_2_3_0)) {
                 fieldType.setNumericPrecisionStep(GeoPointField.PRECISION_STEP);
                 fieldType.setNumericType(FieldType.LegacyNumericType.LONG);
+                ((LegacyGeoPointFieldType)fieldType).numericEncoded = true;
             }
             setupFieldType(context);
             return new GeoPointFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper,

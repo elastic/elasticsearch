@@ -19,17 +19,22 @@
 
 package org.elasticsearch.fieldstats;
 
+import org.apache.lucene.geo.GeoTestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -37,6 +42,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -52,6 +58,11 @@ import static org.hamcrest.Matchers.containsString;
 /**
  */
 public class FieldStatsTests extends ESSingleNodeTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
     public void testByte() {
         testNumberRange("field1", "byte", 12, 18);
         testNumberRange("field1", "byte", -5, 5);
@@ -674,6 +685,31 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             default:
                 throw new IllegalArgumentException("Invalid type");
         }
+    }
+
+    public void testGeopoint() {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        createIndex("test", settings, "test",
+            "field_index", makeType("geo_point", true, false, false));
+        version = Version.CURRENT;
+        settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        createIndex("test5x", settings, "test",
+            "field_index", makeType("geo_point", true, false, false));
+        int numDocs = random().nextInt(20);
+        for (int i = 0; i <= numDocs; ++i) {
+            double lat = GeoTestUtil.nextLatitude();
+            double lon = GeoTestUtil.nextLongitude();
+            client().prepareIndex(random().nextBoolean() ? "test" : "test5x", "test").setSource("field_index", lat + "," + lon).get();
+        }
+
+        client().admin().indices().prepareRefresh().get();
+        FieldStatsResponse result = client().prepareFieldStats().setFields("field_index").get();
+        FieldStats stats = result.getAllFieldStats().get("field_index");
+        assertEquals(stats.getDisplayType(), "geo_point");
+        // min/max random testing is not straightforward; there are 3 different encodings since V_2_0
+        // e.g., before V2_3 used legacy numeric encoding which is wildly different from V_2_3 which is morton encoded
+        // which is wildly different from V_5_0 which is point encoded. Skipping min/max in favor of testing
     }
 
     private void assertSerialization(FieldStats stats, Version version) throws IOException {

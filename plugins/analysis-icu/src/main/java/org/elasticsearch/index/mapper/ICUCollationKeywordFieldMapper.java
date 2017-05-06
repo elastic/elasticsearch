@@ -167,11 +167,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             throw new UnsupportedOperationException();
         }
 
-        @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            throw new UnsupportedOperationException();
-        }
-
         public static DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
             @Override
             public String getWriteableName() {

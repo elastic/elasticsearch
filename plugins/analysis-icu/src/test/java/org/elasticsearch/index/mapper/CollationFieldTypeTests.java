@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper.CollationFieldType;
@@ -124,7 +125,21 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
-        expectThrows(UnsupportedOperationException.class,
+
+        Collator collator = Collator.getInstance().freeze();
+        ((CollationFieldType) ft).setCollator(collator);
+
+        RawCollationKey aKey = collator.getRawCollationKey("a", null);
+        RawCollationKey bKey = collator.getRawCollationKey("b", null);
+
+        TermRangeQuery expected = new TermRangeQuery("field", new BytesRef(aKey.bytes, 0, aKey.size),
+            new BytesRef(bKey.bytes, 0, bKey.size), false, false);
+
+        assertEquals(expected, ft.rangeQuery("a", "b", false, false, null));
+
+        ft.setIndexOptions(IndexOptions.NONE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> ft.rangeQuery("a", "b", false, false, null));
+        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

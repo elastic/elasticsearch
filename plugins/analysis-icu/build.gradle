@@ -25,7 +25,6 @@ esplugin {
 dependencies {
   compile "org.apache.lucene:lucene-analyzers-icu:${versions.lucene}"
   compile 'com.ibm.icu:icu4j:54.1'
-  testCompile project(path: ':core', configuration: 'testOutput')
 }
 
 dependencyLicenses {

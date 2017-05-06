@@ -129,9 +129,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
         if (nrReplicasChanged.size() > 0) {
             // update settings and kick of a reroute (implicit) for them to take effect
-            for (final Integer fNumberOfReplicas : nrReplicasChanged.keySet()) {
-                Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
-                final List<Index> indices = nrReplicasChanged.get(fNumberOfReplicas);
+            for (final Map.Entry<Integer, List<Index>> integerListEntry : nrReplicasChanged.entrySet()) {
+                Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, integerListEntry.getKey()).build();
+                final List<Index> indices = integerListEntry.getValue();
 
                 UpdateSettingsClusterStateUpdateRequest updateRequest = new UpdateSettingsClusterStateUpdateRequest()
                         .indices(indices.toArray(new Index[indices.size()])).settings(settings)
@@ -142,14 +142,14 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     @Override
                     public void onResponse(ClusterStateUpdateResponse response) {
                         for (Index index : indices) {
-                            logger.info("{} auto expanded replicas to [{}]", index, fNumberOfReplicas);
+                            logger.info("{} auto expanded replicas to [{}]", index, integerListEntry.getKey());
                         }
                     }
 
                     @Override
                     public void onFailure(Exception t) {
                         for (Index index : indices) {
-                            logger.warn("{} fail to auto expand replicas to [{}]", index, fNumberOfReplicas);
+                            logger.warn("{} fail to auto expand replicas to [{}]", index, integerListEntry.getKey());
                         }
                     }
                 });

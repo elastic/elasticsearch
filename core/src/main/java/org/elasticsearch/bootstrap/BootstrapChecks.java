@@ -313,11 +313,11 @@ final class BootstrapChecks {
     static class MaxNumberOfThreadsCheck implements BootstrapCheck {
 
         // this should be plenty for machines up to 256 cores
-        private static final long MAX_NUMBER_THREADS_THRESHOLD = 1 << 12;
+        private static final long MAX_NUMBER_OF_THREADS_THRESHOLD = 1 << 12;
 
         @Override
         public boolean check() {
-            return getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < MAX_NUMBER_THREADS_THRESHOLD;
+            return getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD;
         }
 
         @Override
@@ -327,7 +327,7 @@ final class BootstrapChecks {
                 "max number of threads [%d] for user [%s] is too low, increase to at least [%d]",
                 getMaxNumberOfThreads(),
                 BootstrapInfo.getSystemProperties().get("user.name"),
-                MAX_NUMBER_THREADS_THRESHOLD);
+                MAX_NUMBER_OF_THREADS_THRESHOLD);
         }
 
         // visible for testing

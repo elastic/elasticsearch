@@ -500,7 +500,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
         @Override
         public String toString() {
-            return "" + snapshot + ", shardId [" + shardId + "], status [" + status.state() + "]";
+            return snapshot + ", shardId [" + shardId + "], status [" + status.state() + "]";
         }
 
         public void markAsProcessed() {

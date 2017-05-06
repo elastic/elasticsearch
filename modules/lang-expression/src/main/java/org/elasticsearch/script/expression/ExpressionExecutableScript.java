@@ -57,8 +57,8 @@ public class ExpressionExecutableScript implements ExecutableScript {
             functionValuesMap.put(variableName, functionValuesArray[functionValuesIndex]);
         }
 
-        for (Map.Entry<String, Object> entry : vars.entrySet()) {
-            setNextVar(entry.getKey(), entry.getValue());
+        for (Map.Entry<String, Object> var : vars.entrySet()) {
+            setNextVar(var.getKey(), var.getValue());
         }
     }
 

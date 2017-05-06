@@ -111,11 +111,11 @@ public class MultiMatchQuery extends MatchQuery {
             this.tieBreaker = tieBreaker;
         }
 
-        public List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException{
+        public List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNamesWithBoost, Object value, String minimumShouldMatch) throws IOException{
             List<Query> queries = new ArrayList<>();
-            for (Map.Entry<String, Float> stringFloatEntry : fieldNames.entrySet()) {
-                Float boostValue = stringFloatEntry.getValue();
-                Query query = parseGroup(type.matchQueryType(), stringFloatEntry.getKey(), boostValue, value, minimumShouldMatch);
+            for (Map.Entry<String, Float> fieldNameWithBoost : fieldNamesWithBoost.entrySet()) {
+                Float boostValue = fieldNameWithBoost.getValue();
+                Query query = parseGroup(type.matchQueryType(), fieldNameWithBoost.getKey(), boostValue, value, minimumShouldMatch);
                 if (query != null) {
                     queries.add(query);
                 }

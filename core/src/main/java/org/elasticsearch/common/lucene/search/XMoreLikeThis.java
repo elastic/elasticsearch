@@ -727,8 +727,8 @@ public final class XMoreLikeThis {
         final int limit = Math.min(maxQueryTerms, words.size());
         FreqQ queue = new FreqQ(limit); // will order words by score
 
-        for (Map.Entry<String, Int> stringIntEntry : words.entrySet()) { // for every word
-            int tf = stringIntEntry.getValue().x; // term freq in the source doc
+        for (Map.Entry<String, Int> word : words.entrySet()) { // for every word
+            int tf = word.getValue().x; // term freq in the source doc
             if (minTermFreq > 0 && tf < minTermFreq) {
                 continue; // filter out words that don't occur enough times in the source
             }
@@ -737,7 +737,7 @@ public final class XMoreLikeThis {
             String topField = fieldNames[0];
             int docFreq = 0;
             for (String fieldName : fieldNames) {
-                int freq = ir.docFreq(new Term(fieldName, stringIntEntry.getKey()));
+                int freq = ir.docFreq(new Term(fieldName, word.getKey()));
                 topField = (freq > docFreq) ? fieldName : topField;
                 docFreq = (freq > docFreq) ? freq : docFreq;
             }
@@ -759,11 +759,11 @@ public final class XMoreLikeThis {
 
             if (queue.size() < limit) {
                 // there is still space in the queue
-                queue.add(new ScoreTerm(stringIntEntry.getKey(), topField, score, idf, docFreq, tf));
+                queue.add(new ScoreTerm(word.getKey(), topField, score, idf, docFreq, tf));
             } else {
                 ScoreTerm term = queue.top();
                 if (term.score < score) { // update the smallest in the queue in place and update the queue.
-                    term.update(stringIntEntry.getKey(), topField, score, idf, docFreq, tf);
+                    term.update(word.getKey(), topField, score, idf, docFreq, tf);
                     queue.updateTop();
                 }
             }

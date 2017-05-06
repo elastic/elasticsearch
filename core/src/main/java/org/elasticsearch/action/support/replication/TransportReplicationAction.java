@@ -510,12 +510,12 @@ public abstract class TransportReplicationAction<
         public void onResponse(Releasable releasable) {
             try {
                 replica.updateGlobalCheckpointOnReplica(globalCheckpoint);
-                ReplicaResult replicaResult = shardOperationOnReplica(request, replica);
+                final ReplicaResult replicaResult = shardOperationOnReplica(request, replica);
                 releasable.close(); // release shard operation lock before responding to caller
                 final TransportReplicationAction.ReplicaResponse response =
                     new ReplicaResponse(replica.routingEntry().allocationId().getId(), replica.getLocalCheckpoint());
                 replicaResult.respond(new ResponseListener(response));
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                 AsyncReplicaAction.this.onFailure(e);
             }

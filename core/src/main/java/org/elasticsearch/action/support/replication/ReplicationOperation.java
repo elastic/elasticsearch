@@ -20,6 +20,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -285,7 +286,9 @@ public class ReplicationOperation<
         if (finished.compareAndSet(false, true)) {
             try {
                 primary.updateGlobalCheckpoint();
-            } catch (Exception e) {
+            } catch (final AlreadyClosedException e) {
+                logger.trace("shard closed while updating global checkpoint on primary", e);
+            } catch (final Exception e) {
                 logger.warn("failed to update global checkpoint on primary", e);
             }
             final ReplicationResponse.ShardInfo.Failure[] failuresArray;
@@ -365,6 +368,9 @@ public class ReplicationOperation<
          */
         long globalCheckpoint();
 
+        /**
+         * Update the global checkpoint on the primary shard.
+         */
         void updateGlobalCheckpoint();
 
     }

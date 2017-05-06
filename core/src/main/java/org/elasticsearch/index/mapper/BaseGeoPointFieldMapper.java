@@ -25,8 +25,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.spatial.util.MortonEncoder;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LegacyNumericUtils;
-import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
@@ -306,6 +307,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
 
         protected MappedFieldType latFieldType;
         protected MappedFieldType lonFieldType;
+        protected boolean numericEncoded;
 
         LegacyGeoPointFieldType() {}
 
@@ -316,6 +318,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
             this.geoHashPrefixEnabled = ref.geoHashPrefixEnabled;
             this.latFieldType = ref.latFieldType; // copying ref is ok, this can never be modified
             this.lonFieldType = ref.lonFieldType; // copying ref is ok, this can never be modified
+            this.numericEncoded = ref.numericEncoded;
         }
 
         @Override
@@ -329,6 +332,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
             LegacyGeoPointFieldType that = (LegacyGeoPointFieldType) o;
             return  geoHashPrecision == that.geoHashPrecision &&
                     geoHashPrefixEnabled == that.geoHashPrefixEnabled &&
+                    numericEncoded == that.numericEncoded &&
                     java.util.Objects.equals(geoHashFieldType, that.geoHashFieldType) &&
                     java.util.Objects.equals(latFieldType, that.latFieldType) &&
                     java.util.Objects.equals(lonFieldType, that.lonFieldType);
@@ -336,8 +340,8 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
 
         @Override
         public int hashCode() {
-            return java.util.Objects.hash(super.hashCode(), geoHashFieldType, geoHashPrecision, geoHashPrefixEnabled, latFieldType,
-                    lonFieldType);
+            return java.util.Objects.hash(super.hashCode(), geoHashFieldType, geoHashPrecision, geoHashPrefixEnabled,
+                    numericEncoded, latFieldType, lonFieldType);
         }
 
         @Override
@@ -437,10 +441,9 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
             if (terms == null) {
                 return new FieldStats.GeoPoint(reader.maxDoc(), 0L, -1L, -1L, isSearchable(), isAggregatable());
             }
-            GeoPoint minPt = GeoPoint.fromGeohash(NumericUtils.sortableBytesToLong(terms.getMin().bytes, terms.getMin().offset));
-            GeoPoint maxPt = GeoPoint.fromGeohash(NumericUtils.sortableBytesToLong(terms.getMax().bytes, terms.getMax().offset));
             return new FieldStats.GeoPoint(reader.maxDoc(), terms.getDocCount(), -1L, terms.getSumTotalTermFreq(), isSearchable(),
-                isAggregatable(), minPt, maxPt);
+                isAggregatable(), prefixCodedToGeoPoint(terms.getMin(), numericEncoded),
+                prefixCodedToGeoPoint(terms.getMax(), numericEncoded));
         }
     }
 
@@ -656,5 +659,20 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         updated.latMapper = latUpdated;
         updated.lonMapper = lonUpdated;
         return updated;
+    }
+
+    private static GeoPoint prefixCodedToGeoPoint(BytesRef val, boolean isGeoCoded) {
+        final long encoded = isGeoCoded ? prefixCodedToGeoCoded(val) : LegacyNumericUtils.prefixCodedToLong(val);
+        return new GeoPoint(MortonEncoder.decodeLatitude(encoded), MortonEncoder.decodeLongitude(encoded));
+    }
+
+    private static long prefixCodedToGeoCoded(BytesRef val) {
+        long result = fromBytes((byte)0, (byte)0, (byte)0, (byte)0, val.bytes[val.offset + 0], val.bytes[val.offset + 1],
+            val.bytes[val.offset + 2], val.bytes[val.offset + 3]);
+        return result << 32;
+    }
+
+    private static long fromBytes(byte b1, byte b2, byte b3, byte b4, byte b5, byte b6, byte b7, byte b8) {
+        return ((long)b1 & 255L) << 56 | ((long)b2 & 255L) << 48 | ((long)b3 & 255L) << 40 | ((long)b4 & 255L) << 32 | ((long)b5 & 255L) << 24 | ((long)b6 & 255L) << 16 | ((long)b7 & 255L) << 8 | (long)b8 & 255L;
     }
 }

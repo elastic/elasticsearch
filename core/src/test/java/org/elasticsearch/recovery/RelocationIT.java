@@ -368,6 +368,9 @@ public class RelocationIT extends ESIntegTestCase {
                 }
             }
 
+            // refresh is a replication action so this forces a global checkpoint sync which is need as these are asserted on in tear down
+            client().admin().indices().prepareRefresh("test").get();
+
         }
     }
 

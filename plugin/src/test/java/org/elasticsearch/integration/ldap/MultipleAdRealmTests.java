@@ -7,7 +7,6 @@ package org.elasticsearch.integration.ldap;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -42,10 +41,7 @@ public class MultipleAdRealmTests extends AbstractAdLdapRealmTestCase {
 
         // It's easier to test 2 realms when using file based role mapping, and for the purposes of
         // this test, there's no need to test native mappings.
-        AbstractAdLdapRealmTestCase.roleMappings = Stream.concat(
-                realmConfig.selectRoleMappings(() -> true).stream(),
-                secondaryRealmConfig.selectRoleMappings(() -> true).stream()
-        ).distinct().collect(Collectors.toList());
+        AbstractAdLdapRealmTestCase.roleMappings = realmConfig.selectRoleMappings(() -> true);
     }
 
     @Override
@@ -54,7 +50,8 @@ public class MultipleAdRealmTests extends AbstractAdLdapRealmTestCase {
         builder.put(super.nodeSettings(nodeOrdinal));
 
         Path store = getDataPath(TESTNODE_KEYSTORE);
-        final Settings secondarySettings = super.buildRealmSettings(secondaryRealmConfig, store);
+        final List<RoleMappingEntry> secondaryRoleMappings = secondaryRealmConfig.selectRoleMappings(() -> true);
+        final Settings secondarySettings = super.buildRealmSettings(secondaryRealmConfig, secondaryRoleMappings, store);
         secondarySettings.getAsMap().forEach((name, value) -> {
             name = name.replace(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL, XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "2");
             builder.put(name, value);

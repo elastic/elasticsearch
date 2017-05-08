@@ -223,7 +223,10 @@ public class InternalEngine extends Engine {
             final long localCheckpoint = seqNoService().getLocalCheckpoint();
             final long maxSeqNo = seqNoService().getMaxSeqNo();
             int numNoOpsAdded = 0;
-            for (long seqNo = localCheckpoint + 1; seqNo <= maxSeqNo; seqNo = seqNoService().getLocalCheckpoint() + 1) {
+            for (
+                    long seqNo = localCheckpoint + 1;
+                    seqNo <= maxSeqNo;
+                    seqNo = seqNoService().getLocalCheckpoint() + 1 /* the local checkpoint might have advanced so we leap-frog */) {
                 innerNoOp(new NoOp(seqNo, primaryTerm, Operation.Origin.PRIMARY, System.nanoTime(), "filling gaps"));
                 numNoOpsAdded++;
                 assert seqNo <= seqNoService().getLocalCheckpoint()

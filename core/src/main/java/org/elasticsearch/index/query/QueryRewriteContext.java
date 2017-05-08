@@ -69,14 +69,14 @@ public class QueryRewriteContext {
      * Returns the index settings for this context. This might return null if the
      * context has not index scope.
      */
-    public final IndexSettings getIndexSettings() {
+    public IndexSettings getIndexSettings() {
         return indexSettings;
     }
 
     /**
      * Return the MapperService.
      */
-    public final MapperService getMapperService() {
+    public MapperService getMapperService() {
         return mapperService;
     }
 

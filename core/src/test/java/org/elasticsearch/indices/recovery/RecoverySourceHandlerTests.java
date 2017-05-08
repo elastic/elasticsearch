@@ -180,7 +180,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             operations.add(new Translog.Index(index, new Engine.IndexResult(1, i - initialNumberOfDocs, true)));
         }
         operations.add(null);
-        int totalOperations = handler.sendSnapshot(startingSeqNo, new Translog.Snapshot() {
+        RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, new Translog.Snapshot() {
             private int counter = 0;
 
             @Override
@@ -194,9 +194,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
         });
         if (startingSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-            assertThat(totalOperations, equalTo(initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers));
+            assertThat(result.totalOperations, equalTo(initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers));
         } else {
-            assertThat(totalOperations, equalTo(Math.toIntExact(numberOfDocsWithValidSequenceNumbers - startingSeqNo)));
+            assertThat(result.totalOperations, equalTo(Math.toIntExact(numberOfDocsWithValidSequenceNumbers - startingSeqNo)));
         }
     }
 
@@ -403,8 +403,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            void phase2(long startingSeqNo, Translog.Snapshot snapshot) throws IOException {
+            long phase2(long startingSeqNo, Translog.Snapshot snapshot) throws IOException {
                 phase2Called.set(true);
+                return SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }
 
         };
@@ -494,8 +495,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            void phase2(long startingSeqNo, Translog.Snapshot snapshot) throws IOException {
+            long phase2(long startingSeqNo, Translog.Snapshot snapshot) throws IOException {
                 phase2Called.set(true);
+                return SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }
 
         };

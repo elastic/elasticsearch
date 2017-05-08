@@ -22,8 +22,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -43,7 +43,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms  terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<String, Long> expected = new HashMap<>();
         expected.put("1", 8L);
@@ -66,7 +66,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms  terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<String, Long> expected = new HashMap<>();
         expected.put("1", 8L);
@@ -90,7 +90,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3)); // we still only return 3 entries (based on the 'size' param)
         Map<String, Long> expected = new HashMap<>();
         expected.put("1", 8L);
@@ -114,7 +114,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3)); // we still only return 3 entries (based on the 'size' param)
         Map<String, Long> expected = new HashMap<>();
         expected.put("1", 5L);
@@ -137,7 +137,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms  terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<String, Long> expected = new HashMap<>();
         expected.put("1", 8L);
@@ -160,7 +160,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<Integer, Long> expected = new HashMap<>();
         expected.put(1, 8L);
@@ -183,7 +183,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<Integer, Long> expected = new HashMap<>();
         expected.put(1, 8L);
@@ -206,7 +206,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3)); // we still only return 3 entries (based on the 'size' param)
         Map<Integer, Long> expected = new HashMap<>();
         expected.put(1, 8L);
@@ -230,7 +230,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3)); // we still only return 3 entries (based on the 'size' param)
         Map<Integer, Long> expected = new HashMap<>();
         expected.put(1, 5L);
@@ -253,7 +253,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<Integer, Long> expected = new HashMap<>();
         expected.put(1, 8L);
@@ -276,7 +276,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<Integer, Long> expected = new HashMap<>();
         expected.put(1, 8L);
@@ -299,7 +299,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<Integer, Long> expected = new HashMap<>();
         expected.put(1, 8L);
@@ -322,7 +322,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<Integer, Long> expected = new HashMap<>();
         expected.put(1, 8L);
@@ -345,7 +345,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<Integer, Long> expected = new HashMap<>();
         expected.put(1, 5L);
@@ -368,7 +368,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 .execute().actionGet();
 
         Terms terms = response.getAggregations().get("keys");
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(3));
         Map<Integer, Long> expected = new HashMap<>();
         expected.put(1, 8L);

@@ -209,6 +209,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(), pNode, null));
             primary.recoverFromStore();
             primary.updateRoutingEntry(ShardRoutingHelper.moveToStarted(primary.routingEntry()));
+            for (final IndexShard replica : replicas) {
+                recoverReplica(replica);
+            }
             updateAllocationIDsOnPrimary();
         }
 
@@ -296,9 +299,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return getDiscoveryNode(primary.routingEntry().currentNodeId());
         }
 
-        public Future<Void> asyncRecoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier)
-            throws IOException {
-            FutureTask<Void> task = new FutureTask<>(() -> {
+        public Future<Void> asyncRecoverReplica(
+                final IndexShard replica, final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier) throws IOException {
+            final FutureTask<Void> task = new FutureTask<>(() -> {
                 recoverReplica(replica, targetSupplier);
                 return null;
             });

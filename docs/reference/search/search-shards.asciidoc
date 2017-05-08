@@ -4,7 +4,7 @@
 The search shards api returns the indices and shards that a search request would
 be executed against. This can give useful feedback for working out issues or
 planning optimizations with routing and shard preferences. When filtered aliases
-are used, the filter is returned as part of the `indices` section.
+are used, the filter is returned as part of the `indices` section [5.1.0] Added in 5.1.0.
 
 The `index` may be a single value, or comma-separated.
 

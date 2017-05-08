@@ -29,11 +29,6 @@ import org.elasticsearch.discovery.DiscoveryStats;
 public class NoopDiscovery implements Discovery {
 
     @Override
-    public void setAllocationService(AllocationService allocationService) {
-
-    }
-
-    @Override
     public void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener) {
 
     }

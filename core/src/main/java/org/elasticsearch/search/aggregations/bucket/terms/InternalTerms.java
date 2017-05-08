@@ -40,15 +40,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.unmodifiableList;
-
 public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends InternalTerms.Bucket<B>>
         extends InternalMultiBucketAggregation<A, B> implements Terms, ToXContent {
 
     protected static final ParseField DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = new ParseField("doc_count_error_upper_bound");
     protected static final ParseField SUM_OF_OTHER_DOC_COUNTS = new ParseField("sum_other_doc_count");
 
-    public abstract static class Bucket<B extends Bucket<B>> extends Terms.Bucket {
+    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket implements Terms.Bucket {
 
         /**
          * Reads a bucket. Should be a constructor reference.
@@ -212,11 +210,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected abstract void writeTermTypeInfoTo(StreamOutput out) throws IOException;
 
     @Override
-    public final List<Terms.Bucket> getBuckets() {
-        return unmodifiableList(getBucketsInternal());
-    }
-
-    protected abstract List<B> getBucketsInternal();
+    public abstract List<B> getBuckets();
 
     @Override
     public abstract B getBucketByKey(String term);
@@ -244,7 +238,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             }
             otherDocCount += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError;
-            if (terms.getBucketsInternal().size() < getShardSize() || InternalOrder.isTermOrder(order)) {
+            if (terms.getBuckets().size() < getShardSize() || InternalOrder.isTermOrder(order)) {
                 thisAggDocCountError = 0;
             } else if (InternalOrder.isCountDesc(this.order)) {
                 if (terms.getDocCountError() > 0) {
@@ -254,7 +248,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 } else {
                     // otherwise use the doc count of the last term in the
                     // aggregation
-                    thisAggDocCountError = terms.getBucketsInternal().get(terms.getBucketsInternal().size() - 1).docCount;
+                    thisAggDocCountError = terms.getBuckets().get(terms.getBuckets().size() - 1).docCount;
                 }
             } else {
                 thisAggDocCountError = -1;
@@ -267,7 +261,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 }
             }
             setDocCountError(thisAggDocCountError);
-            for (B bucket : terms.getBucketsInternal()) {
+            for (B bucket : terms.getBuckets()) {
                 // If there is already a doc count error for this bucket
                 // subtract this aggs doc count error from it to make the
                 // new value for the bucket. This then means that when the

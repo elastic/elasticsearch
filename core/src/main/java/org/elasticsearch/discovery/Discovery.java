@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,12 +35,6 @@ import java.io.IOException;
  * events.
  */
 public interface Discovery extends LifecycleComponent {
-
-    /**
-     * Another hack to solve dep injection problem..., note, this will be called before
-     * any start is called.
-     */
-    void setAllocationService(AllocationService allocationService);
 
     /**
      * Publish all the changes to the cluster from the master (can be called just by the master). The publish

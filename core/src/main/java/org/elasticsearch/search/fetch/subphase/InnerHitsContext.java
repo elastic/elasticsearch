@@ -180,7 +180,7 @@ public final class InnerHitsContext {
                 // Only include docs that have the current hit as parent
                 .add(hitQuery, Occur.FILTER)
                 // Only include docs that have this inner hits type
-                .add(documentMapper.typeFilter(), Occur.FILTER)
+                .add(documentMapper.typeFilter(context.getQueryShardContext()), Occur.FILTER)
                 .build();
             if (size() == 0) {
                 final int count = context.searcher().count(q);

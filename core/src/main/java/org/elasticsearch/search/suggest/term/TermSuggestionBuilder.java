@@ -511,15 +511,11 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
+            out.writeEnum(this);
         }
 
         public static SuggestMode readFromStream(final StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown SuggestMode ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(SuggestMode.class);
         }
 
         public static SuggestMode resolve(final String str) {
@@ -571,15 +567,11 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
+            out.writeEnum(this);
         }
 
         public static StringDistanceImpl readFromStream(final StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown StringDistanceImpl ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(StringDistanceImpl.class);
         }
 
         public static StringDistanceImpl resolve(final String str) {

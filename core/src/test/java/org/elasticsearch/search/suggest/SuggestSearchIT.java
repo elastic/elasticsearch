@@ -1157,7 +1157,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
                 @Override
                 public Object run() {
-                    return new BytesArray(result);
+                    return result;
                 }
             };
         }

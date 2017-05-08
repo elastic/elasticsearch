@@ -39,7 +39,7 @@ integTestRunner {
     'ml/jobs_get_result_categories/Test with invalid param combinations via body',
     'ml/jobs_get_stats/Test get job stats given missing job',
     'ml/post_data/Test Flush data with invalid parameters',
-    'ml/post_data/Test flushing, posting and closing a closed job',
+    'ml/post_data/Test flushing and posting a closed job',
     'ml/post_data/Test open and close with non-existent job id',
     'ml/post_data/Test POST data with invalid parameters',
     'ml/preview_datafeed/Test preview missing datafeed',

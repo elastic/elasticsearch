@@ -418,47 +418,49 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             final AtomicInteger counter = new AtomicInteger();
             final AtomicArray<Exception> failures = new AtomicArray<>(numberOfJobs);
             for (String jobId : request.resolvedJobIds) {
-                auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
-                PersistentTask<?> jobTask = validateAndReturnJobTask(jobId, currentState);
-                persistentTasksService.cancelPersistentTask(jobTask.getId(),
-                        new ActionListener<PersistentTask<?>>() {
-                            @Override
-                            public void onResponse(PersistentTask<?> task) {
-                                if (counter.incrementAndGet() == numberOfJobs) {
-                                    sendResponseOrFailure(request.getJobId(), listener, failures);
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                final int slot = counter.incrementAndGet();
-                                failures.set(slot - 1, e);
-                                if (slot == numberOfJobs) {
-                                    sendResponseOrFailure(request.getJobId(), listener, failures);
-                                }
-                            }
-
-                            private void sendResponseOrFailure(String jobId,
-                                    ActionListener<Response> listener,
-                                    AtomicArray<Exception> failures) {
-                                List<Exception> catchedExceptions = failures.asList();
-                                if (catchedExceptions.size() == 0) {
-                                    listener.onResponse(new Response(true));
-                                    return;
+                Optional<PersistentTask<?>> jobTask = validateAndReturnJobTask(jobId, currentState);
+                if (jobTask.isPresent()) {
+                    auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
+                    persistentTasksService.cancelPersistentTask(jobTask.get().getId(),
+                            new ActionListener<PersistentTask<?>>() {
+                                @Override
+                                public void onResponse(PersistentTask<?> task) {
+                                    if (counter.incrementAndGet() == numberOfJobs) {
+                                        sendResponseOrFailure(request.getJobId(), listener, failures);
+                                    }
                                 }
 
-                                String msg = "Failed to force close job [" + jobId + "] with ["
-                                        + catchedExceptions.size()
-                                        + "] failures, rethrowing last, all Exceptions: ["
-                                        + catchedExceptions.stream().map(Exception::getMessage)
-                                                .collect(Collectors.joining(", "))
-                                        + "]";
+                                @Override
+                                public void onFailure(Exception e) {
+                                    final int slot = counter.incrementAndGet();
+                                    failures.set(slot - 1, e);
+                                    if (slot == numberOfJobs) {
+                                        sendResponseOrFailure(request.getJobId(), listener, failures);
+                                    }
+                                }
 
-                                ElasticsearchException e = new ElasticsearchException(msg,
-                                        catchedExceptions.get(0));
-                                listener.onFailure(e);
-                            }
-                        });
+                                private void sendResponseOrFailure(String jobId,
+                                                                   ActionListener<Response> listener,
+                                                                   AtomicArray<Exception> failures) {
+                                    List<Exception> catchedExceptions = failures.asList();
+                                    if (catchedExceptions.size() == 0) {
+                                        listener.onResponse(new Response(true));
+                                        return;
+                                    }
+
+                                    String msg = "Failed to force close job [" + jobId + "] with ["
+                                            + catchedExceptions.size()
+                                            + "] failures, rethrowing last, all Exceptions: ["
+                                            + catchedExceptions.stream().map(Exception::getMessage)
+                                            .collect(Collectors.joining(", "))
+                                            + "]";
+
+                                    ElasticsearchException e = new ElasticsearchException(msg,
+                                            catchedExceptions.get(0));
+                                    listener.onFailure(e);
+                                }
+                            });
+                }
             }
         }
 
@@ -467,9 +469,16 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             Map<String, String> jobIdToPersistentTaskId = new HashMap<>();
 
             for (String jobId : request.resolvedJobIds) {
-                auditor.info(jobId, Messages.JOB_AUDIT_CLOSING);
-                PersistentTask<?> jobTask = validateAndReturnJobTask(jobId, currentState);
-                jobIdToPersistentTaskId.put(jobId, jobTask.getId());
+                Optional<PersistentTask<?>> jobTask = validateAndReturnJobTask(jobId, currentState);
+                if (jobTask.isPresent()) {
+                    auditor.info(jobId, Messages.JOB_AUDIT_CLOSING);
+                    jobIdToPersistentTaskId.put(jobId, jobTask.get().getId());
+                }
+            }
+
+            // An empty map means all the jobs in the request are currently closed.
+            if (jobIdToPersistentTaskId.isEmpty()) {
+                listener.onResponse(new Response(true));
             }
 
             ActionListener<Response> finalListener =
@@ -527,8 +536,11 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 .custom(PersistentTasksCustomMetaData.TYPE);
 
         if (!Job.ALL.equals(jobId)) {
-            validateAndReturnJobTask(jobId, state);
-            return Collections.singletonList(jobId);
+            if (validateAndReturnJobTask(jobId, state).isPresent()) {
+                return Collections.singletonList(jobId);
+            } else {
+                return Collections.emptyList();
+            }
         }
 
         if (mlMetadata.getJobs().isEmpty()) {
@@ -545,11 +557,6 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 continue;
             }
 
-            PersistentTask<?> jobTask = MlMetadata.getJobTask(resolvedJobId, tasks);
-            if (jobTask == null) {
-                continue;
-            }
-
             if (MlMetadata.getJobState(resolvedJobId, tasks).isAnyOf(JobState.OPENED, JobState.FAILED) == false) {
                 continue;
             }
@@ -562,7 +569,22 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         return matchedJobs;
     }
 
-    static PersistentTask<?> validateAndReturnJobTask(String jobId, ClusterState state) {
+    /**
+     * Validate the close request. Throws an exception on any of these conditions:
+     * <ul>
+     *     <li>If the job does not exist</li>
+     *     <li>If the job has a data feed the feed must be closed first</li>
+     *     <li>If the job is opening i.e. the job has a task but the task has null status</li>
+     *     <li>If the job is not already closed, opened or failed
+     *     i.e. the job is in the {@link JobState#CLOSING} state</li>
+     * </ul>
+     *
+     * If the job is already closed an empty Optional is returned.
+     * @param jobId Job Id
+     * @param state Current cluster state
+     * @return The Job PersistentTask or an empty optional if the job is closed.
+     */
+    static Optional<PersistentTask<?>> validateAndReturnJobTask(String jobId, ClusterState state) {
         MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
         Job job = mlMetadata.getJobs().get(jobId);
         if (job == null) {
@@ -572,9 +594,12 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         PersistentTasksCustomMetaData tasks = state.getMetaData()
                 .custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
-        if (jobTask == null || jobTask.getStatus() == null) {
-            throw ExceptionsHelper.conflictStatusException("cannot close job, because job [" + jobId + "] is " + JobState.CLOSED);
+        if (jobTask == null) {
+            return Optional.empty();
+        } else if (jobTask.getStatus() == null) {
+            throw ExceptionsHelper.conflictStatusException("cannot close job, because job [" + jobId + "] is opening");
         }
+
         JobTaskStatus jobTaskStatus = (JobTaskStatus) jobTask.getStatus();
         if (jobTaskStatus.getState().isAnyOf(JobState.OPENED, JobState.FAILED) == false) {
             throw ExceptionsHelper.conflictStatusException("cannot close job, because job [" + jobId + "] is " + jobTaskStatus.getState());
@@ -587,7 +612,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 throw ExceptionsHelper.conflictStatusException("cannot close job [{}], datafeed hasn't been stopped", jobId);
             }
         }
-        return jobTask;
+        return Optional.of(jobTask);
     }
 }
 

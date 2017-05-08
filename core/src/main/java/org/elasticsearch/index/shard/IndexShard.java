@@ -1521,6 +1521,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateGlobalCheckpointOnReplica(final long globalCheckpoint) {
         verifyReplicationTarget();
+        // we sample the recovery stage before sampling the local checkpoint or we are subject to a race condition in the below assertion
+        final RecoveryState.Stage stage = recoveryState().getStage();
         final SequenceNumbersService seqNoService = getEngine().seqNoService();
         final long localCheckpoint = seqNoService.getLocalCheckpoint();
         if (globalCheckpoint > localCheckpoint) {
@@ -1530,10 +1532,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * case that the global checkpoint update from the primary is ahead of the local checkpoint on this shard. In this case, we
              * ignore the global checkpoint update. This can happen if we are in the translog stage of recovery. Prior to this, the engine
              * is not opened and this shard will not receive global checkpoint updates, and after this the shard will be contributing to
-             * calculations of the the global checkpoint. However, we can not assert that we are in the translog stage of recovery here as
-             * while the global checkpoint update may have emanated from the primary when we were in that state, we could subsequently move
-             * to recovery finalization, or even finished recovery before the update arrives here.
+             * calculations of the the global checkpoint.
              */
+            assert stage == RecoveryState.Stage.TRANSLOG
+                    : "expected recovery stage [" + RecoveryState.Stage.TRANSLOG + "] but was [" + stage + "]";
             return;
         }
         seqNoService.updateGlobalCheckpointOnReplica(globalCheckpoint);

@@ -70,10 +70,12 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         this.client = Objects.requireNonNull(client);
         this.licenseState = licenseState;
         Map<String, Object> nativeCodeInfo = NativeController.UNKNOWN_NATIVE_CODE_INFO;
-        // Don't try to get the native code version in the transport client - the controller process won't be running
-        if (XPackPlugin.transportClientMode(settings) == false && XPackPlugin.isTribeClientNode(settings) == false) {
+        // Don't try to get the native code version if ML is disabled - it causes too much controversy
+        // if ML has been disabled because of some OS incompatibility.  Also don't try to get the native
+        // code version in the transport or tribe client - the controller process won't be running.
+        if (enabled && XPackPlugin.transportClientMode(settings) == false && XPackPlugin.isTribeClientNode(settings) == false) {
             try {
-                if (isRunningOnMlPlatform(enabled)) {
+                if (isRunningOnMlPlatform(true)) {
                     NativeController nativeController = NativeControllerHolder.getNativeController(settings);
                     if (nativeController != null) {
                         nativeCodeInfo = nativeController.getNativeCodeInfo();
@@ -81,9 +83,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                 }
             } catch (IOException | TimeoutException e) {
                 Loggers.getLogger(MachineLearningFeatureSet.class).error("Cannot get native code info for Machine Learning", e);
-                if (enabled) {
-                    throw new ElasticsearchException("Cannot communicate with Machine Learning native code");
-                }
+                throw new ElasticsearchException("Cannot communicate with Machine Learning native code");
             }
         }
         this.nativeCodeInfo = nativeCodeInfo;

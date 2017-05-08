@@ -47,8 +47,7 @@ GET _xpack/ml/anomaly_detectors/farequote
 // CONSOLE
 // TEST[skip:todo]
 
-In this example, the API returns a single result that matches the specified
-score and time constraints:
+The API returns the following results:
 [source,js]
 ----
 {

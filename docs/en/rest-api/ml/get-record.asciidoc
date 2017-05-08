@@ -29,14 +29,14 @@ The get records API enables you to retrieve anomaly records for a job.
   (boolean) If true, the output excludes interim results.
   By default, interim results are included.
 
-`from`::
+`page`::
+`from`:::
   (integer) Skips the specified number of records.
+`size`:::
+  (integer) Specifies the maximum number of records to obtain.
 
 `record_score`::
   (double) Returns records with anomaly scores higher than this value.
-
-`size`::
-  (integer) Specifies the maximum number of records to obtain.
 
 `sort`::
   (string) Specifies the sort field for the requested records.
@@ -66,7 +66,7 @@ roles provide these privileges. For more information, see
 
 ===== Examples
 
-The following example gets bucket information for the `it-ops-kpi` job:
+The following example gets record information for the `it-ops-kpi` job:
 
 [source,js]
 --------------------------------------------------

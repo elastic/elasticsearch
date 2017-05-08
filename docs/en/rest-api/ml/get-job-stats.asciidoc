@@ -26,8 +26,8 @@ The get jobs API enables you to retrieve usage information for jobs.
 The API returns the following information:
 
 `jobs`::
-  (array) An array of job count objects.
-  For more information, see <<ml-jobstats,Job Stats>>.
+  (array) An array of job statistics objects.
+  For more information, see <<ml-jobstats,Job Statistics>>.
 
 
 ===== Authorization
@@ -47,8 +47,7 @@ GET _xpack/ml/anomaly_detectors/farequote/_stats
 // CONSOLE
 // TEST[skip:todo]
 
-In this example, the API returns a single result that matches the specified
-score and time constraints:
+The API returns the following results:
 [source,js]
 ----
 {

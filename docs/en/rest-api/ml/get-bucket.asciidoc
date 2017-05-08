@@ -44,10 +44,10 @@ This API presents a chronological view of the records, grouped by bucket.
 `expand`::
   (boolean) If true, the output includes anomaly records.
 
-`from`::
+`page`::
+`from`:::
   (integer) Skips the specified number of buckets.
-
-`size`::
+`size`:::
   (integer) Specifies the maximum number of buckets to obtain.
 
 `start`::

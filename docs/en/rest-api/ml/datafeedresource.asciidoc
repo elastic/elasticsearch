@@ -30,10 +30,10 @@ A {dfeed} resource has the following properties:
   bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
   span. For example: "150s"
 
-`indices` (required)::
+`indices`::
   (array) An array of index names. For example: ["it_ops_metrics"]
 
-`job_id` (required)::
+`job_id`::
  (string) The unique identifier for the job to which the {dfeed} sends data.
 
 `query`::
@@ -52,7 +52,7 @@ A {dfeed} resource has the following properties:
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
-`types` (required)::
+`types`::
   (array) A list of types to search for within the specified indices.
   For example: ["network","sql","kpi"].
 
@@ -66,7 +66,7 @@ chunks are calculated and is an advanced configuration option.
 
 A chunking configuration object has the following properties:
 
-`mode` (required)::
+`mode`::
   There are three available modes: +
   `auto`::: The chunk size will be dynamically calculated. This is the default
   and recommended value.

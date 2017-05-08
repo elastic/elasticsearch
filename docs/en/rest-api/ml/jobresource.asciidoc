@@ -23,8 +23,7 @@ TIP: For very large models (several GB), persistence could take 10-20 minutes,
 so do not set the `background_persist_interval` value too low.
 
 `create_time`::
-  (string) The time the job was created, in ISO 8601 format.
-  For example, `1491007356077`.
+  (string) The time the job was created. For example, `1491007356077`.
 
 `data_description`::
   (object) Describes the data format and how APIs parse timestamp fields.
@@ -77,7 +76,7 @@ so do not set the `background_persist_interval` value too low.
 
 An analysis configuration object has the following properties:
 
-`bucket_span` (required)::
+`bucket_span`::
   (time units) The size of the interval that the analysis is aggregated into,
   typically between `5m` and `1h`. The default value is `5m`.
 
@@ -95,7 +94,7 @@ An analysis configuration object has the following properties:
   consideration for defining categories. For example, you can exclude SQL
   statements that appear in your log files.
 
-`detectors` (required)::
+`detectors`::
   (array) An array of detector configuration objects,
   which describe the anomaly detectors that are used in the job.
   See <<ml-detectorconfig,detector configuration objects>>. +
@@ -133,10 +132,10 @@ NOTE: To use the `multivariate_by_fields` property, you must also specify
 `by_field_name` in your detector.
 
 `summary_count_field_name`::
-  (string) If not null, the data fed to the job is expected to be pre-summarized.
-  This property value is the name of the field that contains the count of raw
-  data points that have been summarized. The same `summary_count_field_name`
-  applies to all detectors in the job. +
+  (string) If not null, the data that is fed to the job is expected to be
+  pre-summarized. This property value is the name of the field that contains
+  the count of raw data points that have been summarized.
+  The same `summary_count_field_name` applies to all detectors in the job. +
 
 NOTE: The `summary_count_field_name` property cannot be used with the `metric`
 function.
@@ -180,7 +179,7 @@ Each detector has the following properties:
 
 NOTE: The `field_name` cannot contain double quotes or backslashes.
 
-`function` (required)::
+`function`::
   (string) The analysis function that is used.
   For example, `count`, `rare`, `mean`, `min`, `max`, and `sum`. For more
   information, see <<ml-functions>>.

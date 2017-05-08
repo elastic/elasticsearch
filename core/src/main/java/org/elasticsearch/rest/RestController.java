@@ -161,8 +161,8 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      * @param request The current request. Must not be null.
      * @return true iff the circuit breaker limit must be enforced for processing this request.
      */
-    public boolean canTripCircuitBreaker(RestRequest request) {
-        RestHandler handler = getHandler(request);
+    public boolean canTripCircuitBreaker(final RestRequest request, final PathTrie.TrieMatchingMode trieMatchingMode) {
+        RestHandler handler = getHandler(request, trieMatchingMode);
         return (handler != null) ? handler.canTripCircuitBreaker() : true;
     }
 
@@ -172,33 +172,11 @@ public class RestController extends AbstractComponent implements HttpServerTrans
             handleFavicon(request, channel);
             return;
         }
-        RestChannel responseChannel = channel;
         try {
-            final int contentLength = request.hasContent() ? request.content().length() : 0;
-            assert contentLength >= 0 : "content length was negative, how is that possible?";
-            final RestHandler handler = getHandler(request);
-
-            if (contentLength > 0 && hasContentType(request, handler) == false) {
-                sendContentTypeErrorMessage(request, responseChannel);
-            } else if (contentLength > 0 && handler != null && handler.supportsContentStream() &&
-                request.getXContentType() != XContentType.JSON && request.getXContentType() != XContentType.SMILE) {
-                responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(responseChannel,
-                    RestStatus.NOT_ACCEPTABLE, "Content-Type [" + request.getXContentType() +
-                        "] does not support stream parsing. Use JSON or SMILE instead"));
-            } else {
-                if (canTripCircuitBreaker(request)) {
-                    inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
-                } else {
-                    inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
-                }
-                // iff we could reserve bytes for the request we need to send the response also over this channel
-                responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
-                // Try to execute the request handler with all PathTrie variants
-                tryAllHandlers(request, responseChannel, handler, threadContext);
-            }
+            tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
             try {
-                responseChannel.sendResponse(new BytesRestResponse(channel, e));
+                channel.sendResponse(new BytesRestResponse(channel, e));
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 logger.error((Supplier<?>) () ->
@@ -208,11 +186,8 @@ public class RestController extends AbstractComponent implements HttpServerTrans
     }
 
     @Override
-    public void dispatchBadRequest(
-            final RestRequest request,
-            final RestChannel channel,
-            final ThreadContext threadContext,
-            final Throwable cause) {
+    public void dispatchBadRequest(final RestRequest request, final RestChannel channel,
+                                   final ThreadContext threadContext, final Throwable cause) {
         try {
             final Exception e;
             if (cause == null) {
@@ -234,9 +209,21 @@ public class RestController extends AbstractComponent implements HttpServerTrans
 
     boolean dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext,
                             final RestHandler handler, final PathTrie.TrieMatchingMode trieMatchingMode) throws Exception {
-        if (checkRequestParameters(request, channel) == false) {
-            channel
-                .sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
+        final int contentLength = request.hasContent() ? request.content().length() : 0;
+
+        RestChannel responseChannel = channel;
+        if (checkRequestParameters(request, responseChannel) == false) {
+            responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(responseChannel,
+                            BAD_REQUEST, "error traces in responses are disabled."));
+            return true;
+        } else if (contentLength > 0 && hasContentType(request, handler) == false) {
+            sendContentTypeErrorMessage(request, responseChannel);
+            return true;
+        } else if (contentLength > 0 && handler != null && handler.supportsContentStream() &&
+                request.getXContentType() != XContentType.JSON && request.getXContentType() != XContentType.SMILE) {
+            responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(responseChannel,
+                            RestStatus.NOT_ACCEPTABLE, "Content-Type [" + request.getXContentType() +
+                                            "] does not support stream parsing. Use JSON or SMILE instead"));
             return true;
         } else {
             for (String key : headersToCopy) {
@@ -250,7 +237,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 /*
                  * Get the map of matching handlers for a request, for the full set of HTTP methods.
                  */
-                // TODO: don't explicitly use this TrieMatching met
+                // TODO: don't explicitly use this TrieMatching method
                 final HashSet<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(request, trieMatchingMode);
                 if (validMethodSet.size() > 0
                         && !validMethodSet.contains(request.method())
@@ -261,16 +248,30 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                      * Not Allowed error.
                      */
                     handleUnsupportedHttpMethod(request, channel, validMethodSet);
-                    return true; // TODO: signal we handled it
+                    return true;
                 } else if (!validMethodSet.contains(request.method())
                         && request.method() == RestRequest.Method.OPTIONS) {
                     handleOptionsRequest(request, channel, validMethodSet);
-                    return true; // TODO: signal we handled it
+                    return true;
                 }
             } else {
-                final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
-                wrappedHandler.handleRequest(request, channel, client);
-                return true;
+                try {
+                    if (canTripCircuitBreaker(request, trieMatchingMode)) {
+                        inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
+                    } else {
+                        inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
+                    }
+                    // iff we could reserve bytes for the request we need to send the response also over this channel
+                    responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+
+                    final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
+                    wrappedHandler.handleRequest(request, responseChannel, client);
+                    return true;
+                } catch (Exception e) {
+                    responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
+                    // We "handled" the request by returning a response, so return true here
+                    return true;
+                }
             }
         }
         return false;
@@ -322,8 +323,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         return true;
     }
 
-    void tryAllHandlers(final RestRequest request, final RestChannel channel, final RestHandler handler,
-                        final ThreadContext threadContext) throws Exception {
+    void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
         // Request execution flag
         boolean requestHandled = false;
 
@@ -331,6 +331,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
          * First try handlers mapped to explicit paths only.
          */
         if (requestHandled == false) {
+            final RestHandler handler = getHandler(request, TrieMatchingMode.EXPLICIT_NODES_ONLY);
             requestHandled = dispatchRequest(request, channel, client, threadContext, handler, TrieMatchingMode.EXPLICIT_NODES_ONLY);
         }
 
@@ -338,6 +339,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
          * Fallback to handlers mapped to explicit paths, with a wildcard allowed as a leaf node only.
          */
         if (requestHandled == false) {
+            final RestHandler handler = getHandler(request, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED);
             requestHandled = dispatchRequest(request, channel, client, threadContext, handler, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED);
         }
 
@@ -345,6 +347,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
          * Fallback to handlers mapped to explicit paths, with a wildcard allowed as a root node only.
          */
         if (requestHandled == false) {
+            final RestHandler handler = getHandler(request, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
             requestHandled = dispatchRequest(request, channel, client, threadContext, handler, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
         }
 
@@ -352,6 +355,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
          * Fallback to handlers mapped to explicit paths, with a wildcard allowed as any node.
          */
         if (requestHandled == false) {
+            final RestHandler handler = getHandler(request, TrieMatchingMode.WILDCARD_NODES_ALLOWED);
             requestHandled = dispatchRequest(request, channel, client, threadContext, handler, TrieMatchingMode.WILDCARD_NODES_ALLOWED);
         }
 
@@ -407,16 +411,6 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
     }
     
-    private RestHandler getHandler(RestRequest request) {
-        String path = getPath(request);
-        PathTrie<RestHandler> handlers = getHandlersForMethod(request.method());
-        if (handlers != null) {
-            return handlers.retrieve(path, request.params());
-        } else {
-            return null;
-        }
-    }
-
     private RestHandler getHandler(RestRequest request, PathTrie.TrieMatchingMode trieMatchingMode) {
         String path = getPath(request);
         PathTrie<RestHandler> handlers = getHandlersForMethod(request.method());

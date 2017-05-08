@@ -376,7 +376,6 @@ final class DocumentParser {
     }
 
     private static void innerParseObject(ParseContext context, ObjectMapper mapper, XContentParser parser, String currentFieldName, XContentParser.Token token) throws IOException {
-        MapperService mapperService = context.docMapperParser().mapperService;
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, currentFieldName);
@@ -384,7 +383,7 @@ final class DocumentParser {
                 parseArray(context, mapper, currentFieldName);
             } else if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-                if (mapperService.isMetaDataFieldInMetaDataRegistry(context.path().pathAsText(currentFieldName))) {
+                if (MapperService.isMetadataField(context.path().pathAsText(currentFieldName))) {
                     throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside a document. Use the index API request parameters.");
                 }
             } else if (token == XContentParser.Token.VALUE_NULL) {

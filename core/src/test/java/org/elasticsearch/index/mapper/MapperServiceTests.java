@@ -322,8 +322,8 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldIsMetadata(){
-        MapperService mapperService = createIndex("test").mapperService();
+        createIndex("test").mapperService();
         String field = "_field_names";
-        assertTrue("'_field_names' not recognized as a meta data field", mapperService.isMetaDataFieldInMetaDataRegistry(field));
+        assertTrue("'_field_names' not recognized as a meta data field", MapperService.isMetadataField(field));
     }
 }

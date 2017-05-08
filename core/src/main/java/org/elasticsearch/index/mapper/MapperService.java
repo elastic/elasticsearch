@@ -153,6 +153,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
 
+        META_FIELDS = ObjectHashSet.from(mapperRegistry.getMetadataMapperParsers().keySet().toArray(new String[mapperRegistry.getMetadataMapperParsers().keySet().size()]));
+
         this.dynamic = this.indexSettings.getValue(INDEX_MAPPER_DYNAMIC_SETTING);
         defaultMappingSource = "{\"_default_\":{}}";
 
@@ -765,10 +767,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     @Override
     public void close() throws IOException {
         indexAnalyzers.close();
-    }
-
-    public boolean isMetaDataFieldInMetaDataRegistry(String fieldName){
-        return mapperRegistry.getMetadataMapperParsers().containsKey(fieldName);
     }
 
     /**

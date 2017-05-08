@@ -182,6 +182,7 @@ public class ScriptServiceTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("unable to find file script [test_script] using lang [test]"));
         }
+        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
     }
 
     public void testScriptCompiledOnceHiddenFileDetected() throws IOException {
@@ -201,6 +202,7 @@ public class ScriptServiceTests extends ESTestCase {
         Files.delete(testHiddenFile);
         Files.delete(testFileScript);
         resourceWatcherService.notifyNow();
+        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
     }
 
     public void testInlineScriptCompiledOnceCache() throws IOException {
@@ -227,6 +229,7 @@ public class ScriptServiceTests extends ESTestCase {
             assertCompileRejected("dtest", "script", ScriptType.STORED, scriptContext);
             assertCompileAccepted("dtest", "file_script", ScriptType.FILE, scriptContext);
         }
+        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
     }
 
     public void testFineGrainedSettings() throws IOException {
@@ -317,6 +320,7 @@ public class ScriptServiceTests extends ESTestCase {
                 }
             }
         }
+        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
     }
 
     public void testCompileNonRegisteredContext() throws IOException {
@@ -384,6 +388,7 @@ public class ScriptServiceTests extends ESTestCase {
         createFileScripts("test");
         scriptService.compile(new Script(ScriptType.FILE, "test", "file_script", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
+        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
     }
 
     public void testIndexedScriptCountedInCompilationStats() throws IOException {

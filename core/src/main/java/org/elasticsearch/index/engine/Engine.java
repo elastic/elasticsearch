@@ -1421,7 +1421,7 @@ public abstract class Engine implements Closeable {
      * @param primaryTerm the shards primary term this engine was created for
      * @return the number of no-ops added
      */
-    public abstract int fillSequenceNumberHistory(long primaryTerm) throws IOException;
+    public abstract int fillSeqNoGaps(long primaryTerm) throws IOException;
 
     /**
      * Performs recovery from the transaction log.

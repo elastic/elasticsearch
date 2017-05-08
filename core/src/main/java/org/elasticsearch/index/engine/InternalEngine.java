@@ -177,15 +177,6 @@ public class InternalEngine extends Engine {
                 logger.trace("recovered [{}]", seqNoStats);
                 seqNoService = sequenceNumberService(shardId, engineConfig.getIndexSettings(), seqNoStats);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
-                // norelease
-                /*
-                 * We have no guarantees that all operations above the local checkpoint are in the Lucene commit or the translog. This means
-                 * that we there might be operations greater than the local checkpoint that will not be replayed. Here we force the local
-                 * checkpoint to the maximum sequence number in the commit (at the potential expense of correctness).
-                 */
-                while (seqNoService().getLocalCheckpoint() < seqNoService().getMaxSeqNo()) {
-                    seqNoService().markSeqNoAsCompleted(seqNoService().getLocalCheckpoint() + 1);
-                }
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer, () -> seqNoService().getGlobalCheckpoint());
                 assert translog.getGeneration() != null;
@@ -226,21 +217,20 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public int fillSequenceNumberHistory(long primaryTerm) throws IOException {
-        try (ReleasableLock lock = writeLock.acquire()) {
+    public int fillSeqNoGaps(long primaryTerm) throws IOException {
+        try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
-            final long localCheckpoint = seqNoService.getLocalCheckpoint();
-            final long maxSeqId = seqNoService.getMaxSeqNo();
+            final long localCheckpoint = seqNoService().getLocalCheckpoint();
+            final long maxSeqNo = seqNoService().getMaxSeqNo();
             int numNoOpsAdded = 0;
-            for (long seqNo = localCheckpoint + 1; seqNo <= maxSeqId;
-                 // the local checkpoint might have been advanced so we are leap-frogging
-                 // to the next seq ID we need to process and create a noop for
-                 seqNo = seqNoService.getLocalCheckpoint()+1) {
-                final NoOp noOp = new NoOp(seqNo, primaryTerm, Operation.Origin.PRIMARY, System.nanoTime(), "filling up seqNo history");
-                innerNoOp(noOp);
+            for (
+                    long seqNo = localCheckpoint + 1;
+                    seqNo <= maxSeqNo;
+                    seqNo = seqNoService().getLocalCheckpoint() + 1 /* the local checkpoint might have advanced so we leap-frog */) {
+                innerNoOp(new NoOp(seqNo, primaryTerm, Operation.Origin.PRIMARY, System.nanoTime(), "filling gaps"));
                 numNoOpsAdded++;
-                assert seqNo <= seqNoService.getLocalCheckpoint() : "localCheckpoint didn't advanced used to be " + seqNo + " now it's on:"
-                     + seqNoService.getLocalCheckpoint();
+                assert seqNo <= seqNoService().getLocalCheckpoint()
+                        : "local checkpoint did not advance; was [" + seqNo + "], now [" + seqNoService().getLocalCheckpoint() + "]";
 
             }
             return numNoOpsAdded;

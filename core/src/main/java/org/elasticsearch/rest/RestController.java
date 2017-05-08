@@ -45,6 +45,7 @@ import java.util.HashSet;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -246,6 +247,8 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                         && request.method() == RestRequest.Method.OPTIONS) {
                     handleOptionsRequest(request, channel, validMethodSet);
                     return true;
+                } else {
+                    return false;
                 }
             } else {
                 try {
@@ -267,7 +270,6 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 }
             }
         }
-        return false;
     }
 
     /**
@@ -323,6 +325,9 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 threadContext.putHeader(key, httpHeader);
             }
         }
+        // Between retrieving the correct path, we need to reset the parameters,
+        // otherwise parameters are parsed out of the URI that aren't actually handled.
+        final Map<String, String> originalParams = request.params();
 
         // Request execution flag
         boolean requestHandled = false;
@@ -339,6 +344,8 @@ public class RestController extends AbstractComponent implements HttpServerTrans
          * Fallback to handlers mapped to explicit paths, with a wildcard allowed as a leaf node only.
          */
         if (requestHandled == false) {
+            request.params().clear();
+            request.params().putAll(originalParams);
             final RestHandler handler = getHandler(request, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED);
             requestHandled = dispatchRequest(request, channel, client, threadContext, handler, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED);
         }
@@ -347,6 +354,8 @@ public class RestController extends AbstractComponent implements HttpServerTrans
          * Fallback to handlers mapped to explicit paths, with a wildcard allowed as a root node only.
          */
         if (requestHandled == false) {
+            request.params().clear();
+            request.params().putAll(originalParams);
             final RestHandler handler = getHandler(request, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
             requestHandled = dispatchRequest(request, channel, client, threadContext, handler, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
         }
@@ -355,6 +364,8 @@ public class RestController extends AbstractComponent implements HttpServerTrans
          * Fallback to handlers mapped to explicit paths, with a wildcard allowed as any node.
          */
         if (requestHandled == false) {
+            request.params().clear();
+            request.params().putAll(originalParams);
             final RestHandler handler = getHandler(request, TrieMatchingMode.WILDCARD_NODES_ALLOWED);
             requestHandled = dispatchRequest(request, channel, client, threadContext, handler, TrieMatchingMode.WILDCARD_NODES_ALLOWED);
         }

@@ -469,32 +469,65 @@ public class InstallPluginCommandTests extends ESTestCase {
         }
     }
 
-    public void testPlatformBinPermissions() throws Exception {
+    public void testPluginPermissions() throws Exception {
         assumeTrue("posix filesystem", isPosix);
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
-        Path platformDir = pluginDir.resolve("platform");
-        Path platformNameDir = platformDir.resolve("linux-x86_64");
-        Path platformBinDir = platformNameDir.resolve("bin");
+
+        final Tuple<Path, Environment> env = createEnv(fs, temp);
+        final Path pluginDir = createPluginDir(temp);
+        final Path resourcesDir = pluginDir.resolve("resources");
+        final Path platformDir = pluginDir.resolve("platform");
+        final Path platformNameDir = platformDir.resolve("linux-x86_64");
+        final Path platformBinDir = platformNameDir.resolve("bin");
         Files.createDirectories(platformBinDir);
-        Path programFile = Files.createFile(platformBinDir.resolve("someprogram"));
-        // a file created with Files.createFile() should not have execute permissions
-        Set<PosixFilePermission> sourcePerms = Files.getPosixFilePermissions(programFile);
-        assertFalse(sourcePerms.contains(PosixFilePermission.OWNER_EXECUTE));
-        assertFalse(sourcePerms.contains(PosixFilePermission.GROUP_EXECUTE));
-        assertFalse(sourcePerms.contains(PosixFilePermission.OTHERS_EXECUTE));
-        String pluginZip = createPluginUrl("fake", pluginDir);
+
+        Files.createFile(pluginDir.resolve("fake-" + Version.CURRENT.toString() + ".jar"));
+        Files.createFile(platformBinDir.resolve("fake_executable"));
+        Files.createDirectory(resourcesDir);
+        Files.createFile(resourcesDir.resolve("resource"));
+
+        final String pluginZip = createPluginUrl("fake", pluginDir);
+
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
-        // check that the installed program has execute permissions, even though the one added to the plugin didn't
-        Path installedPlatformBinDir = env.v2().pluginsFile().resolve("fake").resolve("platform").resolve("linux-x86_64").resolve("bin");
-        assertTrue(Files.isDirectory(installedPlatformBinDir));
-        Path installedProgramFile = installedPlatformBinDir.resolve("someprogram");
-        assertTrue(Files.isRegularFile(installedProgramFile));
-        Set<PosixFilePermission> installedPerms = Files.getPosixFilePermissions(installedProgramFile);
-        assertTrue(installedPerms.contains(PosixFilePermission.OWNER_EXECUTE));
-        assertTrue(installedPerms.contains(PosixFilePermission.GROUP_EXECUTE));
-        assertTrue(installedPerms.contains(PosixFilePermission.OTHERS_EXECUTE));
+
+        final Path fake = env.v2().pluginsFile().resolve("fake");
+        final Path resources = fake.resolve("resources");
+        final Path platform = fake.resolve("platform");
+        final Path platformName = platform.resolve("linux-x86_64");
+        final Path bin = platformName.resolve("bin");
+        assert755(fake);
+        assert644(fake.resolve("fake-" + Version.CURRENT + ".jar"));
+        assert755(resources);
+        assert644(resources.resolve("resource"));
+        assert755(platform);
+        assert755(platformName);
+        assert755(bin.resolve("fake_executable"));
+    }
+
+    private void assert644(final Path path) throws IOException {
+        final Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(path);
+        assertTrue(permissions.contains(PosixFilePermission.OWNER_READ));
+        assertTrue(permissions.contains(PosixFilePermission.OWNER_WRITE));
+        assertFalse(permissions.contains(PosixFilePermission.OWNER_EXECUTE));
+        assertTrue(permissions.contains(PosixFilePermission.GROUP_READ));
+        assertFalse(permissions.contains(PosixFilePermission.GROUP_WRITE));
+        assertFalse(permissions.contains(PosixFilePermission.GROUP_EXECUTE));
+        assertTrue(permissions.contains(PosixFilePermission.OTHERS_READ));
+        assertFalse(permissions.contains(PosixFilePermission.OTHERS_WRITE));
+        assertFalse(permissions.contains(PosixFilePermission.OTHERS_EXECUTE));
+    }
+
+    private void assert755(final Path path) throws IOException {
+        final Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(path);
+        assertTrue(permissions.contains(PosixFilePermission.OWNER_READ));
+        assertTrue(permissions.contains(PosixFilePermission.OWNER_WRITE));
+        assertTrue(permissions.contains(PosixFilePermission.OWNER_EXECUTE));
+        assertTrue(permissions.contains(PosixFilePermission.GROUP_READ));
+        assertFalse(permissions.contains(PosixFilePermission.GROUP_WRITE));
+        assertTrue(permissions.contains(PosixFilePermission.GROUP_EXECUTE));
+        assertTrue(permissions.contains(PosixFilePermission.OTHERS_READ));
+        assertFalse(permissions.contains(PosixFilePermission.OTHERS_WRITE));
+        assertTrue(permissions.contains(PosixFilePermission.OTHERS_EXECUTE));
     }
 
     public void testConfig() throws Exception {

@@ -613,6 +613,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
     public void testPercolateQueryWithNestedDocuments_doNotLeakBitsetCacheEntries() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject().startObject("properties").startObject("companyname").field("type", "text").endObject()
+            .startObject("query").field("type", "percolator").endObject()
             .startObject("employee").field("type", "nested").startObject("properties")
             .startObject("name").field("type", "text").endObject().endObject().endObject().endObject()
             .endObject();
@@ -620,9 +621,8 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
             // to avoid normal document from being cached by BitsetFilterCache
             .setSettings(Settings.builder().put(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), false))
             .addMapping("employee", mapping)
-            .addMapping("queries", "query", "type=percolator")
         );
-        client().prepareIndex("test", "queries", "q1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "employee", "q1").setSource(jsonBuilder().startObject()
             .field("query", QueryBuilders.nestedQuery("employee",
                 QueryBuilders.matchQuery("employee.name", "virginia potts").operator(Operator.AND), ScoreMode.Avg)
             ).endObject())
@@ -660,6 +660,11 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         {
             mapping.startObject("properties");
             {
+                mapping.startObject("query");
+                mapping.field("type", "percolator");
+                mapping.endObject();
+            }
+            {
                 mapping.startObject("companyname");
                 mapping.field("type", "text");
                 mapping.endObject();
@@ -684,10 +689,9 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         mapping.endObject();
         createIndex("test", client().admin().indices().prepareCreate("test")
             .addMapping("employee", mapping)
-            .addMapping("queries", "query", "type=percolator")
         );
         Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, "use_fielddata_please", Collections.emptyMap());
-        client().prepareIndex("test", "queries", "q1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "employee", "q1").setSource(jsonBuilder().startObject()
             .field("query", QueryBuilders.nestedQuery("employees",
                 QueryBuilders.scriptQuery(script), ScoreMode.Avg)
             ).endObject()).get();

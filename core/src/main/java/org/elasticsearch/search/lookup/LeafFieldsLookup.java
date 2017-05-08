@@ -135,7 +135,7 @@ public class LeafFieldsLookup implements Map {
         if (data == null) {
             MappedFieldType fieldType = mapperService.fullName(name);
             if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + name + "] in mapping with types " + Arrays.toString(types) + "");
+                throw new IllegalArgumentException("No field found for [" + name + "] in mapping with types " + Arrays.toString(types));
             }
             data = new FieldLookup(fieldType);
             cachedFieldData.put(name, data);

@@ -129,7 +129,7 @@ public class RestIntegTestTask extends DefaultTask {
         runner.dependsOn(dependencies)
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture)dependency).stopTask)
+                runner.finalizedBy(((Fixture)dependency).getStopTask())
             }
         }
         return this
@@ -140,7 +140,7 @@ public class RestIntegTestTask extends DefaultTask {
         runner.setDependsOn(dependencies)
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture)dependency).stopTask)
+                runner.finalizedBy(((Fixture)dependency).getStopTask())
             }
         }
     }

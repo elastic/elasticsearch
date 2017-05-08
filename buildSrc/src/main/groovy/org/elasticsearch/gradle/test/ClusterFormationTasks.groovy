@@ -208,7 +208,7 @@ class ClusterFormationTasks {
             start.finalizedBy(stop)
             for (Object dependency : config.dependencies) {
                 if (dependency instanceof Fixture) {
-                    Task depStop = ((Fixture)dependency).stopTask
+                    def depStop = ((Fixture)dependency).stopTask
                     runner.finalizedBy(depStop)
                     start.finalizedBy(depStop)
                 }

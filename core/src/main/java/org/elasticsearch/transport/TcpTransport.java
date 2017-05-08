@@ -684,7 +684,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         try {
             hostAddresses = networkService.resolveBindHostAddresses(bindHosts);
         } catch (IOException e) {
-            throw new BindTransportException("Failed to resolve host " + Arrays.toString(bindHosts) + "", e);
+            throw new BindTransportException("Failed to resolve host " + Arrays.toString(bindHosts), e);
         }
         if (logger.isDebugEnabled()) {
             String[] addresses = new String[hostAddresses.length];

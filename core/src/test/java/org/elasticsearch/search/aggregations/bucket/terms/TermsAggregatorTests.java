@@ -136,7 +136,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 InternalAggregation mergedAggs = internalAgg.doReduce(aggs, ctx);
                 assertTrue(mergedAggs instanceof DoubleTerms);
                 long expected = numLongs + numDoubles;
-                List<Terms.Bucket> buckets = ((DoubleTerms) mergedAggs).getBuckets();
+                List<? extends Terms.Bucket> buckets = ((DoubleTerms) mergedAggs).getBuckets();
                 assertEquals(4, buckets.size());
                 assertEquals("1.0", buckets.get(0).getKeyAsString());
                 assertEquals(expected, buckets.get(0).getDocCount());

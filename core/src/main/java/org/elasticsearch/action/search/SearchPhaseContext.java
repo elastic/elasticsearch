@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -84,7 +83,7 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
      * Returns a connection to the node if connected otherwise and {@link org.elasticsearch.transport.ConnectTransportException} will be
      * thrown.
      */
-    Transport.Connection getConnection(String nodeId);
+    Transport.Connection getConnection(String clusterAlias, String nodeId);
 
     /**
      * Returns the {@link SearchTransportService} to send shard request to other nodes
@@ -106,7 +105,7 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
     /**
      * Builds an request for the initial search phase.
      */
-    ShardSearchTransportRequest buildShardSearchRequest(SearchShardIterator shardIt, ShardRouting shard);
+    ShardSearchTransportRequest buildShardSearchRequest(SearchShardIterator shardIt);
 
     /**
      * Processes the phase transition from on phase to another. This method handles all errors that happen during the initial run execution

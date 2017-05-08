@@ -127,7 +127,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    protected List<Bucket> getBucketsInternal() {
+    public List<Bucket> getBuckets() {
         return emptyList();
     }
 

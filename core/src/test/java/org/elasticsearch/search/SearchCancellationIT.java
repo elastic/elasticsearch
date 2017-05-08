@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -128,7 +128,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         assertThat(cancelTasksResponse.getTasks().get(0).getTaskId(), equalTo(searchTask.getTaskId()));
     }
 
-    private SearchResponse ensureSearchWasCancelled(ListenableActionFuture<SearchResponse> searchResponse) {
+    private SearchResponse ensureSearchWasCancelled(ActionFuture<SearchResponse> searchResponse) {
         try {
             SearchResponse response = searchResponse.actionGet();
             logger.info("Search response {}", response);
@@ -146,7 +146,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ListenableActionFuture<SearchResponse> searchResponse = client().prepareSearch("test").setQuery(
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test").setQuery(
             scriptQuery(new Script(
                 ScriptType.INLINE, "native", NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, Collections.emptyMap())))
             .execute();
@@ -164,7 +164,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ListenableActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .addScriptField("test_field",
                 new Script(ScriptType.INLINE, "native", NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, Collections.emptyMap())
             ).execute();
@@ -182,7 +182,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ListenableActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setScroll(TimeValue.timeValueSeconds(10))
             .setSize(5)
             .setQuery(
@@ -230,7 +230,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
         String scrollId = searchResponse.getScrollId();
         logger.info("Executing scroll with id {}", scrollId);
-        ListenableActionFuture<SearchResponse> scrollResponse = client().prepareSearchScroll(searchResponse.getScrollId())
+        ActionFuture<SearchResponse> scrollResponse = client().prepareSearchScroll(searchResponse.getScrollId())
             .setScroll(keepAlive).execute();
 
         awaitForBlock(plugins);

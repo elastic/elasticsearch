@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -58,7 +59,8 @@ public class DiscoveryModule {
 
     public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService,
                            NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, MasterService masterService,
-                           ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins) {
+                           ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
+                           AllocationService allocationService) {
         final UnicastHostsProvider hostsProvider;
 
         Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
@@ -83,12 +85,12 @@ public class DiscoveryModule {
         Map<String, Supplier<Discovery>> discoveryTypes = new HashMap<>();
         discoveryTypes.put("zen",
             () -> new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier,
-                clusterSettings, hostsProvider));
+                clusterSettings, hostsProvider, allocationService));
         discoveryTypes.put("tribe", () -> new TribeDiscovery(settings, transportService, clusterApplier));
         discoveryTypes.put("single-node", () -> new SingleNodeDiscovery(settings, transportService, clusterApplier));
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getDiscoveryTypes(threadPool, transportService, namedWriteableRegistry,
-                masterService, clusterApplier, clusterSettings, hostsProvider).entrySet().forEach(entry -> {
+                masterService, clusterApplier, clusterSettings, hostsProvider, allocationService).entrySet().forEach(entry -> {
                 if (discoveryTypes.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Cannot register discovery type [" + entry.getKey() + "] twice");
                 }

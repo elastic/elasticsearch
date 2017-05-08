@@ -257,6 +257,28 @@ public class CacheTests extends ESTestCase {
         }
     }
 
+    public void testSimpleExpireAfterAccess() {
+        AtomicLong now = new AtomicLong();
+        Cache<Integer, String> cache = new Cache<Integer, String>() {
+            @Override
+            protected long now() {
+                return now.get();
+            }
+        };
+        cache.setExpireAfterAccessNanos(1);
+        now.set(0);
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+        for (int i = 0; i < numberOfEntries; i++) {
+            assertEquals(cache.get(i), Integer.toString(i));
+        }
+        now.set(2);
+        for(int i = 0; i < numberOfEntries; i++) {
+            assertNull(cache.get(i));
+        }
+    }
+
     public void testExpirationAfterWrite() {
         AtomicLong now = new AtomicLong();
         Cache<Integer, String> cache = new Cache<Integer, String>() {

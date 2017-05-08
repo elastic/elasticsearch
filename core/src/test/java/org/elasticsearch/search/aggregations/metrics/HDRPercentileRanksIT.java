@@ -515,7 +515,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
 
         Terms terms = searchResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets, notNullValue());
         assertThat(buckets.size(), equalTo(10));
 

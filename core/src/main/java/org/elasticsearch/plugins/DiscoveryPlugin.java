@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -68,7 +69,8 @@ public interface DiscoveryPlugin {
                                                                MasterService masterService,
                                                                ClusterApplier clusterApplier,
                                                                ClusterSettings clusterSettings,
-                                                               UnicastHostsProvider hostsProvider) {
+                                                               UnicastHostsProvider hostsProvider,
+                                                               AllocationService allocationService) {
         return Collections.emptyMap();
     }
 

@@ -77,7 +77,6 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     public void testAppendWhileRecovering() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
-            IndexShard replica = shards.addReplica();
             CountDownLatch latch = new CountDownLatch(2);
             int numDocs = randomIntBetween(100, 200);
             shards.appendDocs(1);// just append one to the translog so we can assert below
@@ -94,6 +93,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 }
             };
             thread.start();
+            IndexShard replica = shards.addReplica();
             Future<Void> future = shards.asyncRecoverReplica(replica, (indexShard, node)
                     -> new RecoveryTarget(indexShard, node, recoveryListener, version -> {
             }) {

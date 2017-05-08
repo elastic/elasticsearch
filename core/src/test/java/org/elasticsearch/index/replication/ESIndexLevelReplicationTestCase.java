@@ -209,6 +209,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(), pNode, null));
             primary.recoverFromStore();
             primary.updateRoutingEntry(ShardRoutingHelper.moveToStarted(primary.routingEntry()));
+            for (final IndexShard replica : replicas) {
+                recoverReplica(replica);
+            }
             updateAllocationIDsOnPrimary();
         }
 

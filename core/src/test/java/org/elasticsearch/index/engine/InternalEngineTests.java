@@ -114,7 +114,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -3580,6 +3579,8 @@ public class InternalEngineTests extends ESTestCase {
 
         try (Engine recoveringEngine =
                  new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+            recoveringEngine.recoverFromTranslog();
+            recoveringEngine.fillSeqNoGaps(2);
             assertThat(recoveringEngine.seqNoService().getLocalCheckpoint(), greaterThanOrEqualTo((long) (docs - 1)));
         }
     }
@@ -3618,6 +3619,8 @@ public class InternalEngineTests extends ESTestCase {
 
         try (Engine recoveringEngine =
                  new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+            recoveringEngine.recoverFromTranslog();
+            recoveringEngine.fillSeqNoGaps(1);
             assertThat(recoveringEngine.seqNoService().getLocalCheckpoint(), greaterThanOrEqualTo((long) (3 * (docs - 1) + 2 - 1)));
         }
     }
@@ -3719,21 +3722,35 @@ public class InternalEngineTests extends ESTestCase {
                         throw new UnsupportedOperationException();
                     }
                 };
-            noOpEngine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, () -> seqNoService);
+            noOpEngine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)) {
+                @Override
+                public SequenceNumbersService seqNoService() {
+                    return seqNoService;
+                }
+            };
+            noOpEngine.recoverFromTranslog();
             final long primaryTerm = randomNonNegativeLong();
+            final int gapsFilled = noOpEngine.fillSeqNoGaps(primaryTerm);
             final String reason = randomAlphaOfLength(16);
             noOpEngine.noOp(
-                new Engine.NoOp(
-                        maxSeqNo + 1,
-                    primaryTerm,
-                        randomFrom(PRIMARY, REPLICA, PEER_RECOVERY, LOCAL_TRANSLOG_RECOVERY),
-                    System.nanoTime(),
-                    reason));
+                    new Engine.NoOp(
+                            maxSeqNo + 1,
+                            primaryTerm,
+                            randomFrom(PRIMARY, REPLICA, PEER_RECOVERY, LOCAL_TRANSLOG_RECOVERY),
+                            System.nanoTime(),
+                            reason));
             assertThat(noOpEngine.seqNoService().getLocalCheckpoint(), equalTo((long) (maxSeqNo + 1)));
-            assertThat(noOpEngine.getTranslog().totalOperations(), equalTo(1));
-            final Translog.Operation op = noOpEngine.getTranslog().newSnapshot().next();
-            assertThat(op, instanceOf(Translog.NoOp.class));
-            final Translog.NoOp noOp = (Translog.NoOp) op;
+            assertThat(noOpEngine.getTranslog().totalOperations(), equalTo(1 + gapsFilled));
+            // skip to the op that we added to the translog
+            Translog.Operation op;
+            Translog.Operation last = null;
+            final Translog.Snapshot snapshot = noOpEngine.getTranslog().newSnapshot();
+            while ((op = snapshot.next()) != null) {
+                last = op;
+            }
+            assertNotNull(last);
+            assertThat(last, instanceOf(Translog.NoOp.class));
+            final Translog.NoOp noOp = (Translog.NoOp) last;
             assertThat(noOp.seqNo(), equalTo((long) (maxSeqNo + 1)));
             assertThat(noOp.primaryTerm(), equalTo(primaryTerm));
             assertThat(noOp.reason(), equalTo(reason));
@@ -3846,7 +3863,7 @@ public class InternalEngineTests extends ESTestCase {
             for (int i = 0; i < docs; i++) {
                 final String docId = Integer.toString(i);
                 final ParsedDocument doc =
-                    testParsedDocument(docId, "test", null, testDocumentWithTextField(), SOURCE, null);
+                        testParsedDocument(docId, "test", null, testDocumentWithTextField(), SOURCE, null);
                 Engine.Index primaryResponse = indexForDoc(doc);
                 Engine.IndexResult indexResult = engine.index(primaryResponse);
                 if (randomBoolean()) {
@@ -3864,8 +3881,8 @@ public class InternalEngineTests extends ESTestCase {
         boolean flushed = false;
         Engine recoveringEngine = null;
         try {
-            assertEquals(docs-1, engine.seqNoService().getMaxSeqNo());
-            assertEquals(docs-1, engine.seqNoService().getLocalCheckpoint());
+            assertEquals(docs - 1, engine.seqNoService().getMaxSeqNo());
+            assertEquals(docs - 1, engine.seqNoService().getLocalCheckpoint());
             assertEquals(maxSeqIDOnReplica, replicaEngine.seqNoService().getMaxSeqNo());
             assertEquals(checkpointOnReplica, replicaEngine.seqNoService().getLocalCheckpoint());
             recoveringEngine = new InternalEngine(copy(replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
@@ -3873,13 +3890,13 @@ public class InternalEngineTests extends ESTestCase {
             recoveringEngine.recoverFromTranslog();
             assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());
             assertEquals(checkpointOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
-            assertEquals((maxSeqIDOnReplica+1) - numDocsOnReplica, recoveringEngine.fillSequenceNumberHistory(2));
+            assertEquals((maxSeqIDOnReplica + 1) - numDocsOnReplica, recoveringEngine.fillSeqNoGaps(2));
 
             // now snapshot the tlog and ensure the primary term is updated
             Translog.Snapshot snapshot = recoveringEngine.getTranslog().newSnapshot();
-            assertTrue((maxSeqIDOnReplica+1) - numDocsOnReplica <= snapshot.totalOperations());
+            assertTrue((maxSeqIDOnReplica + 1) - numDocsOnReplica <= snapshot.totalOperations());
             Translog.Operation operation;
-            while((operation = snapshot.next()) != null) {
+            while ((operation = snapshot.next()) != null) {
                 if (operation.opType() == Translog.Operation.Type.NO_OP) {
                     assertEquals(2, operation.primaryTerm());
                 } else {
@@ -3905,7 +3922,7 @@ public class InternalEngineTests extends ESTestCase {
             recoveringEngine.recoverFromTranslog();
             assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());
             assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
-            assertEquals(0, recoveringEngine.fillSequenceNumberHistory(3));
+            assertEquals(0, recoveringEngine.fillSeqNoGaps(3));
             assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());
             assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
         } finally {

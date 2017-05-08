@@ -62,7 +62,9 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RestControllerTests extends ESTestCase {
 
@@ -103,12 +105,16 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.1", Collections.singletonList("true"));
         restHeaders.put("header.2", Collections.singletonList("true"));
         restHeaders.put("header.3", Collections.singletonList("false"));
-        restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build(), null, null,
-            threadContext, (RestRequest request, RestChannel channel, NodeClient client) -> {
-                assertEquals("true", threadContext.getHeader("header.1"));
-                assertEquals("true", threadContext.getHeader("header.2"));
-                assertNull(threadContext.getHeader("header.3"));
-            }, PathTrie.TrieMatchingMode.EXPLICIT_NODES_ONLY);
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
+        final RestController spyRestController = spy(restController);
+        when(spyRestController.getHandler(fakeRequest, PathTrie.TrieMatchingMode.EXPLICIT_NODES_ONLY))
+                .thenReturn((RestRequest request, RestChannel channel, NodeClient client) -> {
+                    assertEquals("true", threadContext.getHeader("header.1"));
+                    assertEquals("true", threadContext.getHeader("header.2"));
+                    assertNull(threadContext.getHeader("header.3"));
+                });
+        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
         // context in this test
         assertEquals("true", threadContext.getHeader("header.1"));

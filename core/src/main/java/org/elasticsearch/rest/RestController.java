@@ -411,7 +411,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
     }
     
-    private RestHandler getHandler(RestRequest request, PathTrie.TrieMatchingMode trieMatchingMode) {
+    RestHandler getHandler(RestRequest request, PathTrie.TrieMatchingMode trieMatchingMode) {
         String path = getPath(request);
         PathTrie<RestHandler> handlers = getHandlersForMethod(request.method());
         if (handlers != null) {

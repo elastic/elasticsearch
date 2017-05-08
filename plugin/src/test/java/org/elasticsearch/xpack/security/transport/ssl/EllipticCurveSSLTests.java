@@ -11,9 +11,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.ssl.CertUtils;
+import org.elasticsearch.xpack.ssl.SSLService;
+import org.junit.Before;
 
 import javax.net.ssl.HandshakeCompletedEvent;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -27,6 +30,7 @@ import java.security.PrivateKey;
 import java.security.PrivilegedExceptionAction;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -66,7 +70,6 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1278")
     public void testConnection() throws Exception {
         final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-key.pem");
         final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");
@@ -105,5 +108,15 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
             assertEquals(certs[0], peerChain[0]);
             assertThat(session.getCipherSuite(), containsString("ECDSA"));
         }
+    }
+
+    @Before
+    public void assumeECDSACiphersSupported() {
+        final SSLService sslService = internalCluster().getInstance(SSLService.class);
+        SSLEngine sslEngine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        assumeTrue("ECDSA ciphers must be supported for this test to run. Enabled ciphers: " +
+                        Arrays.toString(sslEngine.getEnabledCipherSuites()) + ", supported ciphers: " +
+                        Arrays.toString(sslEngine.getSupportedCipherSuites()),
+                Arrays.stream(sslEngine.getEnabledCipherSuites()).anyMatch(s -> s.contains("ECDSA")));
     }
 }

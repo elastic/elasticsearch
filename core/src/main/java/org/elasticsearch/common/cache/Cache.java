@@ -194,7 +194,8 @@ public class Cache<K, V> {
         SegmentStats segmentStats = new SegmentStats();
 
         /**
-         * get an entry from the segment
+         * get an entry from the segment; expired entries will be returned as null but not removed from the cache until the LRU list is
+         * pruned or a manual {@link Cache#refresh()} is performed
          *
          * @param key       the key of the entry to get from the cache
          * @param now       the access time of this entry

@@ -226,13 +226,6 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                                             "] does not support stream parsing. Use JSON or SMILE instead"));
             return true;
         } else {
-            for (String key : headersToCopy) {
-                String httpHeader = request.header(key);
-                if (httpHeader != null) {
-                    threadContext.putHeader(key, httpHeader);
-                }
-            }
-
             if (handler == null) {
                 /*
                  * Get the map of matching handlers for a request, for the full set of HTTP methods.
@@ -324,6 +317,13 @@ public class RestController extends AbstractComponent implements HttpServerTrans
     }
 
     void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
+        for (String key : headersToCopy) {
+            String httpHeader = request.header(key);
+            if (httpHeader != null) {
+                threadContext.putHeader(key, httpHeader);
+            }
+        }
+
         // Request execution flag
         boolean requestHandled = false;
 

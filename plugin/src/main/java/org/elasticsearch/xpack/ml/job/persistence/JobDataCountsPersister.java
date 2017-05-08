@@ -46,8 +46,7 @@ public class JobDataCountsPersister extends AbstractComponent {
      * @param listener Action response listener
      */
     public void persistDataCounts(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
-        try {
-            XContentBuilder content = serialiseCounts(counts);
+        try (XContentBuilder content = serialiseCounts(counts)) {
             client.prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), DataCounts.TYPE.getPreferredName(),
                     DataCounts.documentId(jobId))
             .setSource(content).execute(new ActionListener<IndexResponse>() {
@@ -61,7 +60,6 @@ public class JobDataCountsPersister extends AbstractComponent {
                     listener.onFailure(e);
                 }
             });
-
         } catch (IOException ioe) {
             logger.warn((Supplier<?>)() -> new ParameterizedMessage("[{}] Error serialising DataCounts stats", jobId), ioe);
         }

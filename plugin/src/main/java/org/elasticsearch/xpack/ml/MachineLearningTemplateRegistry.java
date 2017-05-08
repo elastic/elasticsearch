@@ -198,11 +198,11 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
      * Index template for notifications
      */
     void putNotificationMessageIndexTemplate(BiConsumer<Boolean, Exception> listener) {
-        try {
+        try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
             PutIndexTemplateRequest templateRequest = new PutIndexTemplateRequest(Auditor.NOTIFICATIONS_INDEX);
             templateRequest.patterns(Collections.singletonList(Auditor.NOTIFICATIONS_INDEX));
             templateRequest.settings(mlNotificationIndexSettings());
-            templateRequest.mapping(AuditMessage.TYPE.getPreferredName(), ElasticsearchMappings.auditMessageMapping());
+            templateRequest.mapping(AuditMessage.TYPE.getPreferredName(), auditMapping);
             templateRequest.version(Version.CURRENT.id);
             client.admin().indices().putTemplate(templateRequest,
                     ActionListener.wrap(r -> listener.accept(true, null), e -> listener.accept(false, e)));
@@ -227,10 +227,9 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
     }
 
     void putJobStateIndexTemplate(BiConsumer<Boolean, Exception> listener) {
-        try {
-            XContentBuilder categorizerStateMapping = ElasticsearchMappings.categorizerStateMapping();
+        try (XContentBuilder categorizerStateMapping = ElasticsearchMappings.categorizerStateMapping();
             XContentBuilder quantilesMapping = ElasticsearchMappings.quantilesMapping();
-            XContentBuilder modelStateMapping = ElasticsearchMappings.modelStateMapping();
+            XContentBuilder modelStateMapping = ElasticsearchMappings.modelStateMapping()) {
 
             PutIndexTemplateRequest templateRequest = new PutIndexTemplateRequest(AnomalyDetectorsIndex.jobStateIndexName());
             templateRequest.patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexName()));
@@ -250,11 +249,10 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
     }
 
     void putJobResultsIndexTemplate(BiConsumer<Boolean, Exception> listener) {
-        try {
-            XContentBuilder resultsMapping = ElasticsearchMappings.resultsMapping();
-            XContentBuilder categoryDefinitionMapping = ElasticsearchMappings.categoryDefinitionMapping();
-            XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
-            XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
+        try (XContentBuilder resultsMapping = ElasticsearchMappings.resultsMapping();
+             XContentBuilder categoryDefinitionMapping = ElasticsearchMappings.categoryDefinitionMapping();
+             XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
+             XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping()) {
 
             PutIndexTemplateRequest templateRequest = new PutIndexTemplateRequest(AnomalyDetectorsIndex.jobResultsIndexPrefix());
             templateRequest.patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"));

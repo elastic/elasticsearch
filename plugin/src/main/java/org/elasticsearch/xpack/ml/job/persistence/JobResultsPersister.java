@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -93,8 +92,7 @@ public class JobResultsPersister extends AbstractComponent {
                 bucketWithoutRecords = new Bucket(bucket);
                 bucketWithoutRecords.setRecords(Collections.emptyList());
             }
-            try {
-                XContentBuilder content = toXContentBuilder(bucketWithoutRecords);
+            try (XContentBuilder content = toXContentBuilder(bucketWithoutRecords)) {
                 logger.trace("[{}] ES API CALL: index result type {} to index {} at epoch {}",
                         jobId, Bucket.RESULT_TYPE_VALUE, indexName, bucketWithoutRecords.getEpoch());
 
@@ -113,12 +111,13 @@ public class JobResultsPersister extends AbstractComponent {
                 throws IOException {
             if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
                 for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
-                    XContentBuilder content = serialiseBucketInfluencerStandalone(bucketInfluencer);
-                    // Need consistent IDs to ensure overwriting on renormalization
-                    String id = bucketInfluencer.getId();
-                    logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
-                            jobId, BucketInfluencer.RESULT_TYPE_VALUE, indexName, id);
-                    bulkRequest.add(new IndexRequest(indexName, Result.TYPE.getPreferredName(), id).source(content));
+                    try (XContentBuilder content = toXContentBuilder(bucketInfluencer)) {
+                        // Need consistent IDs to ensure overwriting on renormalization
+                        String id = bucketInfluencer.getId();
+                        logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
+                                jobId, BucketInfluencer.RESULT_TYPE_VALUE, indexName, id);
+                        bulkRequest.add(new IndexRequest(indexName, Result.TYPE.getPreferredName(), id).source(content));
+                    }
                 }
             }
         }
@@ -133,10 +132,11 @@ public class JobResultsPersister extends AbstractComponent {
 
             try {
                 for (AnomalyRecord record : records) {
-                    XContentBuilder content = toXContentBuilder(record);
-                    logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
-                            jobId, AnomalyRecord.RESULT_TYPE_VALUE, indexName, record.getId());
-                    bulkRequest.add(new IndexRequest(indexName, Result.TYPE.getPreferredName(), record.getId()).source(content));
+                    try (XContentBuilder content = toXContentBuilder(record)) {
+                        logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
+                                jobId, AnomalyRecord.RESULT_TYPE_VALUE, indexName, record.getId());
+                        bulkRequest.add(new IndexRequest(indexName, Result.TYPE.getPreferredName(), record.getId()).source(content));
+                    }
                 }
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error serialising records", new Object [] {jobId}), e);
@@ -155,10 +155,11 @@ public class JobResultsPersister extends AbstractComponent {
         public Builder persistInfluencers(List<Influencer> influencers) {
             try {
                 for (Influencer influencer : influencers) {
-                    XContentBuilder content = toXContentBuilder(influencer);
-                    logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
-                            jobId, Influencer.RESULT_TYPE_VALUE, indexName, influencer.getId());
-                    bulkRequest.add(new IndexRequest(indexName, Result.TYPE.getPreferredName(), influencer.getId()).source(content));
+                    try (XContentBuilder content = toXContentBuilder(influencer)) {
+                        logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
+                                jobId, Influencer.RESULT_TYPE_VALUE, indexName, influencer.getId());
+                        bulkRequest.add(new IndexRequest(indexName, Result.TYPE.getPreferredName(), influencer.getId()).source(content));
+                    }
                 }
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error serialising influencers", new Object[] {jobId}), e);
@@ -174,13 +175,13 @@ public class JobResultsPersister extends AbstractComponent {
          * @return this
          */
         public Builder persistPerPartitionMaxProbabilities(PerPartitionMaxProbabilities partitionProbabilities) {
-            try {
-                XContentBuilder builder = toXContentBuilder(partitionProbabilities);
+            try (XContentBuilder builder = toXContentBuilder(partitionProbabilities)) {
                 logger.trace("[{}] ES API CALL: index result type {} to index {} at timestamp {} with ID {}",
                         jobId, PerPartitionMaxProbabilities.RESULT_TYPE_VALUE, indexName, partitionProbabilities.getTimestamp(),
                         partitionProbabilities.getId());
                 bulkRequest.add(
                         new IndexRequest(indexName, Result.TYPE.getPreferredName(), partitionProbabilities.getId()).source(builder));
+
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] error serialising bucket per partition max normalized scores",
                         new Object[]{jobId}), e);
@@ -313,12 +314,6 @@ public class JobResultsPersister extends AbstractComponent {
         return builder;
     }
 
-    private XContentBuilder serialiseBucketInfluencerStandalone(BucketInfluencer bucketInfluencer) throws IOException {
-        XContentBuilder builder = jsonBuilder();
-        bucketInfluencer.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        return builder;
-    }
-
     private class Persistable {
 
         private final String jobId;
@@ -341,9 +336,8 @@ public class JobResultsPersister extends AbstractComponent {
 
             logCall(indexName);
 
-            try {
-                IndexRequest indexRequest = new IndexRequest(indexName, type, id)
-                        .source(toXContentBuilder(object));
+            try (XContentBuilder content = toXContentBuilder(object)) {
+                IndexRequest indexRequest = new IndexRequest(indexName, type, id).source(content);
                 client.index(indexRequest).actionGet();
                 return true;
             } catch (IOException e) {

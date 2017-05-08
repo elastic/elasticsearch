@@ -65,8 +65,7 @@ public class JobRenormalizedResultsPersister extends AbstractComponent {
     }
 
     public void updateResult(String id, String index, ToXContent resultDoc) {
-        try {
-            XContentBuilder content = toXContentBuilder(resultDoc);
+        try (XContentBuilder content = toXContentBuilder(resultDoc)) {
             bulkRequest.add(new IndexRequest(index, Result.TYPE.getPreferredName(), id).source(content));
         } catch (IOException e) {
             logger.error("Error serialising result", e);

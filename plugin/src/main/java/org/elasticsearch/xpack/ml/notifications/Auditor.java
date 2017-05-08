@@ -65,8 +65,8 @@ public class Auditor {
     }
 
     private XContentBuilder toXContentBuilder(ToXContent toXContent) {
-        try {
-            return toXContent.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
+        try (XContentBuilder jsonBuilder = jsonBuilder()) {
+            return toXContent.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

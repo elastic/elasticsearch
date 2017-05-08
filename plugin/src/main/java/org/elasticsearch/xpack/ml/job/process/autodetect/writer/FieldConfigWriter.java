@@ -17,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Detector;
@@ -112,7 +113,9 @@ public class FieldConfigWriter {
             } else {
                 contents.append(',');
             }
-            contents.append(rule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).string());
+            try (XContentBuilder contentBuilder = XContentFactory.jsonBuilder()) {
+                contents.append(rule.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS).string());
+            }
         }
         contents.append(']');
 

@@ -109,8 +109,5 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         assertTrue(parsedClass != null && parsedClass.isInstance(parsedAggregation));
     }
 
-    // TODO make abstract
-    protected Class<? extends ParsedSingleBucketAggregation> implementationClass() {
-        return ParsedSingleBucketAggregation.class;
-    }
+    protected abstract Class<? extends ParsedSingleBucketAggregation> implementationClass();
 }

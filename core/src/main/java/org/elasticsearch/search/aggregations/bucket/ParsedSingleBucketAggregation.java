@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregations;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +37,7 @@ public abstract class ParsedSingleBucketAggregation extends ParsedAggregation im
 
     private long docCount;
     protected List<Aggregation> aggregationList = new ArrayList<>();
-    private ParsedAggregations aggregations = new ParsedAggregations(aggregationList);
+    private Aggregations aggregations = new Aggregations(aggregationList);
 
     @Override
     public long getDocCount() {

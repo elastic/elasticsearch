@@ -2,8 +2,7 @@
 [[ml-get-bucket]]
 ==== Get Buckets
 
-The get bucket API enables you to retrieve information about buckets in the
-results from a job.
+The get bucket API enables you to retrieve job results for one or more buckets.
 
 
 ===== Request

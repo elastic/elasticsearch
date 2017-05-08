@@ -2,8 +2,8 @@
 [[ml-get-category]]
 ==== Get Categories
 
-The get categories API enables you to retrieve information
-about the categories in the results for a job.
+The get categories API enables you to retrieve job results for one or more
+categories.
 
 
 ===== Request

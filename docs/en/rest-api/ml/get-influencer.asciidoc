@@ -1,8 +1,8 @@
 [[ml-get-influencer]]
 ==== Get Influencers
 
-The get influencers API enables you to retrieve information about the influencers
-in a job.
+The get influencers API enables you to retrieve job results for one or more
+influencers.
 
 
 ===== Request

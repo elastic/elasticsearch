@@ -366,7 +366,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         for (final SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
             final SnapshotInfo snapshotInfo;
             try {
-                snapshotInfo = getSnapshotInfoInternal(snapshotId);
+                snapshotInfo = getSnapshotInfo(snapshotId);
             } catch (SnapshotException e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] repository is on a pre-5.0 format with an index file that contains snapshot [{}] but " +
                         "the corresponding snap-{}.dat file cannot be read. The snapshot will no longer be included in " +

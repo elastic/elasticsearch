@@ -490,12 +490,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public SnapshotInfo getSnapshotInfo(final SnapshotId snapshotId) {
-        return getSnapshotInfo(getRepositoryData(), snapshotId);
-    }
-
-    @Override
-    public SnapshotInfo getSnapshotInfo(final RepositoryData repositoryData, final SnapshotId snapshotId) {
-        if (repositoryData.getIncompatibleSnapshotIds().contains(snapshotId)) {
+        if (getRepositoryData().getIncompatibleSnapshotIds().contains(snapshotId)) {
             // an incompatible snapshot - cannot read its snapshot metadata file, just return
             // a SnapshotInfo indicating its incompatible
             return SnapshotInfo.incompatible(snapshotId);

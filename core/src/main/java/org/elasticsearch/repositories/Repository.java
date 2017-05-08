@@ -72,15 +72,6 @@ public interface Repository extends LifecycleComponent {
     /**
      * Reads snapshot description from repository.
      *
-     * @param repositoryData repository data
-     * @param snapshotId  snapshot id
-     * @return information about snapshot
-     */
-    SnapshotInfo getSnapshotInfo(RepositoryData repositoryData, SnapshotId snapshotId);
-
-    /**
-     * Reads snapshot description from repository.
-     *
      * @param snapshotId  snapshot id
      * @return information about snapshot
      */

@@ -206,7 +206,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return Collections.unmodifiableList(snapshotList);
     }
 
-
     /**
      * Returns a list of currently running snapshots from repository sorted by snapshot creation date
      *

@@ -490,10 +490,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public SnapshotInfo getSnapshotInfo(final SnapshotId snapshotId) {
-        return getSnapshotInfoInternal(snapshotId);
-    }
-
-    private SnapshotInfo getSnapshotInfoInternal(final SnapshotId snapshotId) {
         try {
             return snapshotFormat.read(snapshotsBlobContainer, snapshotId.getUUID());
         } catch (NoSuchFileException ex) {

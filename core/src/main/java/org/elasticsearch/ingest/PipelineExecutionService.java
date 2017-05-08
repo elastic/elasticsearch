@@ -162,7 +162,8 @@ public class PipelineExecutionService implements ClusterStateApplier {
             String timestamp = indexRequest.timestamp();
             String ttl = indexRequest.ttl() == null ? null : indexRequest.ttl().toString();
             Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, timestamp, ttl, sourceAsMap);
+            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, timestamp, ttl,
+                sourceAsMap, store.isNewIngestDateFormat());
             pipeline.execute(ingestDocument);
 
             Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();

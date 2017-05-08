@@ -162,18 +162,18 @@ public class SimulatePipelineRequest extends ActionRequest {
         if (pipeline == null) {
             throw new IllegalArgumentException("pipeline [" + pipelineId + "] does not exist");
         }
-        List<IngestDocument> ingestDocumentList = parseDocs(config);
+        List<IngestDocument> ingestDocumentList = parseDocs(config, pipelineStore.isNewIngestDateFormat());
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
     static Parsed parse(Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
         Pipeline pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorFactories());
-        List<IngestDocument> ingestDocumentList = parseDocs(config);
+        List<IngestDocument> ingestDocumentList = parseDocs(config, pipelineStore.isNewIngestDateFormat());
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
-    private static List<IngestDocument> parseDocs(Map<String, Object> config) {
+    private static List<IngestDocument> parseDocs(Map<String, Object> config, boolean newDateFormat) {
         List<Map<String, Object>> docs = ConfigurationUtils.readList(null, null, config, Fields.DOCS);
         List<IngestDocument> ingestDocumentList = new ArrayList<>();
         for (Map<String, Object> dataMap : docs) {
@@ -185,7 +185,7 @@ public class SimulatePipelineRequest extends ActionRequest {
                     ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.PARENT.getFieldName()),
                     ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.TIMESTAMP.getFieldName()),
                     ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.TTL.getFieldName()),
-                    document);
+                    document, newDateFormat);
             ingestDocumentList.add(ingestDocument);
         }
         return ingestDocumentList;

@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
@@ -29,6 +30,8 @@ import org.elasticsearch.index.mapper.TTLFieldMapper;
 import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -55,6 +58,11 @@ public final class IngestDocument {
 
     public IngestDocument(String index, String type, String id, String routing, String parent, String timestamp,
                           String ttl, Map<String, Object> source) {
+        this(index, type, id, routing, parent, timestamp, ttl, source, false);
+    }
+
+    public IngestDocument(String index, String type, String id, String routing, String parent, String timestamp,
+                          String ttl, Map<String, Object> source, boolean newDateFormat) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
@@ -74,7 +82,11 @@ public final class IngestDocument {
         }
 
         this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, new Date());
+        if (newDateFormat) {
+            this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
+        } else {
+            this.ingestMetadata.put(TIMESTAMP, new Date());
+        }
     }
 
     /**
@@ -617,6 +629,9 @@ public final class IngestDocument {
             return value;
         } else if (value instanceof Date) {
             return ((Date) value).clone();
+        } else if (value instanceof ZonedDateTime) {
+            ZonedDateTime zonedDateTime = (ZonedDateTime) value;
+            return ZonedDateTime.of(zonedDateTime.toLocalDate(), zonedDateTime.toLocalTime(), zonedDateTime.getZone());
         } else {
             throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
         }

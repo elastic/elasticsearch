@@ -76,7 +76,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
 
         @Override
-        int compareTerm(Terms.Bucket other) {
+        public int compareTerm(Terms.Bucket other) {
             return Long.compare(term, ((Number) other.getKey()).longValue());
         }
 
@@ -161,7 +161,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
      * Converts a {@link LongTerms} into a {@link DoubleTerms}, returning the value of the specified long terms as doubles.
      */
     static DoubleTerms convertLongTermsToDouble(LongTerms longTerms, DocValueFormat decimalFormat) {
-        List<Terms.Bucket> buckets = longTerms.getBuckets();
+        List<LongTerms.Bucket> buckets = longTerms.getBuckets();
         List<DoubleTerms.Bucket> newBuckets = new ArrayList<>();
         for (Terms.Bucket bucket : buckets) {
             newBuckets.add(new DoubleTerms.Bucket(bucket.getKeyAsNumber().doubleValue(),

@@ -389,7 +389,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                     tData.put(entry.getKey(), new TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData(entry.getKey(), entry.getValue()));
                 }
             }
-            return new AsyncShardFetch.FetchResult<>(shardId, tData, Collections.<String>emptySet(), Collections.<String>emptySet());
+            return new AsyncShardFetch.FetchResult<>(shardId, tData, Collections.emptySet());
         }
 
         @Override

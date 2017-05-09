@@ -11,13 +11,17 @@
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 1
+            number_of_replicas: 0
             index.sort.field: rank
           mappings:
             test:
               properties:
                 rank:
                   type:     integer
+
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       index:
@@ -61,15 +65,23 @@
         index: test
 
   - do:
+        indices.segments:
+            index: test
+
+  - match:    { _shards.total: 1}
+  - length:   { indices.test.shards.0: 1}
+  - length:   { indices.test.shards.0.0.segments: 1}
+
+  - do:
       search:
         index: test
         type: test
         body:
           sort: _doc
 
-  - match: {hits.total: 4 }
+  - match:  {hits.total: 4 }
   - length: {hits.hits: 4 }
-  - match: {hits.hits.0._id: "2" }
-  - match: {hits.hits.1._id: "4" }
-  - match: {hits.hits.2._id: "3" }
-  - match: {hits.hits.3._id: "1" }
+  - match:  {hits.hits.0._id: "2" }
+  - match:  {hits.hits.1._id: "4" }
+  - match:  {hits.hits.2._id: "3" }
+  - match:  {hits.hits.3._id: "1" }

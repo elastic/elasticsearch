@@ -38,15 +38,11 @@ public enum SortBy implements Writeable {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeVInt(ordinal());
+        out.writeEnum(this);
     }
 
     public static SortBy readFromStream(final StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown SortBy ordinal [" + ordinal + "]");
-        }
-        return values()[ordinal];
+        return in.readEnum(SortBy.class);
     }
 
     public static SortBy resolve(final String str) {

@@ -24,10 +24,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardIterator;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
@@ -176,6 +178,25 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.get(remoteCluster).isNodeConnected(node);
     }
 
+    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, Predicate<String> indexExists) {
+        Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
+        if (isCrossClusterSearchEnabled()) {
+            final Map<String, List<String>> groupedIndices = groupClusterIndices(indices, indexExists);
+            for (Map.Entry<String, List<String>> entry : groupedIndices.entrySet()) {
+                String clusterAlias = entry.getKey();
+                List<String> originalIndices = entry.getValue();
+                originalIndicesMap.put(clusterAlias,
+                    new OriginalIndices(originalIndices.toArray(new String[originalIndices.size()]), indicesOptions));
+            }
+            if (originalIndicesMap.containsKey(LOCAL_CLUSTER_GROUP_KEY) == false) {
+                originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
+            }
+        } else {
+            originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(indices, indicesOptions));
+        }
+        return originalIndicesMap;
+    }
+
     /**
      * Returns <code>true</code> iff the given cluster is configured as a remote cluster. Otherwise <code>false</code>
      */
@@ -183,8 +204,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.containsKey(clusterName);
     }
 
-    public void collectSearchShards(SearchRequest searchRequest, Map<String, OriginalIndices> remoteIndicesByCluster,
-                             ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
+    public void collectSearchShards(IndicesOptions indicesOptions, String preference, String routing,
+                                    Map<String, OriginalIndices> remoteIndicesByCluster,
+                                    ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
         final Map<String, ClusterSearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
         final AtomicReference<TransportException> transportException = new AtomicReference<>();
@@ -195,7 +217,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 throw new IllegalArgumentException("no such remote cluster: " + clusterName);
             }
             final String[] indices = entry.getValue().indices();
-            remoteClusterConnection.fetchSearchShards(searchRequest, indices,
+            ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
+                .indicesOptions(indicesOptions).local(true).preference(preference)
+                .routing(routing);
+            remoteClusterConnection.fetchSearchShards(searchShardsRequest,
                 new ActionListener<ClusterSearchShardsResponse>() {
                     @Override
                     public void onResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
@@ -238,6 +263,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             throw new IllegalArgumentException("no such remote cluster: " + cluster);
         }
         return connection.getConnection(node);
+    }
+
+    public Transport.Connection getConnection(String cluster) {
+        RemoteClusterConnection connection = remoteClusters.get(cluster);
+        if (connection == null) {
+            throw new IllegalArgumentException("no such remote cluster: " + cluster);
+        }
+        return connection.getConnection();
     }
 
     @Override

@@ -22,6 +22,8 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -45,13 +47,18 @@ import static org.hamcrest.Matchers.sameInstance;
 public class IngestDocumentTests extends ESTestCase {
 
     private static final Date BOGUS_TIMESTAMP = new Date(0L);
+    private static final ZonedDateTime BOGUS_TIMESTAMP_NEW_DATE_FORMAT = ZonedDateTime.of(2016, 10, 23, 0, 0, 0, 0, ZoneOffset.UTC);
     private IngestDocument ingestDocument;
+    private IngestDocument ingestDocumentWithNewDateFormat;
 
-    @Before
-    public void setIngestDocument() {
+    public IngestDocument getTestIngestDocument(boolean newDateFormat) {
         Map<String, Object> document = new HashMap<>();
         Map<String, Object> ingestMap = new HashMap<>();
-        ingestMap.put("timestamp", BOGUS_TIMESTAMP);
+        if (newDateFormat) {
+            ingestMap.put("timestamp", BOGUS_TIMESTAMP_NEW_DATE_FORMAT);
+        } else {
+            ingestMap.put("timestamp", BOGUS_TIMESTAMP);
+        }
         document.put("_ingest", ingestMap);
         document.put("foo", "bar");
         document.put("int", 123);
@@ -72,7 +79,18 @@ public class IngestDocumentTests extends ESTestCase {
         list.add(null);
 
         document.put("list", list);
-        ingestDocument = new IngestDocument("index", "type", "id", null, null, document);
+        return new IngestDocument("index", "type", "id", null, null, document, newDateFormat);
+    }
+
+    @Before
+    public void setIngestDocuments() {
+        ingestDocument = getTestIngestDocument(false);
+        ingestDocumentWithNewDateFormat = getTestIngestDocument(true);
+    }
+
+    public void testDefaultConstructorUsesDateClass() {
+        IngestDocument ingestDocument = new IngestDocument("foo", "bar", "baz", "fuzz", "buzz", Collections.emptyMap());
+        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", Object.class).getClass(), equalTo(Date.class));
     }
 
     public void testSimpleGetFieldValue() {
@@ -86,6 +104,13 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("_ingest.timestamp", Date.class),
                 both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP))));
         assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", Date.class), equalTo(BOGUS_TIMESTAMP));
+    }
+
+    public void testNewDateFormat() {
+        assertThat(ingestDocumentWithNewDateFormat.getFieldValue("_ingest.timestamp", ZonedDateTime.class),
+            both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP_NEW_DATE_FORMAT))));
+        assertThat(ingestDocumentWithNewDateFormat.getFieldValue("_source._ingest.timestamp", ZonedDateTime.class),
+            equalTo(BOGUS_TIMESTAMP_NEW_DATE_FORMAT));
     }
 
     public void testGetSourceObject() {

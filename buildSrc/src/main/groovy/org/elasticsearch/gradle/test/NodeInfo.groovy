@@ -161,7 +161,10 @@ class NodeInfo {
             }
         }
         env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
-        args.addAll("-E", "path.conf=${confDir}", "-E", "path.data=${-> dataDir.toString()}")
+        args.addAll("-E", "path.conf=${confDir}")
+        if (!System.properties.containsKey("tests.es.path.data")) {
+            args.addAll("-E", "path.data=${-> dataDir.toString()}")
+        }
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }

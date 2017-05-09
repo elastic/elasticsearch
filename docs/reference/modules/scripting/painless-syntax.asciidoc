@@ -207,7 +207,7 @@ In addition to Java's `enhanced for` loop, the `for in` syntax from groovy can a
 
 [source,painless]
 ---------------------------------------------------------
-for (item : list) {
+for (def item : list) {
   ...
 }
 ---------------------------------------------------------

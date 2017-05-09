@@ -83,8 +83,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexService.getShard(id)).thenReturn(indexShard);
 
-        final ShardId shardId = mock(ShardId.class);
-        when(shardId.getIndexName()).thenReturn("index");
+        final ShardId shardId = new ShardId(index, id);
         when(indexShard.shardId()).thenReturn(shardId);
 
         final Translog translog = mock(Translog.class);

@@ -133,6 +133,7 @@ public final class PreConfiguredTokenFilter implements AnalysisModule.AnalysisPr
             }
             cache.put(version, factory);
         }
+
         return factory;
     }
 }

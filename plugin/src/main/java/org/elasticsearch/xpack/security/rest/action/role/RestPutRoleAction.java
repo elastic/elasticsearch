@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.role;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -18,6 +18,7 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 
@@ -27,9 +28,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add a Role to the security index
  */
-public class RestPutRoleAction extends BaseRestHandler {
-    public RestPutRoleAction(Settings settings, RestController controller) {
-        super(settings);
+public class RestPutRoleAction extends SecurityBaseRestHandler {
+
+    public RestPutRoleAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+        super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/role/{name}", this);
         controller.registerHandler(PUT, "/_xpack/security/role/{name}", this);
 
@@ -45,7 +47,7 @@ public class RestPutRoleAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutRoleRequestBuilder requestBuilder = new SecurityClient(client)
                 .preparePutRole(request.param("name"), request.content(), request.getXContentType())
                 .setRefreshPolicy(request.param("refresh"));

@@ -586,22 +586,22 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         }
         return Arrays.asList(
                 new RestAuthenticateAction(settings, restController, securityContext.get(), licenseState),
-                new RestClearRealmCacheAction(settings, restController),
-                new RestClearRolesCacheAction(settings, restController),
-                new RestGetUsersAction(settings, restController),
-                new RestPutUserAction(settings, restController),
-                new RestDeleteUserAction(settings, restController),
-                new RestGetRolesAction(settings, restController),
-                new RestPutRoleAction(settings, restController),
-                new RestDeleteRoleAction(settings, restController),
-                new RestChangePasswordAction(settings, restController, securityContext.get()),
-                new RestSetEnabledAction(settings, restController),
-                new RestHasPrivilegesAction(settings, restController, securityContext.get()),
-                new RestGetRoleMappingsAction(settings, restController),
-                new RestPutRoleMappingAction(settings, restController),
-                new RestDeleteRoleMappingAction(settings, restController),
-                new RestGetTokenAction(settings, licenseState, restController),
-                new RestInvalidateTokenAction(settings, licenseState, restController)
+                new RestClearRealmCacheAction(settings, restController, licenseState),
+                new RestClearRolesCacheAction(settings, restController, licenseState),
+                new RestGetUsersAction(settings, restController, licenseState),
+                new RestPutUserAction(settings, restController, licenseState),
+                new RestDeleteUserAction(settings, restController, licenseState),
+                new RestGetRolesAction(settings, restController, licenseState),
+                new RestPutRoleAction(settings, restController, licenseState),
+                new RestDeleteRoleAction(settings, restController, licenseState),
+                new RestChangePasswordAction(settings, restController, securityContext.get(), licenseState),
+                new RestSetEnabledAction(settings, restController, licenseState),
+                new RestHasPrivilegesAction(settings, restController, securityContext.get(), licenseState),
+                new RestGetRoleMappingsAction(settings, restController, licenseState),
+                new RestPutRoleMappingAction(settings, restController, licenseState),
+                new RestDeleteRoleMappingAction(settings, restController, licenseState),
+                new RestGetTokenAction(settings, restController, licenseState),
+                new RestInvalidateTokenAction(settings, restController, licenseState)
         );
     }
 

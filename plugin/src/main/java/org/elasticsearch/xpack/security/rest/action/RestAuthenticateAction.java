@@ -9,16 +9,13 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.security.action.user.AuthenticateRequest;
@@ -29,16 +26,14 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestAuthenticateAction extends BaseRestHandler {
+public class RestAuthenticateAction extends SecurityBaseRestHandler {
 
     private final SecurityContext securityContext;
-    private final XPackLicenseState licenseState;
 
     public RestAuthenticateAction(Settings settings, RestController controller, SecurityContext securityContext,
                                   XPackLicenseState licenseState) {
-        super(settings);
+        super(settings, licenseState);
         this.securityContext = securityContext;
-        this.licenseState = licenseState;
         controller.registerHandler(GET, "/_xpack/security/_authenticate", this);
 
         // @deprecated: Remove in 6.0
@@ -49,15 +44,11 @@ public class RestAuthenticateAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        // this API is a special case since we access the user here and we want it to fail with the proper error instead of a request
-        // validation error
-        if (licenseState.isAuthAllowed() == false) {
-            throw LicenseUtils.newComplianceException(XPackPlugin.SECURITY);
-        }
-
+    public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final User user = securityContext.getUser();
-        assert user != null;
+        if (user == null) {
+            return restChannel -> { throw new IllegalStateException("we should never have a null user and invoke this consumer"); };
+        }
         final String username = user.runAs() == null ? user.principal() : user.runAs().principal();
 
         return channel -> client.execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(username),

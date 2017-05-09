@@ -11,19 +11,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenResponse;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 
@@ -32,7 +30,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest handler for handling access token invalidation requests
  */
-public final class RestInvalidateTokenAction extends BaseRestHandler {
+public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
 
     static final ConstructingObjectParser<String, Void> PARSER =
             new ConstructingObjectParser<>("invalidate_token", a -> ((String) a[0]));
@@ -40,24 +38,13 @@ public final class RestInvalidateTokenAction extends BaseRestHandler {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("token"));
     }
 
-    private final XPackLicenseState licenseState;
-
-    public RestInvalidateTokenAction(Settings settings, XPackLicenseState xPackLicenseState,
-                                     RestController controller) {
-        super(settings);
-        this.licenseState = xPackLicenseState;
+    public RestInvalidateTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
+        super(settings, xPackLicenseState);
         controller.registerHandler(DELETE, "/_xpack/security/oauth2/token", this);
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request,
-                                                 NodeClient client)throws IOException {
-        // this API shouldn't be available if security is disabled by license
-        if (licenseState.isAuthAllowed() == false) {
-            return channel ->
-                    channel.sendResponse(new BytesRestResponse(channel, LicenseUtils.newComplianceException(XPackPlugin.SECURITY)));
-        }
-
+    protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final String token = PARSER.parse(parser, null);
             final InvalidateTokenRequest tokenRequest = new InvalidateTokenRequest(token);

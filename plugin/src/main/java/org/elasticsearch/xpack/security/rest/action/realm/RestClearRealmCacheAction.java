@@ -7,20 +7,22 @@ package org.elasticsearch.xpack.security.rest.action.realm;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestClearRealmCacheAction extends BaseRestHandler {
-    public RestClearRealmCacheAction(Settings settings, RestController controller) {
-        super(settings);
+public final class RestClearRealmCacheAction extends SecurityBaseRestHandler {
+
+    public RestClearRealmCacheAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+        super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/realm/{realms}/_clear_cache", this);
 
         // @deprecated: Remove in 6.0
@@ -35,8 +37,7 @@ public class RestClearRealmCacheAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-
+    public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] realms = request.paramAsStringArrayOrEmptyIfAll("realms");
         String[] usernames = request.paramAsStringArrayOrEmptyIfAll("usernames");
 

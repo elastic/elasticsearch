@@ -9,7 +9,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.RestRequestFilter;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,10 +32,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add a User to the security index
  */
-public class RestPutUserAction extends BaseRestHandler implements RestRequestFilter {
+public class RestPutUserAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
-    public RestPutUserAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutUserAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+        super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/user/{username}", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}", this);
 
@@ -50,7 +51,7 @@ public class RestPutUserAction extends BaseRestHandler implements RestRequestFil
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutUserRequestBuilder requestBuilder = new SecurityClient(client)
                 .preparePutUser(request.param("username"), request.content(), request.getXContentType())
                 .setRefreshPolicy(request.param("refresh"));

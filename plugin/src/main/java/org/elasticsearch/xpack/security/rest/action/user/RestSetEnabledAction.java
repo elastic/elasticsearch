@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.user;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -17,6 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.security.action.user.SetEnabledResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 
@@ -27,9 +29,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * REST handler for enabling and disabling users. The username is required and we use the path to determine if the user is being
  * enabled or disabled.
  */
-public class RestSetEnabledAction extends BaseRestHandler {
-    public RestSetEnabledAction(Settings settings, RestController controller) {
-        super(settings);
+public class RestSetEnabledAction extends SecurityBaseRestHandler {
+
+    public RestSetEnabledAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+        super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/user/{username}/_enable", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}/_enable", this);
         controller.registerHandler(POST, "/_xpack/security/user/{username}/_disable", this);
@@ -37,7 +40,7 @@ public class RestSetEnabledAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final boolean enabled = request.path().endsWith("_enable");
         assert enabled || request.path().endsWith("_disable");
         final String username = request.param("username");

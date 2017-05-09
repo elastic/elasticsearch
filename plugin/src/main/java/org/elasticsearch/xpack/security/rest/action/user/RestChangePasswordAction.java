@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.user;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.RestRequestFilter;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
@@ -28,12 +29,13 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestChangePasswordAction extends BaseRestHandler implements RestRequestFilter {
+public class RestChangePasswordAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
     private final SecurityContext securityContext;
 
-    public RestChangePasswordAction(Settings settings, RestController controller, SecurityContext securityContext) {
-        super(settings);
+    public RestChangePasswordAction(Settings settings, RestController controller, SecurityContext securityContext,
+                                    XPackLicenseState licenseState) {
+        super(settings, licenseState);
         this.securityContext = securityContext;
         controller.registerHandler(POST, "/_xpack/security/user/{username}/_password", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}/_password", this);
@@ -42,7 +44,7 @@ public class RestChangePasswordAction extends BaseRestHandler implements RestReq
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final User user = securityContext.getUser();
         final String username;
         if (request.param("username") == null) {
@@ -58,10 +60,8 @@ public class RestChangePasswordAction extends BaseRestHandler implements RestReq
                         .setRefreshPolicy(refresh)
                         .execute(new RestBuilderListener<ChangePasswordResponse>(channel) {
                             @Override
-                            public RestResponse buildResponse(
-                                    ChangePasswordResponse changePasswordResponse,
-                                    XContentBuilder builder)
-                                    throws Exception {
+                            public RestResponse buildResponse(ChangePasswordResponse changePasswordResponse,
+                                                              XContentBuilder builder) throws Exception {
                                 return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
                             }
                         });

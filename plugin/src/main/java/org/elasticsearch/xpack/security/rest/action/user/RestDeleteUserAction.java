@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.user;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -17,6 +17,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.security.action.user.DeleteUserResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 
@@ -25,9 +26,10 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest action to delete a user from the security index
  */
-public class RestDeleteUserAction extends BaseRestHandler {
-    public RestDeleteUserAction(Settings settings, RestController controller) {
-        super(settings);
+public class RestDeleteUserAction extends SecurityBaseRestHandler {
+
+    public RestDeleteUserAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+        super(settings, licenseState);
         controller.registerHandler(DELETE, "/_xpack/security/user/{username}", this);
 
         // @deprecated: Remove in 6.0
@@ -38,7 +40,7 @@ public class RestDeleteUserAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String username = request.param("username");
         final String refresh = request.param("refresh");
         return channel -> new SecurityClient(client).prepareDeleteUser(username)

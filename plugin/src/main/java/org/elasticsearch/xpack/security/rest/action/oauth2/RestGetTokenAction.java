@@ -16,18 +16,16 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.security.action.token.CreateTokenResponse;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,7 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * specification as this aspect does not make the most sense since the response body is
  * expected to be JSON
  */
-public final class RestGetTokenAction extends BaseRestHandler {
+public final class RestGetTokenAction extends SecurityBaseRestHandler {
 
     static final ConstructingObjectParser<CreateTokenRequest, Void> PARSER = new ConstructingObjectParser<>("token_request",
             a -> new CreateTokenRequest((String) a[0], (String) a[1], (SecureString) a[2], (String) a[3]));
@@ -55,22 +53,13 @@ public final class RestGetTokenAction extends BaseRestHandler {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("scope"));
     }
 
-    private final XPackLicenseState licenseState;
-
-    public RestGetTokenAction(Settings settings, XPackLicenseState xPackLicenseState, RestController controller) {
-        super(settings);
-        this.licenseState = xPackLicenseState;
+    public RestGetTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
+        super(settings, xPackLicenseState);
         controller.registerHandler(POST, "/_xpack/security/oauth2/token", this);
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)throws IOException {
-        // this API shouldn't be available if security is disabled by license
-        if (licenseState.isAuthAllowed() == false) {
-            return channel ->
-                    channel.sendResponse(new BytesRestResponse(channel, LicenseUtils.newComplianceException(XPackPlugin.SECURITY)));
-        }
-
+    protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client)throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final CreateTokenRequest tokenRequest = PARSER.parse(parser, null);
             return channel -> client.execute(CreateTokenAction.INSTANCE, tokenRequest,

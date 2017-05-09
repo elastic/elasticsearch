@@ -10,7 +10,7 @@ import java.io.IOException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,22 +19,22 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.security.action.rolemapping.DeleteRoleMappingResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  * Rest endpoint to delete a role-mapping from the {@link org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore}
  */
-public class RestDeleteRoleMappingAction extends BaseRestHandler {
+public class RestDeleteRoleMappingAction extends SecurityBaseRestHandler {
 
-    public RestDeleteRoleMappingAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteRoleMappingAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+        super(settings, licenseState);
         controller.registerHandler(DELETE, "/_xpack/security/role_mapping/{name}", this);
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
-            throws IOException {
+    public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
         final String refresh = request.param("refresh");
 

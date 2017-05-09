@@ -1,14 +1,14 @@
 [[ml-time-functions]]
 === Time Functions
 
-The {xpackml} features include the following time functions:
-
-* `time_of_day`
-* `time_of_week`
-
 The time functions detect events that happen at unusual times, either of the day
 or of the week. These functions can be used to find unusual patterns of behavior,
 typically associated with suspicious user activity.
+
+The {xpackml} features include the following time functions:
+
+* <<ml-time-of-day,`time_of_day`>>
+* <<ml-time-of-week,`time_of_week`>>
 
 
 [NOTE]
@@ -30,13 +30,70 @@ baseline) has changed. This situation is treated as a step change in behavior an
 times will be learned quickly.
 ====
 
+[float]
+[[ml-time-of-day]]
+==== Time_of_day
 
-/////
+The `time_of_day` function detects when events occur that are outside normal
+usage patterns. For example, it detects unusual activity in the middle of the
+night.
+
+The function expects daily behavior to be similar. If you expect the behavior of
+your data to differ on Saturdays compared to Wednesdays, the `time_of_week`
+function is more appropriate.
+
+This function supports the following properties:
+
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job, it
+models when events occur throughout a day for each process. It detects when an
+event occurs for a process that is at an unusual time in the day compared to
+its past behavior.
 
 [source,js]
 --------------------------------------------------
-{ "function" : "time_of_day", "byFieldName" : "process" }
+{
+  "function" : "time_of_day",
+  "by_field_name" : "process"
+}
 --------------------------------------------------
 
 
-/////
+[float]
+[[ml-time-of-week]]
+==== Time_of_week
+
+The `time_of_week` function detects when events occur that are outside normal
+usage patterns. For example, it detects login events on the weekend.
+
+This function supports the following properties:
+
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job, it
+models when events occur throughout the week for each `eventcode`. It detects
+when a workstation event occurs at an unusual time during the week for that
+`eventcode` compared to other workstations. It detects events for a
+particular workstation that are outside the normal usage pattern.
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "time_of_week",
+  "by_field_name" : "eventcode",
+  "over_field_name" : "workstation"
+}
+--------------------------------------------------

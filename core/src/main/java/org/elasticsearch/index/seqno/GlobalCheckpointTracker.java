@@ -260,40 +260,39 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         }
 
         updateLocalCheckpoint(allocationId, localCheckpoint, trackingLocalCheckpoints, "tracking");
-        waitForAllocationIdToBeInSync(allocationId);
-    }
-
-    private synchronized void waitForAllocationIdToBeInSync(final String allocationId) throws InterruptedException {
         if (!pendingInSync.add(allocationId)) {
             throw new IllegalStateException("there is already a pending sync in progress for allocation ID [" + allocationId + "]");
         }
         try {
-            while (true) {
-                /*
-                 * If the allocation has been cancelled and so removed from the tracking map from a cluster state update from the master it
-                 * means that this recovery will be cancelled; we are here on a cancellable recovery thread and so this thread will throw
-                 * an interrupted exception as soon as it tries to wait on the monitor.
-                 */
-                final long current = trackingLocalCheckpoints.getOrDefault(allocationId, Long.MIN_VALUE);
-                if (current >= globalCheckpoint) {
-                    logger.trace("marked [{}] as in-sync with local checkpoint [{}]", allocationId, current);
-                    trackingLocalCheckpoints.remove(allocationId);
-                    /*
-                     * This is prematurely adding the allocation ID to the in-sync map as at this point recovery is not yet finished and
-                     * could still abort. At this point we will end up with a shard in the in-sync map holding back the global checkpoint
-                     * because the shard never recovered and we would have to wait until either the recovery retries and completes
-                     * successfully, or the master fails the shard and issues a cluster state update that removes the shard from the set of
-                     * active allocation IDs.
-                     */
-                    inSyncLocalCheckpoints.put(allocationId, current);
-                    break;
-                } else {
-                    waitForLocalCheckpointToAdvance();
-                }
-            }
+            waitForAllocationIdToBeInSync(allocationId);
         } finally {
             pendingInSync.remove(allocationId);
             updateGlobalCheckpointOnPrimary();
+        }
+    }
+
+    private synchronized void waitForAllocationIdToBeInSync(final String allocationId) throws InterruptedException {
+        while (true) {
+            /*
+             * If the allocation has been cancelled and so removed from the tracking map from a cluster state update from the master it
+             * means that this recovery will be cancelled; we are here on a cancellable recovery thread and so this thread will throw an
+             * interrupted exception as soon as it tries to wait on the monitor.
+             */
+            final long current = trackingLocalCheckpoints.getOrDefault(allocationId, Long.MIN_VALUE);
+            if (current >= globalCheckpoint) {
+                logger.trace("marked [{}] as in-sync with local checkpoint [{}]", allocationId, current);
+                trackingLocalCheckpoints.remove(allocationId);
+                /*
+                 * This is prematurely adding the allocation ID to the in-sync map as at this point recovery is not yet finished and could
+                 * still abort. At this point we will end up with a shard in the in-sync map holding back the global checkpoint because the
+                 * shard never recovered and we would have to wait until either the recovery retries and completes successfully, or the
+                 * master fails the shard and issues a cluster state update that removes the shard from the set of active allocation IDs.
+                 */
+                inSyncLocalCheckpoints.put(allocationId, current);
+                break;
+            } else {
+                waitForLocalCheckpointToAdvance();
+            }
         }
     }
 

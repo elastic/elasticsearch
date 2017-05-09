@@ -100,7 +100,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         boolean hasValue = !Double.isInfinite(value);
         builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? value : null);
         if (hasValue && format != DocValueFormat.RAW) {
-            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value));
+            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value).toString());
         }
         builder.startArray("keys");
         for (String key : keys) {

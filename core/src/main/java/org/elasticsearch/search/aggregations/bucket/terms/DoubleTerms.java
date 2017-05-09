@@ -62,7 +62,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
 
         @Override
         public String getKeyAsString() {
-            return format.format(term);
+            return format.format(term).toString();
         }
 
         @Override
@@ -89,7 +89,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term));
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term).toString());
             }
             return builder;
         }

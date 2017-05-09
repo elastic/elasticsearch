@@ -85,7 +85,7 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
             boolean hasValue = !(Double.isInfinite(normalizedValue()) || Double.isNaN(normalizedValue()));
             builder.field("normalized_value", hasValue ? normalizedValue() : null);
             if (hasValue && format != DocValueFormat.RAW) {
-                builder.field("normalized_value_as_string", format.format(normalizedValue()));
+                builder.field("normalized_value_as_string", format.format(normalizedValue()).toString());
             }
         }
         return builder;

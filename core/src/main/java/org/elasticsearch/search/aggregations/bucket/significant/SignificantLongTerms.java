@@ -83,7 +83,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
 
         @Override
         public String getKeyAsString() {
-            return format.format(term);
+            return format.format(term).toString();
         }
 
         @Override
@@ -101,7 +101,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
             builder.startObject();
             builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term));
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term).toString());
             }
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
             builder.field("score", score);

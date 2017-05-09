@@ -182,10 +182,10 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         builder.field(Fields.AVG, count != 0 ? getAvg() : null);
         builder.field(Fields.SUM, count != 0 ? sum : null);
         if (count != 0 && format != DocValueFormat.RAW) {
-            builder.field(Fields.MIN_AS_STRING, format.format(min));
-            builder.field(Fields.MAX_AS_STRING, format.format(max));
-            builder.field(Fields.AVG_AS_STRING, format.format(getAvg()));
-            builder.field(Fields.SUM_AS_STRING, format.format(sum));
+            builder.field(Fields.MIN_AS_STRING, format.format(min).toString());
+            builder.field(Fields.MAX_AS_STRING, format.format(max).toString());
+            builder.field(Fields.AVG_AS_STRING, format.format(getAvg()).toString());
+            builder.field(Fields.SUM_AS_STRING, format.format(sum).toString());
         }
         otherStatsToXCotent(builder, params);
         return builder;

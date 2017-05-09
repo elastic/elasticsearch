@@ -23,7 +23,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 
@@ -46,7 +45,9 @@ public class ParsedStringTerms extends ParsedTerms {
         return aggregation;
     }
 
-    public static class ParsedBucket extends ParsedTerms.ParsedBucket<BytesRef> {
+    public static class ParsedBucket extends ParsedTerms.ParsedBucket {
+
+        private BytesRef key;
 
         @Override
         public Object getKey() {
@@ -59,11 +60,17 @@ public class ParsedStringTerms extends ParsedTerms {
             if (keyAsString != null) {
                 return keyAsString;
             }
-            return DocValueFormat.RAW.format((BytesRef) super.getKey());
+            if (key != null) {
+                return key.utf8ToString();
+            }
+            return null;
         }
 
         public Number getKeyAsNumber() {
-            return Double.parseDouble(((BytesRef) super.getKey()).utf8ToString());
+            if (key != null) {
+                return Double.parseDouble(key.utf8ToString());
+            }
+            return null;
         }
 
         @Override
@@ -72,7 +79,7 @@ public class ParsedStringTerms extends ParsedTerms {
         }
 
         static ParsedBucket fromXContent(XContentParser parser) throws IOException {
-            return parseTermsBucketXContent(parser, ParsedBucket::new, XContentParser::utf8BytesOrNull);
+            return parseTermsBucketXContent(parser, ParsedBucket::new, (p, bucket) -> bucket.key = p.utf8BytesOrNull());
         }
     }
 }

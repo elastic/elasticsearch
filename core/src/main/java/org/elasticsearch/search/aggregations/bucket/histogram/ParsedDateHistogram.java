@@ -20,8 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -56,11 +56,16 @@ public class ParsedDateHistogram extends ParsedMultiBucketAggregation implements
         return aggregation;
     }
 
-    public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket<Long> implements Histogram.Bucket {
+    public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
+
+        private Long key;
 
         @Override
         public Object getKey() {
-            return new DateTime(super.getKey(), DateTimeZone.UTC);
+            if (key != null) {
+                return new DateTime(key, DateTimeZone.UTC);
+            }
+            return null;
         }
 
         @Override
@@ -68,13 +73,20 @@ public class ParsedDateHistogram extends ParsedMultiBucketAggregation implements
             String keyAsString = super.getKeyAsString();
             if (keyAsString != null) {
                 return keyAsString;
-            } else {
-                return DocValueFormat.RAW.format((Long) super.getKey());
             }
+            if (key != null){
+                return Long.toString(key);
+            }
+            return null;
+        }
+
+        @Override
+        protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+            return builder.field(CommonFields.KEY.getPreferredName(), key);
         }
 
         static ParsedBucket fromXContent(XContentParser parser, boolean keyed) throws IOException {
-            return parseXContent(parser, keyed, ParsedBucket::new, XContentParser::longValue);
+            return parseXContent(parser, keyed, ParsedBucket::new, (p, bucket) -> bucket.key = p.longValue());
         }
     }
 }

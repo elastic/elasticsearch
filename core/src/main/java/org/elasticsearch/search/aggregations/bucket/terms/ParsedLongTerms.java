@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 
@@ -45,7 +44,14 @@ public class ParsedLongTerms extends ParsedTerms {
         return aggregation;
     }
 
-    public static class ParsedBucket extends ParsedTerms.ParsedBucket<Long> {
+    public static class ParsedBucket extends ParsedTerms.ParsedBucket {
+
+        private Long key;
+
+        @Override
+        public Object getKey() {
+            return key;
+        }
 
         @Override
         public String getKeyAsString() {
@@ -53,16 +59,19 @@ public class ParsedLongTerms extends ParsedTerms {
             if (keyAsString != null) {
                 return keyAsString;
             }
-            return DocValueFormat.RAW.format((Long) getKey());
+            if (key != null) {
+                return Long.toString(key);
+            }
+            return null;
         }
 
         public Number getKeyAsNumber() {
-            return (Long) getKey();
+            return key;
         }
 
         @Override
         protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
-            builder.field(CommonFields.KEY.getPreferredName(), getKey());
+            builder.field(CommonFields.KEY.getPreferredName(), key);
             if (super.getKeyAsString() != null) {
                 builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), getKeyAsString());
             }
@@ -70,7 +79,7 @@ public class ParsedLongTerms extends ParsedTerms {
         }
 
         static ParsedBucket fromXContent(XContentParser parser) throws IOException {
-            return parseTermsBucketXContent(parser, ParsedBucket::new, XContentParser::longValue);
+            return parseTermsBucketXContent(parser, ParsedBucket::new, (p, bucket) -> bucket.key = p.longValue());
         }
     }
 }

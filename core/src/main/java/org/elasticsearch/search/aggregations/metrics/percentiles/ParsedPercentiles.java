@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
@@ -60,7 +59,7 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
         }
         Double value = getPercentile(percent);
         if (value != null) {
-            return DocValueFormat.RAW.format(value);
+            return Double.toString(value);
         }
         return null;
     }

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;
@@ -54,20 +53,29 @@ public class ParsedHistogram extends ParsedMultiBucketAggregation implements His
         return aggregation;
     }
 
-    static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket<Double> implements Histogram.Bucket {
+    static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
+
+        private Double key;
+
+        @Override
+        public Object getKey() {
+            return key;
+        }
 
         @Override
         public String getKeyAsString() {
             String keyAsString = super.getKeyAsString();
             if (keyAsString != null) {
                 return keyAsString;
-            } else {
-                return DocValueFormat.RAW.format((Double) getKey());
             }
+            if (key != null) {
+                return Double.toString(key);
+            }
+            return null;
         }
 
         static ParsedBucket fromXContent(XContentParser parser, boolean keyed) throws IOException {
-            return parseXContent(parser, keyed, ParsedBucket::new, XContentParser::doubleValue);
+            return parseXContent(parser, keyed, ParsedBucket::new, (p, bucket) -> bucket.key = p.doubleValue());
         }
     }
 }

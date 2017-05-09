@@ -27,25 +27,25 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.util.List;
 import java.util.Map;
 
-public class InternalSamplerTests extends InternalSingleBucketAggregationTestCase<InternalSampler> {
+public class UnmappedSamplerTests extends InternalSingleBucketAggregationTestCase<UnmappedSampler> {
     @Override
-    protected InternalSampler createTestInstance(String name, long docCount, InternalAggregations aggregations,
+    protected UnmappedSampler createTestInstance(String name, long docCount, InternalAggregations aggregations,
                                                  List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalSampler(name, docCount, aggregations, pipelineAggregators, metaData);
+        return new UnmappedSampler(name, pipelineAggregators, metaData);
     }
 
     @Override
-    protected void extraAssertReduced(InternalSampler reduced, List<InternalSampler> inputs) {
+    protected void extraAssertReduced(UnmappedSampler reduced, List<UnmappedSampler> inputs) {
         // Nothing extra to assert
     }
 
     @Override
-    protected Writeable.Reader<InternalSampler> instanceReader() {
-        return InternalSampler::new;
+    protected Writeable.Reader<UnmappedSampler> instanceReader() {
+        return UnmappedSampler::new;
     }
 
     @Override
     protected Class<? extends ParsedSingleBucketAggregation> implementationClass() {
-        return ParsedSampler.class;
+        return ParsedUnmappedSampler.class;
     }
 }

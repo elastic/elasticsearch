@@ -163,14 +163,29 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     }
 
     public static class InternalQueryContext {
+        public enum Operation {
+            AND, OR;
+
+            public static Operation fromString(String operation) {
+                if (operation.equalsIgnoreCase("and")) {
+                    return AND;
+                } else if (operation.equalsIgnoreCase("or")) {
+                    return OR;
+                } else {
+                    throw new IllegalArgumentException("No context operation for [" + operation + "]");
+                }
+            }
+        }
         public final String context;
         public final int boost;
         public final boolean isPrefix;
+        public final Operation operation;
 
-        public InternalQueryContext(String context, int boost, boolean isPrefix) {
+        public InternalQueryContext(String context, int boost, boolean isPrefix, Operation operation) {
             this.context = context;
             this.boost = boost;
             this.isPrefix = isPrefix;
+            this.operation = operation;
         }
 
         @Override
@@ -182,6 +197,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
 
             if (boost != that.boost) return false;
             if (isPrefix != that.isPrefix) return false;
+            if (operation != that.operation) return false;
             return context != null ? context.equals(that.context) : that.context == null;
 
         }
@@ -191,6 +207,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
             int result = context != null ? context.hashCode() : 0;
             result = 31 * result + boost;
             result = 31 * result + (isPrefix ? 1 : 0);
+            result = 31 * result + operation.ordinal();
             return result;
         }
 
@@ -200,6 +217,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
                     "context='" + context + '\'' +
                     ", boost=" + boost +
                     ", isPrefix=" + isPrefix +
+                    ", operation=" + operation.name() +
                     '}';
         }
     }

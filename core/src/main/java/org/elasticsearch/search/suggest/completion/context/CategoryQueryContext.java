@@ -27,11 +27,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping.InternalQueryContext.Operation;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.search.suggest.completion.context.CategoryContextMapping.CONTEXT_BOOST;
+import static org.elasticsearch.search.suggest.completion.context.CategoryContextMapping.CONTEXT_OPERATION;
 import static org.elasticsearch.search.suggest.completion.context.CategoryContextMapping.CONTEXT_PREFIX;
 import static org.elasticsearch.search.suggest.completion.context.CategoryContextMapping.CONTEXT_VALUE;
 
@@ -44,11 +46,13 @@ public final class CategoryQueryContext implements ToXContent {
     private final String category;
     private final boolean isPrefix;
     private final int boost;
+    private final Operation operation;
 
-    private CategoryQueryContext(String category, int boost, boolean isPrefix) {
+    private CategoryQueryContext(String category, int boost, boolean isPrefix, Operation operation) {
         this.category = category;
         this.boost = boost;
         this.isPrefix = isPrefix;
+        this.operation = operation;
     }
 
     /**
@@ -72,6 +76,10 @@ public final class CategoryQueryContext implements ToXContent {
         return boost;
     }
 
+    public Operation getOperation() {
+        return operation;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -85,6 +93,7 @@ public final class CategoryQueryContext implements ToXContent {
 
         if (isPrefix != that.isPrefix) return false;
         if (boost != that.boost) return false;
+        if (operation != that.operation) return false;
         return category != null ? category.equals(that.category) : that.category == null;
 
     }
@@ -94,6 +103,7 @@ public final class CategoryQueryContext implements ToXContent {
         int result = category != null ? category.hashCode() : 0;
         result = 31 * result + (isPrefix ? 1 : 0);
         result = 31 * result + boost;
+        result = 31 * result + operation.ordinal();
         return result;
     }
 
@@ -103,6 +113,7 @@ public final class CategoryQueryContext implements ToXContent {
                 ObjectParser.ValueType.VALUE);
         CATEGORY_PARSER.declareInt(Builder::setBoost, new ParseField(CONTEXT_BOOST));
         CATEGORY_PARSER.declareBoolean(Builder::setPrefix, new ParseField(CONTEXT_PREFIX));
+        CATEGORY_PARSER.declareString(Builder::setOperation, new ParseField(CONTEXT_OPERATION));
     }
 
     public static CategoryQueryContext fromXContent(QueryParseContext context) throws IOException {
@@ -130,6 +141,7 @@ public final class CategoryQueryContext implements ToXContent {
         builder.field(CONTEXT_VALUE, category);
         builder.field(CONTEXT_BOOST, boost);
         builder.field(CONTEXT_PREFIX, isPrefix);
+        builder.field(CONTEXT_OPERATION, operation.name());
         builder.endObject();
         return builder;
     }
@@ -138,6 +150,7 @@ public final class CategoryQueryContext implements ToXContent {
         private String category;
         private boolean isPrefix = false;
         private int boost = 1;
+        private Operation operation = Operation.OR;
 
         public Builder() {
         }
@@ -173,9 +186,18 @@ public final class CategoryQueryContext implements ToXContent {
             return this;
         }
 
+        public Builder setOperation(Operation operation) {
+            this.operation = operation;
+            return this;
+        }
+
+        public Builder setOperation(String operation) {
+            return setOperation(Operation.fromString(operation));
+        }
+
         public CategoryQueryContext build() {
             Objects.requireNonNull(category, "category must not be null");
-            return new CategoryQueryContext(category, boost, isPrefix);
+            return new CategoryQueryContext(category, boost, isPrefix, operation);
         }
     }
 }

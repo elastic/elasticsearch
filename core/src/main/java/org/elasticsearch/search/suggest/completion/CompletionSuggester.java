@@ -41,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
@@ -58,23 +59,24 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(
                 new Text(spare.toString()), 0, spare.length());
             completionSuggestion.addTerm(completionSuggestEntry);
-            TopSuggestDocsCollector collector = new TopDocumentsCollector(suggestionContext.getSize());
+            TopSuggestDocsCollector collector = new TopDocumentsCollector(
+                    suggestionContext.getSize(), // topN suggestions to collect from index
+                    suggestionContext.getMaxSize(), // maximum suggestions to collect from each segment
+                    suggestionContext.suggestContextsPredicate()
+            );
             suggest(searcher, suggestionContext.toQuery(), collector);
-            int numResult = 0;
-            for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc : collector.get().scoreLookupDocs()) {
+            for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc: collector.get().scoreLookupDocs()) {
                 TopDocumentsCollector.SuggestDoc suggestDoc = (TopDocumentsCollector.SuggestDoc) suggestScoreDoc;
                 // collect contexts
-                Map<String, Set<CharSequence>> contexts = Collections.emptyMap();
+                final Map<String, Set<CharSequence>> contexts;
                 if (fieldType.hasContextMappings() && suggestDoc.getContexts().isEmpty() == false) {
                     contexts = fieldType.getContextMappings().getNamedContexts(suggestDoc.getContexts());
-                }
-                if (numResult++ < suggestionContext.getSize()) {
-                    CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(suggestDoc.doc,
-                        new Text(suggestDoc.key.toString()), suggestDoc.score, contexts);
-                    completionSuggestEntry.addOption(option);
                 } else {
-                    break;
+                    contexts = Collections.emptyMap();
                 }
+                CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(suggestDoc.doc,
+                    new Text(suggestDoc.key.toString()), suggestDoc.score, contexts);
+                completionSuggestEntry.addOption(option);
             }
             return completionSuggestion;
         }
@@ -180,24 +182,38 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             }
         }
 
+        private static final class SuggestDocAndStatus {
+            private final SuggestDoc doc;
+            private final boolean accepted;
+
+            private SuggestDocAndStatus(SuggestDoc doc, boolean accepted) {
+                this.doc = doc;
+                this.accepted = accepted;
+            }
+        }
+
         private final int num;
+        private final int maxSize;
         private final SuggestDocPriorityQueue pq;
-        private final Map<Integer, SuggestDoc> scoreDocMap;
+        private final Map<Integer, SuggestDocAndStatus> scoreDocMap;
+        private final Predicate<List<CharSequence>> suggestContextsPredicate;
 
         // TODO: expose dup removal
 
-        TopDocumentsCollector(int num) {
+        TopDocumentsCollector(int size, int maxSize, Predicate<List<CharSequence>> suggestContextsPredicate) {
             super(1, false); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
-            this.num = num;
-            this.scoreDocMap = new LinkedHashMap<>(num);
-            this.pq = new SuggestDocPriorityQueue(num);
+            this.num = size;
+            this.maxSize = maxSize;
+            this.scoreDocMap = new LinkedHashMap<>(size);
+            this.pq = new SuggestDocPriorityQueue(size);
+            this.suggestContextsPredicate = suggestContextsPredicate;
         }
 
         @Override
         public int getCountToCollect() {
             // This is only needed because we initialize
             // the base class with 1 instead of the actual num
-            return num;
+            return maxSize;
         }
 
 
@@ -208,9 +224,11 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         }
 
         private void updateResults() {
-            for (SuggestDoc suggestDoc : scoreDocMap.values()) {
-                if (pq.insertWithOverflow(suggestDoc) == suggestDoc) {
-                    break;
+            for (SuggestDocAndStatus docAndStatus : scoreDocMap.values()) {
+                if (docAndStatus.accepted) {
+                    if (pq.insertWithOverflow(docAndStatus.doc) == docAndStatus.doc) {
+                        break;
+                    }
                 }
             }
             scoreDocMap.clear();
@@ -219,10 +237,17 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         @Override
         public void collect(int docID, CharSequence key, CharSequence context, float score) throws IOException {
             if (scoreDocMap.containsKey(docID)) {
-                SuggestDoc suggestDoc = scoreDocMap.get(docID);
-                suggestDoc.add(key, context, score);
-            } else if (scoreDocMap.size() <= num) {
-                scoreDocMap.put(docID, new SuggestDoc(docBase + docID, key, context, score));
+                SuggestDocAndStatus existingDocAndStatus = scoreDocMap.get(docID);
+                final SuggestDoc existingDoc = existingDocAndStatus.doc;
+                existingDoc.add(key, context, score);
+                if (existingDocAndStatus.accepted == false) {
+                    scoreDocMap.put(docID,
+                            new SuggestDocAndStatus(existingDoc, suggestContextsPredicate.test(existingDoc.getContexts())));
+                }
+            } else if (scoreDocMap.values().stream().filter(suggestDocAndStatus -> suggestDocAndStatus.accepted).count() <= num) {
+                final SuggestDoc suggestDoc = new SuggestDoc(docBase + docID, key, context, score);
+                scoreDocMap.put(docID,
+                        new SuggestDocAndStatus(suggestDoc, suggestContextsPredicate.test(suggestDoc.getContexts())));
             } else {
                 throw new CollectionTerminatedException();
             }

@@ -122,7 +122,7 @@ public class SearchTransportService extends AbstractComponent {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
-        if (connection.getVersion().before(Version.V_5_3_0_UNRELEASED) && fetchDocuments) {
+        if (connection.getVersion().onOrBefore(Version.V_5_3_0_UNRELEASED) && fetchDocuments) {
             // this is a BWC layer for pre 5.3 indices
             if (connection.getVersion().before(Version.V_5_3_0_UNRELEASED) && request.scroll() != null) {
                 /**

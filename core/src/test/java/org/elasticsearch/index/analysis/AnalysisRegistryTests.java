@@ -34,7 +34,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
-import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -207,12 +206,11 @@ public class AnalysisRegistryTests extends ESTestCase {
 
     public void testPreConfiguredTokenFiltersAreCached() throws IOException {
         AtomicBoolean built = new AtomicBoolean(false);
-        PreConfiguredTokenFilter assertsBuiltOnce = new PreConfiguredTokenFilter("asserts_built_once", false,
-                PreBuiltCacheFactory.CachingStrategy.ONE, (tokens, version) -> {
+        PreConfiguredTokenFilter assertsBuiltOnce = PreConfiguredTokenFilter.singleton("asserts_built_once", false, tokenStream -> {
                     if (false == built.compareAndSet(false, true)) {
                         fail("Attempted to build the token filter twice when it should have been cached");
                     }
-                    return new MockTokenFilter(tokens, MockTokenFilter.EMPTY_STOPSET);
+                    return new MockTokenFilter(tokenStream, MockTokenFilter.EMPTY_STOPSET);
                 });
         try (AnalysisRegistry registryWithPreBuiltTokenFilter = new AnalysisRegistry(emptyEnvironment, emptyMap(), emptyMap(), emptyMap(),
                 emptyMap(), emptyMap(), singletonMap("asserts_built_once", assertsBuiltOnce))) {

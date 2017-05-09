@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -55,7 +54,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {
         @Override
         public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
-            return singletonList(new PreConfiguredTokenFilter("mock_other_lowercase", true, CachingStrategy.ONE, MockLowerCaseFilter::new));
+            return singletonList(PreConfiguredTokenFilter.singleton("mock_other_lowercase", true, MockLowerCaseFilter::new));
         }
     };
 

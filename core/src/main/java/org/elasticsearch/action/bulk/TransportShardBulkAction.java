@@ -164,7 +164,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     break;
                 case DELETE:
                     final DeleteRequest deleteRequest = (DeleteRequest) itemRequest;
-                    Engine.DeleteResult deleteResult = executeDeleteRequestOnPrimary(deleteRequest, primary);
+                    Engine.DeleteResult deleteResult = executeDeleteRequestOnPrimary(deleteRequest, primary, mappingUpdatedAction);
                     if (deleteResult.hasFailure()) {
                         response = null;
                     } else {
@@ -291,7 +291,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     break;
                 case DELETED:
                     DeleteRequest deleteRequest = translate.action();
-                    updateOperationResult = executeDeleteRequestOnPrimary(deleteRequest, primary);
+                    updateOperationResult = executeDeleteRequestOnPrimary(deleteRequest, primary, mappingUpdatedAction);
                     if (updateOperationResult.hasFailure() == false) {
                         // update the request with the version so it will go to the replicas
                         deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
@@ -484,12 +484,54 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return primary.index(operation);
     }
 
-    public static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary) throws IOException {
+    public static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary,
+            MappingUpdatedAction mappingUpdatedAction) throws Exception {
+        boolean mappingUpdateNeeded = false;
+        final ShardId shardId = primary.shardId();
+        if (primary.indexSettings().isSingleType()) {
+            // When there is a single type, the unique identifier is only composed of the _id,
+            // so there is no way to differenciate foo#1 from bar#1. This is especially an issue
+            // if a user first deletes foo#1 and then indexes bar#1: since we do not encode the
+            // _type in the uid it might look like we are reindexing the same document, which
+            // would fail if bar#1 is indexed with a lower version than foo#1 was deleted with.
+            // In order to work around this issue, we make deletions create types. This way, we
+            // fail if index and delete operations do not use the same type.
+            try {
+                Mapping update = primary.mapperService().documentMapperWithAutoCreate(request.type()).getMapping();
+                if (update != null) {
+                    mappingUpdateNeeded = true;
+                    mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), request.type(), update);
+                }
+            } catch (MapperParsingException | IllegalArgumentException e) {
+                return new Engine.DeleteResult(e, request.version(), false);
+            }
+        }
+        if (mappingUpdateNeeded) {
+            Mapping update = primary.mapperService().documentMapperWithAutoCreate(request.type()).getMapping();
+            if (update != null) {
+                throw new ReplicationOperation.RetryOnPrimaryException(shardId,
+                        "Dynamic mappings are not available on the node that holds the primary yet");
+            }
+        }
         final Engine.Delete delete = primary.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
         return primary.delete(delete);
     }
 
     public static Engine.DeleteResult executeDeleteRequestOnReplica(DeleteRequest request, IndexShard replica) throws IOException {
+        if (replica.indexSettings().isSingleType()) {
+            // We need to wait for the replica to have the mappings
+            Mapping update;
+            try {
+                update = replica.mapperService().documentMapperWithAutoCreate(request.type()).getMapping();
+            } catch (MapperParsingException | IllegalArgumentException e) {
+                return new Engine.DeleteResult(e, request.version(), false);
+            }
+            if (update != null) {
+                final ShardId shardId = replica.shardId();
+                throw new RetryOnReplicaException(shardId,
+                        "Mappings are not available on the replica yet, triggered update: " + update);
+            }
+        }
         final Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(),
                 request.version(), request.versionType());
         return replica.delete(delete);

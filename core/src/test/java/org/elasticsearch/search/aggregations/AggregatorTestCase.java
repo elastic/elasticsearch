@@ -140,6 +140,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
         MapperService mapperService = mapperServiceMock();
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
         when(searchContext.mapperService()).thenReturn(mapperService);
         IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
@@ -150,7 +151,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         SearchLookup searchLookup = new SearchLookup(mapperService, ifds, new String[]{"type"});
         when(searchContext.lookup()).thenReturn(searchLookup);
 
-        QueryShardContext queryShardContext = queryShardContextMock(fieldTypes, indexSettings, circuitBreakerService);
+        QueryShardContext queryShardContext = queryShardContextMock(mapperService, fieldTypes, circuitBreakerService);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
         return aggregationBuilder.build(searchContext, null);
     }
@@ -174,12 +175,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * sub-tests that need a more complex mock can overwrite this
      */
-    protected QueryShardContext queryShardContextMock(MappedFieldType[] fieldTypes, IndexSettings indexSettings,
+    protected QueryShardContext queryShardContextMock(MapperService mapperService, MappedFieldType[] fieldTypes,
             CircuitBreakerService circuitBreakerService) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.getMapperService()).thenReturn(mapperService);
         for (MappedFieldType fieldType : fieldTypes) {
             when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
-            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder().build(indexSettings, fieldType,
+            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder().build(
+                    mapperService.getIndexSettings(), fieldType,
                     new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class)));
         }
         NestedScope nestedScope = new NestedScope();

@@ -30,7 +30,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.uid.VersionsResolver.DocIdAndVersion;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 
 import java.io.IOException;
@@ -48,6 +47,7 @@ final class PerThreadIDAndVersionLookup {
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
 
     /** terms enum for uid field */
+    final String uidField;
     private final TermsEnum termsEnum;
     /** _version data */
     private final NumericDocValues versions;
@@ -61,14 +61,15 @@ final class PerThreadIDAndVersionLookup {
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDAndVersionLookup(LeafReader reader) throws IOException {
+    PerThreadIDAndVersionLookup(LeafReader reader, String uidField) throws IOException {
+        this.uidField = uidField;
         Fields fields = reader.fields();
-        Terms terms = fields.terms(UidFieldMapper.NAME);
-        termsEnum = terms.iterator();
-        if (termsEnum == null) {
-            throw new IllegalArgumentException("reader misses the [" + UidFieldMapper.NAME +
+        Terms terms = fields.terms(uidField);
+        if (terms == null) {
+            throw new IllegalArgumentException("reader misses the [" + uidField +
                 "] field");
         }
+        termsEnum = terms.iterator();
         versions = reader.getNumericDocValues(VersionFieldMapper.NAME);
         if (versions == null) {
             throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME +

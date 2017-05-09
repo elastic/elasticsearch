@@ -24,7 +24,6 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -1104,7 +1103,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
         // exclude the items from the search
         if (!include) {
-            handleExclude(boolQuery, likeItems);
+            handleExclude(boolQuery, likeItems, context);
         }
         return boolQuery.build();
     }
@@ -1157,7 +1156,12 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return likeFields.toArray(Fields.EMPTY_ARRAY);
     }
 
-    private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems) {
+    private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, QueryShardContext context) {
+        MappedFieldType uidField = context.fieldMapper(UidFieldMapper.NAME);
+        if (uidField == null) {
+            // no mappings, nothing to exclude
+            return;
+        }
         // artificial docs get assigned a random id and should be disregarded
         List<BytesRef> uids = new ArrayList<>();
         for (Item item : likeItems) {
@@ -1167,7 +1171,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             uids.add(createUidAsBytes(item.type(), item.id()));
         }
         if (!uids.isEmpty()) {
-            TermInSetQuery query = new TermInSetQuery(UidFieldMapper.NAME, uids.toArray(new BytesRef[uids.size()]));
+            Query query = uidField.termsQuery(uids, context);
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
         }
     }

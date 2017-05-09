@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
@@ -219,7 +220,7 @@ public class TranslogTests extends ESTestCase {
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
         assertThat(snapshot.totalOperations(), equalTo(ops.size()));
 
-        addToTranslogAndList(translog, ops, new Translog.Delete(newUid("2")));
+        addToTranslogAndList(translog, ops, new Translog.Delete("test", "2", newUid("2")));
         snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
         assertThat(snapshot.totalOperations(), equalTo(ops.size()));
@@ -279,14 +280,14 @@ public class TranslogTests extends ESTestCase {
         assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
         lastSize = stats.getTranslogSizeInBytes();
 
-        translog.add(new Translog.Delete(newUid("2")));
+        translog.add(new Translog.Delete("test", "2", newUid("2")));
         stats = stats();
         total.add(stats);
         assertThat(stats.estimatedNumberOfOperations(), equalTo(2L));
         assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
         lastSize = stats.getTranslogSizeInBytes();
 
-        translog.add(new Translog.Delete(newUid("3")));
+        translog.add(new Translog.Delete("test", "3", newUid("3")));
         translog.prepareCommit();
         stats = stats();
         total.add(stats);
@@ -558,7 +559,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     private Term newUid(ParsedDocument doc) {
-        return new Term("_uid", doc.uid());
+        return new Term("_uid", Uid.createUid(doc.type(), doc.id()));
     }
 
     private Term newUid(String uid) {
@@ -615,7 +616,7 @@ public class TranslogTests extends ESTestCase {
                                 op = new Translog.Index("type", "" + id, new byte[]{(byte) id});
                                 break;
                             case DELETE:
-                                op = new Translog.Delete(newUid("" + id));
+                                op = new Translog.Delete("type", "" + id, newUid("" + id));
                                 break;
                             default:
                                 throw new ElasticsearchException("unknown type");
@@ -1296,7 +1297,7 @@ public class TranslogTests extends ESTestCase {
                                 randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
                             break;
                         case DELETE:
-                            op = new Translog.Delete(new Term("_uid", threadId + "_" + opCount),
+                            op = new Translog.Delete("test", threadId + "_" + opCount, new Term("_uid", threadId + "_" + opCount),
                                 1 + randomInt(100000),
                                 randomFrom(VersionType.values()));
                             break;

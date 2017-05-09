@@ -70,10 +70,6 @@ public class ParsedDocument {
         return version;
     }
 
-    public BytesRef uid() {
-        return uid;
-    }
-
     public String id() {
         return this.id;
     }

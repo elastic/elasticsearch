@@ -32,12 +32,12 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.AllFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.node.Node;
 
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -171,7 +171,10 @@ public final class IndexSettings {
      * The maximum number of slices allowed in a scroll request.
      */
     private volatile int maxSlicesPerScroll;
-
+    /**
+     * Whether the index is required to have at most one type.
+     */
+    private final boolean singleType;
 
     /**
      * Returns the default search field for this index.
@@ -259,6 +262,7 @@ public final class IndexSettings {
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
+        singleType = scopedSettings.get(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
@@ -378,6 +382,11 @@ public final class IndexSettings {
      * @see IndexMetaData#isIndexUsingShadowReplicas(Settings)
      */
     public boolean isShadowReplicaIndex() { return isShadowReplicaIndex; }
+
+    /**
+     * Returns whether the index enforces at most one type.
+     */
+    public boolean isSingleType() { return singleType; }
 
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the

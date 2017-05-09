@@ -59,8 +59,9 @@ import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
@@ -76,6 +77,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -114,6 +116,8 @@ public class InternalEngine extends Engine {
 
     private final IndexThrottle throttle;
 
+    private final String uidField;
+
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
     // incoming indexing ops to a single thread:
@@ -134,6 +138,7 @@ public class InternalEngine extends Engine {
         } else {
             maxUnsafeAutoIdTimestamp.set(engineConfig.getMaxUnsafeAutoIdTimestamp());
         }
+        this.uidField = engineConfig.getIndexSettings().isSingleType() ? IdFieldMapper.NAME : UidFieldMapper.NAME;
         this.versionMap = new LiveVersionMap();
         store.incRef();
         IndexWriter writer = null;
@@ -342,6 +347,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
+        assert Objects.equals(get.uid().field(), uidField) : get.uid().field();
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (get.realtime()) {
@@ -351,8 +357,7 @@ public class InternalEngine extends Engine {
                         return GetResult.NOT_EXISTS;
                     }
                     if (get.versionType().isVersionConflictForReads(versionValue.getVersion(), get.version())) {
-                        Uid uid = Uid.createUid(get.uid().text());
-                        throw new VersionConflictEngineException(shardId, uid.type(), uid.id(),
+                        throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                             get.versionType().explainConflictForReads(versionValue.getVersion(), get.version()));
                     }
                     refresh("realtime_get");
@@ -447,6 +452,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public IndexResult index(Index index) throws IOException {
+        assert Objects.equals(index.uid().field(), uidField) : index.uid().field();
         final boolean doThrottle = index.origin().isRecovery() == false;
         try (ReleasableLock releasableLock = readLock.acquire()) {
             ensureOpen();
@@ -732,6 +738,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
+        assert Objects.equals(delete.uid().field(), uidField) : delete.uid().field();
         assert assertVersionType(delete);
         final DeleteResult deleteResult;
         // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:

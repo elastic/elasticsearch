@@ -324,7 +324,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(shard.shouldFlush());
         ParsedDocument doc = testParsedDocument("1", "test", null, -1, -1, new ParseContext.Document(),
             new BytesArray(new byte[]{1}), XContentType.JSON, null);
-        Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
+        Engine.Index index = new Engine.Index(new Term("_uid", Uid.createUid(doc.type(), doc.id())), doc);
         shard.index(index);
         assertTrue(shard.shouldFlush());
         assertEquals(2, shard.getEngine().getTranslog().totalOperations());

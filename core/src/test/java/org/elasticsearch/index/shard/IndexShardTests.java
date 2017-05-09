@@ -124,7 +124,6 @@ import java.util.stream.IntStream;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
-import static org.elasticsearch.common.lucene.Lucene.readScoreDoc;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -619,7 +618,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         ParsedDocument doc = testParsedDocument("1", "test", null, -1, -1, new ParseContext.Document(),
             new BytesArray(new byte[]{1}), null);
-        Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
+        Engine.Index index = new Engine.Index(new Term("_uid", Uid.createUid(doc.type(), doc.id())), doc);
         shard.index(index);
         assertEquals(1, preIndex.get());
         assertEquals(1, postIndexCreate.get());
@@ -638,7 +637,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, postDelete.get());
         assertEquals(0, postDeleteException.get());
 
-        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", doc.uid()));
+        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", Uid.createUid(doc.type(), doc.id())));
         shard.delete(delete);
 
         assertEquals(2, preIndex.get());
@@ -1035,7 +1034,8 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "test", "1", "{\"foobar\" : \"bar\"}");
         shard.refresh("test");
 
-        Engine.GetResult getResult = shard.get(new Engine.Get(false, new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
+        Engine.GetResult getResult = shard.get(new Engine.Get(
+                false, "test", "1", new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
         assertTrue(getResult.exists());
         assertNotNull(getResult.searcher());
         getResult.release();
@@ -1068,7 +1068,8 @@ public class IndexShardTests extends IndexShardTestCase {
             search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits, 1);
         }
-        getResult = newShard.get(new Engine.Get(false, new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
+        getResult = newShard.get(new Engine.Get(false, "test", "1",
+                new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
         assertTrue(getResult.exists());
         assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
         assertTrue(getResult.searcher().reader() instanceof FieldMaskingReader);
@@ -1376,7 +1377,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     testParsedDocument(id, "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{}), null);
                 final Engine.Index index =
                     new Engine.Index(
-                        new Term("_uid", doc.uid()),
+                        new Term("_uid", Uid.createUid(doc.type(), doc.id())),
                         doc,
                         Versions.MATCH_ANY,
                         VersionType.INTERNAL,
@@ -1404,7 +1405,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     testParsedDocument(id, "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{}), null);
                 final Engine.Index index =
                     new Engine.Index(
-                        new Term("_uid", doc.uid()),
+                        new Term("_uid", Uid.createUid(doc.type(), doc.id())),
                         doc,
                         Versions.MATCH_ANY,
                         VersionType.INTERNAL,

@@ -305,7 +305,7 @@ public class RefreshListenersTests extends ESTestCase {
                         }
                         listener.assertNoError();
 
-                        Engine.Get get = new Engine.Get(false, new Term("_uid",  Uid.createUid("test", threadId)));
+                        Engine.Get get = new Engine.Get(false, "test", threadId, new Term("_uid",  Uid.createUid("test", threadId)));
                         try (Engine.GetResult getResult = engine.get(get)) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
@@ -342,7 +342,7 @@ public class RefreshListenersTests extends ESTestCase {
         BytesReference source = new BytesArray(new byte[] { 1 });
         ParsedDocument doc = new ParsedDocument(versionField, id, type, null, -1, -1, Arrays.asList(document), source, XContentType.JSON,
             null);
-        Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
+        Engine.Index index = new Engine.Index(new Term("_uid", Uid.createUid(doc.type(), doc.id())), doc);
         return engine.index(index);
     }
 

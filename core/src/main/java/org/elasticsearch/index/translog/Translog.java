@@ -25,7 +25,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TwoPhaseCommit;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -39,7 +38,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -49,7 +47,6 @@ import org.elasticsearch.index.shard.IndexShardComponent;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -980,6 +977,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public static class Delete implements Operation {
         public static final int SERIALIZATION_FORMAT = 2; // since 2.0-beta1 and 1.1
 
+        private String type, id;
         private final Term uid;
         private final long version;
         private final VersionType versionType;
@@ -994,16 +992,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         public Delete(Engine.Delete delete, Engine.DeleteResult deleteResult) {
-            this.uid = delete.uid();
-            this.version = deleteResult.getVersion();
-            this.versionType = delete.versionType();
+            this(delete.type(), delete.id(), delete.uid(), deleteResult.getVersion(), delete.versionType());
         }
 
-        public Delete(Term uid) {
-            this(uid, Versions.MATCH_ANY, VersionType.INTERNAL);
+        public Delete(String type, String id, Term uid) {
+            this(type, id, uid, Versions.MATCH_ANY, VersionType.INTERNAL);
         }
 
-        public Delete(Term uid, long version, VersionType versionType) {
+        public Delete(String type, String id, Term uid, long version, VersionType versionType) {
+            this.type = type;
+            this.id = id;
             this.uid = uid;
             this.version = version;
             this.versionType = versionType;
@@ -1017,6 +1015,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public long estimateSize() {
             return ((uid.field().length() + uid.text().length()) * 2) + 20;
+        }
+
+        public String type() {
+            return type;
+        }
+
+        public String id() {
+            return id;
         }
 
         public Term uid() {

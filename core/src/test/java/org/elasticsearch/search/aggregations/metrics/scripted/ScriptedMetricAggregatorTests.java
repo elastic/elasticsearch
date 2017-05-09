@@ -28,8 +28,8 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
@@ -196,7 +196,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
      * is final and cannot be mocked
      */
     @Override
-    protected QueryShardContext queryShardContextMock(final MappedFieldType[] fieldTypes, IndexSettings idxSettings,
+    protected QueryShardContext queryShardContextMock(MapperService mapperService, final MappedFieldType[] fieldTypes,
             CircuitBreakerService circuitBreakerService) {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS);
@@ -210,7 +210,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         }
-        return new QueryShardContext(0, idxSettings, null, null, null, null, scriptService, xContentRegistry(),
-                null, null, System::currentTimeMillis);
+        return new QueryShardContext(0, mapperService.getIndexSettings(), null, null, mapperService, null, scriptService,
+                xContentRegistry(), null, null, System::currentTimeMillis);
     }
 }

@@ -26,10 +26,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.common.lucene.uid.Versions.NOT_FOUND;
@@ -48,7 +48,7 @@ public class VersionsResolver {
         }
     };
 
-    private static PerThreadIDAndVersionLookup getLookupState(LeafReader reader)
+    private static PerThreadIDAndVersionLookup getLookupState(LeafReader reader, String uidField)
         throws IOException {
         Object key = reader.getCoreCacheKey();
         CloseableThreadLocal<PerThreadIDAndVersionLookup> ctl = lookupStates.get(key);
@@ -71,8 +71,11 @@ public class VersionsResolver {
 
         PerThreadIDAndVersionLookup lookupState = ctl.get();
         if (lookupState == null) {
-            lookupState = new PerThreadIDAndVersionLookup(reader);
+            lookupState = new PerThreadIDAndVersionLookup(reader, uidField);
             ctl.set(lookupState);
+        } else if (Objects.equals(lookupState.uidField, uidField) == false) {
+            throw new AssertionError("Index does not consistently use the same uid field: ["
+                    + uidField + "] != [" + lookupState.uidField + "]");
         }
 
         return lookupState;
@@ -105,7 +108,6 @@ public class VersionsResolver {
      */
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term)
         throws IOException {
-        assert term.field().equals(UidFieldMapper.NAME);
         List<LeafReaderContext> leaves = reader.leaves();
         if (leaves.isEmpty()) {
             return null;
@@ -115,7 +117,7 @@ public class VersionsResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             LeafReaderContext context = leaves.get(i);
             LeafReader leaf = context.reader();
-            PerThreadIDAndVersionLookup lookup = getLookupState(leaf);
+            PerThreadIDAndVersionLookup lookup = getLookupState(leaf, term.field());
             DocIdAndVersion result =
                 lookup.lookupVersion(term.bytes(), leaf.getLiveDocs(), context);
             if (result != null) {

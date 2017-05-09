@@ -29,3 +29,68 @@
   - match: { _type:    test   }
   - match: { _id:      中文      }
   - match: { _source:  { foo: "Hello: 中文" } }
+
+
+---
+"Single type":
+
+  - skip:
+      version: " - 5.4.99"
+      reason: single_type only available as of 5.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            mapping.single_type: true
+
+  - do:
+      index:
+        index: test
+        type:  doc
+        id:    abc123
+        body:  { "foo": "bar" }
+
+  - do:
+      get:
+        index: test
+        type:  doc
+        id:    abc123
+
+  - match: { _index:   test }
+  - match: { _type:    doc }
+  - match: { _id:      abc123 }
+  - match: { _source:  { foo: "bar" } }
+
+  - do:
+      get:
+        index: test
+        type:  _all
+        id:    abc123
+
+  - match: { _index:   test }
+  - match: { _type:    doc }
+  - match: { _id:      abc123 }
+  - match: { _source:  { foo: "bar" } }
+
+  - do:
+      catch: missing
+      get:
+        index: test
+        type:  other_type
+        id:    abc123
+
+  - do:
+      delete:
+        index: test
+        type:  doc
+        id:    abc123
+
+  - do:
+      catch: missing
+      get:
+        index: test
+        type:  doc
+        id:    abc123
+

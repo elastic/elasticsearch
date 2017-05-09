@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
 
@@ -167,11 +166,10 @@ public class TranslogRecoveryPerformer {
                     break;
                 case DELETE:
                     Translog.Delete delete = (Translog.Delete) operation;
-                    Uid uid = Uid.createUid(delete.uid().text());
                     if (logger.isTraceEnabled()) {
-                        logger.trace("[translog] recover [delete] op of [{}][{}]", uid.type(), uid.id());
+                        logger.trace("[translog] recover [delete] op of [{}][{}]", delete.type(), delete.id());
                     }
-                    final Engine.Delete engineDelete = new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
+                    final Engine.Delete engineDelete = new Engine.Delete(delete.type(), delete.id(), delete.uid(), delete.version(),
                         delete.versionType().versionTypeForReplicationAndRecovery(), origin, System.nanoTime());
                     delete(engine, engineDelete);
                     break;

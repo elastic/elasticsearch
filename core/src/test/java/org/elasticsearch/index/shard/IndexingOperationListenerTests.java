@@ -23,6 +23,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -132,8 +133,8 @@ public class IndexingOperationListenerTests extends ESTestCase{
         ParsedDocument doc = InternalEngineTests.createParsedDoc("1", "test", null);
         IndexingOperationListener.CompositeListener compositeListener =
                 new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
-        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", doc.uid()));
-        Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
+        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", Uid.createUid("test", "1")));
+        Engine.Index index = new Engine.Index(new Term("_uid", Uid.createUid(doc.type(), doc.id())), doc);
         compositeListener.postDelete(randomShardId, delete, new Engine.DeleteResult(0, false));
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());

@@ -25,10 +25,22 @@
                 }
               },
               {
+                "grok" : {
+                  "field" : "my_time",
+                  "patterns": ["%{DAY:day} %{MONTH:month} %{MONTHDAY:monthday} %{TIME:time} %{TZ} %{YEAR:year}"]
+                }
+              },
+              {
+                "set": {
+                  "field": "my_time",
+                  "value": "{{day}} {{month}} {{monthday}} {{time}} {{year}}"
+                }
+              },
+              {
                 "date" : {
                   "field" : "my_time",
                   "target_field": "my_time",
-                  "formats": ["EEE MMM dd HH:mm:ss zzz yyyy"]
+                  "formats": ["EEE MMM dd HH:mm:ss yyyy"]
                 }
               }
             ]

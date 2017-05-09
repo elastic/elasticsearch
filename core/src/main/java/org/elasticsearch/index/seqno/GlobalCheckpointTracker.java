@@ -87,11 +87,11 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
     /**
      * Notifies the service to update the local checkpoint for the shard with the provided allocation ID. If the checkpoint is lower than
-     * the currently known one, this is a no-op. If the allocation ID is not in sync, it is ignored. This is to prevent late arrivals from
+     * the currently known one, this is a no-op. If the allocation ID is not tracked, it is ignored. This is to prevent late arrivals from
      * shards that are removed to be re-added.
      *
-     * @param allocationId the allocation ID of the shard to update the local checkpoint for
-     * @param localCheckpoint   the local checkpoint for the shard
+     * @param allocationId    the allocation ID of the shard to update the local checkpoint for
+     * @param localCheckpoint the local checkpoint for the shard
      */
     public synchronized void updateLocalCheckpoint(final String allocationId, final long localCheckpoint) {
         final boolean updated;
@@ -109,11 +109,25 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         }
     }
 
+    /**
+     * Notify all threads waiting on the monitor on this tracker. These threads should be waiting for the local checkpoint on a specific
+     * allocation ID to catch up to the global checkpoint.
+     */
     @SuppressForbidden(reason = "Object#notifyAll waiters for local checkpoint advancement")
     private synchronized void notifyAllWaiters() {
         this.notifyAll();
     }
 
+    /**
+     * Update the local checkpoint for the specified allocation ID in the specified tracking map. If the checkpoint is lower than the
+     * currently known one, this is a no-op. If the allocation ID is not tracked, it is ignored.
+     *
+     * @param allocationId the allocation ID of the shard to update the local checkpoint for
+     * @param localCheckpoint the local checkpoint for the shard
+     * @param map the tracking map
+     * @param reason the reason for the update (used for logging)
+     * @return {@code true} if the local checkpoint was updated, otherwise {@code false} if this was a no-op
+     */
     private boolean updateLocalCheckpoint(
             final String allocationId, final long localCheckpoint, ObjectLongMap<String> map, final String reason) {
         final int index = map.indexOf(allocationId);
@@ -138,19 +152,16 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
     /**
      * Scans through the currently known local checkpoint and updates the global checkpoint accordingly.
-     *
-     * @return {@code true} if the checkpoint has been updated or if it can not be updated since the local checkpoints of one of the active
-     * allocations is not known.
      */
-    private synchronized boolean updateGlobalCheckpointOnPrimary() {
+    private synchronized void updateGlobalCheckpointOnPrimary() {
         long minLocalCheckpoint = Long.MAX_VALUE;
         if (inSyncLocalCheckpoints.isEmpty() || !pendingInSync.isEmpty()) {
-            return false;
+            return;
         }
         for (final ObjectLongCursor<String> localCheckpoint : inSyncLocalCheckpoints) {
             if (localCheckpoint.value == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                 logger.trace("unknown local checkpoint for active allocation ID [{}], requesting a sync", localCheckpoint.key);
-                return true;
+                return;
             }
             minLocalCheckpoint = Math.min(localCheckpoint.value, minLocalCheckpoint);
         }
@@ -167,9 +178,6 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         if (minLocalCheckpoint >= 0 && globalCheckpoint != minLocalCheckpoint) {
             logger.trace("global checkpoint updated to [{}]", minLocalCheckpoint);
             globalCheckpoint = minLocalCheckpoint;
-            return true;
-        } else {
-            return false;
         }
     }
 
@@ -271,6 +279,13 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         }
     }
 
+    /**
+     * Wait for knowledge of the local checkpoint for the specified allocation ID to advance to the global checkpoint. Global checkpoint
+     * advancement is blocked while there are any allocation IDs waiting to catch up to the global checkpoint.
+     *
+     * @param allocationId the allocation ID
+     * @throws InterruptedException if this thread was interrupted before of during waiting
+     */
     private synchronized void waitForAllocationIdToBeInSync(final String allocationId) throws InterruptedException {
         while (true) {
             /*
@@ -296,6 +311,11 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         }
     }
 
+    /**
+     * Wait for the local checkpoint to advance to the global checkpoint.
+     *
+     * @throws InterruptedException if this thread was interrupted before of during waiting
+     */
     @SuppressForbidden(reason = "Object#wait for local checkpoint advancement")
     private synchronized void waitForLocalCheckpointToAdvance() throws InterruptedException {
         this.wait();

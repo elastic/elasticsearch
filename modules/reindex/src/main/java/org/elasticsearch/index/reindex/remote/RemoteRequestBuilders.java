@@ -63,8 +63,8 @@ final class RemoteRequestBuilders {
             TimeValue keepAlive = searchRequest.scroll().keepAlive();
             if (remoteVersion.before(Version.V_5_0_0)) {
                 /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
-                 * so we toss out that resolution, rounding up so we shouldn't end up
-                 * with 0s. */
+                 * so we toss out that resolution, rounding up because more scroll
+                 * timeout seems safer than less. */
                 keepAlive = timeValueMillis((long) Math.ceil(keepAlive.millisFrac()));
             }
             params.put("scroll", keepAlive.getStringRep());

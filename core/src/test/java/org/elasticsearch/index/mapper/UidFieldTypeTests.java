@@ -66,7 +66,7 @@ public class UidFieldTypeTests extends FieldTypeTestCase {
         Mockito.when(context.queryTypes()).thenReturn(types);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
 
-        MappedFieldType ft = UidFieldMapper.defaultFieldType(indexSettings);
+        MappedFieldType ft = UidFieldMapper.defaultFieldType(mockSettings);
         ft.setName(UidFieldMapper.NAME);
         Query query = ft.termQuery("type#id", context);
         assertEquals(new TermInSetQuery("_uid", new BytesRef("type#id")), query);
@@ -89,7 +89,7 @@ public class UidFieldTypeTests extends FieldTypeTestCase {
         Mockito.when(mapperService.types()).thenReturn(types);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
 
-        MappedFieldType ft = UidFieldMapper.defaultFieldType(indexSettings);
+        MappedFieldType ft = UidFieldMapper.defaultFieldType(mockSettings);
         ft.setName(UidFieldMapper.NAME);
         Query query = ft.termQuery("type#id", context);
         assertEquals(new MatchNoDocsQuery(), query);

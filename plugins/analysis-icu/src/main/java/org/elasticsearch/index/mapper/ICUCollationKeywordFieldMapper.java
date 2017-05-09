@@ -570,6 +570,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                                              String strength, String decomposition, String alternate, boolean caseLevel, String caseFirst,
                                              boolean numeric, String variableTop, boolean hiraganaQuaternaryMode, Collator collator) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        assert collator.isFrozen();
         this.rules = rules;
         this.language = language;
         this.country = country;
@@ -582,12 +583,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         this.numeric = numeric;
         this.variableTop = variableTop;
         this.hiraganaQuaternaryMode = hiraganaQuaternaryMode;
-        this.collator = collator.isFrozen() ? collator : collator.freeze();
-    }
-
-    @Override
-    protected ICUCollationKeywordFieldMapper clone() {
-        return (ICUCollationKeywordFieldMapper) super.clone();
+        this.collator = collator;
     }
 
     @Override

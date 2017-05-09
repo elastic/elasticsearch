@@ -56,10 +56,16 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonMap;
 
+/**
+ * This class tests that aggregations parsing works properly. It checks that we can parse
+ * different aggregations and adds sub-aggregations where applicable.
+ *
+ */
 public class AggregationsTests extends ESTestCase {
 
     private static final List<InternalAggregationTestCase> aggsTests = getAggsTests();
@@ -88,7 +94,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalGeoCentroidTests());
         aggsTests.add(new InternalHistogramTests());
         aggsTests.add(new InternalDateHistogramTests());
-        return aggsTests;
+        return Collections.unmodifiableList(aggsTests);
     }
 
     @Override
@@ -130,7 +136,7 @@ public class AggregationsTests extends ESTestCase {
         return createTestInstance(0, 5);
     }
 
-    private static InternalAggregations createTestInstance(int currentDepth, int maxDepth) {
+    private static InternalAggregations createTestInstance(final int currentDepth, final int maxDepth) {
         int numAggs = randomIntBetween(1, 5);
         List<InternalAggregation> aggs = new ArrayList<>(numAggs);
         for (int i = 0; i < numAggs; i++) {

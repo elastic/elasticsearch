@@ -37,15 +37,17 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     private static List<HyperLogLogPlusPlus> algos;
     private static int p;
 
-    @After //we force @After to have it run before ESTestCase#after otherwise it fails
     @Override
-    public void setUp() {
+    public void setUp() throws Exception {
+        super.setUp();
         algos = new ArrayList<>();
         p = randomIntBetween(HyperLogLogPlusPlus.MIN_PRECISION, HyperLogLogPlusPlus.MAX_PRECISION);
     }
 
+    @After //we force @After to have it run before ESTestCase#after otherwise it fails
     @Override
-    public void tearDown() {
+    public void tearDown() throws Exception {
+        super.tearDown();
         Releasables.close(algos);
         algos.clear();
         algos = null;

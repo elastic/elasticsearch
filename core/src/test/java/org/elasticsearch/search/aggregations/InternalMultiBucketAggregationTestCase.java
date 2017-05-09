@@ -46,7 +46,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
             subAggregationsSupplier = () -> {
                 final int numAggregations = randomIntBetween(1, 3);
                 List<InternalAggregation> aggs = new ArrayList<>();
-                for (int i = 0; i <numAggregations; i++) {
+                for (int i = 0; i < numAggregations; i++) {
                     aggs.add(createTestInstance(randomAlphaOfLength(5), emptyList(), emptyMap(), InternalAggregations.EMPTY));
                 }
                 return new InternalAggregations(aggs);

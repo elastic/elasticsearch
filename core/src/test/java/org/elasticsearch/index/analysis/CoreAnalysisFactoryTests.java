@@ -22,8 +22,15 @@ package org.elasticsearch.index.analysis;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 import org.elasticsearch.plugins.AnalysisPlugin;
 
-public class BuiltInAnalysisFactoryTests extends AnalysisFactoryTestCase {
-    public BuiltInAnalysisFactoryTests() {
+/**
+ * Checks on the analysis components that are part of core to make sure that any that are added
+ * to lucene are either enabled or explicitly not enabled. During the migration of analysis
+ * components to the {@code analysis-common} module this test ignores many components that are
+ * available to es-core but mapping in {@code analysis-common}. When the migration is complete
+ * no such ignoring will be needed because the analysis components won't be available to core.
+ */
+public class CoreAnalysisFactoryTests extends AnalysisFactoryTestCase {
+    public CoreAnalysisFactoryTests() {
         // Use an empty plugin that doesn't define anything so the test doesn't need a ton of null checks.
         super(new AnalysisPlugin() {});
     }

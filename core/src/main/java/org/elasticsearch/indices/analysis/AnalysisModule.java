@@ -281,7 +281,7 @@ public final class AnalysisModule {
          * lucene-analyzers-common so "stop" is defined in the analysis-common
          * module. */
         
-        // Add token filers declared in PreBuiltTokenFilters until they have all been migrated
+        // Add token filters declared in PreBuiltTokenFilters until they have all been migrated
         for (PreBuiltTokenFilters preBuilt : PreBuiltTokenFilters.values()) {
             switch (preBuilt) {
             case LOWERCASE:

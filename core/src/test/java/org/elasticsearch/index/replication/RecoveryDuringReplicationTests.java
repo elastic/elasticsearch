@@ -86,7 +86,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             shards.startAll();
             int docs = shards.indexDocs(randomInt(50));
             shards.flush();
-            shards.getPrimary().updateGlobalCheckpointOnPrimary();
             final IndexShard originalReplica = shards.getReplicas().get(0);
             long replicaCommittedLocalCheckpoint = docs - 1;
             boolean replicaHasDocsSinceLastFlushedCheckpoint = false;
@@ -103,11 +102,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     replicaHasDocsSinceLastFlushedCheckpoint = false;
                     replicaCommittedLocalCheckpoint = docs - 1;
                 }
-
-                final boolean sync = randomBoolean();
-                if (sync) {
-                    shards.getPrimary().updateGlobalCheckpointOnPrimary();
-                }
             }
 
             // simulate a background global checkpoint sync at which point we expect the global checkpoint to advance on the replicas
@@ -118,10 +112,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final int missingOnReplica = shards.indexDocs(randomInt(5));
             docs += missingOnReplica;
             replicaHasDocsSinceLastFlushedCheckpoint |= missingOnReplica > 0;
-
-            if (randomBoolean()) {
-                shards.getPrimary().updateGlobalCheckpointOnPrimary();
-            }
 
             final boolean flushPrimary = randomBoolean();
             if (flushPrimary) {

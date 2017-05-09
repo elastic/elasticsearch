@@ -97,6 +97,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         final boolean updated;
         if (updateLocalCheckpoint(allocationId, localCheckpoint, inSyncLocalCheckpoints, "in-sync")) {
             updated = true;
+            updateGlobalCheckpointOnPrimary();
         } else if (updateLocalCheckpoint(allocationId, localCheckpoint, trackingLocalCheckpoints, "tracking")) {
             updated = true;
         } else {
@@ -141,7 +142,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @return {@code true} if the checkpoint has been updated or if it can not be updated since the local checkpoints of one of the active
      * allocations is not known.
      */
-    synchronized boolean updateGlobalCheckpointOnPrimary() {
+    private synchronized boolean updateGlobalCheckpointOnPrimary() {
         long minLocalCheckpoint = Long.MAX_VALUE;
         if (inSyncLocalCheckpoints.isEmpty() || !pendingInSync.isEmpty()) {
             return false;
@@ -290,6 +291,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             }
         } finally {
             pendingInSync.remove(allocationId);
+            updateGlobalCheckpointOnPrimary();
         }
     }
 

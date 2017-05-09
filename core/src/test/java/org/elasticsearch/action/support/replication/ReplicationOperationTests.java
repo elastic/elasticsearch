@@ -412,11 +412,6 @@ public class ReplicationOperationTests extends ESTestCase {
             return globalCheckpoint;
         }
 
-        @Override
-        public void updateGlobalCheckpoint() {
-
-        }
-
     }
 
     static class ReplicaResponse implements ReplicationOperation.ReplicaResponse {

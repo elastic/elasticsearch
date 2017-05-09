@@ -155,16 +155,6 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
-     * Scans through the currently known local checkpoint and updates the global checkpoint accordingly.
-     *
-     * @return {@code true} if the checkpoint has been updated or if it can not be updated since one of the local checkpoints of one of the
-     * active allocations is not known.
-     */
-    public boolean updateGlobalCheckpointOnPrimary() {
-        return globalCheckpointTracker.updateGlobalCheckpointOnPrimary();
-    }
-
-    /**
      * Updates the global checkpoint on a replica shard after it has been updated by the primary.
      *
      * @param globalCheckpoint the global checkpoint

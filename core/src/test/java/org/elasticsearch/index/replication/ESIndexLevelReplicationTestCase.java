@@ -154,7 +154,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
                 }
             }
-            primary.updateGlobalCheckpointOnPrimary();
             return numOfDoc;
         }
 
@@ -168,7 +167,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
                 }
             }
-            primary.updateGlobalCheckpointOnPrimary();
             return numOfDoc;
         }
 
@@ -464,11 +462,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             @Override
             public long globalCheckpoint() {
                 return replicationGroup.getPrimary().getGlobalCheckpoint();
-            }
-
-            @Override
-            public void updateGlobalCheckpoint() {
-                replicationGroup.getPrimary().updateGlobalCheckpointOnPrimary();
             }
 
         }

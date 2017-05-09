@@ -1484,7 +1484,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          * We could have blocked waiting for the replica to catch up that we fell idle and there will not be a background sync to the
          * replica; update the global checkpoint and mark our self as active to force a future background sync.
          */
-        updateGlobalCheckpointOnPrimary();
         active.compareAndSet(false, true);
     }
 
@@ -1504,15 +1503,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public long getGlobalCheckpoint() {
         return getEngine().seqNoService().getGlobalCheckpoint();
-    }
-
-    /**
-     * Checks whether the global checkpoint can be updated based on current knowledge of local checkpoints on the different shard copies.
-     * The checkpoint is updated or if more information is required from the replica, a global checkpoint sync is initiated.
-     */
-    public void updateGlobalCheckpointOnPrimary() {
-        verifyPrimary();
-        getEngine().seqNoService().updateGlobalCheckpointOnPrimary();
     }
 
     /**

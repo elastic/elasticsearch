@@ -995,10 +995,6 @@ public abstract class TransportReplicationAction<
             return indexShard.getGlobalCheckpoint();
         }
 
-        @Override
-        public void updateGlobalCheckpoint() {
-            indexShard.updateGlobalCheckpointOnPrimary();
-        }
     }
 
 

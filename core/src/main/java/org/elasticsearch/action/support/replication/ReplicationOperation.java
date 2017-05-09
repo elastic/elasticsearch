@@ -284,13 +284,6 @@ public class ReplicationOperation<
 
     private void finish() {
         if (finished.compareAndSet(false, true)) {
-            try {
-                primary.updateGlobalCheckpoint();
-            } catch (final AlreadyClosedException e) {
-                logger.trace("shard closed while updating global checkpoint on primary", e);
-            } catch (final Exception e) {
-                logger.warn("failed to update global checkpoint on primary", e);
-            }
             final ReplicationResponse.ShardInfo.Failure[] failuresArray;
             if (shardReplicaFailures.isEmpty()) {
                 failuresArray = ReplicationResponse.EMPTY;
@@ -367,11 +360,6 @@ public class ReplicationOperation<
          * @return the global checkpoint
          */
         long globalCheckpoint();
-
-        /**
-         * Update the global checkpoint on the primary shard.
-         */
-        void updateGlobalCheckpoint();
 
     }
 

@@ -33,6 +33,11 @@ setup:
 
   - is_true: snapshots
 
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot
+
 ---
 "Get missing snapshot info throws an exception":
 
@@ -56,8 +61,8 @@ setup:
 ---
 "Get snapshot info when verbose is false":
   - skip:
-      version: " - 5.4.99"
-      reason: verbose mode was introduced in 5.5
+      version: " - 5.99.99"
+      reason: verbose mode was introduced in 6.0
 
   - do:
       indices.create:
@@ -83,3 +88,8 @@ setup:
   - match: { snapshots.0.snapshot: test_snapshot }
   - match: { snapshots.0.state: SUCCESS }
   - is_false: snapshots.0.version
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot

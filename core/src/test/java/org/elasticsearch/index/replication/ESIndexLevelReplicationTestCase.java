@@ -51,7 +51,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -310,11 +309,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public synchronized void assertAllEqual(int expectedCount) throws IOException {
-            Set<Uid> primaryIds = getShardDocUIDs(primary);
+            Set<String> primaryIds = getShardDocUIDs(primary);
             assertThat(primaryIds.size(), equalTo(expectedCount));
             for (IndexShard replica : replicas) {
-                Set<Uid> replicaIds = getShardDocUIDs(replica);
-                Set<Uid> temp = new HashSet<>(primaryIds);
+                Set<String> replicaIds = getShardDocUIDs(replica);
+                Set<String> temp = new HashSet<>(primaryIds);
                 temp.removeAll(replicaIds);
                 assertThat(replica.routingEntry() + " is missing docs", temp, empty());
                 temp = new HashSet<>(replicaIds);

@@ -64,6 +64,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
@@ -191,7 +192,9 @@ public class InnerHitsIT extends ESIntegTestCase {
         int[] field2InnerObjects = new int[numDocs];
         for (int i = 0; i < numDocs; i++) {
             int numInnerObjects = field1InnerObjects[i] = scaledRandomIntBetween(1, numDocs);
-            XContentBuilder source = jsonBuilder().startObject().startArray("field1");
+            XContentBuilder source = jsonBuilder().startObject()
+                    .field("foo", i)
+                    .startArray("field1");
             for (int j = 0; j < numInnerObjects; j++) {
                 source.startObject().field("x", "y").endObject();
             }
@@ -201,7 +204,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 source.startObject().field("x", "y").endObject();
             }
             source.endArray().endObject();
-            requestBuilders.add(client().prepareIndex("idx", "type", String.format(Locale.ENGLISH, "%03d", i)).setSource(source));
+            requestBuilders.add(client().prepareIndex("idx", "type", Integer.toString(i)).setSource(source));
         }
         indexRandom(true, requestBuilders);
 
@@ -214,7 +217,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(boolQuery)
                 .setSize(numDocs)
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("foo", SortOrder.ASC)
                 .get();
 
         assertNoFailures(searchResponse);
@@ -965,7 +968,6 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .innerHit(new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1), false);
         SearchResponse response = client().prepareSearch("index1")
                 .setQuery(query)
-                .addSort("_uid", SortOrder.ASC)
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -985,7 +987,6 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .innerHit(new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1), false);
         response = client().prepareSearch("index2")
                 .setQuery(query)
-                .addSort("_uid", SortOrder.ASC)
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -1057,11 +1058,10 @@ public class InnerHitsIT extends ESIntegTestCase {
                         .innerHit(new InnerHitBuilder(), true))
                 .should(termQuery("key", "value"))
             )
-            .addSort("_uid", SortOrder.ASC)
             .get();
         assertNoFailures(response);
         assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertSearchHits(response, "1", "3");
 
         response = client().prepareSearch("index1", "index2")
             .setQuery(boolQuery()
@@ -1069,11 +1069,10 @@ public class InnerHitsIT extends ESIntegTestCase {
                         .innerHit(new InnerHitBuilder(), true))
                 .should(termQuery("key", "value"))
             )
-            .addSort("_uid", SortOrder.ASC)
             .get();
         assertNoFailures(response);
         assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertSearchHits(response, "1", "3");
     }
 
 }

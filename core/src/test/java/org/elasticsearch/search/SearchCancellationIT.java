@@ -301,7 +301,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         public class NativeTestScriptedBlock extends AbstractSearchScript {
             @Override
             public Object run() {
-                Loggers.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", doc().get("_uid"));
+                Loggers.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fields().get("_uid"));
                 hits.incrementAndGet();
                 try {
                     awaitBusy(() -> shouldBlock.get() == false);

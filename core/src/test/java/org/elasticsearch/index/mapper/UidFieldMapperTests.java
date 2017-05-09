@@ -19,13 +19,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -34,20 +32,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-public class IdFieldMapperTests extends ESSingleNodeTestCase {
-
-    public void testIncludeInObjectNotAllowed() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-
-        try {
-            docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().field("_id", "1").endObject().bytes(), XContentType.JSON));
-            fail("Expected failure to parse metadata field");
-        } catch (MapperParsingException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("Field [_id] is a metadata field and cannot be added inside a document"));
-        }
-    }
+public class UidFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDefaultsMultipleTypes() throws IOException {
         Settings indexSettings = Settings.builder()
@@ -56,7 +41,11 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE, false);
         ParsedDocument document = mapper.parse(SourceToParse.source("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
-        assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(IdFieldMapper.NAME)));
+        IndexableField[] fields = document.rootDoc().getFields(UidFieldMapper.NAME);
+        assertEquals(1, fields.length);
+        assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());
+        assertTrue(fields[0].fieldType().stored());
+        assertEquals("type#id", fields[0].stringValue());
     }
 
     public void testDefaultsSingleType() throws IOException {
@@ -66,10 +55,6 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE, false);
         ParsedDocument document = mapper.parse(SourceToParse.source("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
-        IndexableField[] fields = document.rootDoc().getFields(IdFieldMapper.NAME);
-        assertEquals(1, fields.length);
-        assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());
-        assertTrue(fields[0].fieldType().stored());
-        assertEquals("id", fields[0].stringValue());
+        assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(UidFieldMapper.NAME)));
     }
 }

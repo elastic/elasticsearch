@@ -27,6 +27,7 @@ Cluster::
 * No longer allow cluster name in data path {pull}20433[#20433] (issue: {issue}20391[#20391])
 
 Core::
+* Simplify file store {pull}24402[#24402] (issue: {issue}24390[#24390])
 * Make boolean conversion strict {pull}22200[#22200]
 * Remove the `default` store type. {pull}21616[#21616]
 * Remove store throttling. {pull}21573[#21573]
@@ -36,6 +37,7 @@ Geo::
 * Reduce GeoDistance Insanity {pull}19846[#19846]
 
 Index APIs::
+* Open/Close index api to allow_no_indices by default {pull}24401[#24401] (issues: {issue}24031[#24031], {issue}24341[#24341])
 * Remove support for controversial `ignore_unavailable` and `allow_no_indices` from indices exists api {pull}20712[#20712]
 
 Index Templates::
@@ -45,12 +47,10 @@ Java API::
 * Enforce Content-Type requirement on the rest layer and remove deprecated methods {pull}23146[#23146] (issue: {issue}19388[#19388])
 
 Mapping::
+* Enforce at most one type. {pull}24428[#24428] (issue: {issue}24317[#24317])
 * Disallow `include_in_all` for 6.0+ indices {pull}22970[#22970] (issue: {issue}22923[#22923])
 * Disable _all by default, disallow configuring _all on 6.0+ indices {pull}22144[#22144] (issues: {issue}19784[#19784], {issue}20925[#20925], {issue}21341[#21341])
 * Throw an exception on unrecognized "match_mapping_type" {pull}22090[#22090] (issue: {issue}17285[#17285])
-
-NOT CLASSIFIED::
-* Add note to docs on duplicate keys in config {pull}24022[#24022] (issue: {issue}24006[#24006])
 
 Network::
 * Remove blocking TCP clients and servers {pull}22639[#22639]
@@ -124,6 +124,9 @@ Shadow Replicas::
 [float]
 === Breaking Java changes
 
+Java API::
+* Java api: ActionRequestBuilder#execute to return a PlainActionFuture {pull}24415[#24415] (issues: {issue}24412[#24412], {issue}9201[#9201])
+
 Network::
 * Simplify TransportAddress {pull}20798[#20798]
 
@@ -147,7 +150,6 @@ Internal::
 
 Core::
 * Enable index-time sorting {pull}24055[#24055] (issue: {issue}6720[#6720])
-* Add new ip_range field type {pull}24433[#24433]
 
 
 
@@ -200,7 +202,6 @@ Java High Level REST Client::
 * Add Index API to High Level Rest Client {pull}23040[#23040]
 * Add get/exists method to RestHighLevelClient {pull}22706[#22706]
 * Add fromxcontent methods to delete response {pull}22680[#22680] (issue: {issue}22229[#22229])
-* Add parsing from xContent to SearchResponse {pull}22533[#22533]
 * Add REST high level client gradle submodule and first simple method {pull}22371[#22371]
 
 Java REST Client::
@@ -232,6 +233,7 @@ Search::
 * Add parsing from xContent to ShardSearchFailure {pull}22699[#22699]
 
 Sequence IDs::
+* Block global checkpoint advances when recovering {pull}24404[#24404] (issue: {issue}10708[#10708])
 * Add primary term to doc write response {pull}24171[#24171] (issue: {issue}10708[#10708])
 * Preserve multiple translog generations {pull}24015[#24015] (issue: {issue}10708[#10708])
 * Introduce translog generation rolling {pull}23606[#23606] (issue: {issue}10708[#10708])

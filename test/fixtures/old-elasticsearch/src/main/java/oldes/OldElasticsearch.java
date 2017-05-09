@@ -39,7 +39,9 @@ import java.util.regex.Pattern;
 /**
  * Starts a version of Elasticsearch that has been unzipped into an empty directory,
  * instructing it to ask the OS for an unused port, grepping the logs for the port
- * it actually got, and writing a {@code ports} file with the port.
+ * it actually got, and writing a {@code ports} file with the port. This is only
+ * required for versions of Elasticsearch before 5.0 because they do not support
+ * writing a "ports" file.
  */
 public class OldElasticsearch {
     public static void main(String[] args) throws IOException {

@@ -17,13 +17,19 @@
  * under the License.
  */
 
+description = """\
+Tests reindex-from-remote against some specific versions of
+Elasticsearch prior to 5.0. Versions of Elasticsearch >= 5.0
+should be able to use the standard launching mechanism which
+is more flexible and reliable.
+"""
+
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 integTestCluster {
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
-
 }
 
 configurations {
@@ -33,10 +39,23 @@ configurations {
   es090
 }
 
+dependencies {
+  oldesFixture project(':test:fixtures:old-elasticsearch')
+  /* Right now we just test against the latest version of each major we expect
+   * reindex-from-remote to work against. We could randomize the versions but
+   * that doesn't seem worth it at this point. */
+  es2 'org.elasticsearch.distribution.zip:elasticsearch:2.4.5@zip'
+  es1 'org.elasticsearch:elasticsearch:1.7.6@zip'
+  es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
+}
+
+/* Set up tasks to unzip and run the old versions of ES before running the
+ * integration tests. */
 for (String version : ['2', '1', '090']) {
   Task unzip = task("unzipEs${version}", type: Sync) {
     Configuration oldEsDependency = configurations['es' + version]
     dependsOn oldEsDependency
+    // Use a closure here to delay resolution of the dependency until we need it
     from {
       oldEsDependency.collect { zipTree(it) }
     }
@@ -55,13 +74,9 @@ for (String version : ['2', '1', '090']) {
   }
   integTestCluster.dependsOn fixture
   integTestRunner {
+    /* Use a closure on the string to delay evaluation until right before we
+     * run the integration tests so that we can be sure that the file is ready.
+     */
     systemProperty "es${version}.port", "${ -> fixture.addressAndPort }"
   }
-}
-
-dependencies {
-  oldesFixture project(':test:fixtures:old-elasticsearch')
-  es2 'org.elasticsearch.distribution.zip:elasticsearch:2.4.5@zip'
-  es1 'org.elasticsearch:elasticsearch:1.7.6@zip'
-  es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
 }

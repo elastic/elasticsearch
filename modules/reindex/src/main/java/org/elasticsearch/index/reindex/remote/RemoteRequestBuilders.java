@@ -102,6 +102,7 @@ final class RemoteRequestBuilders {
             // Versions before 2.0.0 need prompting to return interesting fields. Note that timestamp isn't available at all....
             searchRequest.source().storedField("_parent").storedField("_routing").storedField("_ttl");
             if (remoteVersion.before(Version.fromId(1000099))) {
+                // Versions before 1.0.0 don't support `"_source": true` so we have to ask for the _source in a funny way.
                 searchRequest.source().storedField("_source");
             }
         }
@@ -137,6 +138,7 @@ final class RemoteRequestBuilders {
                 entity.field("_source", searchRequest.source().fetchSource());
             } else {
                 if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
+                    // Versions before 1.0 don't support `"_source": true` so we have to ask for the source as a stored field.
                     entity.field("_source", true);
                 }
             }

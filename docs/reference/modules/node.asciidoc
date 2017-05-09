@@ -41,12 +41,16 @@ A tribe node, configured via the `tribe.*` settings, is a special type  of
 coordinating only node that can connect to multiple clusters and perform
 search and other operations across all connected clusters.
 
+[role="xpack"]
+[NOTE]
+=====================================================================
 <<machine-learning-node,Machine learning node>>::
 A node that has `xpack.ml.enabled` and `node.ml` set to `true`, which is the
 default behavior when X-Pack is installed. If you want to use X-Pack machine
 learning features, there must be at least one machine learning node in your
 cluster. For more information about X-Pack machine learning features, see
 {xpack}/xpack-ml.html[Machine Learning in the Elastic Stack].
+=====================================================================
 
 By default, nodes are master-eligible, data, and ingest nodes. If X-Pack is
 installed, they are also machine learning nodes by default. This is very

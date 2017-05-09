@@ -1,5 +1,5 @@
 ---
-"Remove and index and replace it with an alias":
+"Remove an index and replace it with an alias":
 
   - do:
       indices.create:

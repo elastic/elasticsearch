@@ -53,12 +53,11 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -105,7 +104,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     private ParsedDocument testParsedDocument(String id, String type, String routing, long seqNo,
                                               ParseContext.Document document, BytesReference source, XContentType xContentType,
                                               Mapping mappingUpdate) {
-        Field uidField = new Field("_uid", Uid.createUid(type, id), UidFieldMapper.Defaults.FIELD_TYPE);
+        Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(uidField);
@@ -335,7 +334,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             SequenceNumbersService.UNASSIGNED_SEQ_NO,
             new ParseContext.Document(),
             new BytesArray(new byte[]{1}), XContentType.JSON, null);
-        Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
+        Engine.Index index = new Engine.Index(new Term("_id", doc.id()), doc);
         shard.index(index);
         assertTrue(shard.shouldFlush());
         assertEquals(2, shard.getEngine().getTranslog().totalOperations());
@@ -390,7 +389,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     SequenceNumbersService.UNASSIGNED_SEQ_NO,
                     new ParseContext.Document(),
                     new BytesArray(new byte[]{1}), XContentType.JSON, null);
-            final Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
+            final Engine.Index index = new Engine.Index(new Term("_id", doc.id()), doc);
             final Engine.IndexResult result = shard.index(index);
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();

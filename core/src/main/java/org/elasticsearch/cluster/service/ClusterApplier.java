@@ -17,12 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 
-public interface DiscoveryNodesProvider {
+import java.util.function.Supplier;
 
-    DiscoveryNodes nodes();
-
+@FunctionalInterface
+public interface ClusterApplier {
+    /**
+     * Method to invoke when a new cluster state is available to be applied
+     *
+     * @param source information where the cluster state came from
+     * @param clusterStateSupplier the cluster state supplier which provides the latest cluster state to apply
+     * @param listener callback that is invoked after cluster state is applied
+     */
+    void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterStateTaskListener listener);
 }

@@ -26,10 +26,12 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -126,7 +128,12 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
 
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
-        final MappedFieldType fieldType = context.getMapperService().fullName("_uid");
+        final MappedFieldType fieldType;
+        if (context.getIndexSettings().isSingleType()) {
+            fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
+        } else {
+            fieldType = context.getMapperService().fullName(UidFieldMapper.NAME);
+        }
         if (fieldType == null) {
             // mapper could be null if we are on a shard with no docs yet, so this won't actually be used
             return new RandomScoreFunction();

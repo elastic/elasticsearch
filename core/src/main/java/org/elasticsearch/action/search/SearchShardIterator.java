@@ -33,6 +33,7 @@ import java.util.List;
 public final class SearchShardIterator extends PlainShardIterator {
 
     private final OriginalIndices originalIndices;
+    private String clusterAlias;
 
     /**
      * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
@@ -41,9 +42,10 @@ public final class SearchShardIterator extends PlainShardIterator {
      * @param shardId shard id of the group
      * @param shards  shards to iterate
      */
-    public SearchShardIterator(ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
+    public SearchShardIterator(String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
         super(shardId, shards);
         this.originalIndices = originalIndices;
+        this.clusterAlias = clusterAlias;
     }
 
     /**
@@ -51,5 +53,9 @@ public final class SearchShardIterator extends PlainShardIterator {
      */
     public OriginalIndices getOriginalIndices() {
         return originalIndices;
+    }
+
+    public String getClusterAlias() {
+        return clusterAlias;
     }
 }

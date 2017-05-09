@@ -284,7 +284,7 @@ public class Segment implements Streamable {
                 out.writeBoolean(((SortedNumericSortField) field).getSelector() == SortedNumericSelector.Type.MAX);
                 out.writeBoolean(field.getReverse());
             } else {
-                throw new IOException("invalid index sort field:" + field + "");
+                throw new IOException("invalid index sort field:" + field);
             }
         }
     }

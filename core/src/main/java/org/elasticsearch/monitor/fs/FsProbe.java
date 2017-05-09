@@ -159,7 +159,6 @@ public class FsProbe extends AbstractComponent {
         fsPath.available = nodePath.fileStore.getUsableSpace();
         fsPath.type = nodePath.fileStore.type();
         fsPath.mount = nodePath.fileStore.toString();
-        fsPath.spins = nodePath.spins;
         return fsPath;
     }
 

@@ -248,7 +248,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         }
     }
 
-    public void testDiscoveryStats() throws IOException {
+    public void testDiscoveryStats() throws Exception {
         String expectedStatsJsonResponse = "{\n" +
                 "  \"discovery\" : {\n" +
                 "    \"cluster_state_queue\" : {\n" +
@@ -260,6 +260,10 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 "}";
 
         internalCluster().startNode();
+        ensureGreen(); // ensures that all events are processed (in particular state recovery fully completed)
+        assertBusy(() ->
+            assertThat(internalCluster().clusterService(internalCluster().getMasterName()).getMasterService().numberOfPendingTasks(),
+                equalTo(0))); // see https://github.com/elastic/elasticsearch/issues/24388
 
         logger.info("--> request node discovery stats");
         NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setDiscovery(true).get();

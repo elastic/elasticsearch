@@ -490,15 +490,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public SnapshotInfo getSnapshotInfo(final SnapshotId snapshotId) {
-        if (getRepositoryData().getIncompatibleSnapshotIds().contains(snapshotId)) {
-            // an incompatible snapshot - cannot read its snapshot metadata file, just return
-            // a SnapshotInfo indicating its incompatible
-            return SnapshotInfo.incompatible(snapshotId);
-        }
-        return getSnapshotInfoInternal(snapshotId);
-    }
-
-    private SnapshotInfo getSnapshotInfoInternal(final SnapshotId snapshotId) {
         try {
             return snapshotFormat.read(snapshotsBlobContainer, snapshotId.getUUID());
         } catch (NoSuchFileException ex) {
@@ -635,8 +626,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
                 }
             } catch (NoSuchFileException e) {
-                logger.debug("[{}] Incompatible snapshots blob [{}] does not exist, the likely reason is that " +
-                             "there are no incompatible snapshots in the repository", metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
+                if (isReadOnly()) {
+                    logger.debug("[{}] Incompatible snapshots blob [{}] does not exist, the likely " +
+                                 "reason is that there are no incompatible snapshots in the repository",
+                                 metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
+                } else {
+                    // write an empty incompatible-snapshots blob - we do this so that there
+                    // is a blob present, which helps speed up some cloud-based repositories
+                    // (e.g. S3), which retry if a blob is missing with exponential backoff,
+                    // delaying the read of repository data and sometimes causing a timeout
+                    writeIncompatibleSnapshots(RepositoryData.EMPTY);
+                }
             }
             return repositoryData;
         } catch (NoSuchFileException ex) {
@@ -718,6 +718,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 builder.close();
             }
             bytes = bStream.bytes();
+        }
+        if (snapshotsBlobContainer.blobExists(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
+            snapshotsBlobContainer.deleteBlob(INCOMPATIBLE_SNAPSHOTS_BLOB);
         }
         // write the incompatible snapshots blob
         writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB, bytes);
@@ -801,8 +804,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw ex;
         }
     }
-
-
 
     @Override
     public void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {

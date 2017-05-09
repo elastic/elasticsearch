@@ -37,7 +37,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, false, true);
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, false, true);
 
     public OpenIndexRequest() {
     }

@@ -185,18 +185,18 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         Query childrenQuery;
         if (childTypes.size() == 1) {
             DocumentMapper documentMapper = context.getMapperService().documentMapper(childTypes.iterator().next());
-            childrenQuery = documentMapper.typeFilter();
+            childrenQuery = documentMapper.typeFilter(context);
         } else {
             BooleanQuery.Builder childrenFilter = new BooleanQuery.Builder();
             for (String childrenTypeStr : childTypes) {
                 DocumentMapper documentMapper = context.getMapperService().documentMapper(childrenTypeStr);
-                childrenFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
+                childrenFilter.add(documentMapper.typeFilter(context), BooleanClause.Occur.SHOULD);
             }
             childrenQuery = childrenFilter.build();
         }
 
         // wrap the query with type query
-        innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
+        innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter(context));
         return new HasChildQueryBuilder.LateParsingQuery(childrenQuery,
                                                          innerQuery,
                                                          HasChildQueryBuilder.DEFAULT_MIN_CHILDREN,

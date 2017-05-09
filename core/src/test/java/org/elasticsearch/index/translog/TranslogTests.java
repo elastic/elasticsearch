@@ -255,7 +255,7 @@ public class TranslogTests extends ESTestCase {
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
         assertThat(snapshot.totalOperations(), equalTo(ops.size()));
 
-        addToTranslogAndList(translog, ops, new Translog.Delete(newUid("2")));
+        addToTranslogAndList(translog, ops, new Translog.Delete("test", "2", newUid("2")));
         snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
         assertThat(snapshot.totalOperations(), equalTo(ops.size()));
@@ -326,14 +326,14 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.getTranslogSizeInBytes(), equalTo(97L));
         }
 
-        translog.add(new Translog.Delete(newUid("2")));
+        translog.add(new Translog.Delete("test", "2", newUid("2")));
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2L));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(139L));
         }
 
-        translog.add(new Translog.Delete(newUid("3")));
+        translog.add(new Translog.Delete("test", "3", newUid("3")));
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3L));
@@ -648,7 +648,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     private Term newUid(ParsedDocument doc) {
-        return new Term("_uid", doc.uid());
+        return new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id()));
     }
 
     private Term newUid(String uid) {
@@ -707,7 +707,7 @@ public class TranslogTests extends ESTestCase {
                                 op = new Translog.Index("type", "" + id, new byte[]{(byte) id});
                                 break;
                             case DELETE:
-                                op = new Translog.Delete(newUid("" + id));
+                                op = new Translog.Delete("test", Long.toString(id), newUid(Long.toString(id)));
                                 break;
                             case NO_OP:
                                 op = new Translog.NoOp(id, id, Long.toString(id));
@@ -1403,6 +1403,7 @@ public class TranslogTests extends ESTestCase {
                             break;
                         case DELETE:
                             op = new Translog.Delete(
+                                "test", threadId + "_" + opCount, 
                                 new Term("_uid", threadId + "_" + opCount),
                                 opCount,
                                 0,

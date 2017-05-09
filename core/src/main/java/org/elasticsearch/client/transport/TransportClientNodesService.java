@@ -187,8 +187,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
             if (filtered.isEmpty()) {
                 return this;
             }
-            List<DiscoveryNode> builder = new ArrayList<>();
-            builder.addAll(listedNodes());
+            List<DiscoveryNode> builder = new ArrayList<>(listedNodes);
             for (TransportAddress transportAddress : filtered) {
                 DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(),
                         transportAddress, Collections.emptyMap(), Collections.emptySet(), minCompatibilityVersion);

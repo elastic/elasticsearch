@@ -210,7 +210,7 @@ public final class RepositoryData {
     public Set<SnapshotId> getSnapshots(final IndexId indexId) {
         Set<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
         if (snapshotIds == null) {
-            throw new IllegalArgumentException("unknown snapshot index " + indexId + "");
+            throw new IllegalArgumentException("unknown snapshot index " + indexId);
         }
         return snapshotIds;
     }

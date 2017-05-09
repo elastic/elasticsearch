@@ -22,7 +22,7 @@ package org.elasticsearch.snapshots;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -56,7 +56,6 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -155,7 +154,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertHitCount(client.prepareSearch("test-idx-2").setSize(0).get(), 100L);
         assertHitCount(client.prepareSearch("test-idx-3").setSize(0).get(), 100L);
 
-        ListenableActionFuture<FlushResponse> flushResponseFuture = null;
+        ActionFuture<FlushResponse> flushResponseFuture = null;
         if (randomBoolean()) {
             ArrayList<String> indicesToFlush = new ArrayList<>();
             for (int i = 1; i < 4; i++) {
@@ -888,7 +887,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> delete index");
         cluster().wipeIndices("test-idx");
         logger.info("--> restore index after deletion");
-        ListenableActionFuture<RestoreSnapshotResponse> restoreSnapshotResponseFuture =
+        ActionFuture<RestoreSnapshotResponse> restoreSnapshotResponseFuture =
                 client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute();
 
         logger.info("--> wait for the index to appear");
@@ -989,8 +988,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> delete the last snapshot");
         client.admin().cluster().prepareDeleteSnapshot("test-repo", lastSnapshot).get();
         logger.info("--> make sure that number of files is back to what it was when the first snapshot was made, " +
-                    "plus one because one backup index-N file should remain");
-        assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 1));
+                    "plus two because one backup index-N file should remain and incompatible-snapshots");
+        assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 2));
     }
 
     public void testDeleteSnapshotWithMissingIndexAndShardMetadata() throws Exception {
@@ -2014,7 +2013,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.prepareSearch("test-idx-3").setSize(0).get().getHits().getTotalHits(), equalTo(100L));
 
         logger.info("--> snapshot allow partial {}", allowPartial);
-        ListenableActionFuture<CreateSnapshotResponse> future = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+        ActionFuture<CreateSnapshotResponse> future = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
             .setIndices("test-idx-*").setWaitForCompletion(true).setPartial(allowPartial).execute();
         logger.info("--> wait for block to kick in");
         if (initBlocking) {
@@ -2109,7 +2108,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         blockAllDataNodes("test-repo");
         logger.info("--> execution will be blocked on all data nodes");
 
-        final ListenableActionFuture<RestoreSnapshotResponse> restoreFut;
+        final ActionFuture<RestoreSnapshotResponse> restoreFut;
         try {
             logger.info("--> start restore");
             restoreFut = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
@@ -2174,7 +2173,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> execution will be blocked on all data nodes");
         blockAllDataNodes(repoName);
 
-        final ListenableActionFuture<RestoreSnapshotResponse> restoreFut;
+        final ActionFuture<RestoreSnapshotResponse> restoreFut;
         try {
             logger.info("--> start restore");
             restoreFut = client.admin().cluster().prepareRestoreSnapshot(repoName, snapshotName)
@@ -2284,59 +2283,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
     private boolean waitForRelocationsToStart(final String index, TimeValue timeout) throws InterruptedException {
         return awaitBusy(() -> client().admin().cluster().prepareHealth(index).execute().actionGet().getRelocatingShards() > 0, timeout.millis(), TimeUnit.MILLISECONDS);
-    }
-
-    public void testBatchingShardUpdateTask() throws Exception {
-        final Client client = client();
-
-        logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.builder()
-                        .put("location", randomRepoPath())
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
-
-        assertAcked(prepareCreate("test-idx", 0, Settings.builder().put("number_of_shards", between(1, 10))
-                .put("number_of_replicas", 0)));
-        ensureGreen();
-
-        logger.info("--> indexing some data");
-        final int numdocs = randomIntBetween(10, 100);
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
-        for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test-idx", "type1", Integer.toString(i)).setSource("field1", "bar " + i);
-        }
-        indexRandom(true, builders);
-        flushAndRefresh();
-
-        final int numberOfShards = getNumShards("test-idx").numPrimaries;
-        logger.info("number of shards: {}", numberOfShards);
-
-        final ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
-        BlockingClusterStateListener snapshotListener = new BlockingClusterStateListener(clusterService, "update_snapshot [", "update snapshot state", Priority.HIGH);
-        try {
-            clusterService.addListener(snapshotListener);
-            logger.info("--> snapshot");
-            ListenableActionFuture<CreateSnapshotResponse> snapshotFuture = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").execute();
-
-            // Await until shard updates are in pending state.
-            assertBusyPendingTasks("update snapshot state", numberOfShards);
-            snapshotListener.unblock();
-
-            // Check that the snapshot was successful
-            CreateSnapshotResponse createSnapshotResponse = snapshotFuture.actionGet();
-            assertEquals(SnapshotState.SUCCESS, createSnapshotResponse.getSnapshotInfo().state());
-            assertEquals(numberOfShards, createSnapshotResponse.getSnapshotInfo().totalShards());
-            assertEquals(numberOfShards, createSnapshotResponse.getSnapshotInfo().successfulShards());
-
-        } finally {
-            clusterService.removeListener(snapshotListener);
-        }
-
-        // Check that we didn't timeout
-        assertFalse(snapshotListener.timedOut());
-        // Check that cluster state update task was called only once
-        assertEquals(1, snapshotListener.count());
     }
 
     public void testSnapshotName() throws Exception {
@@ -2514,7 +2460,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         // take initial snapshot with a block, making sure we only get 1 in-progress snapshot returned
         // block a node so the create snapshot operation can remain in progress
         final String initialBlockedNode = blockNodeWithIndex(repositoryName, indexName);
-        ListenableActionFuture<CreateSnapshotResponse> responseListener =
+        ActionFuture<CreateSnapshotResponse> responseListener =
             client.admin().cluster().prepareCreateSnapshot(repositoryName, "snap-on-empty-repo")
                 .setWaitForCompletion(false)
                 .setIndices(indexName)

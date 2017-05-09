@@ -19,9 +19,16 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -31,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class AbstractSearchAsyncActionTookTests extends ESTestCase {
+public class AbstractSearchAsyncActionTests extends ESTestCase {
 
     private AbstractSearchAsyncAction<SearchPhaseResult> createAction(
             final boolean controlled,
@@ -53,35 +60,19 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
                     System::nanoTime);
         }
 
-        return new AbstractSearchAsyncAction<SearchPhaseResult>(
-                "test",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                new GroupShardsIterator<>(Collections.singletonList(new SearchShardIterator(null, Collections.emptyList(), null))),
-                timeProvider,
-                0,
-                null,
-                null
-        ) {
+        return new AbstractSearchAsyncAction<SearchPhaseResult>("test", null, null, null,
+                Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f), null,
+                new SearchRequest(), null, new GroupShardsIterator<>(Collections.singletonList(
+                new SearchShardIterator(null, null, Collections.emptyList(), null))), timeProvider, 0, null,
+            new InitialSearchPhase.SearchPhaseResults<>(10)) {
             @Override
-            protected SearchPhase getNextPhase(
-                    final SearchPhaseResults<SearchPhaseResult> results,
-                    final SearchPhaseContext context) {
+            protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
                 return null;
             }
 
             @Override
-            protected void executePhaseOnShard(
-                    final SearchShardIterator shardIt,
-                    final ShardRouting shard,
-                    final SearchActionListener<SearchPhaseResult> listener) {
-
+            protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,
+                                               final SearchActionListener<SearchPhaseResult> listener) {
             }
 
             @Override
@@ -111,5 +102,17 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
             // with a real clock, the best we can say is that it took as long as we spun for
             assertThat(actual, greaterThanOrEqualTo(TimeUnit.NANOSECONDS.toMillis(expected.get())));
         }
+    }
+
+    public void testBuildShardSearchTransportRequest() {
+        final AtomicLong expected = new AtomicLong();
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(false, expected);
+        SearchShardIterator iterator = new SearchShardIterator("test-cluster", new ShardId(new Index("name", "foo"), 1),
+            Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));
+        ShardSearchTransportRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
+        assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
+        assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
+        assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.filteringAliases());
+        assertEquals(2.0f, shardSearchTransportRequest.indexBoost(), 0.0f);
     }
 }

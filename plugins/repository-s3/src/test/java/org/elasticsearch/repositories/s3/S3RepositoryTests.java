@@ -19,12 +19,12 @@
 
 package org.elasticsearch.repositories.s3;
 
+import java.io.IOException;
+
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -33,9 +33,6 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
-
-import static org.elasticsearch.repositories.s3.S3Repository.Repositories;
 import static org.hamcrest.Matchers.containsString;
 
 public class S3RepositoryTests extends ESTestCase {

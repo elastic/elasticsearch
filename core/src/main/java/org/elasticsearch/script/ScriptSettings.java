@@ -92,7 +92,7 @@ public class ScriptSettings {
                 Function<Settings, String> defaultLangAndTypeFn = settings -> {
                     final Setting<Boolean> globalTypeSetting = scriptTypeSettingMap.get(scriptType);
                     final Setting<Boolean> langAndTypeSetting = Setting.boolSetting(ScriptModes.getGlobalKey(language, scriptType),
-                            defaultIfNothingSet, Property.NodeScope);
+                            defaultIfNothingSet, Property.NodeScope, Property.Deprecated);
 
                     if (langAndTypeSetting.exists(settings)) {
                         // fine-grained e.g. script.engine.groovy.inline
@@ -118,7 +118,7 @@ public class ScriptSettings {
                         final Setting<Boolean> globalOpSetting = scriptContextSettingMap.get(scriptContext);
                         final Setting<Boolean> globalTypeSetting = scriptTypeSettingMap.get(scriptType);
                         final Setting<Boolean> langAndTypeAndContextSetting = Setting.boolSetting(langAndTypeAndContextName,
-                                defaultIfNothingSet, Property.NodeScope);
+                                defaultIfNothingSet, Property.NodeScope, Property.Deprecated);
 
                         // fallback logic for script mode settings
                         if (langAndTypeAndContextSetting.exists(settings)) {

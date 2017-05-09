@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.MockScriptEngine.MockCompiledScript;
@@ -59,7 +60,8 @@ public class FileScriptTests extends ESTestCase {
         assertNotNull(compiledScript);
         MockCompiledScript executable = (MockCompiledScript) compiledScript.compiled();
         assertEquals("script1.mockscript", executable.getName());
-        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
+        assertSettingDeprecationsAndWarnings(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING},
+            "File scripts are deprecated. Use stored or inline scripts instead.");
     }
 
     public void testAllOpsDisabled() throws Exception {
@@ -79,6 +81,7 @@ public class FileScriptTests extends ESTestCase {
                 assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [file], operation [" + context.getKey() + "] and lang [" + MockScriptEngine.NAME + "] are disabled"));
             }
         }
-        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
+        assertSettingDeprecationsAndWarnings(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING},
+            "File scripts are deprecated. Use stored or inline scripts instead.");
     }
 }

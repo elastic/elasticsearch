@@ -82,14 +82,14 @@ public final class AuthorizationUtils {
         }
 
         public void authorize(AuthorizationService service) {
-            if (SystemUser.is(authentication.getUser())) {
+            if (SystemUser.is(authentication.getUser().authenticatedUser())) {
+                assert authentication.getUser().isRunAs() == false;
                 setUserRoles(null); // we can inform the listener immediately - nothing to fetch for us on system user
                 setRunAsRoles(null);
             } else {
-                service.roles(authentication.getUser(), ActionListener.wrap(this::setUserRoles, listener::onFailure));
-                if (authentication.isRunAs()) {
-                    assert authentication.getRunAsUser() != null : "runAs user is null but shouldn't";
-                    service.roles(authentication.getRunAsUser(), ActionListener.wrap(this::setRunAsRoles, listener::onFailure));
+                service.roles(authentication.getUser().authenticatedUser(), ActionListener.wrap(this::setUserRoles, listener::onFailure));
+                if (authentication.getUser().isRunAs()) {
+                    service.roles(authentication.getUser(), ActionListener.wrap(this::setRunAsRoles, listener::onFailure));
                 } else {
                     setRunAsRoles(null);
                 }

@@ -39,7 +39,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
     protected void doExecute(SetEnabledRequest request, ActionListener<SetEnabledResponse> listener) {
         final String username = request.username();
         // make sure the user is not disabling themselves
-        if (Authentication.getAuthentication(threadPool.getThreadContext()).getRunAsUser().principal().equals(request.username())) {
+        if (Authentication.getAuthentication(threadPool.getThreadContext()).getUser().principal().equals(request.username())) {
             listener.onFailure(new IllegalArgumentException("users may not update the enabled status of their own account"));
             return;
         } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username)) {

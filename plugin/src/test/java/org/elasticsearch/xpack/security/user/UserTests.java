@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.security.user;
 
-import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
-
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.containsString;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
+
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -32,14 +33,15 @@ public class UserTests extends ESTestCase {
         assertThat(readFrom, not(sameInstance(user)));
         assertThat(readFrom.principal(), is(user.principal()));
         assertThat(Arrays.equals(readFrom.roles(), user.roles()), is(true));
-        assertThat(readFrom.runAs(), is(nullValue()));
+        assertThat(readFrom.authenticatedUser(), is(user));
     }
 
     public void testWriteToAndReadFromWithRunAs() throws Exception {
-        User runAs = new User(randomAlphaOfLengthBetween(4, 30),
-                randomBoolean() ? generateRandomStringArray(20, 30, false) : null);
+        User authUser = new User(randomAlphaOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false));
         User user = new User(randomAlphaOfLengthBetween(4, 30),
-                generateRandomStringArray(20, 30, false), runAs);
+            randomBoolean() ? generateRandomStringArray(20, 30, false) : null,
+            authUser);
+
         BytesStreamOutput output = new BytesStreamOutput();
 
         User.writeTo(user, output);
@@ -48,11 +50,51 @@ public class UserTests extends ESTestCase {
         assertThat(readFrom, not(sameInstance(user)));
         assertThat(readFrom.principal(), is(user.principal()));
         assertThat(Arrays.equals(readFrom.roles(), user.roles()), is(true));
-        assertThat(readFrom.runAs(), is(notNullValue()));
-        User readFromRunAs = readFrom.runAs();
-        assertThat(readFromRunAs.principal(), is(runAs.principal()));
-        assertThat(Arrays.equals(readFromRunAs.roles(), runAs.roles()), is(true));
-        assertThat(readFromRunAs.runAs(), is(nullValue()));
+        User readFromAuthUser = readFrom.authenticatedUser();
+        assertThat(authUser, is(notNullValue()));
+        assertThat(readFromAuthUser.principal(), is(authUser.principal()));
+        assertThat(Arrays.equals(readFromAuthUser.roles(), authUser.roles()), is(true));
+        assertThat(readFromAuthUser.authenticatedUser(), is(authUser));
+    }
+
+    public void testRunAsBackcompatRead() throws Exception {
+        User user = new User(randomAlphaOfLengthBetween(4, 30),
+            randomBoolean() ? generateRandomStringArray(20, 30, false) : null);
+        // store the runAs user as the "authenticationUser" here to mimic old format for writing
+        User authUser = new User(randomAlphaOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false), user);
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        User.writeTo(authUser, output);
+        StreamInput input = output.bytes().streamInput();
+        input.setVersion(randomFrom(Version.V_5_0_0, Version.V_5_4_0_UNRELEASED));
+        User readFrom = User.readFrom(input);
+
+        assertThat(readFrom.principal(), is(user.principal()));
+        assertThat(Arrays.equals(readFrom.roles(), user.roles()), is(true));
+        User readFromAuthUser = readFrom.authenticatedUser();
+        assertThat(authUser, is(notNullValue()));
+        assertThat(readFromAuthUser.principal(), is(authUser.principal()));
+        assertThat(Arrays.equals(readFromAuthUser.roles(), authUser.roles()), is(true));
+    }
+
+    public void testRunAsBackcompatWrite() throws Exception {
+        User user = new User(randomAlphaOfLengthBetween(4, 30),
+            randomBoolean() ? generateRandomStringArray(20, 30, false) : null);
+        // store the runAs user as the "authenticationUser" here to mimic old format for writing
+        User authUser = new User(randomAlphaOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false), user);
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setVersion(randomFrom(Version.V_5_0_0, Version.V_5_4_0_UNRELEASED));
+        User.writeTo(authUser, output);
+        StreamInput input = output.bytes().streamInput();
+        User readFrom = User.readFrom(input);
+
+        assertThat(readFrom.principal(), is(user.principal()));
+        assertThat(Arrays.equals(readFrom.roles(), user.roles()), is(true));
+        User readFromAuthUser = readFrom.authenticatedUser();
+        assertThat(authUser, is(notNullValue()));
+        assertThat(readFromAuthUser.principal(), is(authUser.principal()));
+        assertThat(Arrays.equals(readFromAuthUser.roles(), authUser.roles()), is(true));
     }
 
     public void testSystemUserReadAndWrite() throws Exception {
@@ -62,7 +104,7 @@ public class UserTests extends ESTestCase {
         User readFrom = User.readFrom(output.bytes().streamInput());
 
         assertThat(readFrom, is(sameInstance(SystemUser.INSTANCE)));
-        assertThat(readFrom.runAs(), is(nullValue()));
+        assertThat(readFrom.authenticatedUser(), is(SystemUser.INSTANCE));
     }
 
     public void testXPackUserReadAndWrite() throws Exception {
@@ -72,7 +114,7 @@ public class UserTests extends ESTestCase {
         User readFrom = User.readFrom(output.bytes().streamInput());
 
         assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
-        assertThat(readFrom.runAs(), is(nullValue()));
+        assertThat(readFrom.authenticatedUser(), is(XPackUser.INSTANCE));
     }
 
     public void testFakeInternalUserSerialization() throws Exception {
@@ -87,24 +129,14 @@ public class UserTests extends ESTestCase {
         }
     }
 
-    public void testCreateUserRunningAsSystemUser() throws Exception {
-        try {
-            new User(randomAlphaOfLengthBetween(3, 10),
-                    generateRandomStringArray(16, 30, false), SystemUser.INSTANCE);
-            fail("should not be able to create a runAs user with the system user");
-        } catch (ElasticsearchSecurityException e) {
-            assertThat(e.getMessage(), containsString("invalid run_as user"));
-        }
-    }
-
     public void testUserToString() throws Exception {
         User user = new User("u1", "r1");
         assertThat(user.toString(), is("User[username=u1,roles=[r1],fullName=null,email=null,metadata={}]"));
         user = new User("u1", new String[] { "r1", "r2" }, "user1", "user1@domain.com", Collections.singletonMap("key", "val"), true);
         assertThat(user.toString(), is("User[username=u1,roles=[r1,r2],fullName=user1,email=user1@domain.com,metadata={key=val}]"));
-        user = new User("u1", new String[] {"r1", "r2"}, new User("u2", "r3"));
-        assertThat(user.toString(), is("User[username=u1,roles=[r1,r2],fullName=null,email=null,metadata={},runAs=[User[username=u2," +
-                "roles=[r3],fullName=null,email=null,metadata={}]]]"));
+        user = new User("u1", new String[] {"r1"}, new User("u2", "r2", "r3"));
+        assertThat(user.toString(), is("User[username=u1,roles=[r1],fullName=null,email=null,metadata={}," +
+                "authenticatedUser=[User[username=u2,roles=[r2,r3],fullName=null,email=null,metadata={}]]]"));
     }
 
     public void testReservedUserSerialization() throws Exception {

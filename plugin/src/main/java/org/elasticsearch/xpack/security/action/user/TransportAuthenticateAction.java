@@ -34,16 +34,16 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
 
     @Override
     protected void doExecute(AuthenticateRequest request, ActionListener<AuthenticateResponse> listener) {
-        final User user = securityContext.getUser();
-        if (SystemUser.is(user) || XPackUser.is(user)) {
-            listener.onFailure(new IllegalArgumentException("user [" + user.principal() + "] is internal"));
-            return;
-        }
-
-        if (user == null) {
+        final User runAsUser = securityContext.getUser();
+        final User authUser = runAsUser == null ? null : runAsUser.authenticatedUser();
+        if (authUser == null) {
             listener.onFailure(new ElasticsearchSecurityException("did not find an authenticated user"));
-            return;
+        } else if (SystemUser.is(authUser) || XPackUser.is(authUser)) {
+            listener.onFailure(new IllegalArgumentException("user [" + authUser.principal() + "] is internal"));
+        } else if (SystemUser.is(runAsUser) || XPackUser.is(runAsUser)) {
+            listener.onFailure(new IllegalArgumentException("user [" + runAsUser.principal() + "] is internal"));
+        } else {
+            listener.onResponse(new AuthenticateResponse(runAsUser));
         }
-        listener.onResponse(new AuthenticateResponse(user));
     }
 }

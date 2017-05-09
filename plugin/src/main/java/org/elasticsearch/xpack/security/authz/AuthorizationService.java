@@ -133,7 +133,7 @@ public class AuthorizationService extends AbstractComponent {
         setOriginatingAction(action);
 
         // first we need to check if the user is the system. If it is, we'll just authorize the system access
-        if (SystemUser.is(authentication.getRunAsUser())) {
+        if (SystemUser.is(authentication.getUser())) {
             if (SystemUser.isAuthorized(action) && SystemUser.is(authentication.getUser())) {
                 setIndicesAccessControl(IndicesAccessControl.ALLOW_ALL);
                 grant(authentication, action, request);
@@ -146,13 +146,13 @@ public class AuthorizationService extends AbstractComponent {
         Role permission = userRole;
 
         // check if the request is a run as request
-        final boolean isRunAs = authentication.isRunAs();
+        final boolean isRunAs = authentication.getUser().isRunAs();
         if (isRunAs) {
             // if we are running as a user we looked up then the authentication must contain a lookedUpBy. If it doesn't then this user
             // doesn't really exist but the authc service allowed it through to avoid leaking users that exist in the system
             if (authentication.getLookedUpBy() == null) {
                 throw denyRunAs(authentication, action, request);
-            } else if (permission.runAs().check(authentication.getRunAsUser().principal())) {
+            } else if (permission.runAs().check(authentication.getUser().principal())) {
                 grantRunAs(authentication, action, request);
                 permission = runAsRole;
             } else {
@@ -203,7 +203,7 @@ public class AuthorizationService extends AbstractComponent {
 
         // we only want the xpack user to use the xpack delete by query action
         if (XPackDeleteByQueryAction.NAME.equals(action)
-                && XPackUser.is(authentication.getRunAsUser()) == false) {
+                && XPackUser.is(authentication.getUser()) == false) {
             throw denial(authentication, action, request);
         }
 
@@ -230,7 +230,7 @@ public class AuthorizationService extends AbstractComponent {
         }
 
         MetaData metaData = clusterService.state().metaData();
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getRunAsUser(), permission, action, metaData);
+        AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getUser(), permission, action, metaData);
         Set<String> indexNames = resolveIndexNames(authentication, action, request, metaData, authorizedIndices);
         assert !indexNames.isEmpty() : "every indices request needs to have its indices set thus the resolved indices must not be empty";
 
@@ -247,13 +247,13 @@ public class AuthorizationService extends AbstractComponent {
             throw denial(authentication, action, request);
         } else if (indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME) != null
                 && indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME).isGranted()
-                && XPackUser.is(authentication.getRunAsUser()) == false
+                && XPackUser.is(authentication.getUser()) == false
                 && MONITOR_INDEX_PREDICATE.test(action) == false
-                && isSuperuser(authentication.getRunAsUser()) == false) {
+                && isSuperuser(authentication.getUser()) == false) {
             // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
             // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
             logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
-                    authentication.getRunAsUser().principal(), action, SecurityLifecycleService.SECURITY_INDEX_NAME);
+                    authentication.getUser().principal(), action, SecurityLifecycleService.SECURITY_INDEX_NAME);
             throw denial(authentication, action, request);
         } else {
             setIndicesAccessControl(indicesAccessControl);
@@ -380,7 +380,7 @@ public class AuthorizationService extends AbstractComponent {
                 return false;
             }
             final String username = usernames[0];
-            final boolean sameUsername = authentication.getRunAsUser().principal().equals(username);
+            final boolean sameUsername = authentication.getUser().principal().equals(username);
             if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
                 return checkChangePasswordAction(authentication);
             }
@@ -396,7 +396,7 @@ public class AuthorizationService extends AbstractComponent {
         // we need to verify that this user was authenticated by or looked up by a realm type that support password changes
         // otherwise we open ourselves up to issues where a user in a different realm could be created with the same username
         // and do malicious things
-        final boolean isRunAs = authentication.isRunAs();
+        final boolean isRunAs = authentication.getUser().isRunAs();
         final String realmType;
         if (isRunAs) {
             realmType = authentication.getLookedUpBy().getType();
@@ -429,19 +429,19 @@ public class AuthorizationService extends AbstractComponent {
     }
 
     private ElasticsearchSecurityException denialException(Authentication authentication, String action) {
-        final User user = authentication.getUser();
+        final User authUser = authentication.getUser().authenticatedUser();
         // Special case for anonymous user
-        if (isAnonymousEnabled && anonymousUser.equals(user)) {
+        if (isAnonymousEnabled && anonymousUser.equals(authUser)) {
             if (anonymousAuthzExceptionEnabled == false) {
                 throw authcFailureHandler.authenticationRequired(action, threadContext);
             }
         }
         // check for run as
-        if (user != authentication.getRunAsUser()) {
-            return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", action, user.principal(),
-                    authentication.getRunAsUser().principal());
+        if (authentication.getUser().isRunAs()) {
+            return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", action, authUser.principal(),
+                    authentication.getUser().principal());
         }
-        return authorizationError("action [{}] is unauthorized for user [{}]", action, user.principal());
+        return authorizationError("action [{}] is unauthorized for user [{}]", action, authUser.principal());
     }
 
     static boolean isSuperuser(User user) {

@@ -124,25 +124,11 @@ public interface ServerTransportFilter {
             }
 
             authcService.authenticate(securityAction, request, null, ActionListener.wrap((authentication) -> {
-                    if (reservedRealmEnabled && authentication.getVersion().before(Version.V_5_2_0_UNRELEASED)
-                            && KibanaUser.NAME.equals(authentication.getUser().principal())) {
-                        // the authentication came from an older node - so let's replace the user with our version
-                        final User kibanaUser = new KibanaUser(authentication.getUser().enabled());
-                        if (kibanaUser.enabled()) {
-                            securityContext.executeAsUser(kibanaUser, (original) -> {
-                                final Authentication replacedUserAuth = Authentication.getAuthentication(threadContext);
-                                final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                                        new AuthorizationUtils.AsyncAuthorizer(replacedUserAuth, listener, (userRoles, runAsRoles) -> {
-                                            authzService.authorize(replacedUserAuth, securityAction, request, userRoles, runAsRoles);
-                                            listener.onResponse(null);
-                                        });
-                                asyncAuthorizer.authorize(authzService);
-                            }, transportChannel.getVersion());
-                        } else {
-                            throw new IllegalStateException("a disabled user should never be sent. " + kibanaUser);
-                        }
+                    if (reservedRealmEnabled && authentication.getVersion().before(Version.V_5_2_0_UNRELEASED) &&
+                        KibanaUser.NAME.equals(authentication.getUser().authenticatedUser().principal())) {
+                        executeAsCurrentVersionKibanaUser(securityAction, request, transportChannel, listener, authentication);
                     } else if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
-                            SystemUser.is(authentication.getUser()) == false) {
+                               SystemUser.is(authentication.getUser()) == false) {
                         securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
                             final Authentication replaced = Authentication.getAuthentication(threadContext);
                             final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
@@ -161,6 +147,25 @@ public interface ServerTransportFilter {
                         asyncAuthorizer.authorize(authzService);
                     }
                 }, listener::onFailure));
+        }
+
+        private void executeAsCurrentVersionKibanaUser(String securityAction, TransportRequest request, TransportChannel transportChannel,
+                                                       ActionListener<Void> listener, Authentication authentication) {
+            // the authentication came from an older node - so let's replace the user with our version
+            final User kibanaUser = new KibanaUser(authentication.getUser().enabled());
+            if (kibanaUser.enabled()) {
+                securityContext.executeAsUser(kibanaUser, (original) -> {
+                    final Authentication replacedUserAuth = securityContext.getAuthentication();
+                    final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
+                        new AuthorizationUtils.AsyncAuthorizer(replacedUserAuth, listener, (userRoles, runAsRoles) -> {
+                            authzService.authorize(replacedUserAuth, securityAction, request, userRoles, runAsRoles);
+                            listener.onResponse(null);
+                        });
+                    asyncAuthorizer.authorize(authzService);
+                }, transportChannel.getVersion());
+            } else {
+                throw new IllegalStateException("a disabled user should never be sent. " + kibanaUser);
+            }
         }
     }
 

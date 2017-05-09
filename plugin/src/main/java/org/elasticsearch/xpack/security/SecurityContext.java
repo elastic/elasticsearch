@@ -63,16 +63,19 @@ public class SecurityContext {
      */
     void setUser(User user, Version version) {
         Objects.requireNonNull(user);
+        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__attach", "__attach", nodeName);
         final Authentication.RealmRef lookedUpBy;
-        if (user.runAs() == null) {
-            lookedUpBy = null;
+        if (user.isRunAs()) {
+            lookedUpBy = authenticatedBy;
         } else {
-            lookedUpBy = new Authentication.RealmRef("__attach", "__attach", nodeName);
+            lookedUpBy = null;
         }
+        setAuthentication(new Authentication(user, authenticatedBy, lookedUpBy, version));
+    }
 
+    /** Writes the authentication to the thread context */
+    private void setAuthentication(Authentication authentication) {
         try {
-            Authentication authentication =
-                    new Authentication(user, new Authentication.RealmRef("__attach", "__attach", nodeName), lookedUpBy, version);
             authentication.writeToContext(threadContext);
         } catch (IOException e) {
             throw new AssertionError("how can we have a IOException with a user we set", e);
@@ -80,13 +83,27 @@ public class SecurityContext {
     }
 
     /**
-     * Runs the consumer in a new context as the provided user. The original constext is provided to the consumer. When this method
+     * Runs the consumer in a new context as the provided user. The original context is provided to the consumer. When this method
      * returns, the original context is restored.
      */
     public void executeAsUser(User user, Consumer<StoredContext> consumer, Version version) {
         final StoredContext original = threadContext.newStoredContext(true);
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             setUser(user, version);
+            consumer.accept(original);
+        }
+    }
+
+    /**
+     * Runs the consumer in a new context after setting a new version of the authentication that is compatible with the version provided.
+     * The original context is provided to the consumer. When this method returns, the original context is restored.
+     */
+    public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, Version version) {
+        final StoredContext original = threadContext.newStoredContext(true);
+        final Authentication authentication = Objects.requireNonNull(getAuthentication());
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            setAuthentication(new Authentication(authentication.getUser().authenticatedUser(), authentication.getAuthenticatedBy(),
+                                                 authentication.getLookedUpBy(), version));
             consumer.accept(original);
         }
     }

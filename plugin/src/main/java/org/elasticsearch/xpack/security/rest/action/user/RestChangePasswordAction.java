@@ -48,7 +48,7 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
         final User user = securityContext.getUser();
         final String username;
         if (request.param("username") == null) {
-            username = user.runAs() == null ? user.principal() : user.runAs().principal();
+            username = user.principal();
         } else {
             username = request.param("username");
         }

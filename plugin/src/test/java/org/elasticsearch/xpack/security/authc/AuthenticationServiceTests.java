@@ -645,18 +645,21 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             User authenticated = result.getUser();
 
-            assertThat(SystemUser.is(authenticated), is(false));
-            assertThat(authenticated.runAs(), is(notNullValue()));
-            assertThat(authenticated.principal(), is("lookup user"));
-            assertThat(authenticated.roles(), arrayContaining("user"));
-            assertEquals(user.metadata(), authenticated.metadata());
-            assertEquals(user.email(), authenticated.email());
-            assertEquals(user.enabled(), authenticated.enabled());
-            assertEquals(user.fullName(), authenticated.fullName());
-
-            assertThat(authenticated.runAs().principal(), is("looked up user"));
-            assertThat(authenticated.runAs().roles(), arrayContaining("some role"));
+            assertThat(authenticated.principal(), is("looked up user"));
+            assertThat(authenticated.roles(), arrayContaining("some role"));
             assertThreadContextContainsAuthentication(result);
+
+            assertThat(SystemUser.is(authenticated), is(false));
+            assertThat(authenticated.isRunAs(), is(true));
+            User authUser = authenticated.authenticatedUser();
+            assertThat(authUser.principal(), is("lookup user"));
+            assertThat(authUser.roles(), arrayContaining("user"));
+            assertEquals(user.metadata(), authUser.metadata());
+            assertEquals(user.email(), authUser.email());
+            assertEquals(user.enabled(), authUser.enabled());
+            assertEquals(user.fullName(), authUser.fullName());
+
+
             setCompletedToTrue(completed);
         }, this::logAndFail);
 
@@ -687,11 +690,11 @@ public class AuthenticationServiceTests extends ESTestCase {
             User authenticated = result.getUser();
 
             assertThat(SystemUser.is(authenticated), is(false));
-            assertThat(authenticated.runAs(), is(notNullValue()));
-            assertThat(authenticated.principal(), is("lookup user"));
-            assertThat(authenticated.roles(), arrayContaining("user"));
-            assertThat(authenticated.runAs().principal(), is("looked up user"));
-            assertThat(authenticated.runAs().roles(), arrayContaining("some role"));
+            assertThat(authenticated.isRunAs(), is(true));
+            assertThat(authenticated.authenticatedUser().principal(), is("lookup user"));
+            assertThat(authenticated.authenticatedUser().roles(), arrayContaining("user"));
+            assertThat(authenticated.principal(), is("looked up user"));
+            assertThat(authenticated.roles(), arrayContaining("some role"));
             assertThreadContextContainsAuthentication(result);
             setCompletedToTrue(completed);
         }, this::logAndFail);

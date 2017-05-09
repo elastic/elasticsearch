@@ -59,12 +59,7 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
         if (username != null) {
             return username;
         }
-        final User user = securityContext.getUser();
-        if (user.runAs() != null) {
-            return user.runAs().principal();
-        } else {
-            return user.principal();
-        }
+        return securityContext.getUser().principal();
     }
 
     static class HasPrivilegesRestResponseBuilder extends RestBuilderListener<HasPrivilegesResponse> {

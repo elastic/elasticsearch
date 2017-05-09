@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityContext;
@@ -91,7 +92,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                     // which means that the user is copied over to system actions so we need to change the user
                     if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
                         securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
-                                new TransportService.ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
+                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
                                         , handler), sender), connection.getVersion());
                     } else if (reservedRealmEnabled && connection.getVersion().before(Version.V_5_2_0_UNRELEASED) &&
                             KibanaUser.NAME.equals(securityContext.getUser().principal())) {
@@ -99,16 +100,14 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                         final User bwcKibanaUser = new User(kibanaUser.principal(), new String[] { "kibana" }, kibanaUser.fullName(),
                                 kibanaUser.email(), kibanaUser.metadata(), kibanaUser.enabled());
                         securityContext.executeAsUser(bwcKibanaUser, (original) -> sendWithUser(connection, action, request, options,
-                                new TransportService.ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original),
+                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original),
                                         handler), sender), connection.getVersion());
                     } else if (securityContext.getAuthentication() != null &&
                             securityContext.getAuthentication().getVersion().equals(connection.getVersion()) == false) {
                         // re-write the authentication since we want the authentication version to match the version of the connection
-                        securityContext.executeAsUser(securityContext.getUser(),
-                                (original) -> sendWithUser(connection, action, request, options,
-                                    new TransportService.ContextRestoreResponseHandler<>(
-                                            threadPool.getThreadContext().wrapRestorable(original), handler), sender),
-                                    connection.getVersion());
+                        securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
+                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender),
+                            connection.getVersion());
                     } else {
                         sendWithUser(connection, action, request, options, handler, sender);
                     }

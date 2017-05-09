@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.internal.Nullable;
@@ -27,7 +28,7 @@ public class User implements ToXContentObject {
 
     private final String username;
     private final String[] roles;
-    private final User runAs;
+    private final User authenticatedUser;
     private final Map<String, Object> metadata;
     private final boolean enabled;
 
@@ -38,36 +39,28 @@ public class User implements ToXContentObject {
         this(username, roles, null, null, null, true);
     }
 
-    public User(String username, String[] roles, User runAs) {
-        this(username, roles, null, null, null, true, runAs);
+    public User(String username, String[] roles, User authenticatedUser) {
+        this(username, roles, null, null, null, true, authenticatedUser);
     }
 
-    public User(User user, User runAs) {
-        this(user.principal(), user.roles(), user.fullName(), user.email(), user.metadata(), user.enabled(), runAs);
+    public User(User user, User authenticatedUser) {
+        this(user.principal(), user.roles(), user.fullName(), user.email(), user.metadata(), user.enabled(), authenticatedUser);
     }
 
     public User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled) {
-        this.username = username;
-        this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
-        this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
-        this.fullName = fullName;
-        this.email = email;
-        this.enabled = enabled;
-        this.runAs = null;
+        this(username, roles, fullName, email, metadata, enabled, null);
     }
 
-    public User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled, User runAs) {
+    private User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled,
+                User authenticatedUser) {
         this.username = username;
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
         this.fullName = fullName;
         this.email = email;
         this.enabled = enabled;
-        assert (runAs == null || runAs.runAs() == null) : "the run_as user should not be a user that can run as";
-        if (runAs == SystemUser.INSTANCE) {
-            throw new ElasticsearchSecurityException("invalid run_as user");
-        }
-        this.runAs = runAs;
+        assert (authenticatedUser == null || authenticatedUser.isRunAs() == false) : "the authenticated user should not be a run_as user";
+        this.authenticatedUser = authenticatedUser;
     }
 
     /**
@@ -116,12 +109,16 @@ public class User implements ToXContentObject {
     }
 
     /**
-     * @return The user that will be used for run as functionality. If run as
-     *         functionality is not being used, then <code>null</code> will be
-     *         returned
+     * @return The user that was originally authenticated.
+     * This may be the user itself, or a different user which used runAs.
      */
-    public User runAs() {
-        return runAs;
+    public User authenticatedUser() {
+        return authenticatedUser == null ? this : authenticatedUser;
+    }
+
+    /** Return true if this user was not the originally authenticated user, false otherwise. */
+    public boolean isRunAs() {
+        return authenticatedUser != null;
     }
 
     @Override
@@ -133,8 +130,8 @@ public class User implements ToXContentObject {
         sb.append(",email=").append(email);
         sb.append(",metadata=");
         MetadataUtils.writeValue(sb, metadata);
-        if (runAs != null) {
-            sb.append(",runAs=[").append(runAs.toString()).append("]");
+        if (authenticatedUser != null) {
+            sb.append(",authenticatedUser=[").append(authenticatedUser.toString()).append("]");
         }
         sb.append("]");
         return sb.toString();
@@ -150,7 +147,7 @@ public class User implements ToXContentObject {
         if (!username.equals(user.username)) return false;
         // Probably incorrect - comparing Object[] arrays with Arrays.equals
         if (!Arrays.equals(roles, user.roles)) return false;
-        if (runAs != null ? !runAs.equals(user.runAs) : user.runAs != null) return false;
+        if (authenticatedUser != null ? !authenticatedUser.equals(user.authenticatedUser) : user.authenticatedUser != null) return false;
         if (!metadata.equals(user.metadata)) return false;
         if (fullName != null ? !fullName.equals(user.fullName) : user.fullName != null) return false;
         return !(email != null ? !email.equals(user.email) : user.email != null);
@@ -161,7 +158,7 @@ public class User implements ToXContentObject {
     public int hashCode() {
         int result = username.hashCode();
         result = 31 * result + Arrays.hashCode(roles);
-        result = 31 * result + (runAs != null ? runAs.hashCode() : 0);
+        result = 31 * result + (authenticatedUser != null ? authenticatedUser.hashCode() : 0);
         result = 31 * result + metadata.hashCode();
         result = 31 * result + (fullName != null ? fullName.hashCode() : 0);
         result = 31 * result + (email != null ? email.hashCode() : 0);
@@ -196,8 +193,19 @@ public class User implements ToXContentObject {
         String fullName = input.readOptionalString();
         String email = input.readOptionalString();
         boolean enabled = input.readBoolean();
-        User runAs = input.readBoolean() ? readFrom(input) : null;
-        return new User(username, roles, fullName, email, metadata, enabled, runAs);
+        User outerUser = new User(username, roles, fullName, email, metadata, enabled, null);
+        boolean hasInnerUser = input.readBoolean();
+        if (hasInnerUser) {
+            User innerUser = readFrom(input);
+            if (input.getVersion().onOrBefore(Version.V_5_4_0_UNRELEASED)) {
+                // backcompat: runas user was read first, so reverse outer and inner
+                return new User(innerUser, outerUser);
+            } else {
+                return new User(outerUser, innerUser);
+            }
+        } else {
+            return outerUser;
+        }
     }
 
     public static void writeTo(User user, StreamOutput output) throws IOException {
@@ -208,20 +216,32 @@ public class User implements ToXContentObject {
             output.writeBoolean(true);
             output.writeString(XPackUser.NAME);
         } else {
-            output.writeBoolean(false);
-            output.writeString(user.username);
-            output.writeStringArray(user.roles);
-            output.writeMap(user.metadata);
-            output.writeOptionalString(user.fullName);
-            output.writeOptionalString(user.email);
-            output.writeBoolean(user.enabled);
-            if (user.runAs == null) {
-                output.writeBoolean(false);
-            } else {
+            if (user.authenticatedUser == null) {
+                // no backcompat necessary, since there is no inner user
+                writeUser(user, output);
+            } else if (output.getVersion().onOrBefore(Version.V_5_4_0_UNRELEASED)) {
+                // backcompat: write runas user as the "inner" user
+                writeUser(user.authenticatedUser, output);
                 output.writeBoolean(true);
-                writeTo(user.runAs, output);
+                writeUser(user, output);
+            } else {
+                writeUser(user, output);
+                output.writeBoolean(true);
+                writeUser(user.authenticatedUser, output);
             }
+            output.writeBoolean(false); // last user written, regardless of bwc, does not have an inner user
         }
+    }
+
+    /** Write just the given {@link User}, but not the inner {@link #authenticatedUser}. */
+    private static void writeUser(User user, StreamOutput output) throws IOException {
+        output.writeBoolean(false); // not a system user
+        output.writeString(user.username);
+        output.writeStringArray(user.roles);
+        output.writeMap(user.metadata);
+        output.writeOptionalString(user.fullName);
+        output.writeOptionalString(user.email);
+        output.writeBoolean(user.enabled);
     }
 
     public interface Fields {

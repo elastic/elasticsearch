@@ -602,13 +602,14 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             msg.builder.field(Field.ACTION, action);
         }
         if (user != null) {
-            if (user.runAs() != null) {
+            if (user.isRunAs()) {
                 if ("run_as_granted".equals(type) || "run_as_denied".equals(type)) {
-                    msg.builder.field(Field.PRINCIPAL, user.principal());
-                    msg.builder.field(Field.RUN_AS_PRINCIPAL, user.runAs().principal());
+                    msg.builder.field(Field.PRINCIPAL, user.authenticatedUser().principal());
+                    msg.builder.field(Field.RUN_AS_PRINCIPAL, user.principal());
                 } else {
-                    msg.builder.field(Field.PRINCIPAL, user.runAs().principal());
-                    msg.builder.field(Field.RUN_BY_PRINCIPAL, user.principal());
+                    // TODO: this doesn't make sense...
+                    msg.builder.field(Field.PRINCIPAL, user.principal());
+                    msg.builder.field(Field.RUN_BY_PRINCIPAL, user.authenticatedUser().principal());
                 }
             } else {
                 msg.builder.field(Field.PRINCIPAL, user.principal());
@@ -691,9 +692,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         common("rest", type, msg.builder);
 
         if (user != null) {
-            if (user.runAs() != null) {
-                msg.builder.field(Field.PRINCIPAL, user.runAs().principal());
-                msg.builder.field(Field.RUN_BY_PRINCIPAL, user.principal());
+            if (user.isRunAs()) {
+                msg.builder.field(Field.PRINCIPAL, user.principal());
+                msg.builder.field(Field.RUN_BY_PRINCIPAL, user.authenticatedUser().principal());
             } else {
                 msg.builder.field(Field.PRINCIPAL, user.principal());
             }

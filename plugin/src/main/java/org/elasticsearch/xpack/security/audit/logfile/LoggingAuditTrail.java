@@ -350,8 +350,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
     public void runAsGranted(User user, String action, TransportMessage message) {
         if (events.contains(RUN_AS_GRANTED)) {
             logger.info("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]",
-                getPrefix(), originAttributes(message, clusterService.localNode(), threadContext), user.principal(),
-                    user.runAs().principal(), action, message.getClass().getSimpleName());
+                getPrefix(), originAttributes(message, clusterService.localNode(), threadContext), user.authenticatedUser().principal(),
+                    user.principal(), action, message.getClass().getSimpleName());
         }
     }
 
@@ -359,8 +359,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
     public void runAsDenied(User user, String action, TransportMessage message) {
         if (events.contains(RUN_AS_DENIED)) {
             logger.info("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]",
-                getPrefix(), originAttributes(message, clusterService.localNode(), threadContext), user.principal(),
-                    user.runAs().principal(), action, message.getClass().getSimpleName());
+                getPrefix(), originAttributes(message, clusterService.localNode(), threadContext), user.authenticatedUser().principal(),
+                    user.principal(), action, message.getClass().getSimpleName());
         }
     }
 
@@ -447,10 +447,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
 
     static String principal(User user) {
         StringBuilder builder = new StringBuilder("principal=[");
-        if (user.runAs() != null) {
-            builder.append(user.runAs().principal()).append("], run_by_principal=[");
+        builder.append(user.principal());
+        if (user.isRunAs()) {
+            builder.append("], run_by_principal=[").append(user.authenticatedUser().principal());
         }
-        return builder.append(user.principal()).append("]").toString();
+        return builder.append("]").toString();
     }
 
     public static void registerSettings(List<Setting<?>> settings) {

@@ -56,7 +56,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
-        when(authentication.getRunAsUser()).thenReturn(user);
+        when(authentication.getUser()).thenReturn(user);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null);
@@ -94,7 +94,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
-        when(authentication.getRunAsUser()).thenReturn(user);
+        when(authentication.getUser()).thenReturn(user);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null);
@@ -131,7 +131,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
-        when(authentication.getRunAsUser()).thenReturn(new User("the runner"));
+        when(authentication.getUser()).thenReturn(new User("the runner"));
 
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -182,7 +182,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
-        when(authentication.getRunAsUser()).thenReturn(new User("the runner"));
+        when(authentication.getUser()).thenReturn(new User("the runner"));
 
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -235,7 +235,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
-        when(authentication.getRunAsUser()).thenReturn(user);
+        when(authentication.getUser()).thenReturn(user);
 
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SetEnabledRequest request = new SetEnabledRequest();

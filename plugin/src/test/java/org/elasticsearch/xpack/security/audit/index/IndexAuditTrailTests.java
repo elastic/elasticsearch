@@ -473,8 +473,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         final boolean runAs = randomBoolean();
         User user;
         if (runAs) {
-            user = new User("_username", new String[]{"r1"},
-                    new User("running as", new String[] {"r2"}));
+            user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         } else {
             user = new User("_username", new String[]{"r1"});
         }
@@ -518,8 +517,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         final boolean runAs = randomBoolean();
         User user;
         if (runAs) {
-            user = new User("_username", new String[]{"r1"},
-                    new User("running as", new String[] {"r2"}));
+            user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         } else {
             user = new User("_username", new String[]{"r1"});
         }
@@ -578,8 +576,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         final boolean runAs = randomBoolean();
         User user;
         if (runAs) {
-            user = new User("_username", new String[]{"r1"},
-                    new User("running as", new String[] {"r2"}));
+            user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         } else {
             user = new User("_username", new String[]{"r1"});
         }
@@ -631,7 +628,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testRunAsGranted() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        User user = new User("_username", new String[]{"r1"}, new User("running as", new String[] {"r2"}));
+        User user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         auditor.runAsGranted(user, "_action", message);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
@@ -647,7 +644,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testRunAsDenied() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        User user = new User("_username", new String[]{"r1"}, new User("running as", new String[] {"r2"}));
+        User user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         auditor.runAsDenied(user, "_action", message);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
@@ -666,7 +663,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         final boolean runAs = randomBoolean();
         User user;
         if (runAs) {
-            user = new User("_username", new String[] { "r1" }, new User("running as", new String[] { "r2" }));
+            user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         } else {
             user = new User("_username", new String[] { "r1" });
         }
@@ -693,7 +690,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         final boolean runAs = randomBoolean();
         User user;
         if (runAs) {
-            user = new User("_username", new String[] { "r1" }, new User("running as", new String[] { "r2" }));
+            user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         } else {
             user = new User("_username", new String[] { "r1" });
         }

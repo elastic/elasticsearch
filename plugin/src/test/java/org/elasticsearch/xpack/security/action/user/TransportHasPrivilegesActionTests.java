@@ -63,7 +63,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        when(authentication.getRunAsUser()).thenReturn(user);
+        when(authentication.getUser()).thenReturn(user);
 
         AuthorizationService authorizationService = mock(AuthorizationService.class);
         Mockito.doAnswer(invocationOnMock -> {

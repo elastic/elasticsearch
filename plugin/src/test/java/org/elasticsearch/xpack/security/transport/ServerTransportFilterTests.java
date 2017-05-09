@@ -81,7 +81,6 @@ public class ServerTransportFilterTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
-        when(authentication.getRunAsUser()).thenReturn(SystemUser.INSTANCE);
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[3];
@@ -160,7 +159,6 @@ public class ServerTransportFilterTests extends ESTestCase {
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
         when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(XPackUser.INSTANCE);
-        when(authentication.getRunAsUser()).thenReturn(XPackUser.INSTANCE);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         doThrow(authorizationError("authz failed")).when(authzService).authorize(authentication, "_action", request,
                 empty, null);
@@ -228,7 +226,6 @@ public class ServerTransportFilterTests extends ESTestCase {
         final Version version = Version.fromId(randomIntBetween(Version.V_5_0_0_ID, Version.V_5_2_0_ID_UNRELEASED - 100));
         when(authentication.getVersion()).thenReturn(version);
         when(authentication.getUser()).thenReturn(user);
-        when(authentication.getRunAsUser()).thenReturn(user);
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[3];
@@ -256,7 +253,6 @@ public class ServerTransportFilterTests extends ESTestCase {
         rolesRef.set(null);
         user = new KibanaUser(true);
         when(authentication.getUser()).thenReturn(user);
-        when(authentication.getRunAsUser()).thenReturn(user);
         when(authentication.getVersion()).thenReturn(Version.V_5_2_0_UNRELEASED);
         future = new PlainActionFuture<>();
         filter.inbound("_action", request, channel, future);

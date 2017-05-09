@@ -109,6 +109,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         assertThat(request.getDocs(), hasSize(nbDocs));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1353")
     public void testAddMultipleDocs() throws Exception {
         final int nbDocs = randomIntBetween(3, 20);
         final MonitoringIndex[] indices = new MonitoringIndex[nbDocs];

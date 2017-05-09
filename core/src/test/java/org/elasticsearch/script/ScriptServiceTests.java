@@ -28,6 +28,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -40,10 +41,12 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -125,6 +128,21 @@ public class ScriptServiceTests extends ESTestCase {
                 return new StoredScriptSource(lang, "100", Collections.emptyMap());
             }
         };
+    }
+
+    private static Setting<?>[] buildDeprecatedSettingsArray(ScriptSettings scriptSettings, String... keys) {
+        Setting<?>[] settings = new Setting[keys.length];
+        int count = 0;
+
+        for (Setting<?> setting : scriptSettings.getSettings()) {
+            for (String key : keys) {
+                if (setting.getKey().equals(key)) {
+                    settings[count++] = setting;
+                }
+            }
+        }
+
+        return settings;
     }
 
     public void testCompilationCircuitBreaking() throws Exception {
@@ -263,6 +281,7 @@ public class ScriptServiceTests extends ESTestCase {
             } while (engineSettings.containsKey(settingKey));
             engineSettings.put(settingKey, randomBoolean());
         }
+        List<String> deprecated = new ArrayList<>();
         //set the selected fine-grained settings
         Settings.Builder builder = Settings.builder();
         for (Map.Entry<ScriptType, Boolean> entry : scriptSourceSettings.entrySet()) {
@@ -271,6 +290,7 @@ public class ScriptServiceTests extends ESTestCase {
             } else {
                 builder.put("script" + "." + entry.getKey().getName(), "false");
             }
+            deprecated.add("script" + "." + entry.getKey().getName());
         }
         for (Map.Entry<ScriptContext, Boolean> entry : scriptContextSettings.entrySet()) {
             if (entry.getValue()) {
@@ -278,6 +298,7 @@ public class ScriptServiceTests extends ESTestCase {
             } else {
                 builder.put("script" + "." + entry.getKey().getKey(), "false");
             }
+            deprecated.add("script" + "." + entry.getKey().getKey());
         }
         for (Map.Entry<String, Boolean> entry : engineSettings.entrySet()) {
             int delimiter = entry.getKey().indexOf('.');
@@ -290,6 +311,7 @@ public class ScriptServiceTests extends ESTestCase {
             } else {
                 builder.put("script.engine" + "." + lang + "." + part2, "false");
             }
+            deprecated.add("script.engine" + "." + lang + "." + part2);
         }
 
         buildScriptService(builder.build());
@@ -320,7 +342,8 @@ public class ScriptServiceTests extends ESTestCase {
                 }
             }
         }
-        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
+        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})),
+            "File scripts are deprecated. Use stored or inline scripts instead.");
     }
 
     public void testCompileNonRegisteredContext() throws IOException {
@@ -381,6 +404,7 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(script, randomFrom(scriptContexts));
         scriptService.compile(script, randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
+        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
     }
 
     public void testFileScriptCountedInCompilationStats() throws IOException {
@@ -406,6 +430,7 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(2L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
+        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
     }
 
     public void testDefaultLanguage() throws IOException {
@@ -415,6 +440,7 @@ public class ScriptServiceTests extends ESTestCase {
         CompiledScript script = scriptService.compile(
             new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 + 1", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(script.lang(), Script.DEFAULT_SCRIPT_LANG);
+        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
     }
 
     public void testStoreScript() throws Exception {

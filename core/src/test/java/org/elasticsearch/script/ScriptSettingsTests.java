@@ -34,6 +34,21 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptSettingsTests extends ESTestCase {
 
+    private static Setting<?>[] buildDeprecatedSettingsArray(ScriptSettings scriptSettings, String... keys) {
+        Setting<?>[] settings = new Setting[keys.length];
+        int count = 0;
+
+        for (Setting<?> setting : scriptSettings.getSettings()) {
+            for (String key : keys) {
+                if (setting.getKey().equals(key)) {
+                    settings[count++] = setting;
+                }
+            }
+        }
+
+        return settings;
+    }
+
     public void testSettingsAreProperlyPropogated() {
         ScriptEngineRegistry scriptEngineRegistry =
             new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
@@ -48,6 +63,7 @@ public class ScriptSettingsTests extends ESTestCase {
                 assertThat(setting.getDefaultRaw(s), equalTo(Boolean.toString(enabled)));
             }
         }
+        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
     }
 
     private static class CustomScriptEngineService implements ScriptEngineService {

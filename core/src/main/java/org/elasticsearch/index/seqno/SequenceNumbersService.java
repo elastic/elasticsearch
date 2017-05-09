@@ -151,7 +151,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * @return the global checkpoint
      */
     public long getGlobalCheckpoint() {
-        return globalCheckpointTracker.getCheckpoint();
+        return globalCheckpointTracker.getGlobalCheckpoint();
     }
 
     /**

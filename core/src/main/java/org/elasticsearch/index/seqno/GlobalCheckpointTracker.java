@@ -178,7 +178,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      *
      * @return the global checkpoint
      */
-    public synchronized long getCheckpoint() {
+    public synchronized long getGlobalCheckpoint() {
         return globalCheckpoint;
     }
 

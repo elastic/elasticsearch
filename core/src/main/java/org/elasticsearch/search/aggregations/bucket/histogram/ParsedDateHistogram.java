@@ -28,9 +28,8 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 
-public class ParsedDateHistogram extends ParsedMultiBucketAggregation implements Histogram {
+public class ParsedDateHistogram extends ParsedMultiBucketAggregation<ParsedDateHistogram.ParsedBucket> implements Histogram {
 
     @Override
     protected String getType() {
@@ -39,7 +38,7 @@ public class ParsedDateHistogram extends ParsedMultiBucketAggregation implements
 
     @Override
     public List<? extends Histogram.Bucket> getBuckets() {
-        return buckets.stream().map(bucket -> (Histogram.Bucket) bucket).collect(Collectors.toList());
+        return buckets;
     }
 
     private static ObjectParser<ParsedDateHistogram, Void> PARSER =

@@ -33,15 +33,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME;
 import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.SUM_OF_OTHER_DOC_COUNTS;
 
-public abstract class ParsedTerms extends ParsedMultiBucketAggregation implements Terms {
+public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTerms.ParsedBucket> implements Terms {
 
     protected long docCountErrorUpperBound;
-    protected  long sumOtherDocCount;
+    protected long sumOtherDocCount;
 
     @Override
     public long getDocCountError() {
@@ -55,7 +54,7 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation implement
 
     @Override
     public List<? extends Terms.Bucket> getBuckets() {
-        return buckets.stream().map(bucket -> (Terms.Bucket) bucket).collect(Collectors.toList());
+        return buckets;
     }
 
     @Override

@@ -25,9 +25,8 @@ import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 
-public class ParsedHistogram extends ParsedMultiBucketAggregation implements Histogram {
+public class ParsedHistogram extends ParsedMultiBucketAggregation<ParsedHistogram.ParsedBucket> implements Histogram {
 
     @Override
     protected String getType() {
@@ -36,7 +35,7 @@ public class ParsedHistogram extends ParsedMultiBucketAggregation implements His
 
     @Override
     public List<? extends Histogram.Bucket> getBuckets() {
-        return buckets.stream().map(bucket -> (Histogram.Bucket) bucket).collect(Collectors.toList());
+        return buckets;
     }
 
     private static ObjectParser<ParsedHistogram, Void> PARSER =

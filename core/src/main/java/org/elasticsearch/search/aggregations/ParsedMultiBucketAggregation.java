@@ -34,9 +34,10 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public abstract class ParsedMultiBucketAggregation extends ParsedAggregation implements MultiBucketsAggregation {
+public abstract class ParsedMultiBucketAggregation<B extends ParsedMultiBucketAggregation.Bucket>
+        extends ParsedAggregation implements MultiBucketsAggregation {
 
-    protected final List<ParsedBucket> buckets = new ArrayList<>();
+    protected final List<B> buckets = new ArrayList<>();
     protected boolean keyed = false;
 
     @Override
@@ -46,7 +47,7 @@ public abstract class ParsedMultiBucketAggregation extends ParsedAggregation imp
         } else {
             builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
-        for (ParsedBucket bucket : buckets) {
+        for (B bucket : buckets) {
             bucket.toXContent(builder, params);
         }
         if (keyed) {

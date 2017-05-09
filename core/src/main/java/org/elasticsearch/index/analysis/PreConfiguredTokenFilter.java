@@ -96,6 +96,8 @@ public final class PreConfiguredTokenFilter implements AnalysisModule.AnalysisPr
         return useFilterForMultitermQueries;
     }
 
+    private interface MultiTermAwareTokenFilterFactory extends TokenFilterFactory, MultiTermAwareComponent {}
+
     private synchronized TokenFilterFactory getTokenFilterFactory(final Version version) {
         TokenFilterFactory factory = cache.get(version);
         if (factory == null) {
@@ -133,6 +135,4 @@ public final class PreConfiguredTokenFilter implements AnalysisModule.AnalysisPr
         }
         return factory;
     }
-
-    private interface MultiTermAwareTokenFilterFactory extends TokenFilterFactory, MultiTermAwareComponent {}
 }

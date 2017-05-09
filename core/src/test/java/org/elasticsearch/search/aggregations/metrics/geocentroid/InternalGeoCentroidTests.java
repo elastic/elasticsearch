@@ -47,7 +47,7 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         if (count == 0) {
             centroid = null;
         }
-        return new InternalGeoCentroid("_name", centroid, count, Collections.emptyList(), Collections.emptyMap());
+        return new InternalGeoCentroid(name, centroid, count, Collections.emptyList(), Collections.emptyMap());
     }
 
     @Override

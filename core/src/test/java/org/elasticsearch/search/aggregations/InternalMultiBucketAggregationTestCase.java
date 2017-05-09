@@ -21,36 +21,42 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 public abstract class InternalMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation>
         extends InternalAggregationTestCase<T> {
 
-    private boolean hasSubAggregations;
+    Supplier<InternalAggregations> subAggregationsSupplier;
 
-    @Before
-    public void initHasSubAggregations() {
-        hasSubAggregations = randomBoolean();
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        if (randomBoolean()) {
+            subAggregationsSupplier = () -> InternalAggregations.EMPTY;
+        } else {
+            subAggregationsSupplier = () -> {
+                final int numAggregations = randomIntBetween(1, 3);
+                List<InternalAggregation> aggs = new ArrayList<>();
+                for (int i = 0; i < numAggregations; i++) {
+                    aggs.add(createTestInstance(randomAlphaOfLength(5), emptyList(), emptyMap(), InternalAggregations.EMPTY));
+                }
+                return new InternalAggregations(aggs);
+            };
+        }
     }
 
     @Override
     protected final T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        List<InternalAggregation> internal = new ArrayList<>();
-        if (hasSubAggregations) {
-            final int numAggregations = randomIntBetween(1, 3);
-            for (int i = 0; i <numAggregations; i++) {
-                internal.add(createTestInstance(randomAlphaOfLength(5), pipelineAggregators, emptyMap(), InternalAggregations.EMPTY));
-            }
-        }
-        return createTestInstance(name, pipelineAggregators, metaData, new InternalAggregations(internal));
+        return createTestInstance(name, pipelineAggregators, metaData, subAggregationsSupplier.get());
     }
 
     protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,

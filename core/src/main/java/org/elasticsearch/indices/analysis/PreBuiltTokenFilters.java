@@ -444,7 +444,7 @@ public enum PreBuiltTokenFilters {
         }
     },
 
-    DELIMITED_PAYLOAD_FILTER(CachingStrategy.ONE) {
+    DELIMITED_PAYLOAD(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new DelimitedPayloadTokenFilter(tokenStream, DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER, DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER);

@@ -30,6 +30,9 @@ setup:
 ---
 "search with search_after parameter":
 
+  - skip:
+      version: " - 5.99.99"
+      reason: fielddata on _id is only available as of 6.0.0
   - do:
       search:
         index: test
@@ -39,14 +42,14 @@ setup:
           query:
             match:
               foo: bar
-          sort: [{ age: desc }, { _uid: desc }]
+          sort: [{ age: desc }, { _id: desc }]
 
   - match: {hits.total: 3 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
   - match: {hits.hits.0._type: test }
   - match: {hits.hits.0._id: "172" }
-  - match: {hits.hits.0.sort: [24, "test#172"] }
+  - match: {hits.hits.0.sort: [24, "172"] }
 
   - do:
       search:
@@ -57,15 +60,15 @@ setup:
           query:
             match:
               foo: bar
-          sort: [{ age: desc }, { _uid: desc }]
-          search_after: [24, "test#172"]
+          sort: [{ age: desc }, { _id: desc }]
+          search_after: [24, "172"]
 
   - match: {hits.total: 3 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
   - match: {hits.hits.0._type:  test }
   - match: {hits.hits.0._id: "42" }
-  - match: {hits.hits.0.sort: [18, "test#42"] }
+  - match: {hits.hits.0.sort: [18, "42"] }
 
   - do:
       search:
@@ -76,15 +79,15 @@ setup:
           query:
             match:
               foo: bar
-          sort: [ { age: desc }, { _uid: desc } ]
-          search_after: [18, "test#42"]
+          sort: [ { age: desc }, { _id: desc } ]
+          search_after: [18, "42"]
 
   - match: {hits.total: 3}
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
   - match: {hits.hits.0._type: test }
   - match: {hits.hits.0._id: "1" }
-  - match: {hits.hits.0.sort: [18, "test#1"] }
+  - match: {hits.hits.0.sort: [18, "1"] }
 
   - do:
       search:
@@ -95,8 +98,8 @@ setup:
           query:
             match:
               foo: bar
-          sort: [{ age: desc }, { _uid: desc } ]
-          search_after: [18, "test#1"]
+          sort: [{ age: desc }, { _id: desc } ]
+          search_after: [18, "1"]
 
   - match: {hits.total: 3}
   - length: {hits.hits: 0 }

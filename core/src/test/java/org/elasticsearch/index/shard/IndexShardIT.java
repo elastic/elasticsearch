@@ -53,12 +53,11 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -105,7 +104,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     private ParsedDocument testParsedDocument(String id, String type, String routing, long seqNo,
                                               ParseContext.Document document, BytesReference source, XContentType xContentType,
                                               Mapping mappingUpdate) {
-        Field uidField = new Field("_uid", Uid.createUid(type, id), UidFieldMapper.Defaults.FIELD_TYPE);
+        Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(uidField);
@@ -162,21 +161,23 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
 
-    public void testDurableFlagHasEffect() {
+    public void testDurableFlagHasEffect() throws Exception {
         createIndex("test");
         ensureGreen();
         client().prepareIndex("test", "bar", "1").setSource("{}", XContentType.JSON).get();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
+        shard.checkIdle(Long.MIN_VALUE);
         setDurability(shard, Translog.Durability.REQUEST);
-        assertFalse(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded());
+        assertBusy(() -> assertFalse(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded()));
         setDurability(shard, Translog.Durability.ASYNC);
         client().prepareIndex("test", "bar", "2").setSource("{}", XContentType.JSON).get();
         assertTrue(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded());
         setDurability(shard, Translog.Durability.REQUEST);
         client().prepareDelete("test", "bar", "1").get();
-        assertFalse(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded());
+        shard.checkIdle(Long.MIN_VALUE);
+        assertBusy(() -> assertFalse(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded()));
 
         setDurability(shard, Translog.Durability.ASYNC);
         client().prepareDelete("test", "bar", "2").get();
@@ -185,7 +186,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertNoFailures(client().prepareBulk()
             .add(client().prepareIndex("test", "bar", "3").setSource("{}", XContentType.JSON))
             .add(client().prepareDelete("test", "bar", "1")).get());
-        assertFalse(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded());
+        shard.checkIdle(Long.MIN_VALUE);
+        assertBusy(() -> assertFalse(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded()));
 
         setDurability(shard, Translog.Durability.ASYNC);
         assertNoFailures(client().prepareBulk()
@@ -335,7 +337,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             SequenceNumbersService.UNASSIGNED_SEQ_NO,
             new ParseContext.Document(),
             new BytesArray(new byte[]{1}), XContentType.JSON, null);
-        Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
+        Engine.Index index = new Engine.Index(new Term("_id", doc.id()), doc);
         shard.index(index);
         assertTrue(shard.shouldFlush());
         assertEquals(2, shard.getEngine().getTranslog().totalOperations());
@@ -390,7 +392,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     SequenceNumbersService.UNASSIGNED_SEQ_NO,
                     new ParseContext.Document(),
                     new BytesArray(new byte[]{1}), XContentType.JSON, null);
-            final Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
+            final Engine.Index index = new Engine.Index(new Term("_id", doc.id()), doc);
             final Engine.IndexResult result = shard.index(index);
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();
@@ -533,7 +535,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexShard newShard = new IndexShard(initializingShardRouting, indexService.getIndexSettings(), shard.shardPath(),
             shard.store(), indexService.getIndexSortSupplier(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),
             indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
-            indexService.getThreadPool(), indexService.getBigArrays(), null, () -> {}, Collections.emptyList(), Arrays.asList(listeners));
+            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners));
         return newShard;
     }
 

@@ -542,6 +542,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     private class ScriptChangesListener implements FileChangesListener {
+        private boolean deprecationEmitted = false;
 
         private Tuple<String, String> getScriptNameExt(Path file) {
             Path scriptPath = scriptsDirectory.relativize(file);
@@ -574,6 +575,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             if (engineService == null) {
                 logger.warn("No script engine found for [{}]", scriptNameExt.v2());
             } else {
+                if (deprecationEmitted == false) {
+                    deprecationLogger.deprecated("File scripts are deprecated. Use stored or inline scripts instead.");
+                    deprecationEmitted = true;
+                }
+
                 try {
                     //we don't know yet what the script will be used for, but if all of the operations for this lang
                     // with file scripts are disabled, it makes no sense to even compile it and cache it.

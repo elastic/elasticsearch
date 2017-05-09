@@ -210,9 +210,6 @@ public class IndexingIT extends ESRestTestCase {
         final boolean checkGlobalCheckpoints = nodes.getMaster().getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED);
         logger.info("master version is [{}], global checkpoints will be [{}]", nodes.getMaster().getVersion(),
             checkGlobalCheckpoints ? "checked" : "not be checked");
-        if (checkGlobalCheckpoints) {
-            settings.put(IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getKey(), "100ms");
-        }
         final String index = "test";
         createIndex(index, settings.build());
         try (RestClient newNodeClient = buildClient(restClientSettings(),
@@ -242,6 +239,7 @@ public class IndexingIT extends ESRestTestCase {
             logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
             numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterMovingPrimary);
             numDocs += numberOfDocsAfterMovingPrimary;
+            assertOK(client().performRequest("POST", index + "/_refresh")); // this forces a global checkpoint sync
             assertSeqNoOnShards(index, nodes, checkGlobalCheckpoints, numDocsOnNewPrimary, newNodeClient);
             /*
              * Dropping the number of replicas to zero, and then increasing it to one triggers a recovery thus exercising any BWC-logic in

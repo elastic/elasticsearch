@@ -70,10 +70,6 @@ public class ParsedDocument {
         this.xContentType = xContentType;
     }
 
-    public BytesRef uid() {
-        return uid;
-    }
-
     public String id() {
         return this.id;
     }

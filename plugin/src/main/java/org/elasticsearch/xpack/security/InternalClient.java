@@ -100,7 +100,8 @@ public class InternalClient extends FilterClient {
         }
         final Consumer<SearchResponse> clearScroll = (response) -> {
             if (response != null && response.getScrollId() != null) {
-                ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(response.getScrollId()).request();
+                ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+                clearScrollRequest.addScrollId(response.getScrollId());
                 client.clearScroll(clearScrollRequest, ActionListener.wrap((r) -> {}, (e) -> {}));
             }
         };
@@ -120,10 +121,17 @@ public class InternalClient extends FilterClient {
                                 results.add(oneResult);
                             }
                         }
-                        SearchScrollRequest scrollRequest = client.prepareSearchScroll(resp.getScrollId())
-                                .setScroll(request.scroll().keepAlive()).request();
-                        client.searchScroll(scrollRequest, this);
 
+                        if (results.size() > resp.getHits().getTotalHits()) {
+                            clearScroll.accept(lastResponse);
+                            listener.onFailure(new IllegalStateException("scrolling returned more hits [" + results.size()
+                                    + "] than expected [" + resp.getHits().getTotalHits() + "] so bailing out to prevent unbounded "
+                                    + "memory consumption."));
+                        } else {
+                            SearchScrollRequest scrollRequest = new SearchScrollRequest(resp.getScrollId());
+                            scrollRequest.scroll(request.scroll().keepAlive());
+                            client.searchScroll(scrollRequest, this);
+                        }
                     } else {
                         clearScroll.accept(resp);
                         // Finally, return the list of users

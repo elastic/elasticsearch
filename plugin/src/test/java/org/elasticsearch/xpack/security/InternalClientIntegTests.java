@@ -6,17 +6,32 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+
 
 public class InternalClientIntegTests extends ESSingleNodeTestCase {
 
@@ -44,5 +59,51 @@ public class InternalClientIntegTests extends ESSingleNodeTestCase {
         for (int i = 0; i < numDocs; i++) {
             assertEquals(list.get(i).intValue(), i);
         }
+    }
+
+    /**
+     * Tests that
+     * {@link InternalClient#fetchAllByEntity(Client, SearchRequest, org.elasticsearch.action.ActionListener, java.util.function.Function)}
+     * defends against scrolls broken in such a way that the remote Elasticsearch returns infinite results. While Elasticsearch
+     * <strong>shouldn't</strong> do this it has in the past and it is <strong>very</strong> when it does. It takes out the whole node. So
+     * this makes sure we defend against it properly.
+     */
+    public void testFetchAllByEntityWithBrokenScroll() {
+        Client client = mock(Client.class);
+        SearchRequest request = new SearchRequest();
+
+        String scrollId = randomAlphaOfLength(5);
+        SearchHit[] hits = new SearchHit[] {new SearchHit(1)};
+        InternalSearchResponse internalResponse = new InternalSearchResponse(new SearchHits(hits, 1, 1), null, null, null, false, false, 1);
+        SearchResponse response = new SearchResponse(internalResponse, scrollId, 1, 1, 0, ShardSearchFailure.EMPTY_ARRAY);
+
+        Answer<?> returnResponse = invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
+            listener.onResponse(response);
+            return null;
+        };
+        doAnswer(returnResponse).when(client).search(eq(request), anyObject());
+        /* The line below simulates the evil cluster. A working cluster would return
+         * a response with 0 hits. Our simulated broken cluster returns the same
+         * response over and over again. */
+        doAnswer(returnResponse).when(client).searchScroll(anyObject(), anyObject());
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        InternalClient.fetchAllByEntity(client, request, new ActionListener<Collection<SearchHit>>() {
+            @Override
+            public void onResponse(Collection<SearchHit> response) {
+                fail("This shouldn't succeed.");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure.set(e);
+            }
+        }, Function.identity());
+
+        assertNotNull("onFailure wasn't called", failure.get());
+        assertEquals("scrolling returned more hits [2] than expected [1] so bailing out to prevent unbounded memory consumption.",
+                failure.get().getMessage());
     }
 }

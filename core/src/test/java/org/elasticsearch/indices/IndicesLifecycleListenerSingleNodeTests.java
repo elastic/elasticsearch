@@ -120,7 +120,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         };
         indicesService.removeIndex(idx, DELETED, "simon says");
         try {
-            IndexService index = indicesService.createIndex(metaData, Arrays.asList(countingListener), s -> {});
+            IndexService index = indicesService.createIndex(metaData, Arrays.asList(countingListener));
             assertEquals(3, counter.get());
             idx = index.index();
             ShardRouting newRouting = shardRouting;

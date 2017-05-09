@@ -320,19 +320,17 @@ public final class IndexModule {
     }
 
     public IndexService newIndexService(
-        NodeEnvironment environment,
-        NamedXContentRegistry xContentRegistry,
-        IndexService.ShardStoreDeleter shardStoreDeleter,
-        CircuitBreakerService circuitBreakerService,
-        BigArrays bigArrays,
-        ThreadPool threadPool,
-        ScriptService scriptService,
-        ClusterService clusterService,
-        Client client,
-        IndicesQueryCache indicesQueryCache,
-        MapperRegistry mapperRegistry,
-        Consumer<ShardId> globalCheckpointSyncer,
-        IndicesFieldDataCache indicesFieldDataCache)
+            NodeEnvironment environment,
+            NamedXContentRegistry xContentRegistry,
+            IndexService.ShardStoreDeleter shardStoreDeleter,
+            CircuitBreakerService circuitBreakerService,
+            BigArrays bigArrays,
+            ThreadPool threadPool,
+            ScriptService scriptService,
+            Client client,
+            IndicesQueryCache indicesQueryCache,
+            MapperRegistry mapperRegistry,
+            IndicesFieldDataCache indicesFieldDataCache)
         throws IOException {
         final IndexEventListener eventListener = freeze();
         IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null
@@ -365,8 +363,8 @@ public final class IndexModule {
         }
         return new IndexService(indexSettings, environment, xContentRegistry, new SimilarityService(indexSettings, similarities),
                 shardStoreDeleter, analysisRegistry, engineFactory.get(), circuitBreakerService, bigArrays, threadPool, scriptService,
-                clusterService, client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,
-                indicesFieldDataCache, globalCheckpointSyncer, searchOperationListeners, indexOperationListeners);
+                client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,
+                indicesFieldDataCache, searchOperationListeners, indexOperationListeners);
     }
 
     /**

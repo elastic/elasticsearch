@@ -246,7 +246,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     /**
      * creates a new initializing shard.
-     *  @param routing              shard routing to use
+     * @param routing              shard routing to use
      * @param shardPath            path to use for shard data
      * @param indexMetaData        indexMetaData for the shard, including any mapping
      * @param indexSearcherWrapper an optional wrapper to be used during searchers

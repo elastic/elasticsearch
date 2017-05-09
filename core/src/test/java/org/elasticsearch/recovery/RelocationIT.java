@@ -124,7 +124,6 @@ public class RelocationIT extends ESIntegTestCase {
                         final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
                         assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
                             seqNoStats.getLocalCheckpoint(), equalTo(primarySeqNoStats.getLocalCheckpoint()));
-
                         assertThat(shardStats.getShardRouting() + " global checkpoint mismatch",
                             seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
                         assertThat(shardStats.getShardRouting() + " max seq no mismatch",
@@ -368,7 +367,7 @@ public class RelocationIT extends ESIntegTestCase {
                 }
             }
 
-            // refresh is a replication action so this forces a global checkpoint sync which is need as these are asserted on in tear down
+            // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
             client().admin().indices().prepareRefresh("test").get();
 
         }

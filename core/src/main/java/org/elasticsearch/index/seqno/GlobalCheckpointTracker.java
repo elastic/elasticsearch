@@ -236,6 +236,8 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             trackingLocalCheckpoints.put(a, SequenceNumbersService.UNASSIGNED_SEQ_NO);
             logger.trace("tracking [{}] via cluster state update from master", a);
         }
+
+        updateGlobalCheckpointOnPrimary();
     }
 
     /**

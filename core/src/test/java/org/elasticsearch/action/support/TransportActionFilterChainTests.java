@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -77,12 +76,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         };
 
         ArrayList<ActionFilter> actionFiltersByOrder = new ArrayList<>(filters);
-        Collections.sort(actionFiltersByOrder, new Comparator<ActionFilter>() {
-            @Override
-            public int compare(ActionFilter o1, ActionFilter o2) {
-                return Integer.compare(o1.order(), o2.order());
-            }
-        });
+        actionFiltersByOrder.sort(Comparator.comparingInt(ActionFilter::order));
 
         List<ActionFilter> expectedActionFilters = new ArrayList<>();
         boolean errorExpected = false;
@@ -97,7 +91,8 @@ public class TransportActionFilterChainTests extends ESTestCase {
             }
         }
 
-        PlainListenableActionFuture<TestResponse> future = new PlainListenableActionFuture<>(null);
+        PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
+
         transportAction.execute(new TestRequest(), future);
         try {
             assertThat(future.get(), notNullValue());
@@ -110,12 +105,8 @@ public class TransportActionFilterChainTests extends ESTestCase {
         for (ActionFilter actionFilter : actionFilters.filters()) {
             testFiltersByLastExecution.add((RequestTestFilter) actionFilter);
         }
-        Collections.sort(testFiltersByLastExecution, new Comparator<RequestTestFilter>() {
-            @Override
-            public int compare(RequestTestFilter o1, RequestTestFilter o2) {
-                return Integer.compare(o1.executionToken, o2.executionToken);
-            }
-        });
+
+        testFiltersByLastExecution.sort(Comparator.comparingInt(o -> o.executionToken));
 
         ArrayList<RequestTestFilter> finalTestFilters = new ArrayList<>();
         for (ActionFilter filter : testFiltersByLastExecution) {

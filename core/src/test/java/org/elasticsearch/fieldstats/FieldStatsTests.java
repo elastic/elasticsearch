@@ -596,7 +596,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse response = client().prepareFieldStats()
-            .setFields("_id", "_type")
+            .setFields("_uid", "_type")
             .get();
         assertEquals(response.getAllFieldStats().size(), 1);
         assertEquals(response.getAllFieldStats().get("_type").isSearchable(), true);

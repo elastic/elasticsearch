@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -79,7 +78,7 @@ public class SearchTransportService extends AbstractComponent {
 
     private final TransportService transportService;
 
-    public SearchTransportService(Settings settings, ClusterSettings clusterSettings, TransportService transportService) {
+    public SearchTransportService(Settings settings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
     }
@@ -121,7 +120,16 @@ public class SearchTransportService extends AbstractComponent {
         // this used to be the QUERY_AND_FETCH which doesn't exists anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
-        if (connection.getVersion().onOrBefore(Version.V_5_3_0_UNRELEASED) && fetchDocuments) {
+        if (connection.getVersion().before(Version.V_5_3_0_UNRELEASED) && fetchDocuments) {
+            // this is a BWC layer for pre 5.3 indices
+            if (request.scroll() != null) {
+                /**
+                 * This is needed for nodes pre 5.3 when the single shard optimization is used.
+                 * These nodes will set the last emitted doc only if the removed `query_and_fetch` search type is set
+                 * in the request. See {@link SearchType}.
+                 */
+                request.searchType(SearchType.QUERY_AND_FETCH);
+            }
             // TODO this BWC layer can be removed once this is back-ported to 5.3
             transportService.sendChildRequest(connection, QUERY_FETCH_ACTION_NAME, request, task,
                 new ActionListenerResponseHandler<>(listener, supplier));
@@ -390,7 +398,18 @@ public class SearchTransportService extends AbstractComponent {
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
     }
 
-    Transport.Connection getConnection(DiscoveryNode node) {
-        return transportService.getConnection(node);
+    /**
+     * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved
+     * against the local cluster.
+     * @param clusterAlias the cluster alias the node should be resolve against
+     * @param node the node to resolve
+     * @return a connection to the given node belonging to the cluster with the provided alias.
+     */
+    Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+        if (clusterAlias == null) {
+            return transportService.getConnection(node);
+        } else {
+            return transportService.getRemoteClusterService().getConnection(node, clusterAlias);
+        }
     }
 }

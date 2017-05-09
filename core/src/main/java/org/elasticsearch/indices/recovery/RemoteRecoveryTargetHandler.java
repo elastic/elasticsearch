@@ -28,7 +28,10 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.FutureTransportResponseHandler;
+import org.elasticsearch.transport.TransportFuture;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -98,11 +101,16 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
-        final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
-                recoveryId, shardId, operations, totalTranslogOps);
-        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.TRANSLOG_OPS, translogOperationsRequest,
-                translogOpsRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+        final RecoveryTranslogOperationsRequest translogOperationsRequest =
+                new RecoveryTranslogOperationsRequest(recoveryId, shardId, operations, totalTranslogOps);
+        final TransportFuture<RecoveryTranslogOperationsResponse> future = transportService.submitRequest(
+                targetNode,
+                PeerRecoveryTargetService.Actions.TRANSLOG_OPS,
+                translogOperationsRequest,
+                translogOpsRequestOptions,
+                RecoveryTranslogOperationsResponse.HANDLER);
+        return future.txGet().localCheckpoint;
     }
 
     @Override

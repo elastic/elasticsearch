@@ -29,23 +29,21 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 
 import java.io.IOException;
-import java.lang.reflect.ReflectPermission;
-import java.net.SocketPermission;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-
-import javax.security.auth.AuthPermission;
 
 final class HdfsBlobStore implements BlobStore {
 
     private final Path root;
     private final FileContext fileContext;
+    private final HdfsSecurityContext securityContext;
     private final int bufferSize;
     private volatile boolean closed;
 
     HdfsBlobStore(FileContext fileContext, String path, int bufferSize) throws IOException {
         this.fileContext = fileContext;
+        this.securityContext = new HdfsSecurityContext(fileContext.getUgi());
         this.bufferSize = bufferSize;
         this.root = execute(fileContext1 -> fileContext1.makeQualified(new Path(path)));
         try {
@@ -107,9 +105,6 @@ final class HdfsBlobStore implements BlobStore {
     /**
      * Executes the provided operation against this store
      */
-    // we can do FS ops with only two elevated permissions:
-    // 1) hadoop dynamic proxy is messy with access rules
-    // 2) allow hadoop to add credentials to our Subject
     <V> V execute(Operation<V> operation) throws IOException {
         SpecialPermission.check();
         if (closed) {
@@ -117,8 +112,12 @@ final class HdfsBlobStore implements BlobStore {
         }
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<V>)
-                    () -> operation.run(fileContext), null, new ReflectPermission("suppressAccessChecks"),
-                     new AuthPermission("modifyPrivateCredentials"), new SocketPermission("*", "connect"));
+                () -> {
+                    securityContext.ensureLogin();
+                    return operation.run(fileContext);
+                },
+                null,
+                securityContext.getRestrictedExecutionPermissions());
         } catch (PrivilegedActionException pae) {
             throw (IOException) pae.getException();
         }

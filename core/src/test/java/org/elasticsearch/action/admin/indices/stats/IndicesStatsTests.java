@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -124,7 +124,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         createIndex("test", Settings.builder().put("refresh_interval", -1).build());
 
         // Index a document asynchronously so the request will only return when document is refreshed
-        ListenableActionFuture<IndexResponse> index = client().prepareIndex("test", "test", "test").setSource("test", "test")
+        ActionFuture<IndexResponse> index = client().prepareIndex("test", "test", "test").setSource("test", "test")
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).execute();
 
         // Wait for the refresh listener to appear in the stats

@@ -188,7 +188,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         logger.info("--> checking single filtering alias search with sort");
-        searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_uid", SortOrder.ASC).get();
+        searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_index", SortOrder.ASC).get();
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         logger.info("--> checking single filtering alias search with global facets");
@@ -203,7 +203,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> checking single filtering alias search with global facets and sort");
         searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
                 .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
-                .addSort("_uid", SortOrder.ASC).get();
+                .addSort("_index", SortOrder.ASC).get();
         assertSearchResponse(searchResponse);
         global = searchResponse.getAggregations().get("global");
         terms = global.getAggregations().get("test");
@@ -212,7 +212,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> checking single filtering alias search with non-global facets");
         searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
                 .addAggregation(AggregationBuilders.terms("test").field("name"))
-                .addSort("_uid", SortOrder.ASC).get();
+                .addSort("_index", SortOrder.ASC).get();
         assertSearchResponse(searchResponse);
         terms = searchResponse.getAggregations().get("test");
         assertThat(terms.getBuckets().size(), equalTo(2));

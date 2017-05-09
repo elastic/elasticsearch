@@ -169,6 +169,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         return profile;
     }
 
+    void setSearchType(SearchType type) {
+        this.searchType = type;
+    }
+
     protected void innerReadFrom(StreamInput in) throws IOException {
         shardId = ShardId.readShardId(in);
         searchType = SearchType.fromId(in.readByte());

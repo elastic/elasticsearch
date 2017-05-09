@@ -164,11 +164,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * @param repositoryName repository name
      * @param snapshotIds       snapshots for which to fetch snapshot information
+     * @param incompatibleSnapshotIds   snapshots for which not to fetch snapshot information
      * @param ignoreUnavailable if true, snapshots that could not be read will only be logged with a warning,
      *                          if false, they will throw an error
      * @return list of snapshots
      */
-    public List<SnapshotInfo> snapshots(final String repositoryName, List<SnapshotId> snapshotIds, final boolean ignoreUnavailable) {
+    public List<SnapshotInfo> snapshots(final String repositoryName,
+                                        final List<SnapshotId> snapshotIds,
+                                        final List<SnapshotId> incompatibleSnapshotIds,
+                                        final boolean ignoreUnavailable) {
         final Set<SnapshotInfo> snapshotSet = new HashSet<>();
         final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);
         // first, look at the snapshots in progress
@@ -182,7 +186,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Repository repository = repositoriesService.repository(repositoryName);
         for (SnapshotId snapshotId : snapshotIdsToIterate) {
             try {
-                snapshotSet.add(repository.getSnapshotInfo(snapshotId));
+                if (incompatibleSnapshotIds.contains(snapshotId)) {
+                    // an incompatible snapshot - cannot read its snapshot metadata file, just return
+                    // a SnapshotInfo indicating its incompatible
+                    snapshotSet.add(SnapshotInfo.incompatible(snapshotId));
+                } else {
+                    snapshotSet.add(repository.getSnapshotInfo(snapshotId));
+                }
             } catch (Exception ex) {
                 if (ignoreUnavailable) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to get snapshot [{}]", snapshotId), ex);

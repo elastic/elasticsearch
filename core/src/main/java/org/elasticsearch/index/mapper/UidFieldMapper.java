@@ -32,7 +32,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -88,7 +87,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
+            final IndexSettings indexSettings = context.mapperService().getIndexSettings();
             return new UidFieldMapper(indexSettings, fieldType);
         }
     }
@@ -171,9 +170,9 @@ public class UidFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static MappedFieldType defaultFieldType(Settings indexSettings) {
+    static MappedFieldType defaultFieldType(IndexSettings indexSettings) {
         MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        if (MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING.get(indexSettings)) {
+        if (indexSettings.isSingleType()) {
             defaultFieldType.setIndexOptions(IndexOptions.NONE);
             defaultFieldType.setStored(false);
         } else {
@@ -183,12 +182,12 @@ public class UidFieldMapper extends MetadataFieldMapper {
         return defaultFieldType;
     }
 
-    private UidFieldMapper(Settings indexSettings, MappedFieldType existing) {
+    private UidFieldMapper(IndexSettings indexSettings, MappedFieldType existing) {
         this(existing == null ? defaultFieldType(indexSettings) : existing, indexSettings);
     }
 
-    private UidFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
-        super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings);
+    private UidFieldMapper(MappedFieldType fieldType, IndexSettings indexSettings) {
+        super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings.getSettings());
     }
 
     @Override

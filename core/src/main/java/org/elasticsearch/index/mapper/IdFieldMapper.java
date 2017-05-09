@@ -26,8 +26,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -73,7 +73,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
+            final IndexSettings indexSettings = context.mapperService().getIndexSettings();
             return new IdFieldMapper(indexSettings, fieldType);
         }
     }
@@ -111,8 +111,10 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
             if (indexOptions() != IndexOptions.NONE) {
+                // 6.x index, _id is indexed
                 return super.termsQuery(values, context);
             }
+            // 5.x index, _uid is indexed
             return new TermInSetQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(context.queryTypes(), values));
         }
 
@@ -128,9 +130,9 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static MappedFieldType defaultFieldType(Settings indexSettings) {
+    static MappedFieldType defaultFieldType(IndexSettings indexSettings) {
         MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        if (MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING.get(indexSettings)) {
+        if (indexSettings.isSingleType()) {
             defaultFieldType.setIndexOptions(IndexOptions.DOCS);
             defaultFieldType.setStored(true);
         } else {
@@ -140,12 +142,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
         return defaultFieldType;
     }
 
-    private IdFieldMapper(Settings indexSettings, MappedFieldType existing) {
+    private IdFieldMapper(IndexSettings indexSettings, MappedFieldType existing) {
         this(existing == null ? defaultFieldType(indexSettings) : existing, indexSettings);
     }
 
-    private IdFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
-        super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings);
+    private IdFieldMapper(MappedFieldType fieldType, IndexSettings indexSettings) {
+        super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings.getSettings());
     }
 
     @Override

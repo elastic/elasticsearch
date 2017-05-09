@@ -609,4 +609,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
         }
     }
 
+    public static void main(String[] args) {
+        System.out.println(precisionFromThreshold(50));
+    }
 }

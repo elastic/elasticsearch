@@ -1482,7 +1482,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
         /*
          * We could have blocked waiting for the replica to catch up that we fell idle and there will not be a background sync to the
-         * replica; update the global checkpoint and mark our self as active to force a future background sync.
+         * replica; mark our self as active to force a future background sync.
          */
         active.compareAndSet(false, true);
     }

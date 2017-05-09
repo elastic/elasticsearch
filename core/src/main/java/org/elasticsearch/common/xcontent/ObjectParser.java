@@ -34,6 +34,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentParser.Token.START_ARRAY;
@@ -90,9 +91,10 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     private final boolean ignoreUnknownFields;
 
     /**
-     * A special purpose field parser that gets used when no other of the registered parsers match.
+     * A special purpose field parser that gets used when the provided matchFieldPrecidate accepts it
      */
-    private FieldParser unknownFieldParser;
+    private FieldParser matchFieldParser;
+    private Predicate<String> matchFieldPredicate;
 
     /**
      * Creates a new ObjectParser instance with a name. This name is used to reference the parser in exceptions and messages.
@@ -221,44 +223,53 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     /**
-     * Declares a parser for fields of which names are not known upfront when creating the ObjectParser.
-     * As an example, in the aggregation output we have things like:
-     * <pre><code>
-     * "aggregations" : {
-     *   "genres" : {  <--- arbitrary aggregation name
-     *      "doc_count_error_upper_bound": 0,
-     *      "sum_other_doc_count": 0,
-     *      "buckets" : [
-     *          {
-     *              "key" : "jazz",
-     *              "doc_count" : 10
-     *              "total_number_of_ratings": { <--- arbitrary aggregation name
-     *                  "value": 2691
-     *              }
-     *          },
-     *          [...]
-     *      ]
-     *   }
-     * }
+     * Declares a parser for fields where the exact field name is not known when
+     * creating the ObjectParser. In order for this field name to match, it has
+     * to be accepted by a provided predicate As an example, in the aggregation
+     * output parsing for the high level java rest client we have things like:
      *
-     * Since field names are arbitrary in these cases, we cannot match them with a ParseField like we do
-     * in other places when using ObjectParser. This method can be used to register a "fall-back"
-     * parser for any field that isn't matched by any previous field parser.
-     * It accepts a dedicated ContextParser and a consumer for the value that is produced.
+     * <pre>
+     *    "aggregations" : {
+     *      "terms#genres" : {  // aggregation type and arbitrary name
+     *         "doc_count_error_upper_bound": 0,
+     *         "sum_other_doc_count": 0,
+     *         "buckets" : [
+     *             {
+     *                 "key" : "jazz",
+     *                 "doc_count" : 10
+     *                 "sum#total_number_of_ratings": // aggregation type and arbitrary name
+     *                     "value": 2691
+     *                 }
+     *             },
+     *             [...]
+     *         ]
+     *      }
+     *    }
+     * </pre>
      *
-     * @param consumer handle the values once they have been parsed
-     * @param parser parses each nested object
-     * @param type the accepted values for this field
+     * Since field names are arbitrary in these cases, we cannot match them with
+     * a ParseField like we do in other places when using ObjectParser. This
+     * method can be used to register a special parser for a field name that
+     * matches the provided predicate.
+     *
+     * @param consumer
+     *            handle the values once they have been parsed
+     * @param parser
+     *            parses each nested object
+     * @param fieldNameMatcher
+     *            a predicate that returns true if the provided parser should
+     *            handle this field
+     * @param type
+     *            the accepted values for this field
      */
-    public <T> void declareUnknownFieldParser(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ValueType type) {
+    public <T> void declareMatchFieldParser(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser,
+            Predicate<String> fieldNameMatcher, ValueType type) {
         Objects.requireNonNull(consumer, "[consumer] is required");
         Objects.requireNonNull(parser, "[parser] is required");
+        Objects.requireNonNull(fieldNameMatcher, "[fieldNameMatcher] is required");
         Objects.requireNonNull(type, "[type] is required");
-        if (this.ignoreUnknownFields == true) {
-            throw new IllegalArgumentException("ObjectParser [" + name + " is configured with ignoreUnknownFields=true. "
-                    + "This makes declaring a parser for unknown fields illegal.");
-        }
-        this.unknownFieldParser = new MatchAllFieldParser((p, v, c) -> consumer.accept(v, parser.parse(p, c)), type);
+        this.matchFieldPredicate = fieldNameMatcher;
+        this.matchFieldParser = new MatchAllFieldParser((p, v, c) -> consumer.accept(v, parser.parse(p, c)), type);
     }
 
     private class MatchAllFieldParser extends FieldParser {
@@ -412,8 +423,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     private FieldParser getParser(String fieldName) {
         FieldParser parser = fieldParserMap.get(fieldName);
         if (parser == null) {
-            if (this.unknownFieldParser != null) {
-                parser = this.unknownFieldParser;
+            if (this.matchFieldParser != null && this.matchFieldPredicate.test(fieldName)) {
+                parser = this.matchFieldParser;
             } else if (false == this.ignoreUnknownFields) {
                 throw new IllegalArgumentException("[" + name  + "] unknown field [" + fieldName + "], parser not found");
             }

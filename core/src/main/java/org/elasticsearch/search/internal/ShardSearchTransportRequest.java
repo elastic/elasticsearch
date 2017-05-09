@@ -60,6 +60,10 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         this.originalIndices = originalIndices;
     }
 
+    public void searchType(SearchType searchType) {
+        shardSearchLocalRequest.setSearchType(searchType);
+    }
+
     @Override
     public String[] indices() {
         if (originalIndices == null) {

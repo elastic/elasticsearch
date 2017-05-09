@@ -175,7 +175,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                             globalCheckpoint);
             throw new IllegalStateException(message);
         }
-        if (minLocalCheckpoint >= 0 && globalCheckpoint != minLocalCheckpoint) {
+        if (globalCheckpoint != minLocalCheckpoint) {
             logger.trace("global checkpoint updated to [{}]", minLocalCheckpoint);
             globalCheckpoint = minLocalCheckpoint;
         }

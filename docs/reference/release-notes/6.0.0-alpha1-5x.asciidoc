@@ -320,7 +320,9 @@ Ingest::
 * introduce the JSON Processor {pull}20128[#20128] (issue: {issue}20052[#20052])
 
 Internal::
+* Add cross cluster support to `_field_caps` {pull}24463[#24463] (issue: {issue}24334[#24334])
 * Log JVM arguments on startup {pull}24451[#24451]
+* Preserve cluster alias throughout search execution to lookup nodes by cluster and ID {pull}24438[#24438]
 * Move RemoteClusterService into TransportService {pull}24424[#24424]
 * Enum related performance additions. {pull}24274[#24274] (issue: {issue}24226[#24226])
 * Add a dedicated TransportRemoteInfoAction for consistency {pull}24040[#24040] (issue: {issue}23969[#23969])
@@ -390,6 +392,7 @@ Logging::
 * Warn on not enough masters during election {pull}20063[#20063] (issue: {issue}8362[#8362])
 
 Mapping::
+* Do not index `_type` when there is at most one type. {pull}24363[#24363]
 * Only allow one type on 6.0 indices {pull}24317[#24317] (issue: {issue}15613[#15613])
 * token_count type : add an option to count tokens (fix #23227) {pull}24175[#24175] (issue: {issue}23227[#23227])
 * Atomic mapping updates across types {pull}22220[#22220]
@@ -558,7 +561,6 @@ Search Templates::
 
 Settings::
 * Add secure file setting to keystore {pull}24001[#24001]
-* Add a setting which specifies a list of setting {pull}23883[#23883]
 * Add a property to mark setting as final {pull}23872[#23872]
 * Remove obsolete index setting `index.version.minimum_compatible`. {pull}23593[#23593]
 * Provide a method to retrieve a closeable char[] from a SecureString {pull}23389[#23389]
@@ -595,7 +597,6 @@ Suggesters::
 * Allow different data types for category in Context suggester {pull}23491[#23491] (issue: {issue}22358[#22358])
 
 Task Manager::
-* Allow task to be unregistered by ClusterStateApplier {pull}23931[#23931]
 * Limit IndexRequest toString() length {pull}22832[#22832]
 * Improve the error message if task and node isn't found {pull}22062[#22062] (issue: {issue}22027[#22027])
 * Add descriptions to create snapshot and restore snapshot tasks. {pull}21901[#21901] (issue: {issue}21768[#21768])
@@ -605,6 +606,8 @@ Task Manager::
 Tribe Node::
 * Add support for merging custom meta data in tribe node {pull}21552[#21552] (issues: {issue}20544[#20544], {issue}20791[#20791], {issue}9372[#9372])
 
+Upgrade API::
+* Allow plugins to upgrade templates and index metadata on startup {pull}24379[#24379]
 
 
 [[bug-6.0.0-alpha1-5x]]
@@ -634,6 +637,7 @@ Aggregations::
 * The `top_hits` aggregation should compile scripts only once. {pull}20738[#20738]
 
 Allocation::
+* Discard stale node responses from async shard fetching {pull}24434[#24434] (issue: {issue}24007[#24007])
 * Cannot force allocate primary to a node where the shard already exists {pull}22031[#22031] (issue: {issue}22021[#22021])
 * Promote shadow replica to primary when initializing primary fails {pull}22021[#22021]
 * Trim in-sync allocations set only when it grows {pull}21976[#21976] (issue: {issue}21719[#21719])
@@ -746,6 +750,7 @@ Inner Hits::
 * Skip adding a parent field to nested documents. {pull}21522[#21522] (issue: {issue}21503[#21503])
 
 Internal::
+* Fix NPE if field caps request has a field that exists not in all indices {pull}24504[#24504]
 * Add infrastructure to mark contexts as system contexts {pull}23830[#23830]
 * Always restore the ThreadContext for operations delayed due to a block {pull}23349[#23349]
 * Index creation and setting update may not return deprecation logging {pull}22702[#22702]
@@ -866,6 +871,9 @@ Plugin Repository Azure::
 * Fixes default chunk size for Azure repositories {pull}22577[#22577] (issue: {issue}22513[#22513])
 * readonly on azure repository must be taken into account {pull}22055[#22055] (issues: {issue}22007[#22007], {issue}22053[#22053])
 
+Plugin Repository HDFS::
+* Fixing permission errors for `KERBEROS` security mode for HDFS Repository {pull}23439[#23439] (issue: {issue}22156[#22156])
+
 Plugin Repository S3::
 * Handle BlobPath's trailing separator case. Add test cases to BlobPathTests.java {pull}23091[#23091]
 * Fixes leading forward slash in S3 repository base_path {pull}20861[#20861]
@@ -945,6 +953,7 @@ Scripting::
 * Native scripts should be created once per index, not per segment. {pull}20609[#20609]
 
 Search::
+* Include all aliases including non-filtering in  `_search_shards` response {pull}24489[#24489]
 * Cross Cluster Search: propagate original indices per cluster {pull}24328[#24328]
 * Query string default field {pull}24214[#24214]
 * Speed up parsing of large `terms` queries. {pull}24210[#24210]
@@ -1041,6 +1050,9 @@ Highlighting::
 
 Logging::
 * Restores the original default format of search slow log {pull}21770[#21770] (issue: {issue}21711[#21711])
+
+Network::
+* You had one job Netty logging guard {pull}24469[#24469] (issues: {issue}5624[#5624], {issue}6568[#6568])
 
 Plugin Discovery EC2::
 * Fix ec2 discovery when used with IAM profiles. {pull}21042[#21042] (issue: {issue}21039[#21039])

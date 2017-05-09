@@ -118,7 +118,6 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         }
     }
 
-    @TestLogging("_root:debug")
     public void testRefreshListeners() throws Exception {
         // Create an index without automatic refreshes
         createIndex("test", Settings.builder().put("refresh_interval", -1).build());
@@ -127,8 +126,9 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         ActionFuture<IndexResponse> index = client().prepareIndex("test", "test", "test").setSource("test", "test")
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).execute();
 
-        // Wait for the refresh listener to appear in the stats
-        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        // Wait for the refresh listener to appear in the stats. Wait a long time because NFS tests can be quite slow!
+        logger.info("starting to wait");
+        long end = System.nanoTime() + TimeUnit.MINUTES.toNanos(1);
         while (true) {
             IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().setRefresh(true).setDocs(true).get();
             CommonStats common = stats.getIndices().get("test").getTotal();
@@ -138,6 +138,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
                 break;
             }
             if (end - System.nanoTime() < 0) {
+                logger.info("timed out");
                 fail("didn't get a refresh listener in time: " + Strings.toString(common));
             }
         }

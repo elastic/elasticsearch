@@ -52,10 +52,9 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
@@ -444,17 +443,17 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return result;
     }
 
-    protected Set<Uid> getShardDocUIDs(final IndexShard shard) throws IOException {
+    protected Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
         shard.refresh("get_uids");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            Set<Uid> ids = new HashSet<>();
+            Set<String> ids = new HashSet<>();
             for (LeafReaderContext leafContext : searcher.reader().leaves()) {
                 LeafReader reader = leafContext.reader();
                 Bits liveDocs = reader.getLiveDocs();
                 for (int i = 0; i < reader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
-                        Document uuid = reader.document(i, Collections.singleton(UidFieldMapper.NAME));
-                        ids.add(Uid.createUid(uuid.get(UidFieldMapper.NAME)));
+                        Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
+                        ids.add(uuid.get(IdFieldMapper.NAME));
                     }
                 }
             }
@@ -466,10 +465,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
         assertThat(getShardDocUIDs(shard), hasSize(docDount));
     }
 
-    protected void assertDocs(IndexShard shard, Uid... uids) throws IOException {
-        final Set<Uid> shardDocUIDs = getShardDocUIDs(shard);
-        assertThat(shardDocUIDs, contains(uids));
-        assertThat(shardDocUIDs, hasSize(uids.length));
+    protected void assertDocs(IndexShard shard, String... ids) throws IOException {
+        final Set<String> shardDocUIDs = getShardDocUIDs(shard);
+        assertThat(shardDocUIDs, contains(ids));
+        assertThat(shardDocUIDs, hasSize(ids.length));
     }
 
 

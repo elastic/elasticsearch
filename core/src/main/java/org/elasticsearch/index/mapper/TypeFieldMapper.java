@@ -149,7 +149,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
-            if (context.getIndexSettings().getValue(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+            if (context.getIndexSettings().isSingleType()) {
                 Collection<String> indexTypes = context.getMapperService().types();
                 if (indexTypes.isEmpty()) {
                     return new MatchNoDocsQuery("No types");

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -82,13 +83,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             List<SnapshotInfo> snapshotInfoBuilder = new ArrayList<>();
             final Map<String, SnapshotId> allSnapshotIds = new HashMap<>();
             final List<SnapshotId> currentSnapshotIds = new ArrayList<>();
+            final RepositoryData repositoryData  = snapshotsService.getRepositoryData(repository);
             for (SnapshotInfo snapshotInfo : snapshotsService.currentSnapshots(repository)) {
                 SnapshotId snapshotId = snapshotInfo.snapshotId();
                 allSnapshotIds.put(snapshotId.getName(), snapshotId);
                 currentSnapshotIds.add(snapshotId);
             }
             if (isCurrentSnapshotsOnly(request.snapshots()) == false) {
-                for (SnapshotId snapshotId : snapshotsService.getRepositoryData(repository).getAllSnapshotIds()) {
+                for (SnapshotId snapshotId : repositoryData.getAllSnapshotIds()) {
                     allSnapshotIds.put(snapshotId.getName(), snapshotId);
                 }
             }
@@ -119,7 +121,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 }
             }
 
-            snapshotInfoBuilder.addAll(snapshotsService.snapshots(repository, new ArrayList<>(toResolve), request.ignoreUnavailable()));
+            snapshotInfoBuilder.addAll(snapshotsService.snapshots(
+                repository, new ArrayList<>(toResolve), repositoryData.getIncompatibleSnapshotIds(), request.ignoreUnavailable()));
             listener.onResponse(new GetSnapshotsResponse(snapshotInfoBuilder));
         } catch (Exception e) {
             listener.onFailure(e);

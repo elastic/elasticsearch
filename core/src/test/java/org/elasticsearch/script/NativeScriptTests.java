@@ -45,7 +45,6 @@ public class NativeScriptTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("node.name", "testNativeScript")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
         ScriptModule scriptModule = new ScriptModule(settings, new Environment(settings), null,
                 singletonList(new NativeScriptEngineService(settings, singletonMap("my", new MyNativeScriptFactory()))), emptyList());

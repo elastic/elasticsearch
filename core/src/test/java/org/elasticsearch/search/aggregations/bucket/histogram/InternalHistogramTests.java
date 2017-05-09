@@ -22,12 +22,10 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,8 +37,9 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     private boolean keyed;
     private DocValueFormat format;
 
-    @Before
-    public void init() {
+    @Override
+    public void setUp() throws Exception{
+        super.setUp();
         keyed = randomBoolean();
         format = randomNumericDocValueFormat();
     }

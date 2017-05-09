@@ -23,7 +23,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,8 +37,9 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
     private boolean keyed;
     private DocValueFormat docValueFormat;
 
-    @Before
-    public void init() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         percents = randomPercents(false);
         keyed = randomBoolean();
         docValueFormat = randomNumericDocValueFormat();

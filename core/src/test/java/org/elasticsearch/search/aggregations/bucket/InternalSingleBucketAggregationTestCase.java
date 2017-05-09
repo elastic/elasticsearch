@@ -29,14 +29,33 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 public abstract class InternalSingleBucketAggregationTestCase<T extends InternalSingleBucketAggregation>
         extends InternalAggregationTestCase<T> {
+
     private final boolean hasInternalMax = randomBoolean();
     private final boolean hasInternalMin = randomBoolean();
+
+    public Supplier<InternalAggregations> subAggregationsSupplier;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        subAggregationsSupplier = () -> {
+            List<InternalAggregation> aggs = new ArrayList<>();
+            if (hasInternalMax) {
+                aggs.add(new InternalMax("max", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
+            }
+            if (hasInternalMin) {
+                aggs.add(new InternalMin("min", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
+            }
+            return new InternalAggregations(aggs);
+        };
+    }
 
     protected abstract T createTestInstance(String name, long docCount, InternalAggregations aggregations,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
@@ -44,16 +63,9 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
 
     @Override
     protected final T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        List<InternalAggregation> internal = new ArrayList<>();
-        if (hasInternalMax) {
-            internal.add(new InternalMax("max", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
-        }
-        if (hasInternalMin) {
-            internal.add(new InternalMin("min", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
-        }
         // we shouldn't use the full long range here since we sum doc count on reduce, and don't want to overflow the long range there
         long docCount = between(0, Integer.MAX_VALUE);
-        return createTestInstance(name, docCount, new InternalAggregations(internal), pipelineAggregators, metaData);
+        return createTestInstance(name, docCount, subAggregationsSupplier.get(), pipelineAggregators, metaData);
     }
 
     @Override

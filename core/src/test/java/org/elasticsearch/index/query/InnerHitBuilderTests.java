@@ -312,13 +312,16 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
         innerHits.setScriptFields(new HashSet<>(scriptFields.values()));
         FetchSourceContext randomFetchSourceContext;
-        if (randomBoolean()) {
+        int randomInt = randomIntBetween(0, 2);
+        if (randomInt == 0) {
             randomFetchSourceContext = new FetchSourceContext(true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
-        } else {
+        } else if (randomInt == 1) {
             randomFetchSourceContext = new FetchSourceContext(true,
                     generateRandomStringArray(12, 16, false),
                     generateRandomStringArray(12, 16, false)
             );
+        } else {
+            randomFetchSourceContext = new FetchSourceContext(randomBoolean());
         }
         innerHits.setFetchSourceContext(randomFetchSourceContext);
         if (randomBoolean()) {

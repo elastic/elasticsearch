@@ -1,45 +1,380 @@
 [[ml-metric-functions]]
 === Metric Functions
 
+The metric functions include functions such as mean, min and max. These values
+are calculated for each bucket. Field values that cannot be converted to
+double precision floating point numbers are ignored.
+
 The {xpackml} features include the following metric functions:
 
-* `min`
-* `max`
-* `mean`, `high_mean`, `low_mean`
-* `metric`
-* `varp`, `high_varp`, `low_varp`
+* <<ml-metric-min,`min`>>
+* <<ml-metric-max,`max`>>
+* <<ml-metric-median,`median`>>
+* <<ml-metric-mean,`mean`>>
+* <<ml-metric-high-mean,`high_mean`>>
+* <<ml-metric-low-mean,`low_mean`>>
+* <<ml-metric-metric,`metric`>>
+* <<ml-metric-varp,`varp`>>
+* <<ml-metric-high-varp,`high_varp`>>
+* <<ml-metric-low-varp,`low_varp`>>
 
-The metric functions include mean, min and max. These values are calculated for each bucket.
-Field values that cannot be converted to double precision floating point numbers
-are ignored.
+[float]
+[[ml-metric-min]]
+==== Min
 
-////
-metric:: all of mean, min, and max
+The `min` function detects anomalies in the arithmetic minimum of a value.
+The minimum value is calculated for each bucket.
 
-mean:: arithmetic mean
+High- and low-sided functions are not applicable.
 
-high_mean::: arithmetic mean
+This function supports the following properties:
 
-low_mean::: arithmetic mean
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
 
-median:: statistical median
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
 
-min:: arithmetic minimum
-
-max:: arithmetic maximum
-
-varp:: population variance
-
-high_varp::: ""
-
-low_varp::: ""
-
+For example, if you use the following function in a detector in your job,
+it detects where the smallest transaction is lower than previously observed.
+You can use this function to detect items for sale at unintentionally low
+prices due to data entry mistakes. It models the minimum amount for each
+product over time.
+//Detect when the minumum amount for a product is unusually low compared to its past amounts
 
 [source,js]
 --------------------------------------------------
-{ "function" : "min", "fieldName" : "amt", "byFieldName" : "product" }
+{
+  "function" : "min",
+  "field_name" : "amt",
+  "by_field_name" : "product"
+}
 --------------------------------------------------
 
 
+[float]
+[[ml-metric-max]]
+==== Max
 
-////
+The `max` function detects anomalies in the arithmetic maximum of a value.
+The maximum value is calculated for each bucket.
+
+High- and low-sided functions are not applicable.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job,
+it detects where the longest `responsetime` is longer than previously observed.
+You can use this function to detect applications that have `responsetime`
+values that are unusually lengthy. It models the maximum `responsetime` for
+each application over time and detects when the longest `responsetime` is
+unusually long compared to previous applications.
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "max",
+  "field_name" : "responsetime",
+  "by_field_name" : "application"
+}
+--------------------------------------------------
+
+This analysis can be performed alongside `high_mean` functions by
+application. By combining detectors and using the same influencer this would
+detect both unusually long individual response times and average response times
+for each bucket. For example:
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "max",
+  "field_name" : "responsetime",
+  "by_field_name" : "application"
+},
+{
+  "function" : "high_mean",
+  "field_name" : "responsetime",
+  "by_field_name" : "application"
+}
+--------------------------------------------------
+
+[float]
+[[ml-metric-median]]
+==== Median
+
+The `median` function detects anomalies in the statistical median of a value.
+The median value is calculated for each bucket.
+
+High- and low-sided functions are not supported.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job,
+it models the median `responsetime` for each application over time. It detects
+when the median `responsetime` is unusual compared to previous `responsetime`
+values.
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "median",
+  "field_name" : "responsetime",
+  "by_field_name" : "application"
+}
+--------------------------------------------------
+
+
+[float]
+[[ml-metric-mean]]
+==== Mean
+
+The `mean` function detects anomalies in the arithmetic mean of a value.
+The mean value is calculated for each bucket.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job,
+it models the mean `responsetime` for each application over time. It detects
+when the mean `responsetime` is unusual compared to previous `responsetime`
+values.
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "mean",
+  "field_name" : "responsetime",
+  "by_field_name" : "application"
+}
+--------------------------------------------------
+
+[float]
+[[ml-metric-high-mean]]
+==== High_mean
+
+The `high_mean` function detects anomalies in the arithmetic mean of a value.
+The mean value is calculated for each bucket.
+Use this function if you want to monitor unusually high average values.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job,
+it models the mean `responsetime` for each application over time. It detects
+when the mean `responsetime` is unusually high compared to previous
+`responsetime` values.
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "high_mean",
+  "field_name" : "responsetime",
+  "by_field_name" : "application"
+}
+--------------------------------------------------
+
+[float]
+[[ml-metric-low-mean]]
+==== Low_mean
+
+The `low_mean` function detects anomalies in the arithmetic mean of a value.
+The mean value is calculated for each bucket.
+Use this function if you are just interested in unusually low average values.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job,
+it models the mean `responsetime` for each application over time. It detects
+when the mean `responsetime` is unusually low
+compared to previous `responsetime` values.
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "low_mean",
+  "field_name" : "responsetime",
+  "by_field_name" : "application"
+}
+--------------------------------------------------
+
+[float]
+[[ml-metric-metric]]
+==== Metric
+
+The `metric` function combines `min`, `max`, and `mean` functions. You can use
+it as a shorthand for a combined analysis. If you do not specify a function in
+a detector, this is the default function.
+//TBD: Is that default behavior still true?
+
+High- and low-sided functions are not applicable. You cannot use this function
+when a `summary_count_field_name` is specified.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job,
+it models the mean, min, and max `responsetime` for each application over time.
+It detects when the mean, min, or max `responsetime` is unusual compared to
+previous `responsetime` values.
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "metric",
+  "field_name" : "responsetime",
+  "by_field_name" : "application"
+}
+--------------------------------------------------
+
+
+[float]
+[[ml-metric-varp]]
+==== Varp
+
+The `varp` function detects anomalies in the variance of a value which is a
+measure of the variability and spread in the data.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job,
+it models models the variance in values of `responsetime` for each application
+over time. It detects when the variance in `responsetime` is unusual compared
+to past application behavior.
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "varp",
+  "field_name" : "responsetime",
+  "by_field_name" : "application"
+}
+--------------------------------------------------
+
+[float]
+[[ml-metric-high-varp]]
+==== High_varp
+
+The `high_varp` function detects anomalies in the variance of a value which is a
+measure of the variability and spread in the data. Use this function if you want
+to monitor unusually high variance.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job,
+it models models the variance in values of `responsetime` for each application
+over time. It detects when the variance in `responsetime` is unusual compared
+to past application behavior.
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "high_varp",
+  "field_name" : "responsetime",
+  "by_field_name" : "application"
+}
+--------------------------------------------------
+
+
+[float]
+[[ml-metric-low-varp]]
+==== Low_varp
+
+The `low_varp` function detects anomalies in the variance of a value which is a
+measure of the variability and spread in the data. Use this function if you are
+just interested in unusually low variance.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job,
+it models models the variance in values of `responsetime` for each application
+over time. It detects when the variance in `responsetime` is unusual compared
+to past application behavior.
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "low_varp",
+  "field_name" : "responsetime",
+  "by_field_name" : "application"
+}
+--------------------------------------------------

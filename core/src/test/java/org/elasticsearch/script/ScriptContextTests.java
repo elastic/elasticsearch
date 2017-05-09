@@ -71,20 +71,7 @@ public class ScriptContextTests extends ESTestCase {
         return scriptService;
     }
 
-    private static Setting<?>[] buildDeprecatedSettingsArray(ScriptSettings scriptSettings, String... keys) {
-        Setting<?>[] settings = new Setting[keys.length];
-        int count = 0;
 
-        for (Setting<?> setting : scriptSettings.getSettings()) {
-            for (String key : keys) {
-                if (setting.getKey().equals(key)) {
-                    settings[count++] = setting;
-                }
-            }
-        }
-
-        return settings;
-    }
 
     public void testCustomGlobalScriptContextSettings() throws Exception {
         ScriptService scriptService = makeScriptService();
@@ -97,7 +84,9 @@ public class ScriptContextTests extends ESTestCase {
                 assertThat(e.getMessage(), containsString("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
             }
         }
-        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING},
+                scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
     }
 
     public void testCustomScriptContextSettings() throws Exception {
@@ -114,7 +103,9 @@ public class ScriptContextTests extends ESTestCase {
         assertNotNull(scriptService.compile(script, ScriptContext.Standard.AGGS));
         assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH));
         assertNotNull(scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_op")));
-        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING},
+                scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
     }
 
     public void testUnknownPluginScriptContext() throws Exception {
@@ -128,7 +119,9 @@ public class ScriptContextTests extends ESTestCase {
                 assertTrue(e.getMessage(), e.getMessage().contains("script context [" + PLUGIN_NAME + "_unknown] not supported"));
             }
         }
-        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING},
+                scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
     }
 
     public void testUnknownCustomScriptContext() throws Exception {
@@ -148,6 +141,8 @@ public class ScriptContextTests extends ESTestCase {
                 assertTrue(e.getMessage(), e.getMessage().contains("script context [test] not supported"));
             }
         }
-        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING},
+                scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
     }
 }

@@ -23,8 +23,11 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetaData;
 
@@ -76,6 +79,7 @@ public class TribeServiceTests extends ESTestCase {
             TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, tribeSettings);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Setting [path.home] not allowed in tribe client"));
+        assertSettingDeprecationsAndWarnings(new Setting[] {Environment.PATH_SCRIPTS_SETTING});
     }
 
     public void testPassthroughSettings() {

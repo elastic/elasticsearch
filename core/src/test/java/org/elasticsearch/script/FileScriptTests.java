@@ -53,21 +53,6 @@ public class FileScriptTests extends ESTestCase {
         return new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
     }
 
-    private static Setting<?>[] buildDeprecatedSettingsArray(ScriptSettings scriptSettings, String... keys) {
-        Setting<?>[] settings = new Setting[keys.length];
-        int count = 0;
-
-        for (Setting<?> setting : scriptSettings.getSettings()) {
-            for (String key : keys) {
-                if (setting.getKey().equals(key)) {
-                    settings[count++] = setting;
-                }
-            }
-        }
-
-        return settings;
-    }
-
     public void testFileScriptFound() throws Exception {
         Settings settings = Settings.builder()
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false").build();
@@ -77,7 +62,9 @@ public class FileScriptTests extends ESTestCase {
         assertNotNull(compiledScript);
         MockCompiledScript executable = (MockCompiledScript) compiledScript.compiled();
         assertEquals("script1.mockscript", executable.getName());
-        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, "script.engine." + MockScriptEngine.NAME + ".file.aggs"),
+        assertSettingDeprecationsAndWarnings(ScriptSettingsTests.buildDeprecatedSettingsArray(
+            new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING},
+            scriptSettings, "script.engine." + MockScriptEngine.NAME + ".file.aggs"),
             "File scripts are deprecated. Use stored or inline scripts instead.");
     }
 
@@ -98,7 +85,8 @@ public class FileScriptTests extends ESTestCase {
                 assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [file], operation [" + context.getKey() + "] and lang [" + MockScriptEngine.NAME + "] are disabled"));
             }
         }
-        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings,
+        assertSettingDeprecationsAndWarnings(ScriptSettingsTests.buildDeprecatedSettingsArray(
+            new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING}, scriptSettings,
             "script.engine." + MockScriptEngine.NAME + ".file.aggs",
             "script.engine." + MockScriptEngine.NAME + ".file.search",
             "script.engine." + MockScriptEngine.NAME + ".file.update",

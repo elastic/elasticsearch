@@ -130,21 +130,6 @@ public class ScriptServiceTests extends ESTestCase {
         };
     }
 
-    private static Setting<?>[] buildDeprecatedSettingsArray(ScriptSettings scriptSettings, String... keys) {
-        Setting<?>[] settings = new Setting[keys.length];
-        int count = 0;
-
-        for (Setting<?> setting : scriptSettings.getSettings()) {
-            for (String key : keys) {
-                if (setting.getKey().equals(key)) {
-                    settings[count++] = setting;
-                }
-            }
-        }
-
-        return settings;
-    }
-
     public void testCompilationCircuitBreaking() throws Exception {
         buildScriptService(Settings.EMPTY);
         scriptService.setMaxCompilationsPerMinute(1);
@@ -342,7 +327,8 @@ public class ScriptServiceTests extends ESTestCase {
                 }
             }
         }
-        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})),
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})),
             "File scripts are deprecated. Use stored or inline scripts instead.");
     }
 
@@ -404,7 +390,8 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(script, randomFrom(scriptContexts));
         scriptService.compile(script, randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
-        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
     }
 
     public void testFileScriptCountedInCompilationStats() throws IOException {
@@ -430,7 +417,8 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(2L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
-        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
     }
 
     public void testDefaultLanguage() throws IOException {
@@ -440,7 +428,8 @@ public class ScriptServiceTests extends ESTestCase {
         CompiledScript script = scriptService.compile(
             new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 + 1", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(script.lang(), Script.DEFAULT_SCRIPT_LANG);
-        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
     }
 
     public void testStoreScript() throws Exception {

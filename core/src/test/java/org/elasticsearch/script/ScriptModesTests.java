@@ -97,21 +97,6 @@ public class ScriptModesTests extends ESTestCase {
         }
     }
 
-    private static Setting<?>[] buildDeprecatedSettingsArray(ScriptSettings scriptSettings, String... keys) {
-        Setting<?>[] settings = new Setting[keys.length];
-        int count = 0;
-
-        for (Setting<?> setting : scriptSettings.getSettings()) {
-            for (String key : keys) {
-                if (setting.getKey().equals(key)) {
-                    settings[count++] = setting;
-                }
-            }
-        }
-
-        return settings;
-    }
-
     public void testDefaultSettings() {
         this.scriptModes = new ScriptModes(scriptSettings, Settings.EMPTY);
         assertScriptModesAllOps(true, ScriptType.FILE);
@@ -161,7 +146,8 @@ public class ScriptModesTests extends ESTestCase {
         if (randomScriptTypesSet.contains(ScriptType.INLINE) == false) {
             assertScriptModesAllOps(false, ScriptType.INLINE);
         }
-        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})));
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})));
     }
 
     public void testScriptContextGenericSettings() {
@@ -191,7 +177,8 @@ public class ScriptModesTests extends ESTestCase {
         ScriptContext[] complementOf = complementOf(randomScriptContexts);
         assertScriptModes(true, new ScriptType[]{ScriptType.FILE}, complementOf);
         assertScriptModes(false, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
-        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})));
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})));
     }
 
     public void testConflictingScriptTypeAndOpGenericSettings() {
@@ -207,7 +194,8 @@ public class ScriptModesTests extends ESTestCase {
         assertScriptModes(true, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);
         assertScriptModes(true, new ScriptType[]{ScriptType.INLINE}, complementOf);
         assertSettingDeprecationsAndWarnings(
-            buildDeprecatedSettingsArray(scriptSettings, "script." + scriptContext.getKey(), "script.stored", "script.inline"));
+            ScriptSettingsTests.buildDeprecatedSettingsArray(
+                scriptSettings, "script." + scriptContext.getKey(), "script.stored", "script.inline"));
     }
 
     private void assertScriptModesAllOps(boolean expectedScriptEnabled, ScriptType... scriptTypes) {

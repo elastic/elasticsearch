@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -77,6 +78,7 @@ public class ScriptContextTests extends ESTestCase {
                 assertThat(e.getMessage(), containsString("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
             }
         }
+        assertSettingDeprecationsAndWarnings(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING});
     }
 
     public void testCustomScriptContextSettings() throws Exception {
@@ -93,6 +95,7 @@ public class ScriptContextTests extends ESTestCase {
         assertNotNull(scriptService.compile(script, ScriptContext.Standard.AGGS));
         assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH));
         assertNotNull(scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_op")));
+        assertSettingDeprecationsAndWarnings(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING});
     }
 
     public void testUnknownPluginScriptContext() throws Exception {
@@ -106,6 +109,7 @@ public class ScriptContextTests extends ESTestCase {
                 assertTrue(e.getMessage(), e.getMessage().contains("script context [" + PLUGIN_NAME + "_unknown] not supported"));
             }
         }
+        assertSettingDeprecationsAndWarnings(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING});
     }
 
     public void testUnknownCustomScriptContext() throws Exception {
@@ -125,6 +129,7 @@ public class ScriptContextTests extends ESTestCase {
                 assertTrue(e.getMessage(), e.getMessage().contains("script context [test] not supported"));
             }
         }
+        assertSettingDeprecationsAndWarnings(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING});
     }
 
 }

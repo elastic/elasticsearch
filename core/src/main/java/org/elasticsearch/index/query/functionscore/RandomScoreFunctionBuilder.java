@@ -129,7 +129,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
         final MappedFieldType fieldType;
-        if (context.getIndexSettings().getValue(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+        if (context.getIndexSettings().isSingleType()) {
             fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
         } else {
             fieldType = context.getMapperService().fullName(UidFieldMapper.NAME);

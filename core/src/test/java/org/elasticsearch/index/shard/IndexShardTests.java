@@ -80,8 +80,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -552,10 +550,10 @@ public class IndexShardTests extends IndexShardTestCase {
 
     private ParsedDocument testParsedDocument(String id, String type, String routing,
                                               ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
-        Field uidField = new Field("_uid", Uid.createUid(type, id), UidFieldMapper.Defaults.FIELD_TYPE);
+        Field idField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        document.add(uidField);
+        document.add(idField);
         document.add(versionField);
         document.add(seqID.seqNo);
         document.add(seqID.seqNoDocValue);
@@ -1425,7 +1423,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     testParsedDocument(id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
                 final Engine.Index index =
                     new Engine.Index(
-                        new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())),
+                        new Term("_id", doc.id()),
                         doc,
                         SequenceNumbersService.UNASSIGNED_SEQ_NO,
                         0,
@@ -1455,7 +1453,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     testParsedDocument(id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
                 final Engine.Index index =
                     new Engine.Index(
-                        new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())),
+                        new Term("_id", doc.id()),
                         doc,
                         SequenceNumbersService.UNASSIGNED_SEQ_NO,
                         0,

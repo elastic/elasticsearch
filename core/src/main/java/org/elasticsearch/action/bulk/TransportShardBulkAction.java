@@ -628,7 +628,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary,
             final MappingUpdatePerformer mappingUpdater) throws Exception {
         boolean mappingUpdateNeeded = false;
-        if (primary.indexSettings().getValue(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+        if (primary.indexSettings().isSingleType()) {
             // When there is a single type, the unique identifier is only composed of the _id,
             // so there is no way to differenciate foo#1 from bar#1. This is especially an issue
             // if a user first deletes foo#1 and then indexes bar#1: since we do not encode the
@@ -656,13 +656,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static Engine.DeleteResult executeDeleteRequestOnReplica(DocWriteResponse primaryResponse, DeleteRequest request,
             IndexShard replica) throws Exception {
-        if (replica.indexSettings().getValue(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+        if (replica.indexSettings().isSingleType()) {
             // We need to wait for the replica to have the mappings
             Mapping update;
             try {
                 update = replica.mapperService().documentMapperWithAutoCreate(request.type()).getMapping();
             } catch (MapperParsingException | IllegalArgumentException e) {
-                return new Engine.DeleteResult(e, request.version(), SequenceNumbersService.UNASSIGNED_SEQ_NO, false);
+                return new Engine.DeleteResult(e, request.version(), primaryResponse.getSeqNo(), false);
             }
             if (update != null) {
                 final ShardId shardId = replica.shardId();

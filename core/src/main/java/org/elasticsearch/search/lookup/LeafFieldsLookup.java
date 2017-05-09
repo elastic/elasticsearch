@@ -55,7 +55,7 @@ public class LeafFieldsLookup implements Map {
 
     LeafFieldsLookup(MapperService mapperService, @Nullable String[] types, LeafReader reader) {
         this.mapperService = mapperService;
-        this.singleType = mapperService.getIndexSettings().getValue(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING);
+        this.singleType = mapperService.getIndexSettings().isSingleType();
         this.types = types;
         this.reader = reader;
         this.fieldVisitor = new SingleFieldsVisitor(null);

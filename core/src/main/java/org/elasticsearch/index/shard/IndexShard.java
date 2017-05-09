@@ -616,7 +616,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Term extractUidForDelete(String type, String id) {
-        if (indexSettings.getValue(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+        if (indexSettings.isSingleType()) {
             // This is only correct because we create types dynamically on delete operations
             // otherwise this could match the same _id from a different type
             return new Term(IdFieldMapper.NAME, id);

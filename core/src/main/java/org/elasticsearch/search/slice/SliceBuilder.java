@@ -199,7 +199,7 @@ public class SliceBuilder extends ToXContentToBytes implements Writeable {
         String field = this.field;
         boolean useTermQuery = false;
         if (UidFieldMapper.NAME.equals(field)) {
-            if (context.getIndexSettings().getValue(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+            if (context.getIndexSettings().isSingleType()) {
                 // on new indices, the _id acts as a _uid
                 field = IdFieldMapper.NAME;
             }

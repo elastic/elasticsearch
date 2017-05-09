@@ -471,7 +471,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
 
-        if (indexSettings.getValue(INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+        if (indexSettings.isSingleType()) {
             Set<String> actualTypes = new HashSet<>(mappers.keySet());
             actualTypes.remove(DEFAULT_MAPPING);
             if (actualTypes.size() > 1) {
@@ -809,7 +809,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (hasMapping(type) == false) {
             return null;
         }
-        if (indexSettings.getValue(INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+        if (indexSettings.isSingleType()) {
             return new Term(IdFieldMapper.NAME, id);
         } else {
             return new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id));

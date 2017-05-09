@@ -81,7 +81,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public void postProcess(MapperService mapperService) {
-        if (mapperService.getIndexSettings().getValue(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+        if (mapperService.getIndexSettings().isSingleType()) {
             final Collection<String> types = mapperService.types();
             if (types.isEmpty() == false) {
                 type = types.iterator().next();

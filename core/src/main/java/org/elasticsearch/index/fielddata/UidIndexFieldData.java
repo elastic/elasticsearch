@@ -35,8 +35,13 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 
 /** Fielddata view of the _uid field on indices that do not index _uid but _id.
- *  All values are prefixed by {@code "${type}#"}. */
-public class UidIndexFieldData implements IndexOrdinalsFieldData {
+ *  It gets fielddata on the {@code _id field}, which is in-memory since the _id
+ *  field does not have doc values, and prepends {@code ${type}#} to all values.
+ *  Note that it does not add memory compared to what fielddata on the _id is
+ *  already using: this is just a view.
+ *  TODO: Remove fielddata access on _uid and _id, or add doc values to _id.
+ */
+public final class UidIndexFieldData implements IndexOrdinalsFieldData {
 
     private final Index index;
     private final String type;
@@ -94,7 +99,7 @@ public class UidIndexFieldData implements IndexOrdinalsFieldData {
         return new UidIndexFieldData(index, type, idFieldData.localGlobalDirect(indexReader));
     }
 
-    static class UidAtomicFieldData implements AtomicOrdinalsFieldData {
+    static final class UidAtomicFieldData implements AtomicOrdinalsFieldData {
 
         private final BytesRef prefix;
         private final AtomicOrdinalsFieldData idFieldData;

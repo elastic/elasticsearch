@@ -457,9 +457,9 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
      * allocation ID to the in-sync set and removing it from pending, the local checkpoint update that freed the thread waiting for the
      * local checkpoint to advance could miss updating the global checkpoint in a race if the the waiting thread did not add the allocation
      * ID to the in-sync set and remove it from the pending set before the local checkpoint updating thread executed the global checkpoint
-     * update. This test fails without an additional to {@link GlobalCheckpointTracker#updateGlobalCheckpointOnPrimary()} after removing
-     * the allocation ID from the pending set in {@link GlobalCheckpointTracker#markAllocationIdAsInSync(String, long)} (even if a call is
-     * added after notifying all waiters in {@link GlobalCheckpointTracker#updateLocalCheckpoint(String, long)}).
+     * update. This test fails without an additional call to {@link GlobalCheckpointTracker#updateGlobalCheckpointOnPrimary()} after
+     * removing the allocation ID from the pending set in {@link GlobalCheckpointTracker#markAllocationIdAsInSync(String, long)} (even if a
+     * call is added after notifying all waiters in {@link GlobalCheckpointTracker#updateLocalCheckpoint(String, long)}).
      *
      * @throws InterruptedException   if the main test thread was interrupted while waiting
      * @throws BrokenBarrierException if the barrier was broken while the main test thread was waiting

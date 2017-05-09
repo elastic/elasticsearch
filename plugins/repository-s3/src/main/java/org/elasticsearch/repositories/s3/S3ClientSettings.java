@@ -81,7 +81,7 @@ class S3ClientSettings {
 
     /** The number of retries to use when an s3 request fails. */
     static final Setting.AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(PREFIX, "max_retries",
-        key -> Setting.intSetting(key, 3, 0, Property.NodeScope));
+        key -> Setting.intSetting(key, ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry(), 0, Property.NodeScope));
 
     /** Whether retries should be throttled (ie use backoff). */
     static final Setting.AffixSetting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(PREFIX, "use_throttle_retries",

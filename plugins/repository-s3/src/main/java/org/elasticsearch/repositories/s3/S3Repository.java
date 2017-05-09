@@ -51,21 +51,13 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
  */
 class S3Repository extends BlobStoreRepository {
 
-    public static final String TYPE = "s3";
-
-    /**
-     * Global S3 repositories settings. Starting with: repositories.s3
-     * NOTE: These are legacy settings. Use the named client config settings above.
-     */
-    public interface Repositories {
-
-    }
+    static final String TYPE = "s3";
 
     /**
      * Default is to use 100MB (S3 defaults) for heaps above 2GB and 5% of
      * the available memory for smaller heaps.
      */
-    static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(
+    private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(
         Math.max(
             ByteSizeUnit.MB.toBytes(5), // minimum value
             Math.min(
@@ -188,16 +180,5 @@ class S3Repository extends BlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
-    }
-
-    public static <T> T getValue(Settings repositorySettings,
-                                 Settings globalSettings,
-                                 Setting<T> repositorySetting,
-                                 Setting<T> repositoriesSetting) {
-        if (repositorySetting.exists(repositorySettings)) {
-            return repositorySetting.get(repositorySettings);
-        } else {
-            return repositoriesSetting.get(globalSettings);
-        }
     }
 }

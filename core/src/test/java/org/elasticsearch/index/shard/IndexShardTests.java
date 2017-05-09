@@ -1102,7 +1102,7 @@ public class IndexShardTests extends IndexShardTestCase {
         };
         closeShards(shard);
         IndexShard newShard = newShard(ShardRoutingHelper.reinitPrimary(shard.routingEntry()),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, () -> {}, null);
+            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null);
 
         recoveryShardFromStore(newShard);
 
@@ -1243,7 +1243,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         closeShards(shard);
         IndexShard newShard = newShard(ShardRoutingHelper.reinitPrimary(shard.routingEntry()),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, () -> {}, null);
+            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null);
 
         recoveryShardFromStore(newShard);
 

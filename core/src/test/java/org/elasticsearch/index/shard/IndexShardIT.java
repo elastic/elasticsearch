@@ -161,21 +161,23 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
 
-    public void testDurableFlagHasEffect() {
+    public void testDurableFlagHasEffect() throws Exception {
         createIndex("test");
         ensureGreen();
         client().prepareIndex("test", "bar", "1").setSource("{}", XContentType.JSON).get();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
+        shard.checkIdle(Long.MIN_VALUE);
         setDurability(shard, Translog.Durability.REQUEST);
-        assertFalse(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded());
+        assertBusy(() -> assertFalse(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded()));
         setDurability(shard, Translog.Durability.ASYNC);
         client().prepareIndex("test", "bar", "2").setSource("{}", XContentType.JSON).get();
         assertTrue(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded());
         setDurability(shard, Translog.Durability.REQUEST);
         client().prepareDelete("test", "bar", "1").get();
-        assertFalse(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded());
+        shard.checkIdle(Long.MIN_VALUE);
+        assertBusy(() -> assertFalse(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded()));
 
         setDurability(shard, Translog.Durability.ASYNC);
         client().prepareDelete("test", "bar", "2").get();
@@ -184,7 +186,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertNoFailures(client().prepareBulk()
             .add(client().prepareIndex("test", "bar", "3").setSource("{}", XContentType.JSON))
             .add(client().prepareDelete("test", "bar", "1")).get());
-        assertFalse(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded());
+        shard.checkIdle(Long.MIN_VALUE);
+        assertBusy(() -> assertFalse(ShardUtilsTests.getShardEngine(shard).getTranslog().syncNeeded()));
 
         setDurability(shard, Translog.Durability.ASYNC);
         assertNoFailures(client().prepareBulk()
@@ -532,7 +535,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexShard newShard = new IndexShard(initializingShardRouting, indexService.getIndexSettings(), shard.shardPath(),
             shard.store(), indexService.getIndexSortSupplier(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),
             indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
-            indexService.getThreadPool(), indexService.getBigArrays(), null, () -> {}, Collections.emptyList(), Arrays.asList(listeners));
+            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners));
         return newShard;
     }
 

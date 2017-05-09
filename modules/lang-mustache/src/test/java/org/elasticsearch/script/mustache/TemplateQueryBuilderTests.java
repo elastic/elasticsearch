@@ -78,13 +78,8 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-
-            scripts.put("{ \"match_all\" : {}}",
-                    s -> new BytesArray("{ \"match_all\" : {}}"));
-
-            scripts.put("{ \"match_all\" : {\"_name\" : \"foobar\"}}",
-                    s -> new BytesArray("{ \"match_all\" : {\"_name\" : \"foobar\"}}"));
-
+            scripts.put("{ \"match_all\" : {}}", s -> "{ \"match_all\" : {}}");
+            scripts.put("{ \"match_all\" : {\"_name\" : \"foobar\"}}", s -> "{ \"match_all\" : {\"_name\" : \"foobar\"}}");
             scripts.put("{\n" +
                     "  \"term\" : {\n" +
                     "    \"foo\" : {\n" +
@@ -92,14 +87,14 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
                     "      \"boost\" : 2.0\n" +
                     "    }\n" +
                     "  }\n" +
-                    "}", s -> new BytesArray("{\n" +
+                    "}", s -> "{\n" +
                     "  \"term\" : {\n" +
                     "    \"foo\" : {\n" +
                     "      \"value\" : \"bar\",\n" +
                     "      \"boost\" : 2.0\n" +
                     "    }\n" +
                     "  }\n" +
-                    "}"));
+                    "}");
             return scripts;
         }
     }

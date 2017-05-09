@@ -162,14 +162,14 @@ public class InternalEngine extends Engine {
                         break;
                     case OPEN_INDEX_CREATE_TRANSLOG:
                         writer = createWriter(false);
-                        seqNoStats = store.loadSeqNoStats(SequenceNumbersService.NO_OPS_PERFORMED);
+                        seqNoStats = store.loadSeqNoStats(SequenceNumbersService.UNASSIGNED_SEQ_NO);
                         break;
                     case CREATE_INDEX_AND_TRANSLOG:
                         writer = createWriter(true);
                         seqNoStats = new SeqNoStats(
                             SequenceNumbersService.NO_OPS_PERFORMED,
                             SequenceNumbersService.NO_OPS_PERFORMED,
-                            SequenceNumbersService.NO_OPS_PERFORMED);
+                            SequenceNumbersService.UNASSIGNED_SEQ_NO);
                         break;
                     default:
                         throw new IllegalArgumentException(openMode.toString());

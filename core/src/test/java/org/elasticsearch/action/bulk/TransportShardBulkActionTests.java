@@ -571,7 +571,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     }
 
                     @Override
-                    public void verifyMappings(Engine.Index operation,
+                    public void verifyMappings(Mapping update,
                                                ShardId shardId) throws Exception {
                         // No-op, will be called
                         logger.info("--> verifying mappings noop");
@@ -600,7 +600,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     }
 
                     @Override
-                    public void verifyMappings(Engine.Index operation,
+                    public void verifyMappings(Mapping update,
                                                ShardId shardId) throws Exception {
                         fail("should not have had to update the mappings");
                     }
@@ -668,7 +668,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         public void updateMappings(Mapping update, ShardId shardId, String type) throws Exception {
         }
 
-        public void verifyMappings(Engine.Index operation, ShardId shardId) throws Exception {
+        public void verifyMappings(Mapping update, ShardId shardId) throws Exception {
         }
     }
 
@@ -683,7 +683,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             throw e;
         }
 
-        public void verifyMappings(Engine.Index operation, ShardId shardId) throws Exception {
+        public void verifyMappings(Mapping update, ShardId shardId) throws Exception {
             fail("should not have gotten to this point");
         }
     }
@@ -698,7 +698,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         public void updateMappings(Mapping update, ShardId shardId, String type) throws Exception {
         }
 
-        public void verifyMappings(Engine.Index operation, ShardId shardId) throws Exception {
+        public void verifyMappings(Mapping update, ShardId shardId) throws Exception {
             throw e;
         }
     }

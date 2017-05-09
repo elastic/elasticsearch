@@ -342,6 +342,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators,
                     timeProvider, clusterStateVersion, task);
                 break;
+            case QUERY_AND_FETCH:
             case QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                     aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators,

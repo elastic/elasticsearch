@@ -350,14 +350,10 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
             case LOWERCASE:
                 // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
                 continue;
-            case SNOWBALL:
             case DUTCH_STEM:
             case FRENCH_STEM:
             case RUSSIAN_STEM:
                 luceneFactoryClass = SnowballPorterFilterFactory.class;
-                break;
-            case STEMMER:
-                luceneFactoryClass = PorterStemFilterFactory.class;
                 break;
             case DELIMITED_PAYLOAD_FILTER:
                 luceneFactoryClass = org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class;

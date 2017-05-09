@@ -141,6 +141,7 @@ import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 
 import java.io.IOException;
@@ -285,21 +286,12 @@ public final class AnalysisModule {
                 // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
                 continue;
             default:
-                String name = preBuilt.name().toLowerCase(Locale.ROOT);
-                PreConfiguredTokenFilter filter;
-                switch (preBuilt.getCachingStrategy()) {
-                case ONE:
-                    filter = PreConfiguredTokenFilter.singleton(name, preBuilt.isMultiTermAware(),
-                            tokenStream -> preBuilt.create(tokenStream, Version.CURRENT));
-                    break;
-                case ELASTICSEARCH:
-                    filter = PreConfiguredTokenFilter.elasticsearchVersion(name, preBuilt.isMultiTermAware(),
-                            (tokenStream, version) -> preBuilt.create(tokenStream, version));
-                    break;
-                default:
+                if (CachingStrategy.ONE != preBuilt.getCachingStrategy()) {
                     throw new UnsupportedOperationException("shim not available for " + preBuilt.getCachingStrategy());
                 }
-                preConfiguredTokenFilters.register(name, filter);
+                String name = preBuilt.name().toLowerCase(Locale.ROOT);
+                preConfiguredTokenFilters.register(name, PreConfiguredTokenFilter.singleton(name, preBuilt.isMultiTermAware(),
+                        tokenStream -> preBuilt.create(tokenStream, Version.CURRENT)));
             }
         }
 

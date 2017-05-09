@@ -36,6 +36,7 @@ import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
+import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.standard.ClassicFilter;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
@@ -90,6 +91,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.add(PreConfiguredTokenFilter.singleton("nGram", false, NGramTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("porter_stem", false, PorterStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("reverse", false, input -> new ReverseStringFilter(input)));
+        filters.add(PreConfiguredTokenFilter.singleton("snowball", false, input -> new SnowballFilter(input, "English")));
+        filters.add(PreConfiguredTokenFilter.singleton("stemmer", false, PorterStemFilter::new));
         // The stop filter is in lucene-core but the English stop words set is in lucene-analyzers-common
         filters.add(PreConfiguredTokenFilter.singleton("stop", false, input -> new StopFilter(input, StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
         filters.add(PreConfiguredTokenFilter.singleton("trim", false, TrimFilter::new));

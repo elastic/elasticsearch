@@ -58,6 +58,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 
@@ -113,6 +115,14 @@ public class AggregationsTests extends ESTestCase {
     public void cleanUp() throws Exception {
         for (InternalAggregationTestCase aggsTest : aggsTests) {
             aggsTest.tearDown();
+        }
+    }
+
+    public void testAllAggsAreBeingTested() {
+        assertEquals(InternalAggregationTestCase.getNamedXContents().size(), aggsTests.size());
+        Set<String> aggs = aggsTests.stream().map((testCase) -> testCase.createTestInstance().getType()).collect(Collectors.toSet());
+        for (NamedXContentRegistry.Entry entry : InternalAggregationTestCase.getNamedXContents()) {
+            assertTrue(aggs.contains(entry.name.getPreferredName()));
         }
     }
 

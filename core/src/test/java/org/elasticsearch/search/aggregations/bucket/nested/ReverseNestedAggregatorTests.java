@@ -67,7 +67,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, true, true),
+                Nested nested = search(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 ReverseNested reverseNested = (ReverseNested)
                         ((InternalAggregation)nested).getProperty(REVERSE_AGG_NAME);
@@ -130,7 +130,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, true, true),
+                Nested nested = search(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 

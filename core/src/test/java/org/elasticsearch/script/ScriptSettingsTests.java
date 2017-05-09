@@ -29,7 +29,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptSettingsTests extends ESTestCase {
@@ -51,7 +50,7 @@ public class ScriptSettingsTests extends ESTestCase {
         }
 
         if (deprecated != null) {
-            System.arraycopy(deprecated, keys.length, settings, 0, deprecated.length);
+            System.arraycopy(deprecated, 0, settings, keys.length, deprecated.length);
         }
 
         return settings;

@@ -131,8 +131,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
             final List<SnapshotInfo> snapshotInfos;
             if (request.verbose()) {
-                final List<SnapshotId> incompatibleSnapshots = repositoryData != null ?
-                    repositoryData.getIncompatibleSnapshotIds() : Collections.emptyList();
+                final Set<SnapshotId> incompatibleSnapshots = repositoryData != null ?
+                    new HashSet<>(repositoryData.getIncompatibleSnapshotIds()) : Collections.emptySet();
                 snapshotInfos = snapshotsService.snapshots(repository, new ArrayList<>(toResolve),
                     incompatibleSnapshots, request.ignoreUnavailable());
             } else {
@@ -181,7 +181,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         for (Map.Entry<SnapshotId, List<String>> entry : snapshotsToIndices.entrySet()) {
             final List<String> indices = entry.getValue();
             CollectionUtil.timSort(indices);
-            snapshotInfos.add(new SnapshotInfo(entry.getKey(), indices));
+            final SnapshotId snapshotId = entry.getKey();
+            snapshotInfos.add(new SnapshotInfo(snapshotId, indices, repositoryData.getSnapshotState(snapshotId)));
         }
         CollectionUtil.timSort(snapshotInfos);
         return Collections.unmodifiableList(snapshotInfos);

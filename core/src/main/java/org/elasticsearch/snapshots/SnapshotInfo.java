@@ -98,8 +98,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     private final List<SnapshotShardFailure> shardFailures;
 
-    public SnapshotInfo(SnapshotId snapshotId, List<String> indices) {
-        this(snapshotId, indices, null, null, null, 0L, 0L, 0, 0, Collections.emptyList());
+    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state) {
+        this(snapshotId, indices, state, null, null, 0L, 0L, 0, 0, Collections.emptyList());
     }
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, long startTime) {
@@ -176,10 +176,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     /**
      * Gets a new {@link SnapshotInfo} instance from the given {@link SnapshotInfo} with
-     * all information stripped out except the snapshot id and indices.
+     * all information stripped out except the snapshot id, state, and indices.
      */
     public SnapshotInfo basic() {
-        return new SnapshotInfo(snapshotId, indices);
+        return new SnapshotInfo(snapshotId, indices, state);
     }
 
     /**

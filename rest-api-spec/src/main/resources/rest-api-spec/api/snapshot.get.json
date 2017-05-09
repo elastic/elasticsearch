@@ -25,6 +25,10 @@
         "ignore_unavailable": {
           "type": "boolean",
           "description": "Whether to ignore unavailable snapshots, defaults to false which means a SnapshotMissingException is thrown"
+        },
+        "verbose": {
+          "type": "boolean",
+          "description": "Whether to show verbose snapshot info or only show the basic info found in the repository index blob"
         }
       }
     },

@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ParsedExtend
 public class ParsedExtendedStatsBucket extends ParsedExtendedStats implements ExtendedStatsBucket {
 
     @Override
-    protected String getType() {
+    public String getType() {
         return ExtendedStatsBucketPipelineAggregationBuilder.NAME;
     }
 

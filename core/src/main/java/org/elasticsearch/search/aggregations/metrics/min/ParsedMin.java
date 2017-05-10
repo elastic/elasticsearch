@@ -34,7 +34,7 @@ public class ParsedMin extends ParsedSingleValueNumericMetricsAggregation implem
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return MinAggregationBuilder.NAME;
     }
 

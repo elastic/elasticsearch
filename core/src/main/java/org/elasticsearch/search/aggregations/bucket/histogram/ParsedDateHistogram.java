@@ -32,7 +32,7 @@ import java.util.List;
 public class ParsedDateHistogram extends ParsedMultiBucketAggregation<ParsedDateHistogram.ParsedBucket> implements Histogram {
 
     @Override
-    protected String getType() {
+    public String getType() {
         return DateHistogramAggregationBuilder.NAME;
     }
 

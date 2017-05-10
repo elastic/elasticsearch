@@ -28,7 +28,7 @@ import java.io.IOException;
 public class ParsedDoubleTerms extends ParsedTerms {
 
     @Override
-    protected String getType() {
+    public String getType() {
         return DoubleTerms.NAME;
     }
 

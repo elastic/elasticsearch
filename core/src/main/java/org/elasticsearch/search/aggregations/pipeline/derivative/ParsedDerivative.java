@@ -42,7 +42,7 @@ public class ParsedDerivative extends ParsedSimpleValue implements Derivative {
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return DerivativePipelineAggregationBuilder.NAME;
     }
 

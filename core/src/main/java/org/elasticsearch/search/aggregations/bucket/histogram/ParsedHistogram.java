@@ -29,7 +29,7 @@ import java.util.List;
 public class ParsedHistogram extends ParsedMultiBucketAggregation<ParsedHistogram.ParsedBucket> implements Histogram {
 
     @Override
-    protected String getType() {
+    public String getType() {
         return HistogramAggregationBuilder.NAME;
     }
 

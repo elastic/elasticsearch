@@ -48,7 +48,7 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return "sampler";
     }
 

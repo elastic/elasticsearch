@@ -29,7 +29,7 @@ import java.io.IOException;
 public class ParsedStringTerms extends ParsedTerms {
 
     @Override
-    protected String getType() {
+    public String getType() {
         return StringTerms.NAME;
     }
 

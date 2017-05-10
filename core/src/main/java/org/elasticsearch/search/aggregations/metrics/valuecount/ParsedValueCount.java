@@ -48,7 +48,7 @@ public class ParsedValueCount extends ParsedAggregation implements ValueCount {
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return ValueCountAggregationBuilder.NAME;
     }
 

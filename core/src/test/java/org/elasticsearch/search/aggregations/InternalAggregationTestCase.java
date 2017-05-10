@@ -98,7 +98,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     private final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(getNamedXContents());
 
-    static List<NamedXContentRegistry.Entry> getNamedXContents() {
+    public static List<NamedXContentRegistry.Entry> getNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> namedXContents = new HashMap<>();
         namedXContents.put(CardinalityAggregationBuilder.NAME, (p, c) -> ParsedCardinality.fromXContent(p, (String) c));
         namedXContents.put(InternalHDRPercentiles.NAME, (p, c) -> ParsedHDRPercentiles.fromXContent(p, (String) c));

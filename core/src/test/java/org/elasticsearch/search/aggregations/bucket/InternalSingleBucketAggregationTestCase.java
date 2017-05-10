@@ -19,6 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -28,6 +32,7 @@ import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +41,9 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class InternalSingleBucketAggregationTestCase<T extends InternalSingleBucketAggregation>
         extends InternalAggregationTestCase<T> {
@@ -94,7 +102,7 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
     }
 
     @Override
-    protected void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) {
+    protected void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException {
         assertTrue(parsedAggregation instanceof ParsedSingleBucketAggregation);
         ParsedSingleBucketAggregation parsed = (ParsedSingleBucketAggregation) parsedAggregation;
 
@@ -112,7 +120,12 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         for (Aggregation parsedAgg : parsed.getAggregations()) {
             assertTrue(parsedAgg instanceof ParsedAggregation);
             assertTrue(expectedAggregations.keySet().contains(parsedAgg.getName()));
-            // TODO check aggregation equality, e.g. same xContent
+            Aggregation expectedInternalAggregation = expectedAggregations.get(parsedAgg.getName());
+            final XContentType xContentType = randomFrom(XContentType.values());
+            final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+            BytesReference expectedBytes = toXContent(expectedInternalAggregation, xContentType, params, false);
+            BytesReference actualBytes = toXContent(parsedAgg, xContentType, params, false);
+            assertToXContentEquivalent(expectedBytes, actualBytes, xContentType);
             parsedNumberOfAggregations++;
         }
         assertEquals(expectedNumberOfAggregations, parsedNumberOfAggregations);

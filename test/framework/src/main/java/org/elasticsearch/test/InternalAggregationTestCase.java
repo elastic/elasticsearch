@@ -269,7 +269,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     //norelease TODO make abstract
-    protected void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) {
+    protected void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException {
     }
 
     @SuppressWarnings("unchecked")

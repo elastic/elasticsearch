@@ -49,6 +49,13 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
             double to = from + interval;
             listOfRanges.add(Tuple.tuple(from, to));
         }
+        if (randomBoolean()) {
+            // Add some overlapping ranges
+            double max = (double) numRanges * interval;
+            listOfRanges.add(Tuple.tuple(0.0, max));
+            listOfRanges.add(Tuple.tuple(0.0, max / 2));
+            listOfRanges.add(Tuple.tuple(max / 3, max / 3 * 2));
+        }
         geoDistanceRanges = Collections.unmodifiableList(listOfRanges);
     }
     @Override

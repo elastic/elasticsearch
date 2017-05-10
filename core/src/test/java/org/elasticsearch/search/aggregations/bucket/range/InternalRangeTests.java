@@ -43,13 +43,20 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
         format = randomNumericDocValueFormat();
 
         final int interval = randomFrom(1, 5, 10, 25, 50, 100);
-        final int numRanges = randomIntBetween(1, 10);
+        final int numRanges = 1;//randomIntBetween(1, 10);
 
         List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
         for (int i = 0; i < numRanges; i++) {
             double from = i * interval;
             double to = from + interval;
             listOfRanges.add(Tuple.tuple(from, to));
+        }
+        if (randomBoolean()) {
+            // Add some overlapping ranges
+            double max = (double) numRanges * interval;
+            listOfRanges.add(Tuple.tuple(0.0, max));
+            listOfRanges.add(Tuple.tuple(0.0, max / 2));
+            listOfRanges.add(Tuple.tuple(max / 3, max / 3 * 2));
         }
         ranges = Collections.unmodifiableList(listOfRanges);
     }

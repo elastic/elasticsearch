@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
@@ -52,9 +53,10 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     private volatile ClusterState clusterState;
 
     public SingleNodeDiscovery(final Settings settings, final TransportService transportService,
-                               ClusterApplier clusterApplier) {
+                               final MasterService masterService, final ClusterApplier clusterApplier) {
         super(Objects.requireNonNull(settings));
         this.transportService = Objects.requireNonNull(transportService);
+        masterService.setClusterStateSupplier(() -> clusterState);
         this.clusterApplier = clusterApplier;
     }
 
@@ -82,7 +84,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
                     e);
             }
         };
-        clusterApplier.onNewClusterState("apply-locally-on-node[" + event.source() + "]", this::clusterState, listener);
+        clusterApplier.onNewClusterState("apply-locally-on-node[" + event.source() + "]", () -> clusterState, listener);
 
         try {
             latch.await();
@@ -108,11 +110,6 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     @Override
-    public ClusterState clusterState() {
-        return clusterState;
-    }
-
-    @Override
     public DiscoveryStats stats() {
         return new DiscoveryStats((PendingClusterStateStats) null);
     }
@@ -122,7 +119,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
         // apply a fresh cluster state just so that state recovery gets triggered by GatewayService
         // TODO: give discovery module control over GatewayService
         clusterState = ClusterState.builder(getInitialClusterState()).build();
-        clusterApplier.onNewClusterState("single-node-start-initial-join", this::clusterState, (source, e) -> {});
+        clusterApplier.onNewClusterState("single-node-start-initial-join", () -> clusterState, (source, e) -> {});
     }
 
     @Override

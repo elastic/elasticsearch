@@ -39,11 +39,6 @@ public class NoopDiscovery implements Discovery {
     }
 
     @Override
-    public ClusterState clusterState() {
-        return null;
-    }
-
-    @Override
     public DiscoveryStats stats() {
         return null;
     }

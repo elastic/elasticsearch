@@ -684,7 +684,6 @@ public class Node implements Closeable {
             .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
 
         clusterService.addStateApplier(transportService.getTaskManager());
-        clusterService.getMasterService().setClusterStateSupplier(discovery::clusterState);
         clusterService.getClusterApplierService().setInitialState(discovery.getInitialClusterState());
         // start after transport service so the local disco is known
         clusterService.start();

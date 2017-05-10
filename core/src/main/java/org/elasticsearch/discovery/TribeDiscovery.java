@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.single.SingleNodeDiscovery;
@@ -44,8 +45,9 @@ import static org.elasticsearch.tribe.TribeService.TRIBE_WRITE_BLOCK;
 public class TribeDiscovery extends SingleNodeDiscovery implements Discovery {
 
     @Inject
-    public TribeDiscovery(Settings settings, TransportService transportService, ClusterApplier clusterApplier) {
-        super(settings, transportService, clusterApplier);
+    public TribeDiscovery(Settings settings, TransportService transportService,
+                          MasterService masterService, ClusterApplier clusterApplier) {
+        super(settings, transportService, masterService, clusterApplier);
     }
 
     @Override

@@ -214,6 +214,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.nodeJoinController = new NodeJoinController(masterService, allocationService, electMaster, settings);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::submitRejoin, logger);
 
+        masterService.setClusterStateSupplier(this::clusterState);
+
         transportService.registerRequestHandler(
             DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
     }

@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -34,6 +35,7 @@ import java.io.Closeable;
 import java.util.Stack;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.createMasterService;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SingleNodeDiscoveryTests extends ESTestCase {
@@ -49,11 +51,12 @@ public class SingleNodeDiscoveryTests extends ESTestCase {
             stack.push(transportService);
             transportService.start();
             final DiscoveryNode node = transportService.getLocalNode();
+            MasterService masterService = createMasterService(threadPool, node);
             final ClusterService clusterService = createClusterService(threadPool, node);
             stack.push(clusterService);
             final SingleNodeDiscovery discovery =
                     new SingleNodeDiscovery(Settings.EMPTY, transportService,
-                        clusterService.getClusterApplierService());
+                        masterService, clusterService.getClusterApplierService());
             discovery.startInitialJoin();
             final DiscoveryNodes nodes = discovery.getInitialClusterState().nodes();
             assertThat(nodes.getSize(), equalTo(1));

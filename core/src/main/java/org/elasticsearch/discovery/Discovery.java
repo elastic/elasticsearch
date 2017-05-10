@@ -54,12 +54,6 @@ public interface Discovery extends LifecycleComponent {
      */
     ClusterState getInitialClusterState();
 
-    /**
-     * Returns latest cluster state used by the discovery module. Used by {@link org.elasticsearch.cluster.service.MasterService} to
-     * calculate the next prospective state to publish.
-     */
-    ClusterState clusterState();
-
     interface AckListener {
         void onNodeAck(DiscoveryNode node, @Nullable Exception e);
         void onTimeout();

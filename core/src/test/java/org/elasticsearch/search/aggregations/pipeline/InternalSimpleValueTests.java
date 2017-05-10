@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.util.Collections;

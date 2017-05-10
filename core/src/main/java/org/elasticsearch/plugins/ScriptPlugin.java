@@ -21,7 +21,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 
 import java.util.Collections;
 import java.util.List;
@@ -32,9 +32,9 @@ import java.util.List;
 public interface ScriptPlugin {
 
     /**
-     * Returns a {@link ScriptEngineService} instance or <code>null</code> if this plugin doesn't add a new script engine
+     * Returns a {@link ScriptEngine} instance or <code>null</code> if this plugin doesn't add a new script engine
      */
-    default ScriptEngineService getScriptEngineService(Settings settings) {
+    default ScriptEngine getScriptEngine(Settings settings) {
         return null;
     }
 

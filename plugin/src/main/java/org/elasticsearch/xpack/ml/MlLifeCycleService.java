@@ -28,9 +28,11 @@ public class MlLifeCycleService extends AbstractComponent {
 
     public synchronized void stop() {
         try {
-            NativeController nativeController = NativeControllerHolder.getNativeController(settings);
-            if (nativeController != null) {
-                nativeController.stop();
+            if (MachineLearningFeatureSet.isRunningOnMlPlatform(false)) {
+                NativeController nativeController = NativeControllerHolder.getNativeController(settings);
+                if (nativeController != null) {
+                    nativeController.stop();
+                }
             }
         } catch (IOException e) {
             // We're stopping anyway, so don't let this complicate the shutdown sequence

@@ -86,7 +86,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
         Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Boolean> SCRIPT_AUTO_RELOAD_ENABLED_SETTING =
-        Setting.boolSetting("script.auto_reload_enabled", true, Property.NodeScope);
+        Setting.boolSetting("script.auto_reload_enabled", true, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_COMPILATIONS_PER_MINUTE =
@@ -162,7 +162,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         FileWatcher fileWatcher = new FileWatcher(scriptsDirectory);
         fileWatcher.addListener(new ScriptChangesListener());
 
-        if (SCRIPT_AUTO_RELOAD_ENABLED_SETTING.get(settings)) {
+        if (SCRIPT_AUTO_RELOAD_ENABLED_SETTING.get(settings) && resourceWatcherService != null) {
             // automatic reload is enabled - register scripts
             resourceWatcherService.add(fileWatcher);
         } else {

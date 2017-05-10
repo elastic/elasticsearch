@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.junit.Before;
 
@@ -69,5 +70,21 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
                     (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
+    }
+
+    @Override
+    protected void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
+        super.assertBucket(expected, actual, checkOrder);
+
+        assertTrue(expected instanceof InternalRange.Bucket);
+        assertTrue(actual instanceof ParsedRange.ParsedBucket);
+
+        Range.Bucket expectedRange = (Range.Bucket) expected;
+        Range.Bucket actualRange = (Range.Bucket) actual;
+
+        assertEquals(expectedRange.getFrom(), actualRange.getFrom());
+        assertEquals(expectedRange.getFromAsString(), actualRange.getFromAsString());
+        assertEquals(expectedRange.getTo(), actualRange.getTo());
+        assertEquals(expectedRange.getToAsString(), actualRange.getToAsString());
     }
 }

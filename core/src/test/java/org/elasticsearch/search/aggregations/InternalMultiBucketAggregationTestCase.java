@@ -117,7 +117,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         }
     }
 
-    private void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
+    protected void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
         assertTrue(expected instanceof InternalMultiBucketAggregation.InternalBucket);
         assertTrue(actual instanceof ParsedMultiBucketAggregation.ParsedBucket);
 

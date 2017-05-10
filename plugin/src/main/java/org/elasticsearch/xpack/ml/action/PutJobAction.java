@@ -63,29 +63,32 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
     public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
 
         public static Request parseRequest(String jobId, XContentParser parser) {
-            Job.Builder job = Job.PARSER.apply(parser, null);
-            if (job.getId() == null) {
-                job.setId(jobId);
-            } else if (!Strings.isNullOrEmpty(jobId) && !jobId.equals(job.getId())) {
-                // If we have both URI and body job ID, they must be identical
+            Job.Builder jobBuilder = Job.PARSER.apply(parser, null);
+            if (jobBuilder.getId() == null) {
+                jobBuilder.setId(jobId);
+            } else if (!Strings.isNullOrEmpty(jobId) && !jobId.equals(jobBuilder.getId())) {
+                // If we have both URI and body jobBuilder ID, they must be identical
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(),
-                        job.getId(), jobId));
+                        jobBuilder.getId(), jobId));
             }
 
-            return new Request(job);
+            return new Request(jobBuilder);
         }
 
-        private Job.Builder job;
+        private Job.Builder jobBuilder;
 
-        public Request(Job.Builder job) {
-            this.job = job;
+        public Request(Job.Builder jobBuilder) {
+            // Validate the jobBuilder immediately so that errors can be detected prior to transportation.
+            jobBuilder.validateInputFields();
+
+            this.jobBuilder = jobBuilder;
         }
 
         Request() {
         }
 
-        public Job.Builder getJob() {
-            return job;
+        public Job.Builder getJobBuilder() {
+            return jobBuilder;
         }
 
         @Override
@@ -96,18 +99,18 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            job = new Job.Builder(in);
+            jobBuilder = new Job.Builder(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            job.writeTo(out);
+            jobBuilder.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            job.toXContent(builder, params);
+            jobBuilder.toXContent(builder, params);
             return builder;
         }
 
@@ -116,12 +119,12 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(job, request.job);
+            return Objects.equals(jobBuilder, request.jobBuilder);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(job);
+            return Objects.hash(jobBuilder);
         }
 
         @Override

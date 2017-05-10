@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.ml.integration;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +34,18 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertNotNull(ml);
         assertTrue((Boolean) ml.get("available"));
         assertTrue((Boolean) ml.get("enabled"));
+    }
+
+    public void testInvalidJob() throws Exception {
+        // The job name is invalid because it contains a space
+        String jobId = "invalid job";
+        ResponseException e = expectThrows(ResponseException.class, () -> createFarequoteJob(jobId));
+        assertTrue(e.getMessage(), e.getMessage().contains("can contain lowercase alphanumeric (a-z and 0-9), hyphens or underscores"));
+        // If validation of the invalid job is not done until after transportation to the master node then the
+        // root cause gets reported as a remote_transport_exception.  The code in PubJobAction is supposed to
+        // validate before transportation to avoid this.  This test must be done in a multi-node cluster to have
+        // a chance of catching a problem, hence it is here rather than in the single node integration tests.
+        assertFalse(e.getMessage(), e.getMessage().contains("remote_transport_exception"));
     }
 
     public void testMiniFarequote() throws Exception {
@@ -293,7 +307,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         xContentBuilder.endObject();
         xContentBuilder.endObject();
 
-        return client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId,
+        return client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + URLEncoder.encode(jobId, "UTF-8"),
                 Collections.emptyMap(), new StringEntity(xContentBuilder.string(), ContentType.APPLICATION_JSON));
     }
 

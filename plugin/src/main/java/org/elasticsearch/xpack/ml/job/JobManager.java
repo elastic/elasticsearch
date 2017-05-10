@@ -163,7 +163,7 @@ public class JobManager extends AbstractComponent {
      * Stores a job in the cluster state
      */
     public void putJob(PutJobAction.Request request, ClusterState state, ActionListener<PutJobAction.Response> actionListener) {
-        Job job = request.getJob().build(new Date());
+        Job job = request.getJobBuilder().build(new Date());
 
         jobProvider.createJobResultIndex(job, state, new ActionListener<Boolean>() {
             @Override

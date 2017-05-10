@@ -816,22 +816,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                     resultsRetentionDays, customSettings, modelSnapshotId, resultsIndexName, deleted);
         }
 
-        public Job build(Date createTime) {
-            setCreateTime(createTime);
-            return build();
-        }
-
-        public Job build() {
-
-            Date createTime;
-            Date finishedTime;
-            Date lastDataTime;
-            String modelSnapshotId;
-
-            createTime = ExceptionsHelper.requireNonNull(this.createTime, CREATE_TIME.getPreferredName());
-            finishedTime = this.finishedTime;
-            lastDataTime = this.lastDataTime;
-            modelSnapshotId = this.modelSnapshotId;
+        /**
+         * Call this method to validate that the job JSON provided by a user is valid.
+         * Throws an exception if there are any problems; normal return implies valid.
+         */
+        public void validateInputFields() {
 
             if (analysisConfig == null) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
@@ -849,11 +838,29 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
             }
 
-            if (Strings.isNullOrEmpty(resultsIndexName)) {
-                resultsIndexName = AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
-            } else if (!MlStrings.isValidId(resultsIndexName)) {
+            // Results index name not specified in user input means use the default, so is acceptable in this validation
+            if (!Strings.isNullOrEmpty(resultsIndexName) && !MlStrings.isValidId(resultsIndexName)) {
                 throw new IllegalArgumentException(
                         Messages.getMessage(Messages.INVALID_ID, RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName));
+            }
+
+            // Creation time is NOT required in user input, hence validated only on build
+        }
+
+        public Job build(Date createTime) {
+            setCreateTime(createTime);
+            return build();
+        }
+
+        public Job build() {
+
+            validateInputFields();
+
+            // Creation time is NOT required in user input, hence validated only on build
+            Date createTime = ExceptionsHelper.requireNonNull(this.createTime, CREATE_TIME.getPreferredName());
+
+            if (Strings.isNullOrEmpty(resultsIndexName)) {
+                resultsIndexName = AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
             } else if (!resultsIndexName.equals(AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT)) {
                 // User-defined names are prepended with "custom"
                 // Conditional guards against multiple prepending due to updates instead of first creation

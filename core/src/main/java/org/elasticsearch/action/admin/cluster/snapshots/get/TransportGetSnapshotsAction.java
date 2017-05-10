@@ -164,9 +164,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                                         final List<SnapshotInfo> currentSnapshots) {
         List<SnapshotInfo> snapshotInfos = new ArrayList<>();
         for (SnapshotInfo snapshotInfo : currentSnapshots) {
-            if (toResolve.contains(snapshotInfo.snapshotId())) {
+            if (toResolve.remove(snapshotInfo.snapshotId())) {
                 snapshotInfos.add(snapshotInfo.basic());
-                toResolve.remove(snapshotInfo.snapshotId());
             }
         }
         Map<SnapshotId, List<String>> snapshotsToIndices = new HashMap<>();

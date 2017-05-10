@@ -70,7 +70,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -199,7 +198,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             ZenDiscovery masterZen = buildZenDiscovery(
                 settingsWithClusterName,
                 masterTransport, masterMasterService, threadPool);
-            masterZen.setState(state);
+            masterZen.setCommittedState(state);
             toClose.addFirst(masterZen);
             masterTransport.acceptIncomingRequests();
 
@@ -213,7 +212,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             MasterService otherMasterService = ClusterServiceUtils.createMasterService(threadPool, otherNode);
             toClose.addFirst(otherMasterService);
             ZenDiscovery otherZen = buildZenDiscovery(settingsWithClusterName, otherTransport, otherMasterService, threadPool);
-            otherZen.setState(otherState);
+            otherZen.setCommittedState(otherState);
             toClose.addFirst(otherZen);
             otherTransport.acceptIncomingRequests();
 
@@ -266,7 +265,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             toClose.addFirst(masterMasterService);
             state = ClusterState.builder(discoveryState(masterMasterService).getClusterName()).nodes(state.nodes()).build();
             ZenDiscovery masterZen = buildZenDiscovery(settings, masterTransport, masterMasterService, threadPool);
-            masterZen.setState(state);
+            masterZen.setCommittedState(state);
             toClose.addFirst(masterZen);
             masterTransport.acceptIncomingRequests();
 

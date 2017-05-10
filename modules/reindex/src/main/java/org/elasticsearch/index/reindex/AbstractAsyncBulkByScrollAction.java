@@ -116,8 +116,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
 
     public AbstractAsyncBulkByScrollAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                                           ThreadPool threadPool, Request mainRequest, ScriptService scriptService, ClusterState clusterState,
-                                           ActionListener<BulkByScrollResponse> listener) {
+                                           ThreadPool threadPool, Request mainRequest, ScriptService scriptService,
+                                           ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
         this(task, logger, client, threadPool, mainRequest, scriptService, clusterState, listener, client.settings());
     }
 

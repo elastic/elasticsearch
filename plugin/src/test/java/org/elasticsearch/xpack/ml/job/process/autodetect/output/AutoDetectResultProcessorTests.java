@@ -272,6 +272,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
                 new JobUpdate.Builder(JOB_ID).setModelSnapshotId("a_snapshot_id").build());
 
         verify(client).execute(same(UpdateJobAction.INSTANCE), eq(expectedJobUpdateRequest), any());
+        verify(persister).commitResultWrites(JOB_ID);
         verifyNoMoreInteractions(persister);
     }
 

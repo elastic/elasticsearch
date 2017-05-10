@@ -374,7 +374,7 @@ has <<painless-api-reference-Matcher-group-1, `group(int)`>> and
 We have a few justifications for this different way of dispatching methods:
 
 1. It makes operating on `def` types simpler and, presumably, faster. Using
-receiver, name, and arity means when Painless sees a call on a `def` objects it
+receiver, name, and arity means when Painless sees a call on a `def` object it
 can dispatch the appropriate method without having to do expensive comparisons
 of the types of the parameters. The same is true for invocations with `def`
 typed parameters.

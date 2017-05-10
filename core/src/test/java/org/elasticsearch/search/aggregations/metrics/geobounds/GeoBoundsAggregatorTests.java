@@ -29,7 +29,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.test.AggregatorTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import static org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBoundsTests.GEOHASH_TOLERANCE;

@@ -49,6 +49,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
@@ -103,7 +105,9 @@ public class TribeService extends AbstractLifecycleComponent {
     public static final ClusterBlock TRIBE_METADATA_BLOCK = new ClusterBlock(10, "tribe node, metadata not allowed", false, false,
         false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE));
     public static final ClusterBlock TRIBE_WRITE_BLOCK = new ClusterBlock(11, "tribe node, write not allowed", false, false,
-        false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.WRITE));
+            RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.WRITE));
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(TribeService.class));
 
     public static Settings processSettings(Settings settings) {
         if (TRIBE_NAME_SETTING.exists(settings)) {
@@ -217,6 +221,9 @@ public class TribeService extends AbstractLifecycleComponent {
     public TribeService(Settings settings, ClusterService clusterService, final String tribeNodeId,
                         NamedWriteableRegistry namedWriteableRegistry, Function<Settings, Node> clientNodeBuilder) {
         super(settings);
+
+        DEPRECATION_LOGGER.deprecated("The [tribe] node is deprecated in favour of cross cluster search and will be removed in Elasticsearch 7.0.");
+
         this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));

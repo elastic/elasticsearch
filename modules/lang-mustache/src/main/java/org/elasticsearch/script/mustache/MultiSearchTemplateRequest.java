@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -34,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class MultiSearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest {
 
-    private int maxConcurrentSearchRequests = 1;
+    private int maxConcurrentSearchRequests = 0;
     private List<SearchTemplateRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -111,14 +112,18 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        maxConcurrentSearchRequests = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            maxConcurrentSearchRequests = in.readVInt();
+        }
         requests = in.readStreamableList(SearchTemplateRequest::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(maxConcurrentSearchRequests);
+        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            out.writeVInt(maxConcurrentSearchRequests);
+        }
         out.writeStreamableList(requests);
     }
 }

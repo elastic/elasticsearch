@@ -30,10 +30,6 @@ public class MultiSearchTemplateRequestBuilder
         super(client, action, new MultiSearchTemplateRequest());
     }
 
-    public MultiSearchTemplateRequestBuilder(ElasticsearchClient client) {
-        this(client, MultiSearchTemplateAction.INSTANCE);
-    }
-
     public MultiSearchTemplateRequestBuilder add(SearchTemplateRequest request) {
         if (request.getRequest().indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed()
                 && request().indicesOptions() != IndicesOptions.strictExpandOpenAndForbidClosed()) {

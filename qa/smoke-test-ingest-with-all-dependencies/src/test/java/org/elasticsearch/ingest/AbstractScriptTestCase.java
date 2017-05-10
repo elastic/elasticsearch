@@ -40,7 +40,6 @@ public abstract class AbstractScriptTestCase extends ESTestCase {
     public void init() throws Exception {
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
-            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .build();
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(new MustacheScriptEngineService()));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());

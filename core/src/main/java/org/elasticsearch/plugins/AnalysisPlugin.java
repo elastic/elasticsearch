@@ -22,19 +22,26 @@ package org.elasticsearch.plugins;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharFilter;
 import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 /**
@@ -85,6 +92,13 @@ public interface AnalysisPlugin {
      */
     default Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         return emptyMap();
+    }
+
+    /**
+     * Override to add additional pre-configured token filters.
+     */
+    default List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
+        return emptyList();
     }
 
     /**

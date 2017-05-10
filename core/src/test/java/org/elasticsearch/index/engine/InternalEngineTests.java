@@ -2071,13 +2071,11 @@ public class InternalEngineTests extends ESTestCase {
                 if (rarely()) {
                     localCheckpoint = primarySeqNo;
                     maxSeqNo = primarySeqNo;
-                    initialEngine.seqNoService().updateGlobalCheckpointOnPrimary();
                     initialEngine.flush(true, true);
                 }
             }
 
             logger.info("localcheckpoint {}, global {}", replicaLocalCheckpoint, primarySeqNo);
-            initialEngine.seqNoService().updateGlobalCheckpointOnPrimary();
             globalCheckpoint = initialEngine.seqNoService().getGlobalCheckpoint();
 
             assertEquals(primarySeqNo, initialEngine.seqNoService().getMaxSeqNo());

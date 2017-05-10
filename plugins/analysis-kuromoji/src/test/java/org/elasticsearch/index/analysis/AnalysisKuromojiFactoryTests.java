@@ -20,12 +20,16 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.ja.JapaneseTokenizerFactory;
-import org.elasticsearch.AnalysisFactoryTestCase;
+import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
+import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class AnalysisKuromojiFactoryTests extends AnalysisFactoryTestCase {
+    public AnalysisKuromojiFactoryTests() {
+        super(new AnalysisKuromojiPlugin());
+    }
 
     @Override
     protected Map<String, Class<?>> getTokenizers() {

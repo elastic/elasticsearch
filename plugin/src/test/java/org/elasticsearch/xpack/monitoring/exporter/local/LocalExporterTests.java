@@ -195,6 +195,9 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
                 assertEquals(RestStatus.OK, bulk.get().status());
                 refresh();
 
+                assertThat(client().admin().indices().prepareExists(".monitoring-*").get().isExists(), is(true));
+                ensureYellow(".monitoring-*");
+
                 SearchResponse response = client().prepareSearch(".monitoring-*").get();
                 assertEquals(nbDocs, response.getHits().getTotalHits());
             });

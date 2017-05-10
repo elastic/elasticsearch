@@ -143,7 +143,7 @@ public class MlInitializationServiceTests extends ESTestCase {
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .localNodeId("_node_id")
                         .masterNodeId("_node_id"))
                 .metaData(MetaData.builder())

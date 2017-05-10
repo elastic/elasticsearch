@@ -29,7 +29,7 @@ import java.io.IOException;
 public class ParsedSimpleValue extends ParsedSingleValueNumericMetricsAggregation implements SimpleValue {
 
     @Override
-    protected String getType() {
+    public String getType() {
         return InternalSimpleValue.NAME;
     }
 

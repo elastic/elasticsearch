@@ -174,7 +174,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
      * the aggregation name in the response, so that it can later be used by REST clients
      * to determine the internal type of the aggregation.
      */
-    protected String getType() {
+    public String getType() {
         return getWriteableName();
     }
 

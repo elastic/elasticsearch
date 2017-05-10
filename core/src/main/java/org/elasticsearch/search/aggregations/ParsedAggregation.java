@@ -63,7 +63,7 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
      * to determine the internal type of the aggregation.
      */
     //TODO it may make sense to move getType to the Aggregation interface given that we are duplicating it in both implementations
-    protected abstract String getType();
+    public abstract String getType();
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {

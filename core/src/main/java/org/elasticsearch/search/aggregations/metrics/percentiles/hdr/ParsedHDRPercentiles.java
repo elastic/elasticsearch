@@ -29,7 +29,7 @@ import java.io.IOException;
 public class ParsedHDRPercentiles extends ParsedPercentiles implements Percentiles {
 
     @Override
-    protected String getType() {
+    public String getType() {
         return InternalHDRPercentiles.NAME;
     }
 

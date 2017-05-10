@@ -31,7 +31,7 @@ import java.util.Iterator;
 public class ParsedTDigestPercentileRanks extends ParsedPercentileRanks {
 
     @Override
-    protected String getType() {
+    public String getType() {
         return InternalTDigestPercentileRanks.NAME;
     }
 

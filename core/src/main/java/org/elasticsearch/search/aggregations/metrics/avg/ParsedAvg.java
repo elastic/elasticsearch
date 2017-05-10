@@ -34,7 +34,7 @@ public class ParsedAvg extends ParsedSingleValueNumericMetricsAggregation implem
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return AvgAggregationBuilder.NAME;
     }
 

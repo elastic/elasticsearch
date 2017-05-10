@@ -34,7 +34,7 @@ public class ParsedSum extends ParsedSingleValueNumericMetricsAggregation implem
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return SumAggregationBuilder.NAME;
     }
 

@@ -87,7 +87,7 @@ public class ParsedStats extends ParsedAggregation implements Stats {
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return StatsAggregationBuilder.NAME;
     }
 

@@ -53,6 +53,7 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.I
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.InternalExtendedStatsBucketTests;
 import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivativeTests;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.After;
 import org.junit.Before;

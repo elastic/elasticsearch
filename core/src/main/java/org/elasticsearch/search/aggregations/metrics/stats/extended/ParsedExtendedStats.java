@@ -44,7 +44,7 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
     protected double avg;
 
     @Override
-    protected String getType() {
+    public String getType() {
         return ExtendedStatsAggregationBuilder.NAME;
     }
 

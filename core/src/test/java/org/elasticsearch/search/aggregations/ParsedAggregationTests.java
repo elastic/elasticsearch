@@ -94,7 +94,7 @@ public class ParsedAggregationTests extends ESTestCase {
         }
 
         @Override
-        protected String getType() {
+        public String getType() {
             return "type";
         }
 
@@ -122,7 +122,7 @@ public class ParsedAggregationTests extends ESTestCase {
         }
 
         @Override
-        protected String getType() {
+        public String getType() {
             return "type";
         }
 

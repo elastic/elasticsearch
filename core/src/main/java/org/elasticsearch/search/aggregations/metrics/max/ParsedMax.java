@@ -34,7 +34,7 @@ public class ParsedMax extends ParsedSingleValueNumericMetricsAggregation implem
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return MaxAggregationBuilder.NAME;
     }
 

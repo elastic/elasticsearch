@@ -50,7 +50,7 @@ public class ParsedCardinality extends ParsedAggregation implements Cardinality 
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return CardinalityAggregationBuilder.NAME;
     }
 

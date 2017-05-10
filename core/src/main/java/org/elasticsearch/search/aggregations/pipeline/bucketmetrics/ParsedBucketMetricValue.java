@@ -38,7 +38,7 @@ public class ParsedBucketMetricValue extends ParsedSingleValueNumericMetricsAggr
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return InternalBucketMetricValue.NAME;
     }
 

@@ -46,7 +46,7 @@ public class ParsedGeoCentroid extends ParsedAggregation implements GeoCentroid 
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return GeoCentroidAggregationBuilder.NAME;
     }
 

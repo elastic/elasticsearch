@@ -27,7 +27,7 @@ import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -46,7 +46,7 @@ import java.util.Map;
 /**
  * Implementation of a ScriptEngine for the Painless language.
  */
-public final class PainlessScriptEngineService extends AbstractComponent implements ScriptEngineService {
+public final class PainlessScriptEngine extends AbstractComponent implements ScriptEngine {
 
     /**
      * Standard name of the Painless language.
@@ -71,7 +71,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
 
     /**
      * Default compiler settings to be used. Note that {@link CompilerSettings} is mutable but this instance shouldn't be mutated outside
-     * of {@link PainlessScriptEngineService#PainlessScriptEngineService(Settings)}.
+     * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings)}.
      */
     private final CompilerSettings defaultCompilerSettings = new CompilerSettings();
 
@@ -79,7 +79,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
-    public PainlessScriptEngineService(final Settings settings) {
+    public PainlessScriptEngine(final Settings settings) {
         super(settings);
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
     }
@@ -262,7 +262,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
                 break;
             }
         }
-        throw new ScriptException("compile error", t, scriptStack, scriptSource, PainlessScriptEngineService.NAME);
+        throw new ScriptException("compile error", t, scriptStack, scriptSource, PainlessScriptEngine.NAME);
     }
 
     // very simple heuristic: +/- 25 chars. can be improved later.

@@ -473,10 +473,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                               shardFailures);
             snapshotFormat.write(blobStoreSnapshot, snapshotsBlobContainer, snapshotId.getUUID());
             final RepositoryData repositoryData = getRepositoryData();
-            List<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-            if (!snapshotIds.contains(snapshotId)) {
-                writeIndexGen(repositoryData.addSnapshot(snapshotId, indices), repositoryStateId);
-            }
+            writeIndexGen(repositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), indices), repositoryStateId);
             return blobStoreSnapshot;
         } catch (IOException ex) {
             throw new RepositoryException(metadata.name(), "failed to update snapshot in repository", ex);
@@ -490,15 +487,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public SnapshotInfo getSnapshotInfo(final SnapshotId snapshotId) {
-        if (getRepositoryData().getIncompatibleSnapshotIds().contains(snapshotId)) {
-            // an incompatible snapshot - cannot read its snapshot metadata file, just return
-            // a SnapshotInfo indicating its incompatible
-            return SnapshotInfo.incompatible(snapshotId);
-        }
-        return getSnapshotInfoInternal(snapshotId);
-    }
-
-    private SnapshotInfo getSnapshotInfoInternal(final SnapshotId snapshotId) {
         try {
             return snapshotFormat.read(snapshotsBlobContainer, snapshotId.getUUID());
         } catch (NoSuchFileException ex) {

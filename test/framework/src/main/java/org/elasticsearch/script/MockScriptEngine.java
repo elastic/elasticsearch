@@ -46,7 +46,7 @@ import static java.util.Collections.emptyMap;
  *
  * The function is used to provide the result of the script execution and can return anything.
  */
-public class MockScriptEngine implements ScriptEngineService {
+public class MockScriptEngine implements ScriptEngine {
 
     public static final String NAME = "mockscript";
 

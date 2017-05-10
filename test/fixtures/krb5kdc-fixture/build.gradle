@@ -19,15 +19,15 @@
 
 apply plugin: 'elasticsearch.build'
 
-def vagrantEnvVars = [
+Map<String, String> vagrantEnvVars = [
         'VAGRANT_CWD'           : "${project.projectDir.absolutePath}",
         'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
         'VAGRANT_PROJECT_DIR'   : "${project.projectDir.absolutePath}"
 ]
 
-def box = "krb5kdc"
+String box = "krb5kdc"
 
-def defaultPrincipals = [ "elasticsearch" ]
+List<String> defaultPrincipals = [ "elasticsearch" ]
 
 task update(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
     command 'box'
@@ -49,7 +49,7 @@ task addDefaultPrincipals {
 }
 
 for (String principal : defaultPrincipals) {
-    def addTask = project.tasks.create("addPrincipal#${principal}", org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
+    Task addTask = project.tasks.create("addPrincipal#${principal}", org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
         command 'ssh'
         args '--command', "sudo bash /elasticsearch/src/main/resources/provision/addprinc.sh $principal"
         boxName box

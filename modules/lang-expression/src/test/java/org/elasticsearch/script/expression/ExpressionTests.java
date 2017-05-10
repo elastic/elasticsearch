@@ -32,14 +32,14 @@ import java.text.ParseException;
 import java.util.Collections;
 
 public class ExpressionTests extends ESSingleNodeTestCase {
-    ExpressionScriptEngineService service;
+    ExpressionScriptEngine service;
     SearchLookup lookup;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
-        service = new ExpressionScriptEngineService(Settings.EMPTY);
+        service = new ExpressionScriptEngine(Settings.EMPTY);
         lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
     }
 

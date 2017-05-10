@@ -101,7 +101,11 @@ IntelliJ users can automatically configure their IDE: `gradle idea`
 then `File->New Project From Existing Sources`. Point to the root of
 the source directory, select
 `Import project from external model->Gradle`, enable
-`Use auto-import`.
+`Use auto-import`. Additionally, in order to run tests directly from 
+IDEA 2017.1 and above it is required to disable IDEA run launcher, 
+which can be achieved by adding `-Didea.no.launcher=true` 
+[JVM option](https://intellij-support.jetbrains.com/hc/en-us/articles/206544869-Configuring-JVM-options-and-platform-properties) 
+
 
 The Elasticsearch codebase makes heavy use of Java `assert`s and the
 test runner requires that assertions be enabled within the JVM. This

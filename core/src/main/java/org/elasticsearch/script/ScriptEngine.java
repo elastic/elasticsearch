@@ -25,10 +25,19 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.Closeable;
 import java.util.Map;
 
-public interface ScriptEngineService extends Closeable {
+/**
+ * A script language implementation.
+ */
+public interface ScriptEngine extends Closeable {
 
+    /**
+     * The language name used in the script APIs to refer to this scripting backend.
+     */
     String getType();
 
+    /**
+     * The extension for file scripts in this language.
+     */
     String getExtension();
 
     /**

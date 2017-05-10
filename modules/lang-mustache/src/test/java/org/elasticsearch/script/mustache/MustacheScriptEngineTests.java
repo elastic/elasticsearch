@@ -42,12 +42,12 @@ import static org.hamcrest.Matchers.equalTo;
  * Mustache based templating test
  */
 public class MustacheScriptEngineTests extends ESTestCase {
-    private MustacheScriptEngineService qe;
+    private MustacheScriptEngine qe;
     private MustacheFactory factory;
 
     @Before
     public void setup() {
-        qe = new MustacheScriptEngineService();
+        qe = new MustacheScriptEngine();
         factory = new CustomMustacheFactory();
     }
 

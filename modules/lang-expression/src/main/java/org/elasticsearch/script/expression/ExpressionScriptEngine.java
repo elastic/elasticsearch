@@ -39,7 +39,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -56,11 +56,11 @@ import java.util.Map;
  * Provides the infrastructure for Lucene expressions as a scripting language for Elasticsearch.  Only
  * {@link SearchScript}s are supported.
  */
-public class ExpressionScriptEngineService extends AbstractComponent implements ScriptEngineService {
+public class ExpressionScriptEngine extends AbstractComponent implements ScriptEngine {
 
     public static final String NAME = "expression";
 
-    public ExpressionScriptEngineService(Settings settings) {
+    public ExpressionScriptEngine(Settings settings) {
         super(settings);
     }
 

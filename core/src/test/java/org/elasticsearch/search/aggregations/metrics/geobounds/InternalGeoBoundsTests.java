@@ -20,8 +20,8 @@
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.Collections;
 import java.util.List;

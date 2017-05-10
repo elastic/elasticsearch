@@ -34,7 +34,7 @@ public abstract class MockScriptPlugin extends Plugin implements ScriptPlugin {
     public static final String NAME = MockScriptEngine.NAME;
 
     @Override
-    public ScriptEngineService getScriptEngineService(Settings settings) {
+    public ScriptEngine getScriptEngine(Settings settings) {
         return new MockScriptEngine(pluginScriptLang(), pluginScripts());
     }
 

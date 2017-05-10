@@ -31,12 +31,12 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.AllFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.node.Node;
 
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -130,10 +130,6 @@ public final class IndexSettings {
                     new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
                     new Property[]{Property.Dynamic, Property.IndexScope});
 
-    public static final Setting<TimeValue> INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL =
-        Setting.timeSetting("index.seq_no.checkpoint_sync_interval", new TimeValue(30, TimeUnit.SECONDS),
-            new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic, Property.IndexScope);
-
     /**
      * Index setting to enable / disable deletes garbage collection.
      * This setting is realtime updateable
@@ -171,7 +167,6 @@ public final class IndexSettings {
     private volatile Translog.Durability durability;
     private final TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
-    private final TimeValue globalCheckpointInterval;
     private volatile ByteSizeValue flushThresholdSize;
     private volatile ByteSizeValue generationThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
@@ -192,7 +187,10 @@ public final class IndexSettings {
      * The maximum number of slices allowed in a scroll request.
      */
     private volatile int maxSlicesPerScroll;
-
+    /**
+     * Whether the index is required to have at most one type.
+     */
+    private final boolean singleType;
 
     /**
      * Returns the default search field for this index.
@@ -266,7 +264,6 @@ public final class IndexSettings {
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
-        globalCheckpointInterval = scopedSettings.get(INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
@@ -280,6 +277,7 @@ public final class IndexSettings {
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
+        singleType = scopedSettings.get(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
@@ -392,6 +390,11 @@ public final class IndexSettings {
     public int getNumberOfReplicas() { return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null); }
 
     /**
+     * Returns whether the index enforces at most one type.
+     */
+    public boolean isSingleType() { return singleType; }
+
+    /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
      * index settings and the node settings where node settings are overwritten by index settings.
      */
@@ -459,13 +462,6 @@ public final class IndexSettings {
      */
     public TimeValue getRefreshInterval() {
         return refreshInterval;
-    }
-
-    /**
-     * Returns this interval in which the primary shards of this index should check and advance the global checkpoint
-     */
-    public TimeValue getGlobalCheckpointInterval() {
-        return globalCheckpointInterval;
     }
 
     /**

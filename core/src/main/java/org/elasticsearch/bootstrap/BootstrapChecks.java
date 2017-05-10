@@ -149,8 +149,10 @@ final class BootstrapChecks {
 
         if (!errors.isEmpty()) {
             final List<String> messages = new ArrayList<>(1 + errors.size());
-            messages.add("bootstrap checks failed");
-            messages.addAll(errors);
+            messages.add("[" + errors.size() + "] bootstrap checks failed");
+            for (int i = 0; i < errors.size(); i++) {
+                messages.add("[" + (i + 1) + "]: " + errors.get(i));
+            }
             final NodeValidationException ne = new NodeValidationException(String.join("\n", messages));
             errors.stream().map(IllegalStateException::new).forEach(ne::addSuppressed);
             throw ne;

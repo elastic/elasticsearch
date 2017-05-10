@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices.analysis;
 
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.standard.StandardFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.NamedRegistry;
@@ -101,6 +103,7 @@ import org.elasticsearch.index.analysis.PersianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.PorterStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.PortugueseAnalyzerProvider;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.ReverseTokenFilterFactory;
 import org.elasticsearch.index.analysis.RomanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.RussianAnalyzerProvider;
@@ -138,11 +141,15 @@ import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
 
 /**
@@ -169,8 +176,11 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
+
+        Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
+
         analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers
-            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry());
+            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry(), preConfiguredTokenFilters);
     }
 
     HunspellService getHunspellService() {
@@ -256,6 +266,40 @@ public final class AnalysisModule {
         tokenFilters.register("fingerprint", FingerprintTokenFilterFactory::new);
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
+    }
+
+    static Map<String, PreConfiguredTokenFilter> setupPreConfiguredTokenFilters(List<AnalysisPlugin> plugins) {
+        NamedRegistry<PreConfiguredTokenFilter> preConfiguredTokenFilters = new NamedRegistry<>("pre-configured token_filter");
+
+        // Add filters available in lucene-core
+        preConfiguredTokenFilters.register("lowercase",
+                new PreConfiguredTokenFilter("lowercase", true, CachingStrategy.LUCENE, LowerCaseFilter::new));
+        preConfiguredTokenFilters.register("standard",
+                new PreConfiguredTokenFilter("standard", false, CachingStrategy.LUCENE, StandardFilter::new));
+        /* Note that "stop" is available in lucene-core but it's pre-built
+         * version uses a set of English stop words that are in
+         * lucene-analyzers-common so "stop" is defined in the analysis-common
+         * module. */
+        
+        // Add token filters declared in PreBuiltTokenFilters until they have all been migrated
+        for (PreBuiltTokenFilters preBuilt : PreBuiltTokenFilters.values()) {
+            switch (preBuilt) {
+            case LOWERCASE:
+                // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
+                continue;
+            default:
+                String name = preBuilt.name().toLowerCase(Locale.ROOT);
+                preConfiguredTokenFilters.register(name,
+                        new PreConfiguredTokenFilter(name, preBuilt.isMultiTermAware(), preBuilt.getCachingStrategy(), preBuilt::create));
+            }
+        }
+
+        for (AnalysisPlugin plugin: plugins) {
+            for (PreConfiguredTokenFilter filter : plugin.getPreConfiguredTokenFilters()) {
+                preConfiguredTokenFilters.register(filter.getName(), filter);
+            }
+        }
+        return unmodifiableMap(preConfiguredTokenFilters.getRegistry());
     }
 
     private NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {

@@ -27,7 +27,7 @@
               {
                 "grok" : {
                   "field" : "my_time",
-                  "patterns": ["%{DAY:day} %{MONTH:month} %{MONTHDAY:monthday} %{TIME:time} %{TZ} %{YEAR:year}"]
+                  "patterns": ["%{DAY:day} %{MONTH:month} %{MONTHDAY:monthday} %{TIME:time} %{WORD} %{YEAR:year}"]
                 }
               },
               {

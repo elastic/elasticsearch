@@ -55,7 +55,8 @@ public class Environment {
     public static final Setting<String> DEFAULT_PATH_CONF_SETTING = Setting.simpleString("default.path.conf", Property.NodeScope);
     public static final Setting<String> PATH_CONF_SETTING =
             new Setting<>("path.conf", DEFAULT_PATH_CONF_SETTING, Function.identity(), Property.NodeScope);
-    public static final Setting<String> PATH_SCRIPTS_SETTING = Setting.simpleString("path.scripts", Property.NodeScope);
+    public static final Setting<String> PATH_SCRIPTS_SETTING =
+        Setting.simpleString("path.scripts", Property.NodeScope, Property.Deprecated);
     public static final Setting<List<String>> DEFAULT_PATH_DATA_SETTING =
             Setting.listSetting("default.path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> PATH_DATA_SETTING =

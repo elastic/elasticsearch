@@ -74,8 +74,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     @Override
     protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        if (queryBuilder.ids().size() == 0 || queryBuilder.types().length == 0 ||
-            (queryBuilder.types().length == 1 && queryBuilder.types()[0].equals(MetaData.ALL))) {
+        if (queryBuilder.ids().size() == 0 || context.getQueryShardContext().fieldMapper(UidFieldMapper.NAME) == null) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(TermInSetQuery.class));

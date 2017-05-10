@@ -29,6 +29,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -159,7 +161,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         if (indexExpressions.length == 1) {
             failNoIndices = options.allowNoIndices() == false;
         }
-
         List<String> expressions = Arrays.asList(indexExpressions);
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             expressions = expressionResolver.resolve(context, expressions);
@@ -588,6 +589,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         private Set<String> innerResolve(Context context, List<String> expressions, IndicesOptions options, MetaData metaData) {
             Set<String> result = null;
             boolean wildcardSeen = false;
+            boolean isDeprecated = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
                 if (aliasOrIndexExists(metaData, expression)) {
@@ -602,6 +604,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 boolean add = true;
                 if (expression.charAt(0) == '+') {
                     // if its the first, add empty result set
+                    isDeprecated = true;
                     if (i == 0) {
                         result = new HashSet<>();
                     }
@@ -648,6 +651,10 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 if (Regex.isSimpleMatchPattern(expression)) {
                     wildcardSeen = true;
                 }
+            }
+            if(isDeprecated) {
+              new DeprecationLogger(Loggers.getLogger(IndexNameExpressionResolver.class))
+                  .deprecated("use of + is deprecated in index names as it is implicit");
             }
             return result;
         }

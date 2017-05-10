@@ -38,7 +38,7 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
     public void testNeedsScores() {
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
 
-        PainlessScriptEngineService service = new PainlessScriptEngineService(Settings.EMPTY);
+        PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY);
         SearchLookup lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
 
         Object compiled = service.compile(null, "1.2", Collections.emptyMap());

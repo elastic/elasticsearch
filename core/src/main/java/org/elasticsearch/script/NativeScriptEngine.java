@@ -33,13 +33,13 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * A native script engine service.
  */
-public class NativeScriptEngineService extends AbstractComponent implements ScriptEngineService {
+public class NativeScriptEngine extends AbstractComponent implements ScriptEngine {
 
     public static final String NAME = "native";
 
     private final Map<String, NativeScriptFactory> scripts;
 
-    public NativeScriptEngineService(Settings settings, Map<String, NativeScriptFactory> scripts) {
+    public NativeScriptEngine(Settings settings, Map<String, NativeScriptFactory> scripts) {
         super(settings);
         this.scripts = unmodifiableMap(scripts);
     }

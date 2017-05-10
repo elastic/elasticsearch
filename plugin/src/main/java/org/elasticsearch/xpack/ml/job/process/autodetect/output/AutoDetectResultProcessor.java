@@ -166,6 +166,9 @@ public class AutoDetectResultProcessor {
         ModelSnapshot modelSnapshot = result.getModelSnapshot();
         if (modelSnapshot != null) {
             persister.persistModelSnapshot(modelSnapshot);
+            // We need to refresh the index in order for the snapshot to be available when we'll try to
+            // update the job with it
+            persister.commitResultWrites(jobId);
             updateModelSnapshotIdOnJob(modelSnapshot);
         }
         Quantiles quantiles = result.getQuantiles();

@@ -95,7 +95,6 @@ public class ScriptConditionTests extends ESTestCase {
 
         Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
 
         scriptService = new ScriptService(settings, new Environment(settings), null, registry, contextRegistry, scriptSettings);

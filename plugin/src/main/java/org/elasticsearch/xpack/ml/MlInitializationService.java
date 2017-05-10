@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,6 +46,11 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            // Wait until the gateway has recovered from disk.
+            return;
+        }
+
         if (event.localNodeMaster()) {
             MetaData metaData = event.state().metaData();
             installMlMetadata(metaData);
@@ -61,6 +67,10 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
                     clusterService.submitStateUpdateTask("install-ml-metadata", new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) throws Exception {
+                            // If the metadata has been added already don't try to update
+                            if (currentState.metaData().custom(MlMetadata.TYPE) != null) {
+                                return currentState;
+                            }
                             ClusterState.Builder builder = new ClusterState.Builder(currentState);
                             MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
                             metadataBuilder.putCustom(MlMetadata.TYPE, MlMetadata.EMPTY_METADATA);
@@ -70,7 +80,8 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
 
                         @Override
                         public void onFailure(String source, Exception e) {
-                            logger.error("unable to install ml metadata upon startup", e);
+                            installMlMetadataCheck.set(false);
+                            logger.error("unable to install ml metadata", e);
                         }
                     });
                 });

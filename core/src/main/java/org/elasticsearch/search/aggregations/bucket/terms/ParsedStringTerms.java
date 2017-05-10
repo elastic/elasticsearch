@@ -17,48 +17,41 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.histogram;
+package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;
-import java.util.List;
 
-public class ParsedHistogram extends ParsedMultiBucketAggregation<ParsedHistogram.ParsedBucket> implements Histogram {
+public class ParsedStringTerms extends ParsedTerms {
 
     @Override
     protected String getType() {
-        return HistogramAggregationBuilder.NAME;
+        return StringTerms.NAME;
     }
 
-    @Override
-    public List<? extends Histogram.Bucket> getBuckets() {
-        return buckets;
-    }
-
-    private static ObjectParser<ParsedHistogram, Void> PARSER =
-            new ObjectParser<>(ParsedHistogram.class.getSimpleName(), true, ParsedHistogram::new);
+    private static ObjectParser<ParsedStringTerms, Void> PARSER =
+            new ObjectParser<>(ParsedStringTerms.class.getSimpleName(), true, ParsedStringTerms::new);
     static {
-        declareMultiBucketAggregationFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser, false),
-                parser -> ParsedBucket.fromXContent(parser, true));
+        declareParsedTermsFields(PARSER, ParsedBucket::fromXContent);
     }
 
-    public static ParsedHistogram fromXContent(XContentParser parser, String name) throws IOException {
-        ParsedHistogram aggregation = PARSER.parse(parser, null);
+    public static ParsedStringTerms fromXContent(XContentParser parser, String name) throws IOException {
+        ParsedStringTerms aggregation = PARSER.parse(parser, null);
         aggregation.setName(name);
         return aggregation;
     }
 
-    static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
+    public static class ParsedBucket extends ParsedTerms.ParsedBucket {
 
-        private Double key;
+        private BytesRef key;
 
         @Override
         public Object getKey() {
-            return key;
+            return getKeyAsString();
         }
 
         @Override
@@ -68,13 +61,25 @@ public class ParsedHistogram extends ParsedMultiBucketAggregation<ParsedHistogra
                 return keyAsString;
             }
             if (key != null) {
-                return Double.toString(key);
+                return key.utf8ToString();
             }
             return null;
         }
 
-        static ParsedBucket fromXContent(XContentParser parser, boolean keyed) throws IOException {
-            return parseXContent(parser, keyed, ParsedBucket::new, (p, bucket) -> bucket.key = p.doubleValue());
+        public Number getKeyAsNumber() {
+            if (key != null) {
+                return Double.parseDouble(key.utf8ToString());
+            }
+            return null;
+        }
+
+        @Override
+        protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+            return builder.field(CommonFields.KEY.getPreferredName(), getKey());
+        }
+
+        static ParsedBucket fromXContent(XContentParser parser) throws IOException {
+            return parseTermsBucketXContent(parser, ParsedBucket::new, (p, bucket) -> bucket.key = p.utf8BytesOrNull());
         }
     }
 }

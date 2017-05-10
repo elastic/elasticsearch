@@ -47,7 +47,7 @@ public class Aggregations implements Iterable<Aggregation>, ToXContent {
     protected Aggregations() {
     }
 
-    protected Aggregations(List<? extends Aggregation> aggregations) {
+    public Aggregations(List<? extends Aggregation> aggregations) {
         this.aggregations = aggregations;
     }
 

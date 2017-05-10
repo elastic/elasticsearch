@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
@@ -33,17 +34,17 @@ import java.util.Set;
 public class LongTermsTests extends InternalTermsTestCase {
 
     @Override
-    protected InternalTerms<?, ?> createTestInstance(
-            String name,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+    protected InternalTerms<?, ?> createTestInstance(String name,
+                                                     List<PipelineAggregator> pipelineAggregators,
+                                                     Map<String, Object> metaData,
+                                                     InternalAggregations aggregations,
+                                                     boolean showTermDocCountError,
+                                                     long docCountError) {
         Terms.Order order = Terms.Order.count(false);
         long minDocCount = 1;
         int requiredSize = 3;
         int shardSize = requiredSize + 2;
-        DocValueFormat format = DocValueFormat.RAW;
-        boolean showTermDocCountError = false;
-        long docCountError = -1;
+        DocValueFormat format = randomNumericDocValueFormat();
         long otherDocCount = 0;
         List<LongTerms.Bucket> buckets = new ArrayList<>();
         final int numBuckets = randomInt(shardSize);
@@ -51,8 +52,7 @@ public class LongTermsTests extends InternalTermsTestCase {
         for (int i = 0; i < numBuckets; ++i) {
             long term = randomValueOtherThanMany(l -> terms.add(l) == false, random()::nextLong);
             int docCount = randomIntBetween(1, 100);
-            buckets.add(new LongTerms.Bucket(term, docCount, InternalAggregations.EMPTY,
-                    showTermDocCountError, docCountError, format));
+            buckets.add(new LongTerms.Bucket(term, docCount, aggregations, showTermDocCountError, docCountError, format));
         }
         return new LongTerms(name, order, requiredSize, minDocCount, pipelineAggregators,
                 metaData, format, shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
@@ -63,4 +63,8 @@ public class LongTermsTests extends InternalTermsTestCase {
         return LongTerms::new;
     }
 
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedLongTerms.class;
+    }
 }

@@ -17,54 +17,40 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.histogram;
+package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.List;
 
-public class ParsedDateHistogram extends ParsedMultiBucketAggregation<ParsedDateHistogram.ParsedBucket> implements Histogram {
+public class ParsedLongTerms extends ParsedTerms {
 
     @Override
     protected String getType() {
-        return DateHistogramAggregationBuilder.NAME;
+        return LongTerms.NAME;
     }
 
-    @Override
-    public List<? extends Histogram.Bucket> getBuckets() {
-        return buckets;
-    }
-
-    private static ObjectParser<ParsedDateHistogram, Void> PARSER =
-            new ObjectParser<>(ParsedDateHistogram.class.getSimpleName(), true, ParsedDateHistogram::new);
+    private static ObjectParser<ParsedLongTerms, Void> PARSER =
+            new ObjectParser<>(ParsedLongTerms.class.getSimpleName(), true, ParsedLongTerms::new);
     static {
-        declareMultiBucketAggregationFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser, false),
-                parser -> ParsedBucket.fromXContent(parser, true));
+        declareParsedTermsFields(PARSER, ParsedBucket::fromXContent);
     }
 
-    public static ParsedDateHistogram fromXContent(XContentParser parser, String name) throws IOException {
-        ParsedDateHistogram aggregation = PARSER.parse(parser, null);
+    public static ParsedLongTerms fromXContent(XContentParser parser, String name) throws IOException {
+        ParsedLongTerms aggregation = PARSER.parse(parser, null);
         aggregation.setName(name);
         return aggregation;
     }
 
-    public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
+    public static class ParsedBucket extends ParsedTerms.ParsedBucket {
 
         private Long key;
 
         @Override
         public Object getKey() {
-            if (key != null) {
-                return new DateTime(key, DateTimeZone.UTC);
-            }
-            return null;
+            return key;
         }
 
         @Override
@@ -79,13 +65,21 @@ public class ParsedDateHistogram extends ParsedMultiBucketAggregation<ParsedDate
             return null;
         }
 
-        @Override
-        protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
-            return builder.field(CommonFields.KEY.getPreferredName(), key);
+        public Number getKeyAsNumber() {
+            return key;
         }
 
-        static ParsedBucket fromXContent(XContentParser parser, boolean keyed) throws IOException {
-            return parseXContent(parser, keyed, ParsedBucket::new, (p, bucket) -> bucket.key = p.longValue());
+        @Override
+        protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+            builder.field(CommonFields.KEY.getPreferredName(), key);
+            if (super.getKeyAsString() != null) {
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), getKeyAsString());
+            }
+            return builder;
+        }
+
+        static ParsedBucket fromXContent(XContentParser parser) throws IOException {
+            return parseTermsBucketXContent(parser, ParsedBucket::new, (p, bucket) -> bucket.key = p.longValue());
         }
     }
 }

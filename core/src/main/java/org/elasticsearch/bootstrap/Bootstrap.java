@@ -180,8 +180,8 @@ final class Bootstrap {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
-                    try (Spawner spawnerToClose = spawner) {
-                        IOUtils.close(node);
+                    try {
+                        IOUtils.close(node, spawner);
                         LoggerContext context = (LoggerContext) LogManager.getContext(false);
                         Configurator.shutdown(context);
                     } catch (IOException ex) {
@@ -258,8 +258,8 @@ final class Bootstrap {
     }
 
     static void stop() throws IOException {
-        try (Spawner spawnerToClose = INSTANCE.spawner) {
-            IOUtils.close(INSTANCE.node);
+        try {
+            IOUtils.close(INSTANCE.node, INSTANCE.spawner);
         } finally {
             INSTANCE.keepAliveLatch.countDown();
         }

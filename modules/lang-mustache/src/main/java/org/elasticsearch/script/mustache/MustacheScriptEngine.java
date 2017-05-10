@@ -34,7 +34,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -53,8 +53,8 @@ import java.util.Map;
  * process: First compile the string representing the template, the resulting
  * {@link Mustache} object can then be re-used for subsequent executions.
  */
-public final class MustacheScriptEngineService implements ScriptEngineService {
-    private static final Logger logger = ESLoggerFactory.getLogger(MustacheScriptEngineService.class);
+public final class MustacheScriptEngine implements ScriptEngine {
+    private static final Logger logger = ESLoggerFactory.getLogger(MustacheScriptEngine.class);
 
     public static final String NAME = "mustache";
 

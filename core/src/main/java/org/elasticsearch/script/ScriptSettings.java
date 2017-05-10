@@ -72,8 +72,8 @@ public class ScriptSettings {
                                                               ScriptContextRegistry scriptContextRegistry) {
         final List<Setting<Boolean>> scriptModeSettings = new ArrayList<>();
 
-        for (final Class<? extends ScriptEngineService> scriptEngineService : scriptEngineRegistry.getRegisteredScriptEngineServices()) {
-            if (scriptEngineService == NativeScriptEngineService.class) {
+        for (final Class<? extends ScriptEngine> scriptEngineService : scriptEngineRegistry.getRegisteredScriptEngineServices()) {
+            if (scriptEngineService == NativeScriptEngine.class) {
                 // native scripts are always enabled, and their settings can not be changed
                 continue;
             }

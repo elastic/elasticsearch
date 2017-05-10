@@ -93,12 +93,12 @@ public abstract class PainlessScript {
         }
         // build a name for the script:
         final String name;
-        if (PainlessScriptEngineService.INLINE_NAME.equals(this.name)) {
+        if (PainlessScriptEngine.INLINE_NAME.equals(this.name)) {
             name = source;
         } else {
             name = this.name;
         }
-        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngineService.NAME);
+        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngine.NAME);
         for (Map.Entry<String, List<String>> entry : extraMetadata.entrySet()) {
             scriptException.addMetadata(entry.getKey(), entry.getValue());
         }

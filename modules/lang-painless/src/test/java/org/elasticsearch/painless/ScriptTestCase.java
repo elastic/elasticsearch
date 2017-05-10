@@ -43,11 +43,11 @@ import static org.hamcrest.Matchers.hasSize;
  * Typically just asserts the output of {@code exec()}
  */
 public abstract class ScriptTestCase extends ESTestCase {
-    protected PainlessScriptEngineService scriptEngine;
+    protected PainlessScriptEngine scriptEngine;
 
     @Before
     public void setup() {
-        scriptEngine = new PainlessScriptEngineService(scriptEngineSettings());
+        scriptEngine = new PainlessScriptEngine(scriptEngineSettings());
     }
 
     /**

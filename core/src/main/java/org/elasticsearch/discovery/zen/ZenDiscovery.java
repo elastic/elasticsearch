@@ -222,7 +222,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     // protected to allow overriding in tests
     protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                                  UnicastHostsProvider hostsProvider) {
-        return new UnicastZenPing(settings, threadPool, transportService, hostsProvider);
+        return new UnicastZenPing(settings, threadPool, transportService, hostsProvider, this);
     }
 
     @Override
@@ -244,7 +244,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             nodesFD.setLocalNode(localNode);
             joinThreadControl.start();
         }
-        zenPing.start(this);
+        zenPing.start();
     }
 
     @Override

@@ -188,40 +188,40 @@ public class UnicastZenPingTests extends ESTestCase {
             .build();
 
         Settings hostsSettingsMismatch = Settings.builder().put(hostsSettings).put(settingsMismatch).build();
-        TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA, EMPTY_HOSTS_PROVIDER);
         ClusterState stateA = ClusterState.builder(state)
             .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
             .nodes(DiscoveryNodes.builder().add(handleA.node).localNodeId("UZP_A"))
             .build();
-        zenPingA.start(() -> stateA);
+        TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA, EMPTY_HOSTS_PROVIDER, () -> stateA);
+        zenPingA.start();
         closeables.push(zenPingA);
 
-        TestUnicastZenPing zenPingB = new TestUnicastZenPing(hostsSettings, threadPool, handleB, EMPTY_HOSTS_PROVIDER);
         ClusterState stateB = ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder().add(handleB.node).localNodeId("UZP_B"))
             .build();
-        zenPingB.start(() -> stateB);
+        TestUnicastZenPing zenPingB = new TestUnicastZenPing(hostsSettings, threadPool, handleB, EMPTY_HOSTS_PROVIDER, () -> stateB);
+        zenPingB.start();
         closeables.push(zenPingB);
 
+        ClusterState stateC = ClusterState.builder(stateMismatch)
+            .nodes(DiscoveryNodes.builder().add(handleC.node).localNodeId("UZP_C"))
+            .build();
         TestUnicastZenPing zenPingC = new TestUnicastZenPing(hostsSettingsMismatch, threadPool, handleC,
-            EMPTY_HOSTS_PROVIDER) {
+            EMPTY_HOSTS_PROVIDER, () -> stateC) {
             @Override
             protected Version getVersion() {
                 return versionD;
             }
         };
-        ClusterState stateC = ClusterState.builder(stateMismatch)
-            .nodes(DiscoveryNodes.builder().add(handleC.node).localNodeId("UZP_C"))
-            .build();
-        zenPingC.start(() -> stateC);
+        zenPingC.start();
         closeables.push(zenPingC);
 
-        TestUnicastZenPing zenPingD = new TestUnicastZenPing(hostsSettingsMismatch, threadPool, handleD,
-            EMPTY_HOSTS_PROVIDER);
         ClusterState stateD = ClusterState.builder(stateMismatch)
             .nodes(DiscoveryNodes.builder().add(handleD.node).localNodeId("UZP_D"))
             .build();
-        zenPingD.start(() -> stateD);
+        TestUnicastZenPing zenPingD = new TestUnicastZenPing(hostsSettingsMismatch, threadPool, handleD,
+            EMPTY_HOSTS_PROVIDER, () -> stateD);
+        zenPingD.start();
         closeables.push(zenPingD);
 
         logger.info("ping from UZP_A");
@@ -311,26 +311,26 @@ public class UnicastZenPingTests extends ESTestCase {
 
         final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
 
-        final TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA, EMPTY_HOSTS_PROVIDER);
         ClusterState stateA = ClusterState.builder(state)
             .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
             .nodes(DiscoveryNodes.builder().add(handleA.node).localNodeId("UZP_A"))
             .build();
-        zenPingA.start(() -> stateA);
+        final TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA, EMPTY_HOSTS_PROVIDER, () -> stateA);
+        zenPingA.start();
         closeables.push(zenPingA);
 
-        TestUnicastZenPing zenPingB = new TestUnicastZenPing(hostsSettings, threadPool, handleB, EMPTY_HOSTS_PROVIDER);
         ClusterState stateB = ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder().add(handleB.node).localNodeId("UZP_B"))
             .build();
-        zenPingB.start(() -> stateB);
+        TestUnicastZenPing zenPingB = new TestUnicastZenPing(hostsSettings, threadPool, handleB, EMPTY_HOSTS_PROVIDER, () -> stateB);
+        zenPingB.start();
         closeables.push(zenPingB);
 
-        TestUnicastZenPing zenPingC = new TestUnicastZenPing(hostsSettings, threadPool, handleC, EMPTY_HOSTS_PROVIDER);
         ClusterState stateC = ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder().add(handleC.node).localNodeId("UZP_C"))
             .build();
-        zenPingC.start(() -> stateC);
+        TestUnicastZenPing zenPingC = new TestUnicastZenPing(hostsSettings, threadPool, handleC, EMPTY_HOSTS_PROVIDER, () -> stateC);
+        zenPingC.start();
         closeables.push(zenPingC);
 
         // the presence of an unresolvable host should not prevent resolvable hosts from being pinged
@@ -609,19 +609,19 @@ public class UnicastZenPingTests extends ESTestCase {
             }
         });
 
-        final TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA, EMPTY_HOSTS_PROVIDER);
         final ClusterState stateA = ClusterState.builder(state)
             .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
             .nodes(DiscoveryNodes.builder().add(handleA.node).add(handleB.node).localNodeId("UZP_A"))
             .build();
-        zenPingA.start(() -> stateA);
+        final TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA, EMPTY_HOSTS_PROVIDER, () -> stateA);
+        zenPingA.start();
         closeables.push(zenPingA);
 
-        TestUnicastZenPing zenPingB = new TestUnicastZenPing(hostsSettings, threadPool, handleB, EMPTY_HOSTS_PROVIDER);
         final ClusterState stateB = ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder().add(handleB.node).localNodeId("UZP_B"))
             .build();
-        zenPingB.start(() -> stateB);
+        TestUnicastZenPing zenPingB = new TestUnicastZenPing(hostsSettings, threadPool, handleB, EMPTY_HOSTS_PROVIDER, () -> stateB);
+        zenPingB.start();
         closeables.push(zenPingB);
 
         Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait().toList();
@@ -660,15 +660,15 @@ public class UnicastZenPingTests extends ESTestCase {
             .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
             .nodes(DiscoveryNodes.builder().add(handleA.node).add(handleB.node).localNodeId("UZP_A")).build();
 
-        final TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA, EMPTY_HOSTS_PROVIDER);
-        zenPingA.start(() -> stateA);
+        final TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA, EMPTY_HOSTS_PROVIDER, () -> stateA);
+        zenPingA.start();
         closeables.push(zenPingA);
 
         // Node B doesn't know about A!
         final ClusterState stateB = ClusterState.builder(state).nodes(
             DiscoveryNodes.builder().add(handleB.node).localNodeId("UZP_B")).build();
-        TestUnicastZenPing zenPingB = new TestUnicastZenPing(hostsSettings, threadPool, handleB, EMPTY_HOSTS_PROVIDER);
-        zenPingB.start(() -> stateB);
+        TestUnicastZenPing zenPingB = new TestUnicastZenPing(hostsSettings, threadPool, handleB, EMPTY_HOSTS_PROVIDER, () -> stateB);
+        zenPingB.start();
         closeables.push(zenPingB);
 
         {
@@ -796,9 +796,9 @@ public class UnicastZenPingTests extends ESTestCase {
     private static class TestUnicastZenPing extends UnicastZenPing {
 
         TestUnicastZenPing(Settings settings, ThreadPool threadPool, NetworkHandle networkHandle,
-                                  UnicastHostsProvider unicastHostsProvider) {
+                           UnicastHostsProvider unicastHostsProvider, PingContextProvider contextProvider) {
             super(Settings.builder().put("node.name", networkHandle.node.getName()).put(settings).build(),
-                threadPool, networkHandle.transportService, unicastHostsProvider);
+                threadPool, networkHandle.transportService, unicastHostsProvider, contextProvider);
         }
 
         volatile CountDownLatch allTasksCompleted;

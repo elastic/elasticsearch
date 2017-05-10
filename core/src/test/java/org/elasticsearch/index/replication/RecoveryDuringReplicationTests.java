@@ -29,6 +29,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -51,6 +52,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -84,7 +86,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             shards.startAll();
             int docs = shards.indexDocs(randomInt(50));
             shards.flush();
-            shards.getPrimary().updateGlobalCheckpointOnPrimary();
             final IndexShard originalReplica = shards.getReplicas().get(0);
             long replicaCommittedLocalCheckpoint = docs - 1;
             boolean replicaHasDocsSinceLastFlushedCheckpoint = false;
@@ -101,22 +102,16 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     replicaHasDocsSinceLastFlushedCheckpoint = false;
                     replicaCommittedLocalCheckpoint = docs - 1;
                 }
-
-                final boolean sync = randomBoolean();
-                if (sync) {
-                    shards.getPrimary().updateGlobalCheckpointOnPrimary();
-                }
             }
+
+            // simulate a background global checkpoint sync at which point we expect the global checkpoint to advance on the replicas
+            shards.syncGlobalCheckpoint();
 
             shards.removeReplica(originalReplica);
 
             final int missingOnReplica = shards.indexDocs(randomInt(5));
             docs += missingOnReplica;
             replicaHasDocsSinceLastFlushedCheckpoint |= missingOnReplica > 0;
-
-            if (randomBoolean()) {
-                shards.getPrimary().updateGlobalCheckpointOnPrimary();
-            }
 
             final boolean flushPrimary = randomBoolean();
             if (flushPrimary) {
@@ -234,6 +229,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }) {
             shards.startAll();
             int docs = shards.indexDocs(randomIntBetween(1, 10));
+            // simulate a background global checkpoint sync at which point we expect the global checkpoint to advance on the replicas
+            shards.syncGlobalCheckpoint();
             IndexShard replica = shards.getReplicas().get(0);
             shards.removeReplica(replica);
             closeShards(replica);
@@ -330,6 +327,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             logger.info("indexed [{}] docs", docs);
             final CountDownLatch pendingDocDone = new CountDownLatch(1);
             final CountDownLatch pendingDocActiveWithExtraDocIndexed = new CountDownLatch(1);
+            final CountDownLatch phaseTwoStartLatch = new CountDownLatch(1);
             final IndexShard replica = shards.addReplica();
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(
                     replica,
@@ -353,15 +351,13 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                                 // unblock indexing for the next doc
                                 replicaEngineFactory.allowIndexing();
                                 shards.index(new IndexRequest(index.getName(), "type", "completed").source("{}", XContentType.JSON));
-                                /*
-                                 * We want to test that the global checkpoint is blocked from advancing on the primary when a replica shard
-                                 * is pending being marked in-sync. We also want to test the the global checkpoint does not advance on the
-                                 * replica when its local checkpoint is behind the global checkpoint on the primary. Finally, advancing the
-                                 * global checkpoint here forces recovery to block until the pending doc is indexing on the replica.
-                                 */
-                                shards.getPrimary().updateGlobalCheckpointOnPrimary();
                                 pendingDocActiveWithExtraDocIndexed.countDown();
                             } catch (final Exception e) {
+                                throw new AssertionError(e);
+                            }
+                            try {
+                                phaseTwoStartLatch.await();
+                            } catch (InterruptedException e) {
                                 throw new AssertionError(e);
                             }
                             return super.indexTranslogOperations(operations, totalTranslogOps);
@@ -372,18 +368,23 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             {
                 final long expectedDocs = docs + 2L;
                 assertThat(shards.getPrimary().getLocalCheckpoint(), equalTo(expectedDocs - 1));
-                // recovery has not completed, therefore the global checkpoint can have advance on the primary
+                // recovery has not completed, therefore the global checkpoint can have advanced on the primary
                 assertThat(shards.getPrimary().getGlobalCheckpoint(), equalTo(expectedDocs - 1));
                 // the pending document is not done, the checkpoints can not have advanced on the replica
                 assertThat(replica.getLocalCheckpoint(), lessThan(expectedDocs - 1));
                 assertThat(replica.getGlobalCheckpoint(), lessThan(expectedDocs - 1));
             }
 
-            shards.getPrimary().updateGlobalCheckpointOnPrimary();
+            // wait for recovery to enter the translog phase
+            phaseTwoStartLatch.countDown();
+
+            // wait for the translog phase to complete and the recovery to block global checkpoint advancement
+            awaitBusy(() -> shards.getPrimary().pendingInSync());
             {
-                final long expectedDocs = docs + 3L;
                 shards.index(new IndexRequest(index.getName(), "type", "last").source("{}", XContentType.JSON));
+                final long expectedDocs = docs + 3L;
                 assertThat(shards.getPrimary().getLocalCheckpoint(), equalTo(expectedDocs - 1));
+                // recovery is now in the process of being completed, therefore the global checkpoint can not have advanced on the primary
                 assertThat(shards.getPrimary().getGlobalCheckpoint(), equalTo(expectedDocs - 2));
                 assertThat(replica.getLocalCheckpoint(), lessThan(expectedDocs - 2));
                 assertThat(replica.getGlobalCheckpoint(), lessThan(expectedDocs - 2));
@@ -392,14 +393,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             replicaEngineFactory.releaseLatchedIndexers();
             pendingDocDone.await();
             recoveryFuture.get();
-            shards.getPrimary().updateGlobalCheckpointOnPrimary();
             {
                 final long expectedDocs = docs + 3L;
                 assertBusy(() -> {
                     assertThat(shards.getPrimary().getLocalCheckpoint(), equalTo(expectedDocs - 1));
                     assertThat(shards.getPrimary().getGlobalCheckpoint(), equalTo(expectedDocs - 1));
                     assertThat(replica.getLocalCheckpoint(), equalTo(expectedDocs - 1));
-                    assertThat(replica.getGlobalCheckpoint(), equalTo(expectedDocs - 1));
+                    // the global checkpoint advances can only advance here if a background global checkpoint sync fires
+                    assertThat(replica.getGlobalCheckpoint(), anyOf(equalTo(expectedDocs - 1), equalTo(expectedDocs - 2)));
                 });
             }
         }

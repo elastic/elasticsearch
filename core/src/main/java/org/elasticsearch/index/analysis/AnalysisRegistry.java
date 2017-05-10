@@ -36,7 +36,6 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
-import org.elasticsearch.indices.analysis.PreBuiltTokenFilters;
 import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 
 import java.io.Closeable;
@@ -59,7 +58,7 @@ public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";
     public static final String INDEX_ANALYSIS_TOKENIZER = "index.analysis.tokenizer";
-    private final PrebuiltAnalysis prebuiltAnalysis = new PrebuiltAnalysis();
+    private final PrebuiltAnalysis prebuiltAnalysis;
     private final Map<String, Analyzer> cachedAnalyzer = new ConcurrentHashMap<>();
 
     private final Environment environment;
@@ -74,13 +73,15 @@ public final class AnalysisRegistry implements Closeable {
                             Map<String, AnalysisProvider<TokenFilterFactory>> tokenFilters,
                             Map<String, AnalysisProvider<TokenizerFactory>> tokenizers,
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers,
-                            Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers) {
+                            Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers,
+                            Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters) {
         this.environment = environment;
         this.charFilters = unmodifiableMap(charFilters);
         this.tokenFilters = unmodifiableMap(tokenFilters);
         this.tokenizers = unmodifiableMap(tokenizers);
         this.analyzers = unmodifiableMap(analyzers);
         this.normalizers = unmodifiableMap(normalizers);
+        prebuiltAnalysis = new PrebuiltAnalysis(preConfiguredTokenFilters);
     }
 
     /**
@@ -305,8 +306,8 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     private <T> Map<String, T> buildMapping(Component component, IndexSettings settings, Map<String, Settings> settingsMap,
-            Map<String, AnalysisModule.AnalysisProvider<T>> providerMap, Map<String, AnalysisModule.AnalysisProvider<T>> defaultInstance)
-            throws IOException {
+                    Map<String, ? extends AnalysisModule.AnalysisProvider<T>> providerMap,
+                    Map<String, ? extends AnalysisModule.AnalysisProvider<T>> defaultInstance) throws IOException {
         Settings defaultSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, settings.getIndexVersionCreated()).build();
         Map<String, T> factories = new HashMap<>();
         for (Map.Entry<String, Settings> entry : settingsMap.entrySet()) {
@@ -344,7 +345,7 @@ public final class AnalysisRegistry implements Closeable {
 
         }
         // go over the char filters in the bindings and register the ones that are not configured
-        for (Map.Entry<String, AnalysisModule.AnalysisProvider<T>> entry : providerMap.entrySet()) {
+        for (Map.Entry<String, ? extends AnalysisModule.AnalysisProvider<T>> entry : providerMap.entrySet()) {
             String name = entry.getKey();
             AnalysisModule.AnalysisProvider<T> provider = entry.getValue();
             // we don't want to re-register one that already exists
@@ -365,7 +366,7 @@ public final class AnalysisRegistry implements Closeable {
             factories.put(name, instance);
         }
 
-        for (Map.Entry<String, AnalysisModule.AnalysisProvider<T>> entry : defaultInstance.entrySet()) {
+        for (Map.Entry<String, ? extends AnalysisModule.AnalysisProvider<T>> entry : defaultInstance.entrySet()) {
             final String name = entry.getKey();
             final AnalysisModule.AnalysisProvider<T> provider = entry.getValue();
             if (factories.containsKey(name) == false) {
@@ -378,7 +379,8 @@ public final class AnalysisRegistry implements Closeable {
         return factories;
     }
 
-    private <T> AnalysisProvider<T> getAnalysisProvider(Component component, Map<String, AnalysisProvider<T>> providerMap, String name, String typeName) {
+    private <T> AnalysisProvider<T> getAnalysisProvider(Component component, Map<String, ? extends AnalysisProvider<T>> providerMap,
+            String name, String typeName) {
         if (typeName == null) {
             throw new IllegalArgumentException(component + " [" + name + "] must specify either an analyzer type, or a tokenizer");
         }
@@ -393,13 +395,12 @@ public final class AnalysisRegistry implements Closeable {
 
         final Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider<?>>> analyzerProviderFactories;
         final Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> tokenizerFactories;
-        final Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> tokenFilterFactories;
+        final Map<String, ? extends AnalysisProvider<TokenFilterFactory>> tokenFilterFactories;
         final Map<String, AnalysisModule.AnalysisProvider<CharFilterFactory>> charFilterFactories;
 
-        private PrebuiltAnalysis() {
+        private PrebuiltAnalysis(Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters) {
             Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
             Map<String, PreBuiltTokenizerFactoryFactory> tokenizerFactories = new HashMap<>();
-            Map<String, PreBuiltTokenFilterFactoryFactory> tokenFilterFactories = new HashMap<>();
             Map<String, PreBuiltCharFilterFactoryFactory> charFilterFactories = new HashMap<>();
             // Analyzers
             for (PreBuiltAnalyzers preBuiltAnalyzerEnum : PreBuiltAnalyzers.values()) {
@@ -418,17 +419,6 @@ public final class AnalysisRegistry implements Closeable {
             tokenizerFactories.put("edgeNGram", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.EDGE_NGRAM.getTokenizerFactory(Version.CURRENT)));
             tokenizerFactories.put("PathHierarchy", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.PATH_HIERARCHY.getTokenizerFactory(Version.CURRENT)));
 
-
-            // Token filters
-            for (PreBuiltTokenFilters preBuiltTokenFilter : PreBuiltTokenFilters.values()) {
-                String name = preBuiltTokenFilter.name().toLowerCase(Locale.ROOT);
-                tokenFilterFactories.put(name, new PreBuiltTokenFilterFactoryFactory(preBuiltTokenFilter.getTokenFilterFactory(Version.CURRENT)));
-            }
-            // Token filter aliases
-            tokenFilterFactories.put("nGram", new PreBuiltTokenFilterFactoryFactory(PreBuiltTokenFilters.NGRAM.getTokenFilterFactory(Version.CURRENT)));
-            tokenFilterFactories.put("edgeNGram", new PreBuiltTokenFilterFactoryFactory(PreBuiltTokenFilters.EDGE_NGRAM.getTokenFilterFactory(Version.CURRENT)));
-
-
             // Char Filters
             for (PreBuiltCharFilters preBuiltCharFilter : PreBuiltCharFilters.values()) {
                 String name = preBuiltCharFilter.name().toLowerCase(Locale.ROOT);
@@ -436,10 +426,11 @@ public final class AnalysisRegistry implements Closeable {
             }
             // Char filter aliases
             charFilterFactories.put("htmlStrip", new PreBuiltCharFilterFactoryFactory(PreBuiltCharFilters.HTML_STRIP.getCharFilterFactory(Version.CURRENT)));
+
             this.analyzerProviderFactories = Collections.unmodifiableMap(analyzerProviderFactories);
             this.charFilterFactories = Collections.unmodifiableMap(charFilterFactories);
-            this.tokenFilterFactories = Collections.unmodifiableMap(tokenFilterFactories);
             this.tokenizerFactories = Collections.unmodifiableMap(tokenizerFactories);
+            tokenFilterFactories = preConfiguredTokenFilters;
         }
 
         public AnalysisModule.AnalysisProvider<CharFilterFactory> getCharFilterFactory(String name) {

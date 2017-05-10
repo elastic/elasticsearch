@@ -19,10 +19,10 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.elasticsearch.AnalysisFactoryTestCase;
+import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
+import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -31,15 +31,19 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 
 public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
+    public CommonAnalysisFactoryTests() {
+        super(new CommonAnalysisPlugin());
+    }
+
     @Override
     protected Map<String, Class<?>> getTokenizers() {
-        Map<String, Class<?>> tokenizers = new HashMap<>(super.getTokenizers());
+        Map<String, Class<?>> tokenizers = new TreeMap<>(super.getTokenizers());
         return tokenizers;
     }
 
     @Override
     protected Map<String, Class<?>> getTokenFilters() {
-        Map<String, Class<?>> filters = new HashMap<>(super.getTokenFilters());
+        Map<String, Class<?>> filters = new TreeMap<>(super.getTokenFilters());
         filters.put("asciifolding",          ASCIIFoldingTokenFilterFactory.class);
         filters.put("worddelimiter",         WordDelimiterTokenFilterFactory.class);
         filters.put("worddelimitergraph",    WordDelimiterGraphTokenFilterFactory.class);
@@ -56,6 +60,30 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         // TODO: these charfilters are not yet exposed: useful?
         // handling of zwnj for persian
         filters.put("persian",        Void.class);
+        return filters;
+    }
+
+    @Override
+    protected Map<String, Class<?>> getPreConfiguredTokenFilters() {
+        Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenFilters());
+        filters.put("asciifolding", null);
+        filters.put("classic", null);
+        filters.put("common_grams", null);
+        filters.put("edge_ngram", null);
+        filters.put("edgeNGram", null);
+        filters.put("kstem", null);
+        filters.put("length", null);
+        filters.put("ngram", null);
+        filters.put("nGram", null);
+        filters.put("porter_stem", null);
+        filters.put("reverse", ReverseStringFilterFactory.class);
+        filters.put("stop", null);
+        filters.put("trim", null);
+        filters.put("truncate", null);
+        filters.put("unique", Void.class);
+        filters.put("uppercase", null);
+        filters.put("word_delimiter", null);
+        filters.put("word_delimiter_graph", null);
         return filters;
     }
 

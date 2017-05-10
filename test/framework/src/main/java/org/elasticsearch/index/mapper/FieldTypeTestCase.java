@@ -175,13 +175,15 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     // TODO: remove this once toString is no longer final on FieldType...
     protected void assertFieldTypeEquals(String property, MappedFieldType ft1, MappedFieldType ft2) {
         if (ft1.equals(ft2) == false) {
-            fail("Expected equality, testing property " + property + "\nexpected: " + toString(ft1) + "; \nactual:   " + toString(ft2) + "\n");
+            fail("Expected equality, testing property " + property + "\nexpected: " + toString(ft1) + "; \nactual:   " + toString(ft2)
+                + "\n");
         }
     }
 
     protected void assertFieldTypeNotEquals(String property, MappedFieldType ft1, MappedFieldType ft2) {
         if (ft1.equals(ft2)) {
-            fail("Expected inequality, testing property " + property + "\nfirst:  " + toString(ft1) + "; \nsecond: " + toString(ft2) + "\n");
+            fail("Expected inequality, testing property " + property + "\nfirst:  " + toString(ft1) + "; \nsecond: " + toString(ft2)
+                + "\n");
         }
     }
 

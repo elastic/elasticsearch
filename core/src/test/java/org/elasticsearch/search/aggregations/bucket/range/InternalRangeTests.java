@@ -23,6 +23,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.junit.Before;
 
@@ -43,7 +44,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
         format = randomNumericDocValueFormat();
 
         final int interval = randomFrom(1, 5, 10, 25, 50, 100);
-        final int numRanges = 1;//randomIntBetween(1, 10);
+        final int numRanges = randomIntBetween(1, 10);
 
         List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
         for (int i = 0; i < numRanges; i++) {
@@ -62,7 +63,10 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
     }
 
     @Override
-    protected InternalRange createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+    protected InternalRange createTestInstance(String name,
+                                               List<PipelineAggregator> pipelineAggregators,
+                                               Map<String, Object> metaData,
+                                               InternalAggregations aggregations,
                                                boolean keyed) {
         final List<InternalRange.Bucket> buckets = new ArrayList<>();
         for (int i = 0; i < ranges.size(); ++i) {
@@ -70,13 +74,18 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
             int docCount = randomIntBetween(0, 1000);
             double from = range.v1();
             double to = range.v2();
-            buckets.add( new InternalRange.Bucket("range_" + i, from, to, docCount, InternalAggregations.EMPTY, keyed, format));
+            buckets.add(new InternalRange.Bucket("range_" + i, from, to, docCount, aggregations, keyed, format));
         }
-        return new InternalRange<>(name, buckets, format, keyed, pipelineAggregators, Collections.emptyMap());
+        return new InternalRange<>(name, buckets, format, keyed, pipelineAggregators, metaData);
     }
 
     @Override
     protected Writeable.Reader<InternalRange> instanceReader() {
         return InternalRange::new;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedRange.class;
     }
 }

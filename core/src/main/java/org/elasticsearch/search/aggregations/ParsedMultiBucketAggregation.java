@@ -107,6 +107,10 @@ public abstract class ParsedMultiBucketAggregation<B extends ParsedMultiBucketAg
             this.keyed = keyed;
         }
 
+        protected boolean isKeyed() {
+            return keyed;
+        }
+
         protected void setAggregations(Aggregations aggregations) {
             this.aggregations = aggregations;
         }

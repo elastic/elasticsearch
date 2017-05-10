@@ -20,15 +20,16 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public abstract class InternalRangeTestCase<T extends InternalAggregation & Range> extends InternalAggregationTestCase<T> {
+public abstract class InternalRangeTestCase<T extends InternalAggregation & Range> extends InternalMultiBucketAggregationTestCase<T> {
 
     private boolean keyed;
 
@@ -40,13 +41,17 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
     }
 
     @Override
-    protected T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return createTestInstance(name, pipelineAggregators, metaData, keyed);
+    protected T createTestInstance(String name,
+                                   List<PipelineAggregator> pipelineAggregators,
+                                   Map<String, Object> metaData,
+                                   InternalAggregations aggregations) {
+        return createTestInstance(name, pipelineAggregators, metaData, aggregations, keyed);
     }
 
     protected abstract T createTestInstance(String name,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData,
+                                            InternalAggregations aggregations,
                                             boolean keyed);
     @Override
     protected void assertReduced(T reduced, List<T> inputs) {

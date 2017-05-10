@@ -35,10 +35,10 @@ import org.elasticsearch.tasks.TaskManager;
 class BulkByScrollParallelizationHelper {
     private BulkByScrollParallelizationHelper() {}
 
-    public static <
-                Request extends AbstractBulkByScrollRequest<Request>
-            > void startSlices(Client client, TaskManager taskManager, Action<Request, BulkByScrollResponse, ?> action,
-                               String localNodeId, ParentBulkByScrollTask task, Request request, ActionListener<BulkByScrollResponse> listener) {
+    public static <Request extends AbstractBulkByScrollRequest<Request>> void startSlices(Client client, TaskManager taskManager,
+                               Action<Request, BulkByScrollResponse, ?> action,
+                               String localNodeId, ParentBulkByScrollTask task, Request request,
+                               ActionListener<BulkByScrollResponse> listener) {
         TaskId parentTaskId = new TaskId(localNodeId, task.getId());
         for (final SearchRequest slice : sliceIntoSubRequests(request.getSearchRequest(), UidFieldMapper.NAME, request.getSlices())) {
             // TODO move the request to the correct node. maybe here or somehow do it as part of startup for reindex in general....

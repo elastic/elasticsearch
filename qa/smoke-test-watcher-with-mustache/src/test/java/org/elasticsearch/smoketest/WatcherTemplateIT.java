@@ -16,7 +16,7 @@ import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -47,7 +47,7 @@ public class WatcherTemplateIT extends ESTestCase {
         ScriptContextRegistry registry = new ScriptContextRegistry(Collections.singletonList(new ScriptContext.Plugin("xpack", "watch")));
 
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
-                Collections.singleton(new MustacheScriptEngineService())
+                Collections.singleton(new MustacheScriptEngine())
         );
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, registry);
         ScriptService scriptService = new ScriptService(setting, environment, resourceWatcherService, scriptEngineRegistry,

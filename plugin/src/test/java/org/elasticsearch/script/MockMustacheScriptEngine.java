@@ -23,7 +23,7 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
 
     public static class TestPlugin extends MockScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new MockMustacheScriptEngine();
         }
 

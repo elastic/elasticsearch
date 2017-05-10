@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
-public class LatchScriptEngine implements ScriptEngineService {
+public class LatchScriptEngine implements ScriptEngine {
 
     private static final String NAME = "latch";
     private static final LatchScriptEngine INSTANCE = new LatchScriptEngine();
@@ -103,7 +103,7 @@ public class LatchScriptEngine implements ScriptEngineService {
     public static class LatchScriptPlugin extends Plugin implements ScriptPlugin {
 
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return INSTANCE;
         }
 

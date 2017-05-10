@@ -24,8 +24,8 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptMetaData;
 import org.elasticsearch.script.ScriptService;
@@ -50,7 +50,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.script.ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.containsString;
@@ -87,7 +86,7 @@ public class ScriptConditionTests extends ESTestCase {
             return total > threshold;
         });
 
-        ScriptEngineService engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);
+        ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);
 
         ScriptEngineRegistry registry = new ScriptEngineRegistry(singleton(engine));
         ScriptContextRegistry contextRegistry = new ScriptContextRegistry(singleton(new ScriptContext.Plugin("xpack", "watch")));

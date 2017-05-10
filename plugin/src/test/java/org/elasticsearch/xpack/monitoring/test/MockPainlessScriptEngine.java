@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.monitoring.test;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 
 import java.util.Collections;
 import java.util.Map;
@@ -23,7 +23,7 @@ public class MockPainlessScriptEngine extends MockScriptEngine {
 
     public static class TestPlugin extends MockScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new MockPainlessScriptEngine();
         }
 

@@ -5,7 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.job.process.logging;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -15,6 +19,25 @@ import java.time.Duration;
 import java.util.concurrent.TimeoutException;
 
 public class CppLogMessageHandlerTests extends ESTestCase {
+
+    private static final String TEST_MESSAGE_NOISE = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\","
+            + "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\","
+            + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+    private static final String TEST_MESSAGE_NOISE_DIFFERENT_MESSAGE = "{\"logger\":\"controller\",\"timestamp\":1478261151445,"
+            + "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\","
+            + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+    private static final String TEST_MESSAGE_NOISE_DIFFERENT_LEVEL = "{\"logger\":\"controller\",\"timestamp\":1478261151445,"
+            + "\"level\":\"ERROR\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 3\",\"class\":\"ml\","
+            + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+    private static final String TEST_MESSAGE_OTHER_NOISE = "{\"logger\":\"controller\",\"timestamp\":1478261151446,"
+            + "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 4\",\"class\":\"ml\","
+            + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.h\",\"line\":333}\n";
+    private static final String TEST_MESSAGE_SOMETHING = "{\"logger\":\"controller\",\"timestamp\":1478261151447,\"level\":\"INFO\""
+            + ",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 5\",\"class\":\"ml\","
+            + "\"method\":\"core::Something\",\"file\":\"Something.cc\",\"line\":555}\n";
+    private static final String TEST_MESSAGE_NOISE_DEBUG = "{\"logger\":\"controller\",\"timestamp\":1478261151448,\"level\":\"DEBUG\","
+            + "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 6\",\"class\":\"ml\","
+            + "\"method\":\"core::SomeNoiseMake\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
 
     public void testParse() throws IOException, TimeoutException {
 
@@ -52,4 +75,125 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             }
         }
     }
+
+    public void testThrottlingSummary() throws IllegalAccessException, TimeoutException, IOException {
+
+        InputStream is = new ByteArrayInputStream(String.join("",
+                TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE,
+                TEST_MESSAGE_NOISE_DEBUG, TEST_MESSAGE_OTHER_NOISE, TEST_MESSAGE_SOMETHING)
+                .getBytes(StandardCharsets.UTF_8));
+
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation("test1", CppLogMessageHandler.class.getName(), Level.INFO,
+                        "[test_throttling] * message 1"));
+        mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation("test2", CppLogMessageHandler.class.getName(), Level.INFO,
+                        "[test_throttling] * message 1 | repeated [5]"));
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test3", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 4"));
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test4", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 5"));
+
+        executeLoggingTest(is, mockAppender, Level.INFO);
+    }
+
+    public void testThrottlingSummaryOneRepeat() throws IllegalAccessException, TimeoutException, IOException {
+
+        InputStream is = new ByteArrayInputStream(String
+                .join("", TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE_DEBUG, TEST_MESSAGE_OTHER_NOISE,
+                        TEST_MESSAGE_SOMETHING)
+                .getBytes(StandardCharsets.UTF_8));
+
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test1", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 1"));
+        mockAppender.addExpectation(new MockLogAppender.UnseenEventExpectation("test2", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 1 | repeated [1]"));
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test1", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 4"));
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test2", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 5"));
+
+        executeLoggingTest(is, mockAppender, Level.INFO);
+    }
+
+    public void testThrottlingSummaryLevelChanges() throws IllegalAccessException, TimeoutException, IOException {
+
+        InputStream is = new ByteArrayInputStream(String
+                .join("", TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE_DIFFERENT_LEVEL,
+                        TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE_DEBUG,
+                        TEST_MESSAGE_OTHER_NOISE, TEST_MESSAGE_SOMETHING)
+                .getBytes(StandardCharsets.UTF_8));
+
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test1", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 1"));
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test2", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 1 | repeated [2]"));
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test3", CppLogMessageHandler.class.getName(), Level.ERROR,
+                "[test_throttling] * message 3"));
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test4", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 1 | repeated [3]"));
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test5", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 4"));
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test6", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 5"));
+
+        executeLoggingTest(is, mockAppender, Level.INFO);
+    }
+
+    public void testThrottlingLastMessageRepeast() throws IllegalAccessException, TimeoutException, IOException {
+
+        InputStream is = new ByteArrayInputStream(String.join("", TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE,
+                TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE_DIFFERENT_MESSAGE).getBytes(StandardCharsets.UTF_8));
+
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test1", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 1"));
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test2", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 2 | repeated [5]"));
+
+        executeLoggingTest(is, mockAppender, Level.INFO);
+    }
+
+    public void testThrottlingDebug() throws IllegalAccessException, TimeoutException, IOException {
+
+        InputStream is = new ByteArrayInputStream(String.join("", TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE,
+                TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE_DEBUG)
+                .getBytes(StandardCharsets.UTF_8));
+
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test1", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 1"));
+        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test2", CppLogMessageHandler.class.getName(), Level.DEBUG,
+                "[test_throttling] * message 6"));
+        mockAppender.addExpectation(new MockLogAppender.UnseenEventExpectation("test3", CppLogMessageHandler.class.getName(), Level.INFO,
+                "[test_throttling] * message 1 | repeated [5]"));
+
+        executeLoggingTest(is, mockAppender, Level.DEBUG);
+    }
+
+    private static void executeLoggingTest(InputStream is, MockLogAppender mockAppender, Level level) throws IOException {
+        Logger cppMessageLogger = Loggers.getLogger(CppLogMessageHandler.class);
+        Loggers.addAppender(cppMessageLogger, mockAppender);
+
+        Level oldLevel = cppMessageLogger.getLevel();
+        Loggers.setLevel(cppMessageLogger, level);
+        try (CppLogMessageHandler handler = new CppLogMessageHandler("test_throttling", is)) {
+            handler.tailStream();
+        } finally {
+            Loggers.removeAppender(cppMessageLogger, mockAppender);
+            Loggers.setLevel(cppMessageLogger, oldLevel);
+            mockAppender.stop();
+        }
+
+        mockAppender.assertAllExpectationsMatched();
+    }
 }
+

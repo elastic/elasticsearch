@@ -24,6 +24,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
@@ -40,6 +42,7 @@ public class CppLogMessageHandler implements Closeable {
     private static final Logger LOGGER = Loggers.getLogger(CppLogMessageHandler.class);
     private static final int DEFAULT_READBUF_SIZE = 1024;
     private static final int DEFAULT_ERROR_STORE_SIZE = 5;
+    private static final long MAX_MESSAGE_INTERVAL_SECONDS = 10;
 
     private final String jobId;
     private final InputStream inputStream;
@@ -48,6 +51,7 @@ public class CppLogMessageHandler implements Closeable {
     private final Deque<String> errorStore;
     private final CountDownLatch pidLatch;
     private final CountDownLatch cppCopyrightLatch;
+    private MessageSummary lastMessageSummary = new MessageSummary();
     private volatile boolean hasLogStreamEnded;
     private volatile boolean seenFatalError;
     private volatile long pid;
@@ -101,6 +105,11 @@ public class CppLogMessageHandler implements Closeable {
             }
         } finally {
             hasLogStreamEnded = true;
+
+            // check if there is some leftover from log summarization
+            if (lastMessageSummary.count > 0) {
+                logSummarizedMessage();
+            }
         }
     }
 
@@ -213,6 +222,31 @@ public class CppLogMessageHandler implements Closeable {
                 cppCopyright = latestMessage;
                 cppCopyrightLatch.countDown();
             }
+
+            // get out of here quickly if level isn't of interest
+            if (!LOGGER.isEnabled(level)) {
+                return;
+            }
+
+            // log message summarization is disabled for debug
+            if (!LOGGER.isDebugEnabled()) {
+                // log summarization: log 1st message, count all consecutive messages arriving
+                // in a certain time window and summarize them as 1 message
+                if (msg.isSimilarTo(lastMessageSummary.message)
+                        && (lastMessageSummary.timestamp.until(msg.getTimestamp(), ChronoUnit.SECONDS) < MAX_MESSAGE_INTERVAL_SECONDS)) {
+
+                    // this is a repeated message, so do not log it, but count
+                    lastMessageSummary.count++;
+                    lastMessageSummary.message = msg;
+                    return;
+                    // not similar, flush last summary if necessary
+                } else if (lastMessageSummary.count > 0) {
+                    // log last message with summary
+                    logSummarizedMessage();
+                }
+
+                lastMessageSummary.reset(msg.getTimestamp(), msg, level);
+            }
             // TODO: Is there a way to preserve the original timestamp when re-logging?
             if (jobId != null) {
                 LOGGER.log(level, "[{}] [{}/{}] [{}@{}] {}", jobId, msg.getLogger(), latestPid, msg.getFile(), msg.getLine(),
@@ -226,6 +260,31 @@ public class CppLogMessageHandler implements Closeable {
                         new Object[] {jobId, bytesRef.utf8ToString()}), e);
             } else {
                 LOGGER.warn(new ParameterizedMessage("Failed to parse C++ log message: {}", new Object[] {bytesRef.utf8ToString()}), e);
+            }
+        }
+    }
+
+    private void logSummarizedMessage() {
+        // edge case: for 1 repeat, only log the message as is
+        if (lastMessageSummary.count > 1) {
+            if (jobId != null) {
+                LOGGER.log(lastMessageSummary.level, "[{}] [{}/{}] [{}@{}] {} | repeated [{}]", jobId,
+                        lastMessageSummary.message.getLogger(), lastMessageSummary.message.getPid(), lastMessageSummary.message.getFile(),
+                        lastMessageSummary.message.getLine(), lastMessageSummary.message.getMessage(), lastMessageSummary.count);
+            } else {
+                LOGGER.log(lastMessageSummary.level, "[{}/{}] [{}@{}] {} | repeated [{}]", lastMessageSummary.message.getLogger(),
+                        lastMessageSummary.message.getPid(), lastMessageSummary.message.getFile(), lastMessageSummary.message.getLine(),
+                        lastMessageSummary.message.getMessage(), lastMessageSummary.count);
+            }
+        } else {
+            if (jobId != null) {
+                LOGGER.log(lastMessageSummary.level, "[{}] [{}/{}] [{}@{}] {}", jobId, lastMessageSummary.message.getLogger(),
+                        lastMessageSummary.message.getPid(), lastMessageSummary.message.getFile(), lastMessageSummary.message.getLine(),
+                        lastMessageSummary.message.getMessage());
+            } else {
+                LOGGER.log(lastMessageSummary.level, "[{}/{}] [{}@{}] {}", lastMessageSummary.message.getLogger(),
+                        lastMessageSummary.message.getPid(), lastMessageSummary.message.getFile(), lastMessageSummary.message.getLine(),
+                        lastMessageSummary.message.getMessage());
             }
         }
     }
@@ -247,5 +306,26 @@ public class CppLogMessageHandler implements Closeable {
             }
         }
         return -1;
+    }
+
+    private static class MessageSummary {
+        Instant timestamp;
+        int count;
+        CppLogMessage message;
+        Level level;
+
+        MessageSummary() {
+            this.timestamp = Instant.EPOCH;
+            this.message = null;
+            this.count = 0;
+            this.level = Level.OFF;
+        }
+
+        void reset(Instant timestamp, CppLogMessage message, Level level) {
+            this.timestamp = timestamp;
+            this.message = message;
+            this.count = 0;
+            this.level = level;
+        }
     }
 }

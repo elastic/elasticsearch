@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Date;
+import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -41,7 +41,7 @@ public class CppLogMessage extends ToXContentToBytes implements Writeable {
 
     static {
         PARSER.declareString(CppLogMessage::setLogger, LOGGER_FIELD);
-        PARSER.declareField(CppLogMessage::setTimestamp, p -> new Date(p.longValue()), TIMESTAMP_FIELD, ValueType.LONG);
+        PARSER.declareField(CppLogMessage::setTimestamp, p -> Instant.ofEpochMilli(p.longValue()), TIMESTAMP_FIELD, ValueType.LONG);
         PARSER.declareString(CppLogMessage::setLevel, LEVEL_FIELD);
         PARSER.declareLong(CppLogMessage::setPid, PID_FIELD);
         PARSER.declareString(CppLogMessage::setThread, THREAD_FIELD);
@@ -58,7 +58,7 @@ public class CppLogMessage extends ToXContentToBytes implements Writeable {
     public static final ParseField TYPE = new ParseField("cpp_log_message");
 
     private String logger = "";
-    private Date timestamp;
+    private Instant timestamp;
     private String level = "";
     private long pid = 0;
     private String thread = "";
@@ -69,12 +69,12 @@ public class CppLogMessage extends ToXContentToBytes implements Writeable {
     private long line = 0;
 
     public CppLogMessage() {
-        timestamp = new Date();
+        timestamp = Instant.now();
     }
 
     public CppLogMessage(StreamInput in) throws IOException {
         logger = in.readString();
-        timestamp = new Date(in.readVLong());
+        timestamp = Instant.ofEpochMilli(in.readVLong());
         level = in.readString();
         pid = in.readVLong();
         thread = in.readString();
@@ -88,7 +88,7 @@ public class CppLogMessage extends ToXContentToBytes implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(logger);
-        out.writeVLong(timestamp.getTime());
+        out.writeVLong(timestamp.toEpochMilli());
         out.writeString(level);
         out.writeVLong(pid);
         out.writeString(thread);
@@ -103,7 +103,7 @@ public class CppLogMessage extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(LOGGER_FIELD.getPreferredName(), logger);
-        builder.field(TIMESTAMP_FIELD.getPreferredName(), timestamp.getTime());
+        builder.field(TIMESTAMP_FIELD.getPreferredName(), timestamp.toEpochMilli());
         builder.field(LEVEL_FIELD.getPreferredName(), level);
         builder.field(PID_FIELD.getPreferredName(), pid);
         builder.field(THREAD_FIELD.getPreferredName(), thread);
@@ -124,11 +124,11 @@ public class CppLogMessage extends ToXContentToBytes implements Writeable {
         this.logger = logger;
     }
 
-    public Date getTimestamp() {
+    public Instant getTimestamp() {
         return this.timestamp;
     }
 
-    public void setTimestamp(Date d) {
+    public void setTimestamp(Instant d) {
         this.timestamp = d;
     }
 
@@ -200,6 +200,20 @@ public class CppLogMessage extends ToXContentToBytes implements Writeable {
 
     public void setLine(long line) {
         this.line = line;
+    }
+
+    /**
+     * Definition of similar message in order to summarize them.
+     *
+     * Note: Assuming line and file are already unique, paranoia: check that
+     * line logging is enabled.
+     *
+     * @param other
+     *            message to compare with
+     * @return true if messages are similar
+     */
+    public boolean isSimilarTo(CppLogMessage other) {
+        return other != null && line > 0 && line == other.line && file.equals(other.file) && level.equals(other.level);
     }
 
     @Override

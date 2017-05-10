@@ -14,7 +14,7 @@ public class CppLogMessageTests extends AbstractSerializingTestCase<CppLogMessag
     public void testDefaultConstructor() {
         CppLogMessage msg = new CppLogMessage();
         assertEquals("", msg.getLogger());
-        assertTrue(msg.getTimestamp().toString(), msg.getTimestamp().getTime() > 0);
+        assertTrue(msg.getTimestamp().toString(), msg.getTimestamp().toEpochMilli() > 0);
         assertEquals("", msg.getLevel());
         assertEquals(0, msg.getPid());
         assertEquals("", msg.getThread());

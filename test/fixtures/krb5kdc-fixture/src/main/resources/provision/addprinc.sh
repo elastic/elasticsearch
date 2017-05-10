@@ -27,7 +27,7 @@ fi
 PRINC="$1"
 USER=$(echo $PRINC | tr "/" "_")
 
-VDIR=/elasticsearch
+VDIR=/vagrant
 RESOURCES=$VDIR/src/main/resources
 PROV_DIR=$RESOURCES/provision
 ENVPROP_FILE=$RESOURCES/env.properties

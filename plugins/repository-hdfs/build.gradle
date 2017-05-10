@@ -103,7 +103,7 @@ String realm = "BUILD.ELASTIC.CO"
 for (String principal : principals) {
   Task create = project.tasks.create("addPrincipal#${principal}", org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
     command 'ssh'
-    args '--command', "sudo bash /elasticsearch/src/main/resources/provision/addprinc.sh $principal"
+    args '--command', "sudo bash /vagrant/src/main/resources/provision/addprinc.sh $principal"
     boxName box
     environmentVars vagrantEnvVars
     dependsOn krb5kdcFixture

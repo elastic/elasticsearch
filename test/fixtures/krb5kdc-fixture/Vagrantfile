@@ -41,11 +41,6 @@ Vagrant.configure("2") do |config|
 
   config.vm.hostname = "kerberos.build.elastic.co"
 
-  # Switch the default share for the project root from /vagrant to
-  # /elasticsearch. This is to match project conventions.
-  config.vm.synced_folder ".", "/vagrant", disabled: true
-  config.vm.synced_folder ".", "/elasticsearch"
-
   if Vagrant.has_plugin?("vagrant-cachier")
     config.cache.scope = :box
   end

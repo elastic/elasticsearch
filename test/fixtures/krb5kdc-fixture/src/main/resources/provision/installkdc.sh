@@ -22,7 +22,7 @@ set -e
 # KDC installation steps and considerations based on https://web.mit.edu/kerberos/krb5-latest/doc/admin/install_kdc.html
 # and helpful input from https://help.ubuntu.com/community/Kerberos
 
-VDIR=/elasticsearch
+VDIR=/vagrant
 RESOURCES=$VDIR/src/main/resources
 PROV_DIR=$RESOURCES/provision
 ENVPROP_FILE=$RESOURCES/env.properties

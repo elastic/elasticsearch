@@ -251,7 +251,7 @@ public class ValueCountIT extends ESIntegTestCase {
      */
     public static class FieldValueScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new FieldValueScriptEngine();
         }
     }

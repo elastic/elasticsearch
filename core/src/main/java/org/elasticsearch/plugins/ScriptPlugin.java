@@ -34,7 +34,7 @@ public interface ScriptPlugin {
     /**
      * Returns a {@link ScriptEngine} instance or <code>null</code> if this plugin doesn't add a new script engine
      */
-    default ScriptEngine getScriptEngineService(Settings settings) {
+    default ScriptEngine getScriptEngine(Settings settings) {
         return null;
     }
 

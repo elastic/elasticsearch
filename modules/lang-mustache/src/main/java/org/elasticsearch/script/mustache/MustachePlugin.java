@@ -44,7 +44,7 @@ import static java.util.Collections.singletonList;
 public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin, SearchPlugin {
 
     @Override
-    public ScriptEngine getScriptEngineService(Settings settings) {
+    public ScriptEngine getScriptEngine(Settings settings) {
         return new MustacheScriptEngine();
     }
 

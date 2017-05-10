@@ -397,7 +397,7 @@ public class AvgIT extends AbstractNumericTestCase {
      */
     public static class ExtractFieldScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new ExtractFieldScriptEngine();
         }
     }
@@ -502,7 +502,7 @@ public class AvgIT extends AbstractNumericTestCase {
      */
     public static class FieldValueScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new FieldValueScriptEngine();
         }
     }

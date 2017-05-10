@@ -27,7 +27,7 @@ import org.elasticsearch.script.ScriptEngine;
 public class ExpressionPlugin extends Plugin implements ScriptPlugin {
 
     @Override
-    public ScriptEngine getScriptEngineService(Settings settings) {
+    public ScriptEngine getScriptEngine(Settings settings) {
         return new ExpressionScriptEngine(settings);
     }
 }

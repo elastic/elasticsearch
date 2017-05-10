@@ -49,7 +49,7 @@ public class ScriptModule {
         Map<String, NativeScriptFactory> factoryMap = scriptPlugins.stream().flatMap(x -> x.getNativeScripts().stream())
             .collect(Collectors.toMap(NativeScriptFactory::getName, Function.identity()));
         NativeScriptEngine nativeScriptEngineService = new NativeScriptEngine(settings, factoryMap);
-        List<ScriptEngine> scriptEngines = scriptPlugins.stream().map(x -> x.getScriptEngineService(settings))
+        List<ScriptEngine> scriptEngines = scriptPlugins.stream().map(x -> x.getScriptEngine(settings))
             .filter(Objects::nonNull).collect(Collectors.toList());
         scriptEngines.add(nativeScriptEngineService);
         List<ScriptContext.Plugin> plugins = scriptPlugins.stream().map(x -> x.getCustomScriptContexts()).filter(Objects::nonNull)

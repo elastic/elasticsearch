@@ -73,7 +73,7 @@ public class UpdateIT extends ESIntegTestCase {
 
     public static class PutFieldValuesScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new PutFieldValuesScriptEngine();
         }
     }
@@ -146,7 +146,7 @@ public class UpdateIT extends ESIntegTestCase {
 
     public static class FieldIncrementScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new FieldIncrementScriptEngine();
         }
     }
@@ -212,7 +212,7 @@ public class UpdateIT extends ESIntegTestCase {
 
     public static class ScriptedUpsertScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new ScriptedUpsertScriptEngine();
         }
     }
@@ -279,7 +279,7 @@ public class UpdateIT extends ESIntegTestCase {
 
     public static class ExtractContextInSourceScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new ExtractContextInSourceScriptEngine();
         }
     }

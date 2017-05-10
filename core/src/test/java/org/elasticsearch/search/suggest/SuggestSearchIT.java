@@ -1111,7 +1111,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     public static class DummyTemplatePlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new DummyTemplateScriptEngine();
         }
     }

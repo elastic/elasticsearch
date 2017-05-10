@@ -38,7 +38,7 @@ import java.util.function.Function;
  */
 public final class PreConfiguredTokenFilter implements AnalysisModule.AnalysisProvider<TokenFilterFactory> {
     /**
-     * Set up a pre-configured token filter that may no vary at all.
+     * Create a pre-configured token filter that may not vary at all.
      */
     public static PreConfiguredTokenFilter singleton(String name, boolean useFilterForMultitermQueries,
             Function<TokenStream, TokenStream> create) {
@@ -47,7 +47,7 @@ public final class PreConfiguredTokenFilter implements AnalysisModule.AnalysisPr
     }
 
     /**
-     * Set up a pre-configured token filter that may vary based on the Lucene version.
+     * Create a pre-configured token filter that may vary based on the Lucene version.
      */
     public static PreConfiguredTokenFilter luceneVersion(String name, boolean useFilterForMultitermQueries,
             BiFunction<TokenStream, org.apache.lucene.util.Version, TokenStream> create) {
@@ -56,7 +56,7 @@ public final class PreConfiguredTokenFilter implements AnalysisModule.AnalysisPr
     }
 
     /**
-     * Set up a pre-configured token filter that may vary based on the Elasticsearch version.
+     * Create a pre-configured token filter that may vary based on the Elasticsearch version.
      */
     public static PreConfiguredTokenFilter elasticsearchVersion(String name, boolean useFilterForMultitermQueries,
             BiFunction<TokenStream, org.elasticsearch.Version, TokenStream> create) {

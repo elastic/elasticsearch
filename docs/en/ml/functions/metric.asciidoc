@@ -10,6 +10,8 @@ The {xpackml} features include the following metric functions:
 * <<ml-metric-min,`min`>>
 * <<ml-metric-max,`max`>>
 * <<ml-metric-median,`median`>>
+* <<ml-metric-high-median,`high_median`>>
+* <<ml-metric-low-median,`low_median`>>
 * <<ml-metric-mean,`mean`>>
 * <<ml-metric-high-mean,`high_mean`>>
 * <<ml-metric-low-mean,`low_mean`>>
@@ -117,8 +119,6 @@ for each bucket. For example:
 The `median` function detects anomalies in the statistical median of a value.
 The median value is calculated for each bucket.
 
-High- and low-sided functions are not supported.
-
 This function supports the following properties:
 
 * `field_name` (required)
@@ -143,6 +143,44 @@ values.
   "by_field_name" : "application"
 }
 --------------------------------------------------
+
+[float]
+[[ml-metric-high-median]]
+==== High_median
+
+The `high_median` function detects anomalies in the statistical median of a value.
+The median value is calculated for each bucket.
+Use this function if you want to monitor unusually high median values.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+[float]
+[[ml-metric-low-median]]
+==== Low_median
+
+The `low_median` function detects anomalies in the statistical median of a value.
+The median value is calculated for each bucket.
+Use this function if you are just interested in unusually low median values.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
 
 
 [float]

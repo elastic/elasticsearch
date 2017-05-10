@@ -116,7 +116,7 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
     private final Date timestamp;
     private final Date logTime;
 
-    private ModelSizeStats(String jobId, String id, long modelBytes, long totalByFieldCount, long totalOverFieldCount,
+    private ModelSizeStats(String jobId, long modelBytes, long totalByFieldCount, long totalOverFieldCount,
                            long totalPartitionFieldCount, long bucketAllocationFailuresCount, MemoryStatus memoryStatus,
                            Date timestamp, Date logTime) {
         this.jobId = jobId;
@@ -267,7 +267,6 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
     public static class Builder {
 
         private final String jobId;
-        private String id;
         private long modelBytes;
         private long totalByFieldCount;
         private long totalOverFieldCount;
@@ -279,50 +278,65 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
 
         public Builder(String jobId) {
             this.jobId = jobId;
-            id = RESULT_TYPE_FIELD.getPreferredName();
             memoryStatus = MemoryStatus.OK;
             logTime = new Date();
         }
 
-        public void setId(String id) {
-            this.id = Objects.requireNonNull(id);
+        public Builder(ModelSizeStats modelSizeStats) {
+            this.jobId = modelSizeStats.jobId;
+            this.modelBytes = modelSizeStats.modelBytes;
+            this.totalByFieldCount = modelSizeStats.totalByFieldCount;
+            this.totalOverFieldCount = modelSizeStats.totalOverFieldCount;
+            this.totalPartitionFieldCount = modelSizeStats.totalPartitionFieldCount;
+            this.bucketAllocationFailuresCount = modelSizeStats.bucketAllocationFailuresCount;
+            this.memoryStatus = modelSizeStats.memoryStatus;
+            this.timestamp = modelSizeStats.timestamp;
+            this.logTime = modelSizeStats.logTime;
         }
 
-        public void setModelBytes(long modelBytes) {
+        public Builder setModelBytes(long modelBytes) {
             this.modelBytes = modelBytes;
+            return this;
         }
 
-        public void setTotalByFieldCount(long totalByFieldCount) {
+        public Builder setTotalByFieldCount(long totalByFieldCount) {
             this.totalByFieldCount = totalByFieldCount;
+            return this;
         }
 
-        public void setTotalPartitionFieldCount(long totalPartitionFieldCount) {
+        public Builder setTotalPartitionFieldCount(long totalPartitionFieldCount) {
             this.totalPartitionFieldCount = totalPartitionFieldCount;
+            return this;
         }
 
-        public void setTotalOverFieldCount(long totalOverFieldCount) {
+        public Builder setTotalOverFieldCount(long totalOverFieldCount) {
             this.totalOverFieldCount = totalOverFieldCount;
+            return this;
         }
 
-        public void setBucketAllocationFailuresCount(long bucketAllocationFailuresCount) {
+        public Builder setBucketAllocationFailuresCount(long bucketAllocationFailuresCount) {
             this.bucketAllocationFailuresCount = bucketAllocationFailuresCount;
+            return this;
         }
 
-        public void setMemoryStatus(MemoryStatus memoryStatus) {
+        public Builder setMemoryStatus(MemoryStatus memoryStatus) {
             Objects.requireNonNull(memoryStatus, "[" + MEMORY_STATUS_FIELD.getPreferredName() + "] must not be null");
             this.memoryStatus = memoryStatus;
+            return this;
         }
 
-        public void setTimestamp(Date timestamp) {
+        public Builder setTimestamp(Date timestamp) {
             this.timestamp = timestamp;
+            return this;
         }
 
-        public void setLogTime(Date logTime) {
+        public Builder setLogTime(Date logTime) {
             this.logTime = logTime;
+            return this;
         }
 
         public ModelSizeStats build() {
-            return new ModelSizeStats(jobId, id, modelBytes, totalByFieldCount, totalOverFieldCount, totalPartitionFieldCount,
+            return new ModelSizeStats(jobId, modelBytes, totalByFieldCount, totalOverFieldCount, totalPartitionFieldCount,
                     bucketAllocationFailuresCount, memoryStatus, timestamp, logTime);
         }
     }

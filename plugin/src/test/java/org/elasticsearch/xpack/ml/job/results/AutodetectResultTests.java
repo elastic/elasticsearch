@@ -75,7 +75,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
         }
         if (randomBoolean()) {
             modelSizeStats = new ModelSizeStats.Builder(jobId);
-            modelSizeStats.setId(randomAlphaOfLengthBetween(1, 20));
+            modelSizeStats.setModelBytes(randomNonNegativeLong());
         } else {
             modelSizeStats = null;
         }

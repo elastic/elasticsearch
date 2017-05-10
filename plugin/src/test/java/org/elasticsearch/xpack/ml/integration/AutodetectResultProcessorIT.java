@@ -313,7 +313,6 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
 
     private ModelSizeStats createModelSizeStats() {
         ModelSizeStats.Builder builder = new ModelSizeStats.Builder(JOB_ID);
-        builder.setId(randomAlphaOfLength(20));
         builder.setTimestamp(new Date(randomNonNegativeLong()));
         builder.setLogTime(new Date(randomNonNegativeLong()));
         builder.setBucketAllocationFailuresCount(randomNonNegativeLong());

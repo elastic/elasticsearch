@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.job;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -33,13 +35,16 @@ import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobStorageDeletionTask;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -48,6 +53,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -348,17 +355,46 @@ public class JobManager extends AbstractComponent {
     public void revertSnapshot(RevertModelSnapshotAction.Request request, ActionListener<RevertModelSnapshotAction.Response> actionListener,
             ModelSnapshot modelSnapshot) {
 
+        final JobResultsPersister persister = new JobResultsPersister(settings, client);
+
+        // Step 2. After the model size stats is persisted, also persist the snapshot's quantiles and respond
+        // -------
+        CheckedConsumer<IndexResponse, Exception> modelSizeStatsResponseHandler = response -> {
+            persister.persistQuantiles(modelSnapshot.getQuantiles(), WriteRequest.RefreshPolicy.IMMEDIATE,
+                    ActionListener.wrap(quantilesResponse -> {
+                        // The quantiles can be large, and totally dominate the output -
+                        // it's clearer to remove them as they are not necessary for the revert op
+                        ModelSnapshot snapshotWithoutQuantiles = new ModelSnapshot.Builder(modelSnapshot).setQuantiles(null).build();
+                        actionListener.onResponse(new RevertModelSnapshotAction.Response(snapshotWithoutQuantiles));
+                    }, actionListener::onFailure));
+        };
+
+        // Step 1. When the model_snapshot_id is updated on the job, persist the snapshot's model size stats with a touched log time
+        // so that a search for the latest model size stats returns the reverted one.
+        // -------
+        CheckedConsumer<Boolean, Exception> updateHandler = response -> {
+            if (response) {
+                ModelSizeStats revertedModelSizeStats = new ModelSizeStats.Builder(modelSnapshot.getModelSizeStats())
+                        .setLogTime(new Date()).build();
+                persister.persistModelSizeStats(revertedModelSizeStats, WriteRequest.RefreshPolicy.IMMEDIATE, ActionListener.wrap(
+                        modelSizeStatsResponseHandler::accept, actionListener::onFailure));
+            }
+        };
+
+        // Step 0. Kick off the chain of callbacks with the cluster state update
+        // -------
         clusterService.submitStateUpdateTask("revert-snapshot-" + request.getJobId(),
-                new AckedClusterStateUpdateTask<RevertModelSnapshotAction.Response>(request, actionListener) {
+                new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(updateHandler, actionListener::onFailure)) {
 
             @Override
-            protected RevertModelSnapshotAction.Response newResponse(boolean acknowledged) {
+            protected Boolean newResponse(boolean acknowledged) {
                 if (acknowledged) {
                     auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
-                    return new RevertModelSnapshotAction.Response(modelSnapshot);
+                    return true;
                 }
-                throw new IllegalStateException("Could not revert modelSnapshot on job ["
-                        + request.getJobId() + "], not acknowledged by master.");
+                actionListener.onFailure(new IllegalStateException("Could not revert modelSnapshot on job ["
+                        + request.getJobId() + "], not acknowledged by master."));
+                return false;
             }
 
             @Override

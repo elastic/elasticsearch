@@ -82,9 +82,6 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
         if (randomBoolean()) {
             stats.setMemoryStatus(randomFrom(MemoryStatus.values()));
         }
-        if (randomBoolean()) {
-            stats.setId(randomAlphaOfLengthBetween(1, 20));
-        }
         return stats.build();
     }
 

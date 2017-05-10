@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
+import org.elasticsearch.xpack.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
+import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobAction;
@@ -203,6 +205,11 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
         assertBusy(() -> assertThat(getJobStats(jobId).get(0).getState(), equalTo(JobState.CLOSED)), 30, TimeUnit.SECONDS);
     }
 
+    protected List<Job> getJob(String jobId) {
+        GetJobsAction.Request request = new GetJobsAction.Request(jobId);
+        return client().execute(GetJobsAction.INSTANCE, request).actionGet().getResponse().results();
+    }
+
     protected List<GetJobsStatsAction.Response.JobStats> getJobStats(String jobId) {
         GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
         GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
@@ -233,6 +240,11 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
         GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request(jobId, null);
         GetModelSnapshotsAction.Response response = client().execute(GetModelSnapshotsAction.INSTANCE, request).actionGet();
         return response.getPage().results();
+    }
+
+    protected RevertModelSnapshotAction.Response revertModelSnapshot(String jobId, String snapshotId) {
+        RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(jobId, snapshotId);
+        return client().execute(RevertModelSnapshotAction.INSTANCE, request).actionGet();
     }
 
     protected List<CategoryDefinition> getCategories(String jobId) {

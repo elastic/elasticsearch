@@ -37,7 +37,17 @@ setup:
             "snapshot_id": "first",
             "description": "first snapshot",
             "latest_record_time_stamp": "2016-06-02T00:00:00Z",
-            "latest_result_time_stamp": "2016-06-02T00:00:00Z"
+            "latest_result_time_stamp": "2016-06-02T00:00:00Z",
+            "model_size_stats": {
+              "job_id": "revert-model-snapshot",
+              "model_bytes": 10,
+              "log_time": "2016-06-02T00:00:00Z"
+            },
+            "quantiles": {
+              "job_id": "revert-model-snapshot",
+              "timestamp": 1464825600000,
+              "quantile_state": "quantiles-1"
+            }
           }
 
   - do:
@@ -52,7 +62,17 @@ setup:
             "snapshot_id": "second",
             "description": "second snapshot",
             "latest_record_time_stamp": "2016-06-01T00:00:00Z",
-            "latest_result_time_stamp": "2016-06-01T00:00:00Z"
+            "latest_result_time_stamp": "2016-06-01T00:00:00Z",
+            "model_size_stats": {
+              "job_id": "revert-model-snapshot",
+              "model_bytes": 20,
+              "log_time": "2016-06-01T00:00:00Z"
+            },
+            "quantiles": {
+              "job_id": "revert-model-snapshot",
+              "timestamp": 1464739200000,
+              "quantile_state": "quantiles-2"
+            }
           }
 
   - do:

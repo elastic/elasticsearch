@@ -6,11 +6,16 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -32,7 +37,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -221,18 +225,28 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistCategoryDefinition(CategoryDefinition category) {
         Persistable persistable = new Persistable(category.getJobId(), category, CategoryDefinition.TYPE.getPreferredName(),
                 CategoryDefinition.documentId(category.getJobId(), Long.toString(category.getCategoryId())));
-        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(category.getJobId()));
+        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(category.getJobId())).actionGet();
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
     }
 
     /**
-     * Persist the quantiles
+     * Persist the quantiles (blocking)
      */
     public void persistQuantiles(Quantiles quantiles) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.TYPE.getPreferredName(),
                 Quantiles.documentId(quantiles.getJobId()));
-        persistable.persist(AnomalyDetectorsIndex.jobStateIndexName());
+        persistable.persist(AnomalyDetectorsIndex.jobStateIndexName()).actionGet();
+    }
+
+    /**
+     * Persist the quantiles (async)
+     */
+    public void persistQuantiles(Quantiles quantiles, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<IndexResponse> listener) {
+        Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.TYPE.getPreferredName(),
+                Quantiles.documentId(quantiles.getJobId()));
+        persistable.setRefreshPolicy(refreshPolicy);
+        persistable.persist(AnomalyDetectorsIndex.jobStateIndexName(), listener);
     }
 
     /**
@@ -241,18 +255,31 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistModelSnapshot(ModelSnapshot modelSnapshot) {
         Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.TYPE.getPreferredName(),
                 ModelSnapshot.documentId(modelSnapshot));
-        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()));
+        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId())).actionGet();
+    }
+
+    /**
+     * Persist the memory usage data (blocking)
+     */
+    public void persistModelSizeStats(ModelSizeStats modelSizeStats) {
+        String jobId = modelSizeStats.getJobId();
+        logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
+        Persistable persistable = new Persistable(jobId, modelSizeStats, Result.TYPE.getPreferredName(), modelSizeStats.documentId());
+        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).actionGet();
+        // Don't commit as we expect masses of these updates and they're only
+        // for information at the API level
     }
 
     /**
      * Persist the memory usage data
      */
-    public void persistModelSizeStats(ModelSizeStats modelSizeStats) {
+    public void persistModelSizeStats(ModelSizeStats modelSizeStats, WriteRequest.RefreshPolicy refreshPolicy,
+                                      ActionListener<IndexResponse> listener) {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
-        Persistable persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE.getPreferredName(),
-                modelSizeStats.documentId());
-        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
+        Persistable persistable = new Persistable(jobId, modelSizeStats, Result.TYPE.getPreferredName(), modelSizeStats.documentId());
+        persistable.setRefreshPolicy(refreshPolicy);
+        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), listener);
         // Don't commit as we expect masses of these updates and they're only
         // for information at the API level
     }
@@ -262,7 +289,7 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistModelPlot(ModelPlot modelPlot) {
         Persistable persistable = new Persistable(modelPlot.getJobId(), modelPlot, Result.TYPE.getPreferredName(), null);
-        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(modelPlot.getJobId()));
+        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(modelPlot.getJobId())).actionGet();
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
     }
@@ -320,29 +347,37 @@ public class JobResultsPersister extends AbstractComponent {
         private final ToXContent object;
         private final String type;
         private final String id;
+        private WriteRequest.RefreshPolicy refreshPolicy;
 
         Persistable(String jobId, ToXContent object, String type, String id) {
             this.jobId = jobId;
             this.object = object;
             this.type = type;
             this.id = id;
+            this.refreshPolicy = WriteRequest.RefreshPolicy.NONE;
         }
 
-        boolean persist(String indexName) {
-            if (object == null) {
-                logger.warn("[{}] No {} to persist for job ", jobId, type);
-                return false;
-            }
+        void setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
+            this.refreshPolicy = refreshPolicy;
+        }
 
+        ActionFuture<IndexResponse> persist(String indexName) {
+            PlainActionFuture<IndexResponse> actionFuture = PlainActionFuture.newFuture();
+            persist(indexName, actionFuture);
+            return actionFuture;
+        }
+
+        void persist(String indexName, ActionListener<IndexResponse> listener) {
             logCall(indexName);
 
             try (XContentBuilder content = toXContentBuilder(object)) {
-                IndexRequest indexRequest = new IndexRequest(indexName, type, id).source(content);
-                client.index(indexRequest).actionGet();
-                return true;
+                IndexRequest indexRequest = new IndexRequest(indexName, type, id).source(content).setRefreshPolicy(refreshPolicy);
+                client.index(indexRequest, listener);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error writing {}", new Object[]{jobId, type}), e);
-                return false;
+                IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();
+                notCreatedResponse.setCreated(false);
+                listener.onResponse(notCreatedResponse.build());
             }
         }
 

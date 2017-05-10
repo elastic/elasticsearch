@@ -97,7 +97,7 @@ extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response
         private String sort;
         private String start;
         private String end;
-        private boolean desc;
+        private boolean desc = true;
         private PageParams pageParams = new PageParams();
 
         Request() {

@@ -310,9 +310,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
                     throw new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(),
                             request.getJobId()));
                 }
-                // The quantiles can be large, and totally dominate the output -
-                // it's clearer to remove them as they are not necessary for the revert op
-                handler.accept(new ModelSnapshot.Builder(modelSnapshot).setQuantiles(null).build());
+                handler.accept(modelSnapshot);
             }, errorHandler);
         }
 

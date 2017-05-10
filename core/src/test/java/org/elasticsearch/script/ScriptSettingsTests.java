@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptSettingsTests extends ESTestCase {
+
     public static Setting<?>[] buildDeprecatedSettingsArray(ScriptSettings scriptSettings, String... keys) {
         return buildDeprecatedSettingsArray(null, scriptSettings, keys);
     }

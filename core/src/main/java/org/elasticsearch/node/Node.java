@@ -684,10 +684,9 @@ public class Node implements Closeable {
             .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
 
         clusterService.addStateApplier(transportService.getTaskManager());
-        clusterService.getClusterApplierService().setInitialState(discovery.getInitialClusterState());
         // start after transport service so the local disco is known
+        discovery.start(); // start before cluster service so that it can set initial state on ClusterApplierService
         clusterService.start();
-        discovery.start();
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();

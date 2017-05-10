@@ -21,7 +21,6 @@ package org.elasticsearch.discovery;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -47,12 +46,6 @@ public interface Discovery extends LifecycleComponent {
      * Any other exception signals the something wrong happened but the change is committed.
      */
     void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener);
-
-    /**
-     * Returns the initial cluster state provided by the discovery module. Used by
-     * {@link org.elasticsearch.cluster.service.ClusterApplierService} as initial applied state.
-     */
-    ClusterState getInitialClusterState();
 
     interface AckListener {
         void onNodeAck(DiscoveryNode node, @Nullable Exception e);

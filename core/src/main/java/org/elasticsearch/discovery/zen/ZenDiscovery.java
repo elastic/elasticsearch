@@ -145,7 +145,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private final ClusterApplier clusterApplier;
     private final AtomicReference<ClusterState> state; // last committed cluster state
     private final Object stateMutex = new Object();
-    private volatile ClusterState initialState; // set lazily when discovery layer is started
 
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                         NamedWriteableRegistry namedWriteableRegistry, MasterService masterService, ClusterApplier clusterApplier,
@@ -231,8 +230,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         DiscoveryNode localNode = transportService.getLocalNode();
         assert localNode != null;
         synchronized (stateMutex) {
-            initialState = getInitialClusterState();
+            // set initial state
+            assert state.get() == null;
+            assert localNode != null;
+            ClusterState initialState = ClusterState.builder(clusterName)
+                .blocks(ClusterBlocks.builder()
+                    .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+                    .addGlobalBlock(discoverySettings.getNoMasterBlock()))
+                .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
+                .build();
             state.set(initialState);
+            clusterApplier.setInitialState(initialState);
             nodesFD.setLocalNode(localNode);
             joinThreadControl.start();
         }
@@ -371,22 +379,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 e);
             Thread.currentThread().interrupt();
         }
-    }
-
-    @Override
-    public synchronized ClusterState getInitialClusterState() {
-        if (initialState == null) {
-            assert state.get() == null;
-            DiscoveryNode localNode = transportService.getLocalNode();
-            assert localNode != null;
-            initialState = ClusterState.builder(clusterName)
-                .blocks(ClusterBlocks.builder()
-                    .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-                    .addGlobalBlock(discoverySettings.getNoMasterBlock()))
-                .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
-                .build();
-        }
-        return initialState;
     }
 
     /**

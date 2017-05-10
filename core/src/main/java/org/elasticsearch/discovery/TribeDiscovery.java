@@ -51,21 +51,17 @@ public class TribeDiscovery extends SingleNodeDiscovery implements Discovery {
     }
 
     @Override
-    public synchronized ClusterState getInitialClusterState() {
-        if (initialState == null) {
-            ClusterBlocks.Builder clusterBlocks = ClusterBlocks.builder(); // don't add no_master / state recovery block
-            if (BLOCKS_WRITE_SETTING.get(settings)) {
-                clusterBlocks.addGlobalBlock(TRIBE_WRITE_BLOCK);
-            }
-            if (BLOCKS_METADATA_SETTING.get(settings)) {
-                clusterBlocks.addGlobalBlock(TRIBE_METADATA_BLOCK);
-            }
-            DiscoveryNode localNode = transportService.getLocalNode();
-            initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-                .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
-                .blocks(clusterBlocks).build();
+    protected ClusterState createInitialState(DiscoveryNode localNode) {
+        ClusterBlocks.Builder clusterBlocks = ClusterBlocks.builder(); // don't add no_master / state recovery block
+        if (BLOCKS_WRITE_SETTING.get(settings)) {
+            clusterBlocks.addGlobalBlock(TRIBE_WRITE_BLOCK);
         }
-        return initialState;
+        if (BLOCKS_METADATA_SETTING.get(settings)) {
+            clusterBlocks.addGlobalBlock(TRIBE_METADATA_BLOCK);
+        }
+        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
+            .blocks(clusterBlocks).build();
     }
 
     @Override

@@ -49,7 +49,6 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
 
     protected final TransportService transportService;
     private final ClusterApplier clusterApplier;
-    protected volatile ClusterState initialState;
     private volatile ClusterState clusterState;
 
     public SingleNodeDiscovery(final Settings settings, final TransportService transportService,
@@ -94,31 +93,18 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     @Override
-    public synchronized ClusterState getInitialClusterState() {
-        if (initialState == null) {
-            DiscoveryNode localNode = transportService.getLocalNode();
-            initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-                .nodes(DiscoveryNodes.builder().add(localNode)
-                    .localNodeId(localNode.getId())
-                    .masterNodeId(localNode.getId())
-                    .build())
-                .blocks(ClusterBlocks.builder()
-                    .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
-                .build();
-        }
-        return initialState;
-    }
-
-    @Override
     public DiscoveryStats stats() {
         return new DiscoveryStats((PendingClusterStateStats) null);
     }
 
     @Override
     public synchronized void startInitialJoin() {
+        if (lifecycle.started() == false) {
+            throw new IllegalStateException("can't start initial join when not started");
+        }
         // apply a fresh cluster state just so that state recovery gets triggered by GatewayService
         // TODO: give discovery module control over GatewayService
-        clusterState = ClusterState.builder(getInitialClusterState()).build();
+        clusterState = ClusterState.builder(clusterState).build();
         clusterApplier.onNewClusterState("single-node-start-initial-join", () -> clusterState, (source, e) -> {});
     }
 
@@ -129,8 +115,21 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
 
     @Override
     protected synchronized void doStart() {
-        initialState = getInitialClusterState();
-        clusterState = initialState;
+        // set initial state
+        DiscoveryNode localNode = transportService.getLocalNode();
+        clusterState = createInitialState(localNode);
+        clusterApplier.setInitialState(clusterState);
+    }
+
+    protected ClusterState createInitialState(DiscoveryNode localNode) {
+        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+            .nodes(DiscoveryNodes.builder().add(localNode)
+                .localNodeId(localNode.getId())
+                .masterNodeId(localNode.getId())
+                .build())
+            .blocks(ClusterBlocks.builder()
+                .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
+            .build();
     }
 
     @Override

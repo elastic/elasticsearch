@@ -27,8 +27,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.children.InternalChildrenTests;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
+import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogramTests;
+import org.elasticsearch.search.aggregations.bucket.missing.InternalMissingTests;
+import org.elasticsearch.search.aggregations.bucket.nested.InternalNestedTests;
+import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNestedTests;
+import org.elasticsearch.search.aggregations.bucket.sampler.InternalSamplerTests;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
@@ -103,6 +110,13 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new LongTermsTests());
         aggsTests.add(new DoubleTermsTests());
         aggsTests.add(new StringTermsTests());
+        aggsTests.add(new InternalMissingTests());
+        aggsTests.add(new InternalNestedTests());
+        aggsTests.add(new InternalReverseNestedTests());
+        aggsTests.add(new InternalChildrenTests());
+        aggsTests.add(new InternalGlobalTests());
+        aggsTests.add(new InternalFilterTests());
+        aggsTests.add(new InternalSamplerTests());
         return Collections.unmodifiableList(aggsTests);
     }
 

@@ -66,8 +66,10 @@ public abstract class ParsedSingleBucketAggregation extends ParsedAggregation im
         aggregation.setName(name);
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = parser.currentName();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        if (token == XContentParser.Token.FIELD_NAME) {
+            token = parser.nextToken();
+        }
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
 
         List<Aggregation> aggregations = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

@@ -48,14 +48,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 public abstract class InternalSingleBucketAggregationTestCase<T extends InternalSingleBucketAggregation>
         extends InternalAggregationTestCase<T> {
 
-    private final boolean hasInternalMax = randomBoolean();
-    private final boolean hasInternalMin = randomBoolean();
+    private boolean hasInternalMax;
+    private boolean hasInternalMin;
 
     public Supplier<InternalAggregations> subAggregationsSupplier;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        hasInternalMax = randomBoolean();
+        hasInternalMin = randomBoolean();
         subAggregationsSupplier = () -> {
             List<InternalAggregation> aggs = new ArrayList<>();
             if (hasInternalMax) {

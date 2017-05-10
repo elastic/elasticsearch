@@ -37,7 +37,7 @@ public class CppLogMessage extends ToXContentToBytes implements Writeable {
     public static final ParseField LINE_FIELD = new ParseField("line");
 
     public static final ObjectParser<CppLogMessage, Void> PARSER = new ObjectParser<>(
-            LOGGER_FIELD.getPreferredName(), CppLogMessage::new);
+            LOGGER_FIELD.getPreferredName(), () -> new CppLogMessage(Instant.now()));
 
     static {
         PARSER.declareString(CppLogMessage::setLogger, LOGGER_FIELD);
@@ -68,8 +68,8 @@ public class CppLogMessage extends ToXContentToBytes implements Writeable {
     private String file = "";
     private long line = 0;
 
-    public CppLogMessage() {
-        timestamp = Instant.now();
+    public CppLogMessage(Instant timestamp) {
+        this.timestamp = timestamp;
     }
 
     public CppLogMessage(StreamInput in) throws IOException {

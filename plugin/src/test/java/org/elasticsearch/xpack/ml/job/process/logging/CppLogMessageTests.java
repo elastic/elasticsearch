@@ -6,15 +6,22 @@
 package org.elasticsearch.xpack.ml.job.process.logging;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+
+import java.io.IOException;
+import java.time.Instant;
 
 public class CppLogMessageTests extends AbstractSerializingTestCase<CppLogMessage> {
 
     public void testDefaultConstructor() {
-        CppLogMessage msg = new CppLogMessage();
+        CppLogMessage msg = new CppLogMessage(Instant.ofEpochSecond(1494422876L));
         assertEquals("", msg.getLogger());
-        assertTrue(msg.getTimestamp().toString(), msg.getTimestamp().toEpochMilli() > 0);
+        assertEquals(Instant.ofEpochSecond(1494422876L), msg.getTimestamp());
         assertEquals("", msg.getLevel());
         assertEquals(0, msg.getPid());
         assertEquals("", msg.getThread());
@@ -25,9 +32,24 @@ public class CppLogMessageTests extends AbstractSerializingTestCase<CppLogMessag
         assertEquals(0, msg.getLine());
     }
 
+    public void testParseWithMissingTimestamp() throws IOException {
+        XContent xContent = XContentFactory.xContent(XContentType.JSON);
+        Instant before = Instant.now();
+
+        String input = "{\"logger\":\"controller\",\"level\":\"INFO\","
+                + "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\","
+                + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+        XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, input);
+        CppLogMessage msg = CppLogMessage.PARSER.apply(parser, null);
+
+        Instant after = Instant.now();
+        assertTrue(before.isBefore(msg.getTimestamp()) || before.equals(msg.getTimestamp()));
+        assertTrue(after.isAfter(msg.getTimestamp()) || after.equals(msg.getTimestamp()));
+    }
+
     @Override
     protected CppLogMessage createTestInstance() {
-        CppLogMessage msg = new CppLogMessage();
+        CppLogMessage msg = new CppLogMessage(Instant.ofEpochSecond(1494422876L));
         msg.setLogger("autodetect");
         msg.setLevel("INFO");
         msg.setPid(12345);

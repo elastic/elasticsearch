@@ -78,7 +78,7 @@ public abstract class ParsedMultiBucketAggregation<B extends ParsedMultiBucketAg
         }, CommonFields.BUCKETS, ObjectParser.ValueType.OBJECT_ARRAY);
     }
 
-    public static abstract class ParsedBucket implements MultiBucketsAggregation.Bucket {
+    public abstract static class ParsedBucket implements MultiBucketsAggregation.Bucket {
 
         private Aggregations aggregations;
         private String keyAsString;

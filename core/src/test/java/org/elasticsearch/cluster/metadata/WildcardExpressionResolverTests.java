@@ -53,6 +53,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "-testXXX"))), equalTo(newHashSet("testXXX", "-testXXX")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "+testY*"))), equalTo(newHashSet("testXXX", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "-testX*"))), equalTo(newHashSet("testXXX")));
+        assertWarnings("use of + is deprecated in index names as it is implicit");
     }
 
     public void testConvertWildcardsTests() {
@@ -70,6 +71,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+test*", "-testYYY"))), equalTo(newHashSet("testXXX", "testXYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+testX*", "+testYYY"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+testYYY", "+testX*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertWarnings("use of + is deprecated in index names as it is implicit");
     }
 
     public void testConvertWildcardsOpenClosedIndicesTests() {

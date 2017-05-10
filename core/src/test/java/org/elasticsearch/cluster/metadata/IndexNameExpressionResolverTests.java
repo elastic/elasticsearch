@@ -642,6 +642,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         indexNames = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), "*", "-*");
         assertEquals(0, indexNames.length);
+        assertWarnings("use of + is deprecated in index names as it is implicit");
     }
 
     /**

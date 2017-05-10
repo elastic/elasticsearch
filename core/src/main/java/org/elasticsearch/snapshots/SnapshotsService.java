@@ -168,7 +168,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public List<SnapshotInfo> snapshots(final String repositoryName,
                                         final List<SnapshotId> snapshotIds,
-                                        final List<SnapshotId> incompatibleSnapshotIds,
+                                        final Set<SnapshotId> incompatibleSnapshotIds,
                                         final boolean ignoreUnavailable) {
         final Set<SnapshotInfo> snapshotSet = new HashSet<>();
         final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.xcontent;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -91,10 +92,9 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     private final boolean ignoreUnknownFields;
 
     /**
-     * A special purpose field parser that gets used when the provided matchFieldPrecidate accepts it
+     * A special purpose field parser that gets used when the provided matchFieldPredicate accepts it
      */
-    private FieldParser matchFieldParser;
-    private Predicate<String> matchFieldPredicate;
+    SetOnce<MatchField> matchField = new SetOnce<>();
 
     /**
      * Creates a new ObjectParser instance with a name. This name is used to reference the parser in exceptions and messages.
@@ -225,7 +225,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     /**
      * Declares a parser for fields where the exact field name is not known when
      * creating the ObjectParser. In order for this field name to match, it has
-     * to be accepted by a provided predicate As an example, in the aggregation
+     * to be accepted by a provided predicate. As an example, in the aggregation
      * output parsing for the high level java rest client we have things like:
      *
      * <pre>
@@ -256,25 +256,36 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
      *            handle the values once they have been parsed
      * @param parser
      *            parses each nested object
-     * @param fieldNameMatcher
+     * @param fieldNamePredicate
      *            a predicate that returns true if the provided parser should
      *            handle this field
      * @param type
      *            the accepted values for this field
      */
     public <T> void declareMatchFieldParser(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser,
-            Predicate<String> fieldNameMatcher, ValueType type) {
+            Predicate<String> fieldNamePredicate, ValueType type) {
         Objects.requireNonNull(consumer, "[consumer] is required");
         Objects.requireNonNull(parser, "[parser] is required");
-        Objects.requireNonNull(fieldNameMatcher, "[fieldNameMatcher] is required");
+        Objects.requireNonNull(fieldNamePredicate, "[fieldNameMatcher] is required");
         Objects.requireNonNull(type, "[type] is required");
-        this.matchFieldPredicate = fieldNameMatcher;
-        this.matchFieldParser = new MatchAllFieldParser((p, v, c) -> consumer.accept(v, parser.parse(p, c)), type);
+        this.matchField
+                .set(new MatchField(new MatchFieldParser((p, v, c) -> consumer.accept(v, parser.parse(p, c)), type), fieldNamePredicate));
     }
 
-    private class MatchAllFieldParser extends FieldParser {
+    private class MatchField {
 
-        MatchAllFieldParser(Parser<Value, Context> parser, ValueType type) {
+        private final FieldParser parser;
+        private final Predicate<String> predicate;
+
+        private MatchField(final FieldParser matchFieldParser, final Predicate<String> matchFieldPredicate) {
+            this.parser = matchFieldParser;
+            this.predicate = matchFieldPredicate;
+        }
+    }
+
+    private class MatchFieldParser extends FieldParser {
+
+        MatchFieldParser(Parser<Value, Context> parser, ValueType type) {
             super(parser, type.supportedTokens(), null, type);
         }
 
@@ -423,8 +434,9 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     private FieldParser getParser(String fieldName) {
         FieldParser parser = fieldParserMap.get(fieldName);
         if (parser == null) {
-            if (this.matchFieldParser != null && this.matchFieldPredicate.test(fieldName)) {
-                parser = this.matchFieldParser;
+            MatchField matchField = this.matchField.get();
+            if (matchField != null && matchField.predicate.test(fieldName)) {
+                parser = matchField.parser;
             } else if (false == this.ignoreUnknownFields) {
                 throw new IllegalArgumentException("[" + name  + "] unknown field [" + fieldName + "], parser not found");
             }

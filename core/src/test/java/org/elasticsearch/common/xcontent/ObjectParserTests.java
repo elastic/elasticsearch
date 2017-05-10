@@ -597,7 +597,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     /**
-     * test parsing fields with a random name
+     * test parsing fields with an unknown field name
      */
     public void testUnknownFieldParser() throws IOException {
         XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
@@ -634,7 +634,7 @@ public class ObjectParserTests extends ESTestCase {
             return new Tuple<>(name, value);
         }, s -> s.contains("#"), ObjectParser.ValueType.STRING);
 
-        if (ignoreUnknown == true) {
+        if (ignoreUnknown) {
             TestObject s = objectParser.parse(parser, new TestObject(), null);
             assertEquals(s.test, "foo");
             assertEquals(s.unknown, "foo2");
@@ -646,6 +646,9 @@ public class ObjectParserTests extends ESTestCase {
         }
     }
 
+    /**
+     * test parsing fields with an unknown field name that are itself json objects
+     */
     public void testUnknownFieldParserInnerObject() throws IOException {
         XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
         String randomType1 = randomAlphaOfLength(5);
@@ -699,7 +702,7 @@ public class ObjectParserTests extends ESTestCase {
             return innerObject;
         }, s -> s.contains("#"), ObjectParser.ValueType.OBJECT);
 
-        if (ignoreUnknown == true) {
+        if (ignoreUnknown) {
             TestObject s = objectParser.parse(parser, new TestObject(), null);
             assertEquals(s.value, "outerValue");
             assertNull(s.name);

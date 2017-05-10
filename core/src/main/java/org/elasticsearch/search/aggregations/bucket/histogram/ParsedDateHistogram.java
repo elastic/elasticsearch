@@ -73,7 +73,7 @@ public class ParsedDateHistogram extends ParsedMultiBucketAggregation<ParsedDate
             if (keyAsString != null) {
                 return keyAsString;
             }
-            if (key != null){
+            if (key != null) {
                 return Long.toString(key);
             }
             return null;

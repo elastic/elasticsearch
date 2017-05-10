@@ -20,8 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.Before;
 
 import java.util.List;

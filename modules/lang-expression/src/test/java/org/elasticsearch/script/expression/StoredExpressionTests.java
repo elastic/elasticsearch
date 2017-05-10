@@ -52,14 +52,14 @@ public class StoredExpressionTests extends ESIntegTestCase {
 
     public void testAllOpsDisabledIndexedScripts() throws IOException {
         client().admin().cluster().preparePutStoredScript()
-                .setLang(ExpressionScriptEngineService.NAME)
+                .setLang(ExpressionScriptEngine.NAME)
                 .setId("script1")
                 .setContent(new BytesArray("{\"script\":\"2\"}"), XContentType.JSON)
                 .get();
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(new Script(ScriptType.STORED, ExpressionScriptEngineService.NAME, "script1", Collections.emptyMap())).get();
+                    .setScript(new Script(ScriptType.STORED, ExpressionScriptEngine.NAME, "script1", Collections.emptyMap())).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));

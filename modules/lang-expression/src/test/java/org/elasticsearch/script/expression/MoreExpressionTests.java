@@ -444,15 +444,15 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 .addAggregation(
                         AggregationBuilders.stats("int_agg").field("x")
                                 .script(new Script(ScriptType.INLINE,
-                                    ExpressionScriptEngineService.NAME, "_value * 3", Collections.emptyMap())))
+                                    ExpressionScriptEngine.NAME, "_value * 3", Collections.emptyMap())))
                 .addAggregation(
                         AggregationBuilders.stats("double_agg").field("y")
                                 .script(new Script(ScriptType.INLINE,
-                                    ExpressionScriptEngineService.NAME, "_value - 1.1", Collections.emptyMap())))
+                                    ExpressionScriptEngine.NAME, "_value - 1.1", Collections.emptyMap())))
                 .addAggregation(
                         AggregationBuilders.stats("const_agg").field("x") // specifically to test a script w/o _value
                                 .script(new Script(ScriptType.INLINE,
-                                    ExpressionScriptEngineService.NAME, "3.0", Collections.emptyMap()))
+                                    ExpressionScriptEngine.NAME, "3.0", Collections.emptyMap()))
                 );
 
         SearchResponse rsp = req.get();
@@ -487,7 +487,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 .addAggregation(
                         AggregationBuilders.terms("term_agg").field("text")
                                 .script(
-                                    new Script(ScriptType.INLINE, ExpressionScriptEngineService.NAME, "_value", Collections.emptyMap())));
+                                    new Script(ScriptType.INLINE, ExpressionScriptEngine.NAME, "_value", Collections.emptyMap())));
 
         String message;
         try {
@@ -577,7 +577,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             UpdateRequestBuilder urb = client().prepareUpdate().setIndex("test_index");
             urb.setType("doc");
             urb.setId("1");
-            urb.setScript(new Script(ScriptType.INLINE, ExpressionScriptEngineService.NAME, "0", Collections.emptyMap()));
+            urb.setScript(new Script(ScriptType.INLINE, ExpressionScriptEngine.NAME, "0", Collections.emptyMap()));
             urb.get();
             fail("Expression scripts should not be allowed to run as update scripts.");
         } catch (Exception e) {
@@ -609,7 +609,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
                                 .subAggregation(sum("fourSum").field("four"))
                                 .subAggregation(bucketScript("totalSum",
                                     new Script(ScriptType.INLINE,
-                                        ExpressionScriptEngineService.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                                        ExpressionScriptEngine.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
                                     "twoSum", "threeSum", "fourSum")))
                 .execute().actionGet();
 

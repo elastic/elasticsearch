@@ -29,14 +29,13 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptSettingsTests extends ESTestCase {
 
     public void testSettingsAreProperlyPropogated() {
         ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
+            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngine()));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         boolean enabled = randomBoolean();
@@ -50,7 +49,7 @@ public class ScriptSettingsTests extends ESTestCase {
         }
     }
 
-    private static class CustomScriptEngineService implements ScriptEngineService {
+    private static class CustomScriptEngine implements ScriptEngine {
 
         public static final String NAME = "custom";
 

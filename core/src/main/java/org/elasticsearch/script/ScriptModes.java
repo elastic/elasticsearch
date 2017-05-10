@@ -57,7 +57,7 @@ public class ScriptModes {
      */
     public boolean getScriptEnabled(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         //native scripts are always enabled as they are static by definition
-        if (NativeScriptEngineService.NAME.equals(lang)) {
+        if (NativeScriptEngine.NAME.equals(lang)) {
             return true;
         }
         Boolean scriptMode = scriptEnabled.get(getKey(lang, scriptType, scriptContext));

@@ -43,7 +43,7 @@ public class ScriptModesTests extends ESTestCase {
     ScriptSettings scriptSettings;
     ScriptContextRegistry scriptContextRegistry;
     private ScriptContext[] scriptContexts;
-    private Map<String, ScriptEngineService> scriptEngines;
+    private Map<String, ScriptEngine> scriptEngines;
     private ScriptModes scriptModes;
     private Set<String> checkedSettings;
     private boolean assertAllSettingsWereChecked;
@@ -65,8 +65,8 @@ public class ScriptModesTests extends ESTestCase {
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
         scriptEngines = buildScriptEnginesByLangMap(newHashSet(
                 //add the native engine just to make sure it gets filtered out
-                new NativeScriptEngineService(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
-                new CustomScriptEngineService()));
+                new NativeScriptEngine(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
+                new CustomScriptEngine()));
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngines.values());
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         checkedSettings = new HashSet<>();
@@ -77,7 +77,7 @@ public class ScriptModesTests extends ESTestCase {
     @After
     public void assertNativeScriptsAreAlwaysAllowed() {
         if (assertScriptModesNonNull) {
-            assertThat(scriptModes.getScriptEnabled(NativeScriptEngineService.NAME, randomFrom(ScriptType.values()), randomFrom(scriptContexts)), equalTo(true));
+            assertThat(scriptModes.getScriptEnabled(NativeScriptEngine.NAME, randomFrom(ScriptType.values()), randomFrom(scriptContexts)), equalTo(true));
         }
     }
 
@@ -216,16 +216,16 @@ public class ScriptModesTests extends ESTestCase {
         return copy.values().toArray(new ScriptContext[copy.size()]);
     }
 
-    static Map<String, ScriptEngineService> buildScriptEnginesByLangMap(Set<ScriptEngineService> scriptEngines) {
-        Map<String, ScriptEngineService> builder = new HashMap<>();
-        for (ScriptEngineService scriptEngine : scriptEngines) {
+    static Map<String, ScriptEngine> buildScriptEnginesByLangMap(Set<ScriptEngine> scriptEngines) {
+        Map<String, ScriptEngine> builder = new HashMap<>();
+        for (ScriptEngine scriptEngine : scriptEngines) {
             String type = scriptEngine.getType();
             builder.put(type, scriptEngine);
         }
         return unmodifiableMap(builder);
     }
 
-    private static class CustomScriptEngineService implements ScriptEngineService {
+    private static class CustomScriptEngine implements ScriptEngine {
 
         public static final String NAME = "custom";
 

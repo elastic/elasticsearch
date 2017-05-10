@@ -163,16 +163,6 @@ final class Bootstrap {
 
         try {
             spawner.spawnNativePluginControllers(environment);
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        spawner.close();
-                    } catch (IOException e) {
-                        throw new ElasticsearchException("Failed to destroy spawned controllers", e);
-                    }
-                }
-            });
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
@@ -190,7 +180,7 @@ final class Bootstrap {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
-                    try {
+                    try (Spawner spawnerToClose = spawner) {
                         IOUtils.close(node);
                         LoggerContext context = (LoggerContext) LogManager.getContext(false);
                         Configurator.shutdown(context);
@@ -268,7 +258,7 @@ final class Bootstrap {
     }
 
     static void stop() throws IOException {
-        try {
+        try (Spawner spawnerToClose = INSTANCE.spawner) {
             IOUtils.close(INSTANCE.node);
         } finally {
             INSTANCE.keepAliveLatch.countDown();

@@ -1,6 +1,8 @@
 [[modules-tribe]]
 == Tribe node
 
+deprecated[5.4.0,The `tribe` node is deprecated in favour of <<modules-cross-cluster-search>> and will be removed in Elasticsearch 7.0.]
+
 The _tribes_ feature allows a _tribe node_ to act as a federated client across
 multiple clusters.
 

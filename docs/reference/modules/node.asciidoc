@@ -41,16 +41,19 @@ A tribe node, configured via the `tribe.*` settings, is a special type  of
 coordinating only node that can connect to multiple clusters and perform
 search and other operations across all connected clusters.
 
+<<machine-learning-node,Machine learning node>>:: {empty}
+
+
 [role="xpack"]
 [NOTE]
 =====================================================================
-<<machine-learning-node,Machine learning node>>::
 A node that has `xpack.ml.enabled` and `node.ml` set to `true`, which is the
 default behavior when X-Pack is installed. If you want to use X-Pack machine
 learning features, there must be at least one machine learning node in your
-cluster. For more information about X-Pack machine learning features, see
-{xpack}/xpack-ml.html[Machine Learning in the Elastic Stack].
+cluster. For more information about X-Pack machine learning features,
+see {xpack}/xpack-ml.html[Machine Learning in the Elastic Stack].
 =====================================================================
+
 
 By default, nodes are master-eligible, data, and ingest nodes. If X-Pack is
 installed, they are also machine learning nodes by default. This is very
@@ -289,15 +292,18 @@ Otherwise, the node fails to start.
 [[machine-learning-node]]
 === Machine learning node
 
+--
+[role="xpack"]
+[NOTE]
+=====================================================================
 The X-Pack machine learning features provide machine learning nodes, which run
 jobs and handle machine learning API requests.
 If `xpack.ml.enabled` is set to true and `node.ml` is set to `false`, the node
 can service API requests but it cannot run jobs.
 
-IMPORTANT: If you want to use X-Pack machine learning features in your cluster,
-you must enable machine learning (set `xpack.ml.enabled` to `true`) on all
-master-eligible nodes. Do not use these settings if you do not have X-Pack
-installed.
+If you want to use X-Pack machine learning features in your cluster, you must
+enable machine learning (set `xpack.ml.enabled` to `true`) on all master-eligible
+nodes. Do not use these settings if you do not have X-Pack installed.
 
 For more information about these settings,
 see {xpack}/ml-settings.html[Machine Learning Settings].
@@ -320,8 +326,10 @@ xpack.ml.enabled: true <6>
 <5> The `node.ml` role is enabled by default in X-Pack.
 <6> The `xpack.ml.enabled` setting is enabled by default in X-Pack.
 
-IMPORTANT: Do not set use the `node.ml` and `xpack.ml.enabled` settings unless
+Do not set use the `node.ml` and `xpack.ml.enabled` settings unless
 X-Pack is installed. Otherwise, the node fails to start.
+=====================================================================
+--
 
 [float]
 == Node data path settings

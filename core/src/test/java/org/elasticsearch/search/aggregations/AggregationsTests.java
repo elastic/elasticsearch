@@ -29,6 +29,9 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogramTests;
+import org.elasticsearch.search.aggregations.bucket.terms.DoubleTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMaxTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsBucketTests;
@@ -96,6 +99,9 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalGeoCentroidTests());
         aggsTests.add(new InternalHistogramTests());
         aggsTests.add(new InternalDateHistogramTests());
+        aggsTests.add(new LongTermsTests());
+        aggsTests.add(new DoubleTermsTests());
+        aggsTests.add(new StringTermsTests());
         return Collections.unmodifiableList(aggsTests);
     }
 

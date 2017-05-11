@@ -35,6 +35,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScrollEntity;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchEntity;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchParams;
@@ -43,6 +44,7 @@ import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scrol
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scrollParams;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -153,39 +155,60 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         if (scroll == null) {
             assertThat(params, not(hasKey("scroll")));
         } else {
-            assertEquals(scroll, TimeValue.parseTimeValue(params.get("scroll"), "scroll"));
+            assertScroll(remoteVersion, params, scroll);
         }
         assertThat(params, hasEntry("size", Integer.toString(size)));
         assertThat(params, fetchVersion == null || fetchVersion == true ? hasEntry("version", null) : not(hasEntry("version", null)));
     }
 
+    private void assertScroll(Version remoteVersion, Map<String, String> params, TimeValue requested) {
+        if (remoteVersion.before(Version.V_5_0_0)) {
+            // Versions of Elasticsearch prior to 5.0 can't parse nanos or micros in TimeValue.
+            assertThat(params.get("scroll"), not(either(endsWith("nanos")).or(endsWith("micros"))));
+            if (requested.getStringRep().endsWith("nanos") || requested.getStringRep().endsWith("micros")) {
+                long millis = (long) Math.ceil(requested.millisFrac());
+                assertEquals(TimeValue.parseTimeValue(params.get("scroll"), "scroll"), timeValueMillis(millis));
+                return;
+            }
+        }
+        assertEquals(requested, TimeValue.parseTimeValue(params.get("scroll"), "scroll"));
+    }
+
     public void testInitialSearchEntity() throws IOException {
+        Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
+
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(new SearchSourceBuilder());
         String query = "{\"match_all\":{}}";
-        HttpEntity entity = initialSearchEntity(searchRequest, new BytesArray(query));
+        HttpEntity entity = initialSearchEntity(searchRequest, new BytesArray(query), remoteVersion);
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
-        assertEquals("{\"query\":" + query + ",\"_source\":true}",
-                Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
+            assertEquals("{\"query\":" + query + ",\"_source\":true}",
+                    Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        } else {
+            assertEquals("{\"query\":" + query + "}",
+                    Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        }
 
         // Source filtering is included if set up
         searchRequest.source().fetchSource(new String[] {"in1", "in2"}, new String[] {"out"});
-        entity = initialSearchEntity(searchRequest, new BytesArray(query));
+        entity = initialSearchEntity(searchRequest, new BytesArray(query), remoteVersion);
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
         assertEquals("{\"query\":" + query + ",\"_source\":{\"includes\":[\"in1\",\"in2\"],\"excludes\":[\"out\"]}}",
                 Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
 
         // Invalid XContent fails
         RuntimeException e = expectThrows(RuntimeException.class,
-                () -> initialSearchEntity(searchRequest, new BytesArray("{}, \"trailing\": {}")));
+                () -> initialSearchEntity(searchRequest, new BytesArray("{}, \"trailing\": {}"), remoteVersion));
         assertThat(e.getCause().getMessage(), containsString("Unexpected character (',' (code 44))"));
-        e = expectThrows(RuntimeException.class, () -> initialSearchEntity(searchRequest, new BytesArray("{")));
+        e = expectThrows(RuntimeException.class, () -> initialSearchEntity(searchRequest, new BytesArray("{"), remoteVersion));
         assertThat(e.getCause().getMessage(), containsString("Unexpected end-of-input"));
     }
 
     public void testScrollParams() {
+        Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
         TimeValue scroll = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
-        assertEquals(scroll, TimeValue.parseTimeValue(scrollParams(scroll).get("scroll"), "scroll"));
+        assertScroll(remoteVersion, scrollParams(scroll, remoteVersion), scroll);
     }
 
     public void testScrollEntity() throws IOException {

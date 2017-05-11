@@ -23,12 +23,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -41,14 +41,13 @@ import java.util.Base64;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class IndexRequestTests extends ESTestCase {
     public void testIndexRequestOpTypeFromString() throws Exception {
         String create = "create";
@@ -131,9 +130,9 @@ public class IndexRequestTests extends ESTestCase {
     public void testSetTTLAsLong() {
         IndexRequest indexRequest = new IndexRequest();
         String ttlAsString = randomTimeValue();
-        TimeValue ttl = TimeValue.parseTimeValue(ttlAsString, null, "ttl");
-        indexRequest.ttl(ttl.millis());
-        assertThat(indexRequest.ttl(), equalTo(ttl));
+        long millis = TimeValue.parseTimeValue(ttlAsString, null, "ttl").millis();
+        indexRequest.ttl(millis);
+        assertEquals(timeValueMillis(millis), indexRequest.ttl());
     }
 
     public void testValidateTTL() {

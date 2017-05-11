@@ -54,6 +54,7 @@ public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingCon
         ChunkingConfig.Mode mode = randomFrom(ChunkingConfig.Mode.values());
         TimeValue timeSpan = null;
         if (mode == ChunkingConfig.Mode.MANUAL) {
+            // time span is required to be at least 1 millis, so we use a custom method to generate a time value here
             timeSpan = randomPositiveSecondsMinutesHours();
         }
         return new ChunkingConfig(mode, timeSpan);

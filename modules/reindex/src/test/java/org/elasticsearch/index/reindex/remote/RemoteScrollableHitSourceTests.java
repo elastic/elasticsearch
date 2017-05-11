@@ -40,7 +40,7 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Response;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;

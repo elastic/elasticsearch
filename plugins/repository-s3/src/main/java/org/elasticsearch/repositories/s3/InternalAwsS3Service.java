@@ -24,27 +24,20 @@ import java.util.Map;
 import java.util.function.Function;
 
 import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.S3ClientOptions;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
-import static org.elasticsearch.repositories.s3.S3Repository.getValue;
 
 class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
 
@@ -70,32 +63,16 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
 
         S3ClientSettings clientSettings = clientsSettings.get(clientName);
         if (clientSettings == null) {
-            throw new IllegalArgumentException("Unknown s3 client name [" + clientName + "]. " +
-                "Existing client configs: " +
+            throw new IllegalArgumentException("Unknown s3 client name [" + clientName + "]. Existing client configs: " +
                 Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
         }
 
-        // If the user defined a path style access setting, we rely on it,
-        // otherwise we use the default value set by the SDK
-        Boolean pathStyleAccess = null;
-        if (S3Repository.Repository.PATH_STYLE_ACCESS_SETTING.exists(repositorySettings) ||
-            S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING.exists(settings)) {
-            pathStyleAccess = getValue(repositorySettings, settings,
-                S3Repository.Repository.PATH_STYLE_ACCESS_SETTING,
-                S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING);
-        }
-
-        logger.debug("creating S3 client with client_name [{}], endpoint [{}], path_style_access [{}]",
-            clientName, clientSettings.endpoint, pathStyleAccess);
+        logger.debug("creating S3 client with client_name [{}], endpoint [{}]", clientName, clientSettings.endpoint);
 
         AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         ClientConfiguration configuration = buildConfiguration(clientSettings, repositorySettings);
 
         client = new AmazonS3Client(credentials, configuration);
-
-        if (pathStyleAccess != null) {
-            client.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(pathStyleAccess));
-        }
 
         if (Strings.hasText(clientSettings.endpoint)) {
             client.setEndpoint(clientSettings.endpoint);
@@ -121,14 +98,8 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
         }
 
-        Integer maxRetries = getRepoValue(repositorySettings, S3Repository.Repository.MAX_RETRIES_SETTING, clientSettings.maxRetries);
-        if (maxRetries != null) {
-            // If not explicitly set, default to 3 with exponential backoff policy
-            clientConfiguration.setMaxErrorRetry(maxRetries);
-        }
-        boolean useThrottleRetries = getRepoValue(repositorySettings,
-            S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING, clientSettings.throttleRetries);
-        clientConfiguration.setUseThrottleRetries(useThrottleRetries);
+        clientConfiguration.setMaxErrorRetry(clientSettings.maxRetries);
+        clientConfiguration.setUseThrottleRetries(clientSettings.throttleRetries);
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
 
         return clientConfiguration;
@@ -143,14 +114,6 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             logger.debug("Using basic key/secret credentials");
             return new StaticCredentialsProvider(clientSettings.credentials);
         }
-    }
-
-    /** Returns the value for a given setting from the repository, or returns the fallback value. */
-    private static <T> T getRepoValue(Settings repositorySettings, Setting<T> repositorySetting, T fallback) {
-        if (repositorySetting.exists(repositorySettings)) {
-            return repositorySetting.get(repositorySettings);
-        }
-        return fallback;
     }
 
     @Override

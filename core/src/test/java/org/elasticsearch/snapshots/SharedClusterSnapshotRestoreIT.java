@@ -88,8 +88,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -2752,6 +2754,93 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             } else {
                 assertEquals("primary shard is not allocated", shardStatus.getFailure());
             }
+        }
+    }
+
+    public void testGetSnapshotsFromIndexBlobOnly() throws Exception {
+        logger.info("--> creating repository");
+        final Path repoPath = randomRepoPath();
+        final Client client = client();
+        assertAcked(client.admin().cluster()
+            .preparePutRepository("test-repo")
+            .setType("fs")
+            .setVerify(false)
+            .setSettings(Settings.builder().put("location", repoPath)));
+
+        logger.info("--> creating random number of indices");
+        final int numIndices = randomIntBetween(1, 10);
+        for (int i = 0; i < numIndices; i++) {
+            assertAcked(prepareCreate("test-idx-" + i).setSettings(Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        }
+
+        logger.info("--> creating random number of snapshots");
+        final int numSnapshots = randomIntBetween(1, 10);
+        final Map<String, List<String>> indicesPerSnapshot = new HashMap<>();
+        for (int i = 0; i < numSnapshots; i++) {
+            // index some additional docs (maybe) for each index
+            for (int j = 0; j < numIndices; j++) {
+                if (randomBoolean()) {
+                    final int numDocs = randomIntBetween(1, 5);
+                    for (int k = 0; k < numDocs; k++) {
+                        index("test-idx-" + j, "doc", Integer.toString(k), "foo", "bar" + k);
+                    }
+                    refresh();
+                }
+            }
+            final boolean all = randomBoolean();
+            boolean atLeastOne = false;
+            List<String> indices = new ArrayList<>();
+            for (int j = 0; j < numIndices; j++) {
+                if (all || randomBoolean() || !atLeastOne) {
+                    indices.add("test-idx-" + j);
+                    atLeastOne = true;
+                }
+            }
+            final String snapshotName = "test-snap-" + i;
+            indicesPerSnapshot.put(snapshotName, indices);
+            client.admin().cluster()
+                .prepareCreateSnapshot("test-repo", snapshotName)
+                .setWaitForCompletion(true)
+                .setIndices(indices.toArray(new String[indices.size()]))
+                .get();
+        }
+
+        logger.info("--> verify _all returns snapshot info");
+        GetSnapshotsResponse response = client().admin().cluster()
+            .prepareGetSnapshots("test-repo")
+            .setSnapshots("_all")
+            .setVerbose(false)
+            .get();
+        assertEquals(indicesPerSnapshot.size(), response.getSnapshots().size());
+        verifySnapshotInfo(response, indicesPerSnapshot);
+
+        logger.info("--> verify wildcard returns snapshot info");
+        response = client().admin().cluster()
+            .prepareGetSnapshots("test-repo")
+            .setSnapshots("test-snap-*")
+            .setVerbose(false)
+            .get();
+        assertEquals(indicesPerSnapshot.size(), response.getSnapshots().size());
+        verifySnapshotInfo(response, indicesPerSnapshot);
+
+        logger.info("--> verify individual requests return snapshot info");
+        for (int i = 0; i < numSnapshots; i++) {
+            response = client().admin().cluster()
+                .prepareGetSnapshots("test-repo")
+                .setSnapshots("test-snap-" + i)
+                .setVerbose(false)
+                .get();
+            assertEquals(1, response.getSnapshots().size());
+            verifySnapshotInfo(response, indicesPerSnapshot);
+        }
+    }
+
+    private void verifySnapshotInfo(final GetSnapshotsResponse response, final Map<String, List<String>> indicesPerSnapshot) {
+        for (SnapshotInfo snapshotInfo : response.getSnapshots()) {
+            final List<String> expected = snapshotInfo.indices();
+            assertEquals(expected, indicesPerSnapshot.get(snapshotInfo.snapshotId().getName()));
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         }
     }
 }

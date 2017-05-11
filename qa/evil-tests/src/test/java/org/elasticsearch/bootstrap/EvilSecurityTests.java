@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -118,6 +119,7 @@ public class EvilSecurityTests extends ESTestCase {
         assertExactPermissions(new FilePermission(environment.configFile().toString(), "read,readlink"), permissions);
         // scripts file: ro
         assertExactPermissions(new FilePermission(environment.scriptsFile().toString(), "read,readlink"), permissions);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {Environment.PATH_SCRIPTS_SETTING});
         // plugins: ro
         assertExactPermissions(new FilePermission(environment.pluginsFile().toString(), "read,readlink"), permissions);
 

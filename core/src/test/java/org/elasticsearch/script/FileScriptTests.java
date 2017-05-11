@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.MockScriptEngine.MockCompiledScript;
@@ -29,6 +30,8 @@ import java.util.Collections;
 
 // TODO: these really should just be part of ScriptService tests, there is nothing special about them
 public class FileScriptTests extends ESTestCase {
+
+    private ScriptSettings scriptSettings;
 
     ScriptService makeScriptService(Settings settings) throws Exception {
         Path homeDir = createTempDir();
@@ -46,7 +49,7 @@ public class FileScriptTests extends ESTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap(scriptSource, script -> "1"));
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(scriptEngine));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         return new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
     }
 
@@ -59,7 +62,10 @@ public class FileScriptTests extends ESTestCase {
         assertNotNull(compiledScript);
         MockCompiledScript executable = (MockCompiledScript) compiledScript.compiled();
         assertEquals("script1.mockscript", executable.getName());
-        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
+        assertSettingDeprecationsAndWarnings(ScriptSettingsTests.buildDeprecatedSettingsArray(
+            new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING},
+            scriptSettings, "script.engine." + MockScriptEngine.NAME + ".file.aggs"),
+            "File scripts are deprecated. Use stored or inline scripts instead.");
     }
 
     public void testAllOpsDisabled() throws Exception {
@@ -79,6 +85,12 @@ public class FileScriptTests extends ESTestCase {
                 assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [file], operation [" + context.getKey() + "] and lang [" + MockScriptEngine.NAME + "] are disabled"));
             }
         }
-        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
+        assertSettingDeprecationsAndWarnings(ScriptSettingsTests.buildDeprecatedSettingsArray(
+            new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING}, scriptSettings,
+            "script.engine." + MockScriptEngine.NAME + ".file.aggs",
+            "script.engine." + MockScriptEngine.NAME + ".file.search",
+            "script.engine." + MockScriptEngine.NAME + ".file.update",
+            "script.engine." + MockScriptEngine.NAME + ".file.ingest"),
+            "File scripts are deprecated. Use stored or inline scripts instead.");
     }
 }

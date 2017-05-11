@@ -29,6 +29,7 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -44,10 +45,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SEQ_NO;
-import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class GlobalCheckpointTrackerTests extends ESTestCase {
@@ -66,8 +65,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
     }
 
     public void testEmptyShards() {
-        assertFalse("checkpoint shouldn't be updated when the are no active shards", tracker.updateCheckpointOnPrimary());
-        assertThat(tracker.getCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
     }
 
     private final AtomicInteger aIdGenerator = new AtomicInteger();
@@ -92,9 +90,9 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
 
         // note: allocations can never be empty in practice as we always have at least one primary shard active/in sync
         // it is however nice not to assume this on this level and check we do the right thing.
-        final long maxLocalCheckpoint = allocations.values().stream().min(Long::compare).orElse(UNASSIGNED_SEQ_NO);
+        final long minLocalCheckpoint = allocations.values().stream().min(Long::compare).orElse(UNASSIGNED_SEQ_NO);
 
-        assertThat(tracker.getCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
 
         logger.info("--> using allocations");
         allocations.keySet().forEach(aId -> {
@@ -110,41 +108,35 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         });
 
         tracker.updateAllocationIdsFromMaster(active, initializing);
-        initializing.forEach(aId -> markAllocationIdAsInSyncQuietly(tracker, aId, tracker.getCheckpoint()));
+        initializing.forEach(aId -> markAllocationIdAsInSyncQuietly(tracker, aId, tracker.getGlobalCheckpoint()));
         allocations.keySet().forEach(aId -> tracker.updateLocalCheckpoint(aId, allocations.get(aId)));
 
-
-        assertThat(tracker.getCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
-
-        assertThat(tracker.updateCheckpointOnPrimary(), equalTo(maxLocalCheckpoint != UNASSIGNED_SEQ_NO));
-        assertThat(tracker.getCheckpoint(), equalTo(maxLocalCheckpoint));
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(minLocalCheckpoint));
 
         // increment checkpoints
         active.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
         initializing.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
         allocations.keySet().forEach(aId -> tracker.updateLocalCheckpoint(aId, allocations.get(aId)));
 
+        final long minLocalCheckpointAfterUpdates =
+                allocations.entrySet().stream().map(Map.Entry::getValue).min(Long::compareTo).orElse(UNASSIGNED_SEQ_NO);
+
         // now insert an unknown active/insync id , the checkpoint shouldn't change but a refresh should be requested.
         final String extraId = "extra_" + randomAlphaOfLength(5);
 
         // first check that adding it without the master blessing doesn't change anything.
-        tracker.updateLocalCheckpoint(extraId, maxLocalCheckpoint + 1 + randomInt(4));
+        tracker.updateLocalCheckpoint(extraId, minLocalCheckpointAfterUpdates + 1 + randomInt(4));
         assertThat(tracker.getLocalCheckpointForAllocationId(extraId), equalTo(UNASSIGNED_SEQ_NO));
 
         Set<String> newActive = new HashSet<>(active);
         newActive.add(extraId);
         tracker.updateAllocationIdsFromMaster(newActive, initializing);
 
-        // we should ask for a refresh , but not update the checkpoint
-        assertTrue(tracker.updateCheckpointOnPrimary());
-        assertThat(tracker.getCheckpoint(), equalTo(maxLocalCheckpoint));
-
         // now notify for the new id
-        tracker.updateLocalCheckpoint(extraId, maxLocalCheckpoint + 1 + randomInt(4));
+        tracker.updateLocalCheckpoint(extraId, minLocalCheckpointAfterUpdates + 1 + randomInt(4));
 
         // now it should be incremented
-        assertTrue(tracker.updateCheckpointOnPrimary());
-        assertThat(tracker.getCheckpoint(), greaterThan(maxLocalCheckpoint));
+        assertThat(tracker.getGlobalCheckpoint(), greaterThan(minLocalCheckpoint));
     }
 
     public void testMissingActiveIdsPreventAdvance() {
@@ -153,43 +145,36 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final Map<String, Long> assigned = new HashMap<>();
         assigned.putAll(active);
         assigned.putAll(initializing);
+        final String maxActiveID = active.entrySet().stream().max(Comparator.comparing(Map.Entry::getValue)).get().getKey();
         tracker.updateAllocationIdsFromMaster(
-            new HashSet<>(randomSubsetOf(randomInt(active.size() - 1), active.keySet())),
-            initializing.keySet());
-        randomSubsetOf(initializing.keySet()).forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getCheckpoint()));
+                active.entrySet().stream().filter(e -> !e.getKey().equals(maxActiveID)).map(Map.Entry::getKey).collect(Collectors.toSet()),
+                initializing.keySet());
+        randomSubsetOf(initializing.keySet()).forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getGlobalCheckpoint()));
         assigned.forEach(tracker::updateLocalCheckpoint);
 
         // now mark all active shards
         tracker.updateAllocationIdsFromMaster(active.keySet(), initializing.keySet());
 
-        // global checkpoint can't be advanced, but we need a sync
-        assertTrue(tracker.updateCheckpointOnPrimary());
-        assertThat(tracker.getCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
-
         // update again
         assigned.forEach(tracker::updateLocalCheckpoint);
-        assertTrue(tracker.updateCheckpointOnPrimary());
-        assertThat(tracker.getCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
+        assertThat(tracker.getGlobalCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
     public void testMissingInSyncIdsPreventAdvance() {
         final Map<String, Long> active = randomAllocationsWithLocalCheckpoints(0, 5);
         final Map<String, Long> initializing = randomAllocationsWithLocalCheckpoints(1, 5);
         tracker.updateAllocationIdsFromMaster(active.keySet(), initializing.keySet());
-        initializing.keySet().forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getCheckpoint()));
+        initializing.keySet().forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getGlobalCheckpoint()));
         randomSubsetOf(randomInt(initializing.size() - 1),
             initializing.keySet()).forEach(aId -> tracker.updateLocalCheckpoint(aId, initializing.get(aId)));
 
         active.forEach(tracker::updateLocalCheckpoint);
 
-        // global checkpoint can't be advanced, but we need a sync
-        assertTrue(tracker.updateCheckpointOnPrimary());
-        assertThat(tracker.getCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
 
         // update again
         initializing.forEach(tracker::updateLocalCheckpoint);
-        assertTrue(tracker.updateCheckpointOnPrimary());
-        assertThat(tracker.getCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
+        assertThat(tracker.getGlobalCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
     public void testInSyncIdsAreIgnoredIfNotValidatedByMaster() {
@@ -197,16 +182,14 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final Map<String, Long> initializing = randomAllocationsWithLocalCheckpoints(1, 5);
         final Map<String, Long> nonApproved = randomAllocationsWithLocalCheckpoints(1, 5);
         tracker.updateAllocationIdsFromMaster(active.keySet(), initializing.keySet());
-        initializing.keySet().forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getCheckpoint()));
-        nonApproved.keySet().forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getCheckpoint()));
+        initializing.keySet().forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getGlobalCheckpoint()));
+        nonApproved.keySet().forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getGlobalCheckpoint()));
 
         List<Map<String, Long>> allocations = Arrays.asList(active, initializing, nonApproved);
         Collections.shuffle(allocations, random());
         allocations.forEach(a -> a.forEach(tracker::updateLocalCheckpoint));
 
-        // global checkpoint can be advanced, but we need a sync
-        assertTrue(tracker.updateCheckpointOnPrimary());
-        assertThat(tracker.getCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
+        assertThat(tracker.getGlobalCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }
 
     public void testInSyncIdsAreRemovedIfNotValidatedByMaster() {
@@ -227,16 +210,13 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         }
         tracker.updateAllocationIdsFromMaster(active, initializing);
         if (randomBoolean()) {
-            initializingToStay.keySet().forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getCheckpoint()));
+            initializingToStay.keySet().forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getGlobalCheckpoint()));
         } else {
-            initializing.forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getCheckpoint()));
+            initializing.forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getGlobalCheckpoint()));
         }
         if (randomBoolean()) {
             allocations.forEach(tracker::updateLocalCheckpoint);
         }
-
-        // global checkpoint may be advanced, but we need a sync in any case
-        assertTrue(tracker.updateCheckpointOnPrimary());
 
         // now remove shards
         if (randomBoolean()) {
@@ -250,9 +230,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final long checkpoint = Stream.concat(activeToStay.values().stream(), initializingToStay.values().stream())
             .min(Long::compare).get() + 10; // we added 10 to make sure it's advanced in the second time
 
-        // global checkpoint is advanced and we need a sync
-        assertTrue(tracker.updateCheckpointOnPrimary());
-        assertThat(tracker.getCheckpoint(), equalTo(checkpoint));
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(checkpoint));
     }
 
     public void testWaitForAllocationIdToBeInSync() throws BrokenBarrierException, InterruptedException {
@@ -264,7 +242,6 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final String trackingAllocationId = randomAlphaOfLength(16);
         tracker.updateAllocationIdsFromMaster(Collections.singleton(inSyncAllocationId), Collections.singleton(trackingAllocationId));
         tracker.updateLocalCheckpoint(inSyncAllocationId, globalCheckpoint);
-        tracker.updateCheckpointOnPrimary();
         final Thread thread = new Thread(() -> {
             try {
                 // synchronize starting with the test thread
@@ -313,7 +290,6 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final String trackingAllocationId = randomAlphaOfLength(32);
         tracker.updateAllocationIdsFromMaster(Collections.singleton(inSyncAllocationId), Collections.singleton(trackingAllocationId));
         tracker.updateLocalCheckpoint(inSyncAllocationId, globalCheckpoint);
-        tracker.updateCheckpointOnPrimary();
         final Thread thread = new Thread(() -> {
             try {
                 // synchronize starting with the test thread
@@ -426,9 +402,8 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                         .entrySet()
                         .stream()
                         .allMatch(e -> tracker.trackingLocalCheckpoints.get(e.getKey()) == e.getValue()));
-        assertTrue(tracker.updateCheckpointOnPrimary());
         final long minimumActiveLocalCheckpoint = (long) activeLocalCheckpoints.values().stream().min(Integer::compareTo).get();
-        assertThat(tracker.getCheckpoint(), equalTo(minimumActiveLocalCheckpoint));
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(minimumActiveLocalCheckpoint));
         final long minimumInitailizingLocalCheckpoint = (long) initializingLocalCheckpoints.values().stream().min(Integer::compareTo).get();
 
         // now we are going to add a new allocation ID and bring it in sync which should move it to the in-sync allocation IDs
@@ -477,6 +452,69 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         assertTrue(tracker.inSyncLocalCheckpoints.containsKey(newSyncingAllocationId));
     }
 
+    /**
+     * If we do not update the global checkpoint in {@link GlobalCheckpointTracker#markAllocationIdAsInSync(String, long)} after adding the
+     * allocation ID to the in-sync set and removing it from pending, the local checkpoint update that freed the thread waiting for the
+     * local checkpoint to advance could miss updating the global checkpoint in a race if the the waiting thread did not add the allocation
+     * ID to the in-sync set and remove it from the pending set before the local checkpoint updating thread executed the global checkpoint
+     * update. This test fails without an additional call to {@link GlobalCheckpointTracker#updateGlobalCheckpointOnPrimary()} after
+     * removing the allocation ID from the pending set in {@link GlobalCheckpointTracker#markAllocationIdAsInSync(String, long)} (even if a
+     * call is added after notifying all waiters in {@link GlobalCheckpointTracker#updateLocalCheckpoint(String, long)}).
+     *
+     * @throws InterruptedException   if the main test thread was interrupted while waiting
+     * @throws BrokenBarrierException if the barrier was broken while the main test thread was waiting
+     */
+    public void testRaceUpdatingGlobalCheckpoint() throws InterruptedException, BrokenBarrierException {
+
+        final String active = randomAlphaOfLength(16);
+        final String initializing = randomAlphaOfLength(32);
+        tracker.updateAllocationIdsFromMaster(Collections.singleton(active), Collections.singleton(initializing));
+
+        final CyclicBarrier barrier = new CyclicBarrier(4);
+
+        final int activeLocalCheckpoint = randomIntBetween(0, Integer.MAX_VALUE - 1);
+        tracker.updateLocalCheckpoint(active, activeLocalCheckpoint);
+        final int nextActiveLocalCheckpoint = randomIntBetween(activeLocalCheckpoint + 1, Integer.MAX_VALUE);
+        final Thread activeThread = new Thread(() -> {
+            try {
+                barrier.await();
+            } catch (final BrokenBarrierException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            tracker.updateLocalCheckpoint(active, nextActiveLocalCheckpoint);
+        });
+
+        final int initializingLocalCheckpoint = randomIntBetween(0, nextActiveLocalCheckpoint - 1);
+        final Thread initializingThread = new Thread(() -> {
+            try {
+                barrier.await();
+            } catch (final BrokenBarrierException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            tracker.updateLocalCheckpoint(initializing, nextActiveLocalCheckpoint);
+        });
+
+        final Thread markingThread = new Thread(() -> {
+            try {
+                barrier.await();
+                tracker.markAllocationIdAsInSync(initializing, initializingLocalCheckpoint - 1);
+            } catch (final BrokenBarrierException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        activeThread.start();
+        initializingThread.start();
+        markingThread.start();
+        barrier.await();
+
+        activeThread.join();
+        initializingThread.join();
+        markingThread.join();
+
+        assertThat(tracker.getGlobalCheckpoint(), equalTo((long) nextActiveLocalCheckpoint));
+
+    }
 
     private void markAllocationIdAsInSyncQuietly(
             final GlobalCheckpointTracker tracker, final String allocationId, final long localCheckpoint) {

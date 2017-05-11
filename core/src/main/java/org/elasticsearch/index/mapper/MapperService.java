@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -470,7 +471,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
 
-        if (indexSettings.getValue(INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+        if (indexSettings.isSingleType()) {
             Set<String> actualTypes = new HashSet<>(mappers.keySet());
             actualTypes.remove(DEFAULT_MAPPING);
             if (actualTypes.size() > 1) {
@@ -803,4 +804,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
+    /** Return a term that uniquely identifies the document, or {@code null} if the type is not allowed. */
+    public Term createUidTerm(String type, String id) {
+        if (hasMapping(type) == false) {
+            return null;
+        }
+        if (indexSettings.isSingleType()) {
+            return new Term(IdFieldMapper.NAME, id);
+        } else {
+            return new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id));
+        }
+    }
 }

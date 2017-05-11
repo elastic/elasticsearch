@@ -1172,8 +1172,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static ScriptModule newTestScriptModule() {
         Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                // no file watching, so we don't need a ResourceWatcherService
-                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
         Environment environment = new Environment(settings);
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));

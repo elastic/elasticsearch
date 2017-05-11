@@ -53,3 +53,8 @@ response in the event there is at least one failure.
 In previous versions of Elasticsearch, delete by query requests without an explicit query
 were accepted, match_all was used as the default query and all documents were deleted
 as a result. From version 6.0.0, delete by query requests require an explicit query.
+
+=== DELETE document calls now implicitly create the type
+
+Running `DELETE index/type/id` now implicitly creates `type` with a default
+mapping if it did not exist yet.

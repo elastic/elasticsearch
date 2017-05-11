@@ -70,12 +70,9 @@ public class SignificantTextIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        // Randomize checking on loading text values from _source vs term_vectors.
-        String[] termVectorOptions = { "no", "yes", "with_positions", "with_offsets", "with_positions_offsets" };
-        String termVectorSetting = ",term_vector=" + randomFrom(termVectorOptions);
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 5, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("fact",
                 "_routing", "required=true", "routing_id", "type=keyword", "fact_category", "type=integer", "description",
-                "type=text" + termVectorSetting));
+                "type=text"));
         createIndex("idx_unmapped");
 
         ensureGreen();

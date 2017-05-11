@@ -21,10 +21,13 @@ package org.apache.lucene.analysis.miscellaneous;
 
 import org.apache.lucene.util.Attribute;
 
+/**
+ * Provides statistics useful for detecting duplicate sections of text
+ */
 public interface DuplicateSequenceAttribute extends Attribute {
     /**
      * @return The number of times this token has been seen previously as part
-     *         of a sequence
+     *         of a sequence (counts to a max of 255)
      */
     short getNumPriorUsesInASequence();
 

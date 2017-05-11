@@ -86,7 +86,7 @@ public class DeDuplicatingTokenFilter extends FilteringTokenFilter {
         protected DuplicateTaggingFilter(DuplicateByteSequenceSpotter byteStreamDuplicateSpotter, TokenStream input) {
             super(input);
             this.byteStreamDuplicateSpotter = byteStreamDuplicateSpotter;
-            this.windowSize = byteStreamDuplicateSpotter.getDuplicateSequenceSize();
+            this.windowSize = byteStreamDuplicateSpotter.TREE_DEPTH;
         }
 
         private ArrayList<State> allTokens;
@@ -96,7 +96,7 @@ public class DeDuplicatingTokenFilter extends FilteringTokenFilter {
         @Override
         public final boolean incrementToken() throws IOException {
             if (allTokens == null) {
-                loadTokensBuffer();
+                loadAllTokens();
             }
             clearAttributes();
             if (pos < allTokens.size()) {
@@ -109,19 +109,22 @@ public class DeDuplicatingTokenFilter extends FilteringTokenFilter {
             }
         }
 
-        public void loadTokensBuffer() throws IOException {
-            // Given the bytes 123456123456 and a duplicate sequence size of 6
-            // the
-            // the byteStreamDuplicateSpotter will only flag the final byte as
-            // part
-            // of a duplicate sequence due to the byte-at-a-time streaming
-            // nature of
-            // its assessments.
-            // When this happens we retain a buffer of the last 6 tokens so that
-            // we can mark
-            // the states of prior tokens (bytes 7 to 11) as also being
-            // duplicates
+        public void loadAllTokens() throws IOException {
+            // TODO consider changing this implementation to emit tokens as-we-go 
+            // rather than buffering all. However this array is perhaps not the 
+            // bulk of memory usage (in practice the dupSequenceSpotter requires 
+            // ~5x the original content size in its internal tree ).
             allTokens = new ArrayList<State>(256);
+
+            /*
+             * Given the bytes 123456123456 and a duplicate sequence size of 6
+             * the byteStreamDuplicateSpotter will only flag the final byte as
+             * part of a duplicate sequence due to the byte-at-a-time streaming
+             * nature of its assessments. When this happens we retain a buffer
+             * of the last 6 tokens so that we can mark the states of prior
+             * tokens (bytes 7 to 11) as also being duplicates
+             */
+
             pos = 0;
             boolean isWrapped = false;
             State priorStatesBuffer[] = new State[windowSize];
@@ -130,7 +133,7 @@ public class DeDuplicatingTokenFilter extends FilteringTokenFilter {
             while (input.incrementToken()) {
                 BytesRef bytesRef = termBytesAtt.getBytesRef();
                 long tokenHash = MurmurHash3.hash128(bytesRef.bytes, bytesRef.offset, bytesRef.length, 0, seed).h1;
-                byte tokenByte = (byte) (tokenHash % 256);
+                byte tokenByte = (byte) (tokenHash & 0xFF);
                 short numSightings = byteStreamDuplicateSpotter.addByte(tokenByte);
                 priorStatesBuffer[cursor] = captureState();
                 // Revise prior captured State objects if the latest

@@ -24,8 +24,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.DocumentStoredFieldVisitor;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
@@ -33,16 +31,10 @@ import org.apache.lucene.search.highlight.TokenStreamFromTermVector;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -53,14 +45,15 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.Bucket
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude.StringFilter;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
@@ -74,10 +67,8 @@ public class SignificantTextAggregator extends BucketsAggregator {
     private SignificantTextAggregatorFactory termsAggFactory;
     private final DocValueFormat format = DocValueFormat.RAW;
     private final String fieldName;
-    private DuplicateByteSequenceSpotter dupSequenceSpotter ;
+    private DuplicateByteSequenceSpotter dupSequenceSpotter = null ;
     private long lastTrieSize;
-
-    private final boolean filterDuplicateText;
     private static final int MEMORY_GROWTH_REPORTING_INTERVAL_BYTES = 5000;
 
 
@@ -91,13 +82,14 @@ public class SignificantTextAggregator extends BucketsAggregator {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.bucketCountThresholds = bucketCountThresholds;
         this.includeExclude = includeExclude;
-        this.filterDuplicateText = filterDuplicateText;
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
         this.fieldName = fieldName;
         bucketOrds = new BytesRefHash(1, context.bigArrays());
-        dupSequenceSpotter = new DuplicateByteSequenceSpotter();        
-        lastTrieSize = dupSequenceSpotter.getEstimatedSizeInBytes();
+        if(filterDuplicateText){
+            dupSequenceSpotter = new DuplicateByteSequenceSpotter();        
+            lastTrieSize = dupSequenceSpotter.getEstimatedSizeInBytes();
+        }
     }
 
     
@@ -106,26 +98,20 @@ public class SignificantTextAggregator extends BucketsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        final ShardGetService shardGetService = super.context.indexShard().getService();
         final BytesRefBuilder previous = new BytesRefBuilder();
         return new LeafBucketCollectorBase(sub, null) {
             
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                Terms tv = ctx.reader().getTermVector(doc, fieldName);
-                if (tv!=null &&  (tv.hasPositions()  || tv.hasOffsets())){
-                    // Not necessarily faster than re-analysis in my tests!
-                    processTokenStream(doc, bucket, new TokenStreamFromTermVector(tv, -1), "");
-                    
-                } else {
-                    loadFromSource(doc, bucket, fieldName);
-                }                
+                loadFromSource(doc, bucket, fieldName);
                 numCollectedDocs++;
-                dupSequenceSpotter.startNewSequence();
+                if (dupSequenceSpotter != null) {
+                    dupSequenceSpotter.startNewSequence();
+                }
             }
             
             private void processTokenStream(int doc, long bucket, TokenStream ts, String fieldText) throws IOException{
-                if (filterDuplicateText) {
+                if (dupSequenceSpotter != null) {
                     ts = new DeDuplicatingTokenFilter(ts, dupSequenceSpotter);
                 }
                 CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
@@ -135,28 +121,30 @@ public class SignificantTextAggregator extends BucketsAggregator {
                     BytesRefHash inDocTerms = new BytesRefHash(1+(fieldText.length()/5), context.bigArrays());
                     
                     try{
-                        while(ts.incrementToken()){
-                            long newTrieSize = dupSequenceSpotter.getEstimatedSizeInBytes();
-                            long growth = newTrieSize - lastTrieSize;
-                            // Only update the circuitbreaker after 
-                            if(growth > MEMORY_GROWTH_REPORTING_INTERVAL_BYTES){
-                                addRequestCircuitBreakerBytes(growth);
-                                lastTrieSize = newTrieSize;
+                        while (ts.incrementToken()) {
+                            if (dupSequenceSpotter != null) {
+                                long newTrieSize = dupSequenceSpotter.getEstimatedSizeInBytes();
+                                long growth = newTrieSize - lastTrieSize;
+                                // Only update the circuitbreaker after
+                                if (growth > MEMORY_GROWTH_REPORTING_INTERVAL_BYTES) {
+                                    addRequestCircuitBreakerBytes(growth);
+                                    lastTrieSize = newTrieSize;
+                                }
                             }
                             previous.clear();
                             previous.copyChars(termAtt);
                             BytesRef bytes = previous.get();
-                            if(inDocTerms.add(bytes) >= 0){
+                            if (inDocTerms.add(bytes) >= 0) {
                                 if (includeExclude == null || includeExclude.accept(bytes)) {
                                     long bucketOrdinal = bucketOrds.add(bytes);
                                     if (bucketOrdinal < 0) { // already seen
-                                        bucketOrdinal = - 1 - bucketOrdinal;
+                                        bucketOrdinal = -1 - bucketOrdinal;
                                         collectExistingBucket(sub, doc, bucketOrdinal);
                                     } else {
                                         collectBucket(sub, doc, bucketOrdinal);
                                     }
-                                }                            
-                            }                            
+                                }
+                            }
                         }
                     }
                     finally{
@@ -169,37 +157,31 @@ public class SignificantTextAggregator extends BucketsAggregator {
             }
             
             private void loadFromSource(int doc, long bucket, String fieldName) throws IOException {
-                final DocumentStoredFieldVisitor visitor = new DocumentStoredFieldVisitor("_uid");
-                ctx.reader().document(doc, visitor);
-                Document storedDoc = visitor.getDocument();
-                // Inefficient - we have the Lucene doc here but all the doc-source-loading code assumes we retrieve by elasticsearch 
-                // type+id so we have to run it through the existing "get" service which will incure another Lucene read. 
-                
-                //BUT TODO - talk to MVG about existing (fetch?) apis that allow loading of docs using a Lucene doc id and reader
-                Uid uid = Uid.createUid(storedDoc.get("_uid"));
-                String [] gFields= {"content"};
-                GetResult getResult = shardGetService.get(uid.type(), uid.id(), gFields, false, Versions.MATCH_ANY, VersionType.INTERNAL, 
-                        FetchSourceContext.FETCH_SOURCE);
-                
-                
                 MapperService mapperService = context.indexShard().mapperService();
                 MappedFieldType fieldType = mapperService.fullName(fieldName);
                 if(fieldType == null){
                     throw new IllegalArgumentException("Aggregation [" + name + "] cannot process field ["+fieldName
                             +"] since it is not present");                    
                 }
-                Analyzer analyzer = fieldType.indexAnalyzer();
-                Object fieldValue = getResult.getSource().get(fieldName);
-                if(fieldValue == null){
-                    throw new IllegalArgumentException("Aggregation [" + name + "] cannot process field ["+fieldName
-                            +"] since it is not present");                    
+                
+                SourceLookup sourceLookup = context.lookup().source();
+                sourceLookup.setSegmentAndDocument(ctx, doc);
+                List<Object> textsToHighlight = sourceLookup.extractRawValues(fieldType.name());    
+                textsToHighlight = textsToHighlight.stream().map(obj -> {
+                    if (obj instanceof BytesRef) {
+                        return fieldType.valueForDisplay(obj).toString();
+                    } else {
+                        return obj;
+                    }
+                }).collect(Collectors.toList());                
+                
+                Analyzer analyzer = fieldType.indexAnalyzer();                
+                for (Object fieldValue : textsToHighlight) {
+                    String fieldText = fieldValue.toString();
+                    TokenStream ts = analyzer.tokenStream(fieldName, fieldText);
+                    processTokenStream(doc, bucket, ts, fieldText);                     
                 }
-                String fieldText = fieldValue.toString();
-                TokenStream ts = analyzer.tokenStream(fieldName, fieldText);
-                processTokenStream(doc, bucket, ts, fieldText); 
             }
-
-
         };
     }
 

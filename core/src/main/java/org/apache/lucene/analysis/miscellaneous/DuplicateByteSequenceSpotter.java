@@ -46,9 +46,9 @@ import org.apache.lucene.util.RamUsageEstimator;
  * directly into the densely packed array using a byte value. The third level in
  * the tree holds {@link LightweightTreeNode} nodes that have few children
  * (typically much less than 256) and so use a dynamically-grown array to hold
- * child objects of the type {@link ByteSequenceLeafNode}. These represent the
- * final 3 bytes of a sequence as single int and hold a count of the number of
- * times the entire sequence path has been visited.
+ * child nodes as simple int primitives. These ints represent the final 3 bytes 
+ * of a sequence and also hold a count of the number of times the entire sequence 
+ * path has been visited (count is a single byte).
  * <p>
  * The Trie grows indefinitely as more content is added and while theoretically
  * it could be massive (a 6-depth tree could produce 256^6 nodes) non-random
@@ -62,10 +62,15 @@ import org.apache.lucene.util.RamUsageEstimator;
  * <li>halting any growth of the tree
  * </ol>
  * 
+ * Tests on real-world-text show that the size of the tree is a multiple of the
+ * input text where that multiplier varies between 10 and 5 times as the content
+ * size increased from 10 to 100 megabytes of content.
  * 
  */
 public class DuplicateByteSequenceSpotter {
-    private static final int TREE_DEPTH = 6;
+    public static final int TREE_DEPTH = 6;
+    // The maximum number of repetitions that are counted
+    public static final int MAX_HIT_COUNT = 255;
     private final TreeNode root;
     private boolean sequenceBufferFilled = false;
     private final byte[] sequenceBuffer = new byte[TREE_DEPTH];
@@ -100,6 +105,7 @@ public class DuplicateByteSequenceSpotter {
      * Reset the sequence detection logic to avoid any continuation of the
      * immediately previous bytes. A minimum of dupSequenceSize bytes need to be
      * added before any new duplicate sequences will be reported.
+     * Hit counts are not reset by calling this method. 
      */
     public void startNewSequence() {
         sequenceBufferFilled = false;
@@ -111,7 +117,7 @@ public class DuplicateByteSequenceSpotter {
      * @param b
      *            the next byte in a sequence
      * @return number of times this byte and the preceding 6 bytes have been
-     *         seen before as a sequence
+     *         seen before as a sequence (only counts up to 255) 
      * 
      */
     public short addByte(byte b) {
@@ -138,7 +144,8 @@ public class DuplicateByteSequenceSpotter {
         p = nextBufferPos(p);
         node = node.add(sequenceBuffer[p], 2);
 
-        // The final 3 bytes in the sequence are represented by a single node.
+        // The final 3 bytes in the sequence are represented in an int
+        // where the 4th byte will contain a hit count.
 
         // Fill last 3 bytes in search buffer
         for (int i = 0; i < 3; i++) {
@@ -164,10 +171,12 @@ public class DuplicateByteSequenceSpotter {
         return p;
     }
 
-    // Base class for nodes in the tree. Subclasses are optimised for use
-    // at different locations in the tree - speed-optimized nodes represent
-    // branches near the root while space-optimized nodes are used for
-    // deeper leaves/branches.
+    /**
+     * Base class for nodes in the tree. Subclasses are optimised for use at
+     * different locations in the tree - speed-optimized nodes represent
+     * branches near the root while space-optimized nodes are used for deeper
+     * leaves/branches.
+     */
     abstract class TreeNode {
 
         TreeNode(byte key, TreeNode parentNode, int depth) {
@@ -234,10 +243,11 @@ public class DuplicateByteSequenceSpotter {
     // sacrifices speed for space.
     final class LightweightTreeNode extends TreeNode {
 
-        // An array dynamically resized ranging from 0 to 256 values but
-        // frequently only sized 1 as most sequences leading to end leaves are
-        // one-off paths
-        ByteSequenceLeafNode[] children = null;
+        // An array dynamically resized but frequently only sized 1 as most 
+        // sequences leading to end leaves are one-off paths.
+        // It is scanned for matches sequentially and benchmarks showed
+        // that sorting contents on insertion didn't improve performance.
+        int[] children = null;
 
         LightweightTreeNode(byte key, TreeNode parentNode, int depth) {
             super(key, parentNode, depth);
@@ -248,34 +258,35 @@ public class DuplicateByteSequenceSpotter {
         @Override
         public short add(int byteSequence) {
             if (children == null) {
-                // Create array adding new child
-                children = new ByteSequenceLeafNode[1];
-                bytesAllocated += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
-
-                ByteSequenceLeafNode child = new ByteSequenceLeafNode(byteSequence);
-                bytesAllocated += RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-                children[0] = child;
-                return child.hitCount;
+                // Create array adding new child with the byte sequence combined with hitcount of 1.
+                // Most nodes at this level we expect to have only 1 child so we start with the  
+                // smallest possible child array.
+                children = new int[1];
+                bytesAllocated += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + Integer.BYTES;                
+                children[0] = byteSequence + 1;
+                return 1;
             }
-            // Find existing child and increment count
-            for (ByteSequenceLeafNode child : children) {
-                if (child.byteSequence == byteSequence) {
-                    if (child.hitCount < Short.MAX_VALUE) {
-                        child.hitCount++;
+            // Find existing child and if discovered increment count
+            for (int i = 0; i < children.length; i++) {
+                int child = children[i];
+                if (byteSequence == (child & 0xFFFFFF00)) {
+                    short hitCount = (short) (child & 0xFF);
+                    if (hitCount < MAX_HIT_COUNT) {
+                        children[i]++;
                     }
-                    return child.hitCount;
+                    return (short) (hitCount + 1);
                 }
             }
             // Grow array adding new child
-            ByteSequenceLeafNode[] newChildren = new ByteSequenceLeafNode[children.length + 1];
-            bytesAllocated += RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+            int[] newChildren = new int[children.length + 1];
+            bytesAllocated += Integer.BYTES;
 
             System.arraycopy(children, 0, newChildren, 0, children.length);
             children = newChildren;
-            ByteSequenceLeafNode child = new ByteSequenceLeafNode(byteSequence);
-            children[newChildren.length - 1] = child;
+            // Combine the byte sequence with a hit count of 1 into an int.
+            children[newChildren.length - 1] = byteSequence + 1;
             nodesResizedByDepth++;
-            return child.hitCount;
+            return 1;
         }
 
         @Override
@@ -283,20 +294,6 @@ public class DuplicateByteSequenceSpotter {
             throw new UnsupportedOperationException("Leaf nodes do not take byte sequences");
         }
 
-    }
-
-    // Leaf node implementation that represents a sequence of bytes as an int
-    // for a compact representation
-    class ByteSequenceLeafNode {
-        short hitCount;
-        int byteSequence;
-
-        ByteSequenceLeafNode(int byteSequence) {
-            bytesAllocated += LEAF_NODE_OBJECT_SIZE;
-            this.byteSequence = byteSequence;
-            nodesAllocatedByDepth[3]++;
-            hitCount = 1;
-        }
     }
 
     public final long getEstimatedSizeInBytes() {
@@ -316,10 +313,6 @@ public class DuplicateByteSequenceSpotter {
      */
     public int getNodesResizedByDepth() {
         return nodesResizedByDepth;
-    }
-
-    public int getDuplicateSequenceSize() {
-        return TREE_DEPTH;
     }
 
 }

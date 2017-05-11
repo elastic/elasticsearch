@@ -44,8 +44,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SignificantTextAggregationBuilder
-        extends AbstractAggregationBuilder<SignificantTextAggregationBuilder> {
+public class SignificantTextAggregationBuilder extends AbstractAggregationBuilder<SignificantTextAggregationBuilder> {
     public static final String NAME = "significant_text";
 
     static final ParseField FIELD_NAME = new ParseField("field");

@@ -39,6 +39,16 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
+     * The name of the alias pointing to the write index for a job
+     * @param jobId Job Id
+     * @return The write alias
+     */
+    public static String resultsWriteAlias(String jobId) {
+        // TODO: Replace with an actual write alias
+        return jobResultsAliasedName(jobId);
+    }
+
+    /**
      * Retrieves the currently defined physical index from the job state
      * @param jobId Job Id
      * @return The index name

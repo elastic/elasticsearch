@@ -414,7 +414,7 @@ public class JobManager extends AbstractComponent {
      * @param modelSnapshot         the updated model snapshot object to be stored
      */
     public void updateModelSnapshot(ModelSnapshot modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
-        String index = AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId());
+        String index = AnomalyDetectorsIndex.resultsWriteAlias(modelSnapshot.getJobId());
         IndexRequest indexRequest = new IndexRequest(index, ModelSnapshot.TYPE.getPreferredName(), ModelSnapshot.documentId(modelSnapshot));
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             modelSnapshot.toXContent(builder, ToXContent.EMPTY_PARAMS);

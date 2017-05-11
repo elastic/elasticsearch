@@ -63,7 +63,7 @@ public interface LeafSearchScript extends ScorerAware, ExecutableScript {
      * Return the result as a long. This is used by aggregation scripts over long fields.
      */
     default long runAsLong() {
-        return (long) runAsDouble();
+        throw new UnsupportedOperationException("runAsLong is not implemented");
     }
 
     @Override
@@ -72,7 +72,7 @@ public interface LeafSearchScript extends ScorerAware, ExecutableScript {
     }
 
     /**
-     * Return the result as a double
+     * Return the result as a double. This is the main use case of search script, used for document scoring.
      */
     double runAsDouble();
 }

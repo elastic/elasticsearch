@@ -22,6 +22,7 @@ package org.elasticsearch.example.expertscript;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 import org.apache.lucene.index.LeafReaderContext;
@@ -62,8 +63,18 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
             // we use the script "source" as the script identifier
             if ("pure_df".equals(scriptSource)) {
                 return p -> new SearchScript() {
-                    String field = p.get("field").toString();
-                    String term = p.get("term").toString();
+                    final String field;
+                    final String term;
+                    {
+                        if (p.containsKey("field") == false) {
+                            throw new IllegalArgumentException("Missing parameter [field]");
+                        }
+                        if (p.containsKey("term") == false) {
+                            throw new IllegalArgumentException("Missing parameter [term]");
+                        }
+                        field = p.get("field").toString();
+                        term = p.get("term").toString();
+                    }
 
                     @Override
                     public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {

@@ -21,7 +21,6 @@ package org.elasticsearch.percolator;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -44,7 +43,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.percolator.PercolatorTestUtil.preparePercolate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -72,7 +70,7 @@ public class PercolatorBackwardsCompatibilityTests extends ESIntegTestCase {
 
         // verify cluster state:
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertThat(state.metaData().indices().size(), equalTo(1));
+        assertThat(state.metaData().indices().size(), equalTo(2));
         assertThat(state.metaData().indices().get(INDEX_NAME), notNullValue());
         assertThat(state.metaData().indices().get(INDEX_NAME).getCreationVersion(), equalTo(Version.V_2_0_0));
         assertThat(state.metaData().indices().get(INDEX_NAME).getUpgradedVersion(), equalTo(Version.CURRENT));
@@ -88,17 +86,18 @@ public class PercolatorBackwardsCompatibilityTests extends ESIntegTestCase {
             .setTypes(".percolator")
             .addSort("_uid", SortOrder.ASC)
             .get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4L));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("4"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(5L));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("0"));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("3"));
+        assertThat(searchResponse.getHits().getAt(4).id(), equalTo("4"));
         assertThat(XContentMapValues.extractValue("query.script.script.inline",
-                searchResponse.getHits().getAt(3).sourceAsMap()), equalTo("return true"));
+                searchResponse.getHits().getAt(4).sourceAsMap()), equalTo("return true"));
         // we don't upgrade the script definitions so that they include explicitly the lang,
         // because we read / parse the query at search time.
         assertThat(XContentMapValues.extractValue("query.script.script.lang",
-                searchResponse.getHits().getAt(3).sourceAsMap()), nullValue());
+                searchResponse.getHits().getAt(4).sourceAsMap()), nullValue());
 
         // verify percolate response
         PercolateResponse percolateResponse = preparePercolate(client())
@@ -107,9 +106,10 @@ public class PercolatorBackwardsCompatibilityTests extends ESIntegTestCase {
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
 
-        assertThat(percolateResponse.getCount(), equalTo(1L));
-        assertThat(percolateResponse.getMatches().length, equalTo(1));
+        assertThat(percolateResponse.getCount(), equalTo(2L));
+        assertThat(percolateResponse.getMatches().length, equalTo(2));
         assertThat(percolateResponse.getMatches()[0].getId().string(), equalTo("4"));
+        assertThat(percolateResponse.getMatches()[1].getId().string(), equalTo("0"));
 
         percolateResponse = preparePercolate(client())
             .setIndices(INDEX_NAME)
@@ -117,11 +117,12 @@ public class PercolatorBackwardsCompatibilityTests extends ESIntegTestCase {
             .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("message", "the quick brown fox jumps over the lazy dog"))
             .get();
 
-        assertThat(percolateResponse.getCount(), equalTo(3L));
-        assertThat(percolateResponse.getMatches().length, equalTo(3));
+        assertThat(percolateResponse.getCount(), equalTo(4L));
+        assertThat(percolateResponse.getMatches().length, equalTo(4));
         assertThat(percolateResponse.getMatches()[0].getId().string(), equalTo("1"));
         assertThat(percolateResponse.getMatches()[1].getId().string(), equalTo("2"));
         assertThat(percolateResponse.getMatches()[2].getId().string(), equalTo("4"));
+        assertThat(percolateResponse.getMatches()[3].getId().string(), equalTo("0"));
 
         // add an extra query and verify the results
         client().prepareIndex(INDEX_NAME, ".percolator", "5")
@@ -135,11 +136,13 @@ public class PercolatorBackwardsCompatibilityTests extends ESIntegTestCase {
             .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("message", "the quick brown fox jumps over the lazy dog"))
             .get();
 
-        assertThat(percolateResponse.getCount(), equalTo(4L));
-        assertThat(percolateResponse.getMatches().length, equalTo(4));
+        assertThat(percolateResponse.getCount(), equalTo(5L));
+        assertThat(percolateResponse.getMatches().length, equalTo(5));
         assertThat(percolateResponse.getMatches()[0].getId().string(), equalTo("1"));
         assertThat(percolateResponse.getMatches()[1].getId().string(), equalTo("2"));
         assertThat(percolateResponse.getMatches()[2].getId().string(), equalTo("4"));
+        assertThat(percolateResponse.getMatches()[3].getId().string(), equalTo("0"));
+        assertThat(percolateResponse.getMatches()[4].getId().string(), equalTo("5"));
     }
 
     private void setupNode() throws Exception {

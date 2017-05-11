@@ -36,6 +36,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
@@ -284,7 +285,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         );
         verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
-        queryBuilder = queryBuilder.rewrite(queryShardContext);
+        queryBuilder = QueryBuilder.rewriteQuery(queryBuilder, queryShardContext);
 
         try (XContentBuilder builder = XContentFactory.contentBuilder(QUERY_BUILDER_CONTENT_TYPE)) {
             queryBuilder.toXContent(builder, new MapParams(Collections.emptyMap()));
@@ -346,6 +347,14 @@ public class PercolatorFieldMapper extends FieldMapper {
         // as an analyzed string.
         context.setAllowUnmappedFields(false);
         context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
+
+        // Rewriting the query at percolate time, because this is sometimes necessary:
+        // * From 5.0 and onwards the percolator rewrites the query at index time,
+        //   this is not the case for percolator queries in indices created before 5.0
+        if (context.getIndexSettings().getIndexVersionCreated().before(Version.V_5_0_0_alpha1)) {
+            queryBuilder = QueryBuilder.rewriteQuery(queryBuilder, context);
+        }
+
         return queryBuilder.toQuery(context);
     }
 

@@ -10,8 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -30,7 +31,6 @@ import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.common.action.XPackDeleteByQueryAction;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
@@ -89,7 +89,7 @@ public class JobStorageDeletionTask extends Task {
                     request.setAbortOnVersionConflict(false);
                     request.setRefresh(true);
 
-                    client.execute(XPackDeleteByQueryAction.INSTANCE, request, dbqHandler);
+                    client.execute(DeleteByQueryAction.INSTANCE, request, dbqHandler);
                 },
                 failureHandler);
 
@@ -131,7 +131,7 @@ public class JobStorageDeletionTask extends Task {
         searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         WildcardQueryBuilder query = new WildcardQueryBuilder(UidFieldMapper.NAME, Uid.createUid(CategorizerState.TYPE, jobId + "#*"));
         searchRequest.source(new SearchSourceBuilder().query(query));
-        client.execute(XPackDeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
+        client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 finishedHandler.onResponse(true);

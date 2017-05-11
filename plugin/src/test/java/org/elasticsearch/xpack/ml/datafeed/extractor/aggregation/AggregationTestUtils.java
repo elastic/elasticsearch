@@ -65,7 +65,7 @@ public final class AggregationTestUtils {
     static Terms createTerms(String name, Term... terms) {
         Terms termsAgg = mock(Terms.class);
         when(termsAgg.getName()).thenReturn(name);
-        List<Terms.Bucket> buckets = new ArrayList<>();
+        List buckets = new ArrayList<>();
         for (Term term: terms) {
             StringTerms.Bucket bucket = mock(StringTerms.Bucket.class);
             when(bucket.getKey()).thenReturn(term.key);

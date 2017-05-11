@@ -7,8 +7,9 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.common.action.XPackDeleteByQueryAction;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
@@ -59,7 +59,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         LOGGER.info("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
         DeleteByQueryRequest request = createDBQRequest(job, cutoffEpochMs);
 
-        client.execute(XPackDeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
+        client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 try {

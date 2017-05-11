@@ -125,3 +125,6 @@ internal:indices/flush/synced/pre
 internal:indices/flush/synced/sync
 internal:admin/repository/verify
 internal:transport/handshake
+cluster:admin/reindex/rethrottle[n]
+indices:data/write/update/byquery
+indices:data/write/delete/byquery

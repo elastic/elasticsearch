@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -22,21 +22,6 @@ import java.util.Collection;
 import java.util.Collections;
 
 public class ReindexWithSecurityIT extends SecurityIntegTestCase {
-
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(ReindexPlugin.class);
-        return Collections.unmodifiableCollection(plugins);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(ReindexPlugin.class);
-        return Collections.unmodifiableCollection(plugins);
-    }
 
     @Override
     protected Settings externalClusterClientSettings() {

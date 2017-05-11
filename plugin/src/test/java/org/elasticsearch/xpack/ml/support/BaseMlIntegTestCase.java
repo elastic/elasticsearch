@@ -16,6 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -91,7 +92,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(XPackPlugin.class);
+        return Arrays.asList(XPackPlugin.class, ReindexPlugin.class);
     }
 
     @Override

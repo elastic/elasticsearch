@@ -10,8 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -22,10 +23,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.common.action.XPackDeleteByQueryAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
-import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 
 import java.util.List;
@@ -88,7 +87,7 @@ public class JobDataDeleter {
         deleteByQueryHolder.searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         deleteByQueryHolder.searchRequest.types(Result.TYPE.getPreferredName());
         deleteByQueryHolder.searchRequest.source(new SearchSourceBuilder().query(timeRange));
-        client.execute(XPackDeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest, new ActionListener<BulkByScrollResponse>() {
+        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest, new ActionListener<BulkByScrollResponse>() {
                 @Override
                 public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                     listener.onResponse(true);
@@ -114,7 +113,7 @@ public class JobDataDeleter {
         deleteByQueryHolder.searchRequest.source(new SearchSourceBuilder().query(new ConstantScoreQueryBuilder(qb)));
 
         try {
-            client.execute(XPackDeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest).get();
+            client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest).get();
         } catch (Exception e) {
             LOGGER.error("[" + jobId + "] An error occurred while deleting interim results", e);
         }

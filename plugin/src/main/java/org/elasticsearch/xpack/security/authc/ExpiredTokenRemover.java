@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.xpack.common.action.XPackDeleteByQueryAction;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -53,7 +53,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
                 .query(QueryBuilders.boolQuery()
                         .filter(QueryBuilders.termQuery("doc_type", TokenService.DOC_TYPE))
                         .filter(QueryBuilders.rangeQuery("expiration_time").lte(DateTime.now(DateTimeZone.UTC))));
-        client.execute(XPackDeleteByQueryAction.INSTANCE, dbq, ActionListener.wrap(r -> markComplete(),
+        client.execute(DeleteByQueryAction.INSTANCE, dbq, ActionListener.wrap(r -> markComplete(),
                 e -> {
                     if (isShardNotAvailableException(e) == false) {
                         logger.error("failed to delete expired tokens", e);

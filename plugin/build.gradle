@@ -239,6 +239,7 @@ dependencies {
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testCompile 'org.slf4j:slf4j-log4j12:1.6.2'
   testCompile 'org.slf4j:slf4j-api:1.6.2'
+  testCompile project(path: ':modules:reindex', configuration: 'runtime')
 }
 
 // make LicenseSigner available for testing signed licenses
@@ -339,6 +340,7 @@ integTestCluster {
   setting 'xpack.monitoring.exporters._local.type', 'local'
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
   setting 'xpack.monitoring.collection.interval', '-1'
+  distribution = 'zip' // this is important since we use the reindex module in ML
 
   waitCondition = { NodeInfo node, AntBuilder ant ->
       File tmpFile = new File(node.cwd, 'wait.success')

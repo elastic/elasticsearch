@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -143,6 +144,9 @@ public class KnownActionsTests extends SecurityIntegTestCase {
 
         // also loading all actions from the machine learning plugin
         loadActions(collectSubClasses(Action.class, MachineLearning.class), actions);
+
+        // also load stuff from Reindex
+        loadActions(collectSubClasses(Action.class, ReindexPlugin.class), actions);
 
         return unmodifiableSet(actions);
     }

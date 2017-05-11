@@ -68,7 +68,7 @@ POST /sales/_search?size=0
         "grades_count" : {
             "value_count" : {
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params" : {
                         "field" : "type"
                     }
@@ -80,5 +80,3 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.

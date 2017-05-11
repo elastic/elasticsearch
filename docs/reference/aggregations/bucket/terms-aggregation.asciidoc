@@ -478,7 +478,7 @@ This will interpret the `script` parameter as an `inline` script with the defaul
         "genres" : {
             "terms" : {
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "genre"
                     }
@@ -488,8 +488,6 @@ This will interpret the `script` parameter as an `inline` script with the defaul
     }
 }
 --------------------------------------------------
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 
 ==== Value Script

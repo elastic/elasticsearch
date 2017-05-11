@@ -34,14 +34,14 @@
 
   - do:
       render_search_template:
-        body: { "file": "file_search_template", "params": { "my_value": "foo", "my_field": "field1" } }
+        body: { "id": "stored_search_template", "params": { "my_value": "foo", "my_field": "field1" } }
 
   - match: { template_output.query.match.text: "foo" }
   - match: { template_output.aggs.my_terms.terms.field: "field1" }
 
   - do:
       render_search_template:
-        body: { "file": "file_search_template", "params": { "my_value": "bar", "my_field": "my_other_field" } }
+        body: { "id": "stored_search_template", "params": { "my_value": "bar", "my_field": "my_other_field" } }
 
   - match: { template_output.query.match.text: "bar" }
   - match: { template_output.aggs.my_terms.terms.field: "my_other_field" }
@@ -152,5 +152,5 @@
   - do:
       catch: /unable.to.find.file.script.\[simple1\].using.lang.\[mustache\]/
       search_template:
-        body: { "file" : "simple1"}
+        body: { "id" : "simple1"}
 

@@ -196,7 +196,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
         "load_time_outlier" : {
             "percentiles" : {
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params" : {
                         "timeUnit" : 1000
                     }
@@ -206,8 +206,6 @@ This will interpret the `script` parameter as an `inline` script with the `painl
     }
 }
 --------------------------------------------------
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 [[search-aggregations-metrics-percentile-aggregation-approximation]]
 ==== Percentiles are (usually) approximate

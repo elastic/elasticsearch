@@ -182,7 +182,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
         "author_count" : {
             "cardinality" : {
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params": {
                         "first_name_field": "author.first_name",
                         "last_name_field": "author.last_name"
@@ -193,8 +193,6 @@ This will interpret the `script` parameter as an `inline` script with the `painl
     }
 }
 --------------------------------------------------
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ==== Missing value
 

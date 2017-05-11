@@ -88,7 +88,7 @@ POST /sales/_search?size=0
         "hat_prices" : {
             "sum" : {
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params" : {
                         "field" : "price"
                     }
@@ -100,8 +100,6 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ===== Value Script
 

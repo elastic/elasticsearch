@@ -67,7 +67,7 @@ POST /exams/_search?size=0
         "avg_grade" : {
             "avg" : {
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "grade"
                     }
@@ -79,8 +79,6 @@ POST /exams/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:exams]
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ===== Value Script
 

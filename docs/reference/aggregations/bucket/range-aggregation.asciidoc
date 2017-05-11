@@ -158,7 +158,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
         "price_ranges" : {
             "range" : {
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "price"
                     }
@@ -173,8 +173,6 @@ This will interpret the `script` parameter as an `inline` script with the `painl
     }
 }
 --------------------------------------------------
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ==== Value Script
 

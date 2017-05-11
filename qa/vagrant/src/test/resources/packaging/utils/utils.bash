@@ -506,7 +506,7 @@ run_elasticsearch_tests() {
       "query": {
         "script": {
           "script": {
-            "file": "is_guide",
+            "id": "is_guide",
             "lang": "painless",
             "params": {
               "min_num_pages": 100
@@ -517,7 +517,7 @@ run_elasticsearch_tests() {
     }' | grep \"count\"\ :\ 2
 
     curl -s -H "Content-Type: application/json" -XGET 'http://localhost:9200/library/book/_search/template?pretty' -d '{
-      "file": "is_guide"
+      "id": "is_guide"
     }' | grep \"total\"\ :\ 1
 
     curl -s -XDELETE 'http://localhost:9200/_all'

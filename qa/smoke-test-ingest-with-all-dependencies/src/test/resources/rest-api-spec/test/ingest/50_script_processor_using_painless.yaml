@@ -47,7 +47,7 @@
             "processors": [
               {
                 "script" : {
-                  "file": "master"
+                  "id": "master"
                 }
               }
             ]

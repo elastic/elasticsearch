@@ -162,7 +162,7 @@ setup:
 
   - do:
       render_search_template:
-        body: { "file": "template_1", "params": { "field": "foo", "value": "bar", "size": 20 } }
+        body: { "id": "template_1", "params": { "field": "foo", "value": "bar", "size": 20 } }
 
   - match: { template_output.query.match.foo.query: "bar" }
   - match: { template_output.query.match.foo.operator: "or" }

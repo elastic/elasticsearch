@@ -78,7 +78,7 @@ POST /sales/_search
         "min_price" : {
             "min" : {
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "price"
                     }
@@ -90,8 +90,6 @@ POST /sales/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
-
-TIP: For indexed scripts replace the `file` parameter with an `id` parameter.
 
 ==== Value Script
 

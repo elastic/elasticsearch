@@ -209,7 +209,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     /**
-     * returns true if there are buffered ops
+     * Returns <code>true</code> if there are buffered operations that have not been flushed and fsynced to disk or if the latest global
+     * checkpoint has not yet been fsynced
      */
     public boolean syncNeeded() {
         return totalOffset != lastSyncedCheckpoint.offset || globalCheckpointSupplier.getAsLong() != lastSyncedCheckpoint.globalCheckpoint;

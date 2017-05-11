@@ -21,7 +21,6 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -289,15 +288,6 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         assertHitCount(searchResponse.getResponse(), 1);
         assertWarnings("use of </lang/id> [/mustache/2] for looking up" +
             " stored scripts/templates has been deprecated, use only <id> [2] instead");
-
-        Map<String, Object> vars = new HashMap<>();
-        vars.put("fieldParam", "bar");
-
-        TemplateQueryBuilder builder = new TemplateQueryBuilder("3", ScriptType.STORED, vars);
-        SearchResponse sr = client().prepareSearch().setQuery(builder)
-                .execute().actionGet();
-        assertHitCount(sr, 1);
-        assertWarnings("[template] query is deprecated, use search template api instead");
     }
 
     // Relates to #10397

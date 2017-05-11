@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 final class RemoteRequestBuilders {
     private RemoteRequestBuilders() {}
@@ -59,7 +60,14 @@ final class RemoteRequestBuilders {
     static Map<String, String> initialSearchParams(SearchRequest searchRequest, Version remoteVersion) {
         Map<String, String> params = new HashMap<>();
         if (searchRequest.scroll() != null) {
-            params.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
+            TimeValue keepAlive = searchRequest.scroll().keepAlive();
+            if (remoteVersion.before(Version.V_5_0_0)) {
+                /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
+                 * so we toss out that resolution, rounding up because more scroll
+                 * timeout seems safer than less. */
+                keepAlive = timeValueMillis((long) Math.ceil(keepAlive.millisFrac()));
+            }
+            params.put("scroll", keepAlive.getStringRep());
         }
         params.put("size", Integer.toString(searchRequest.source().size()));
         if (searchRequest.source().version() == null || searchRequest.source().version() == true) {
@@ -93,6 +101,10 @@ final class RemoteRequestBuilders {
         if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 need prompting to return interesting fields. Note that timestamp isn't available at all....
             searchRequest.source().storedField("_parent").storedField("_routing").storedField("_ttl");
+            if (remoteVersion.before(Version.fromId(1000099))) {
+                // Versions before 1.0.0 don't support `"_source": true` so we have to ask for the _source in a funny way.
+                searchRequest.source().storedField("_source");
+            }
         }
         if (searchRequest.source().storedFields() != null && false == searchRequest.source().storedFields().fieldNames().isEmpty()) {
             StringBuilder fields = new StringBuilder(searchRequest.source().storedFields().fieldNames().get(0));
@@ -105,7 +117,7 @@ final class RemoteRequestBuilders {
         return params;
     }
 
-    static HttpEntity initialSearchEntity(SearchRequest searchRequest, BytesReference query) {
+    static HttpEntity initialSearchEntity(SearchRequest searchRequest, BytesReference query, Version remoteVersion) {
         // EMPTY is safe here because we're not calling namedObject
         try (XContentBuilder entity = JsonXContent.contentBuilder();
                 XContentParser queryParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, query)) {
@@ -125,7 +137,10 @@ final class RemoteRequestBuilders {
             if (searchRequest.source().fetchSource() != null) {
                 entity.field("_source", searchRequest.source().fetchSource());
             } else {
-                entity.field("_source", true);
+                if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
+                    // Versions before 1.0 don't support `"_source": true` so we have to ask for the source as a stored field.
+                    entity.field("_source", true);
+                }
             }
 
             entity.endObject();
@@ -167,7 +182,13 @@ final class RemoteRequestBuilders {
         return "/_search/scroll";
     }
 
-    static Map<String, String> scrollParams(TimeValue keepAlive) {
+    static Map<String, String> scrollParams(TimeValue keepAlive, Version remoteVersion) {
+        if (remoteVersion.before(Version.V_5_0_0)) {
+            /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
+             * so we toss out that resolution, rounding up so we shouldn't end up
+             * with 0s. */
+            keepAlive = timeValueMillis((long) Math.ceil(keepAlive.millisFrac()));
+        }
         return singletonMap("scroll", keepAlive.getStringRep());
     }
 

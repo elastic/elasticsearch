@@ -419,11 +419,6 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public String getExtension() {
-            return NAME;
-        }
-
-        @Override
         public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
             return scriptSource;
         }
@@ -527,11 +522,6 @@ public class SumIT extends AbstractNumericTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 

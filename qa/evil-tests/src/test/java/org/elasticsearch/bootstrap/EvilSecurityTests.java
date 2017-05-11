@@ -78,7 +78,6 @@ public class EvilSecurityTests extends ESTestCase {
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.resolve("home").toString());
         settingsBuilder.put(Environment.PATH_CONF_SETTING.getKey(), esHome.resolve("conf").toString());
-        settingsBuilder.put(Environment.PATH_SCRIPTS_SETTING.getKey(), esHome.resolve("scripts").toString());
         settingsBuilder.putArray(Environment.PATH_DATA_SETTING.getKey(), esHome.resolve("data1").toString(),
                 esHome.resolve("data2").toString());
         settingsBuilder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), esHome.resolve("custom").toString());
@@ -117,9 +116,6 @@ public class EvilSecurityTests extends ESTestCase {
         assertExactPermissions(new FilePermission(environment.modulesFile().toString(), "read,readlink"), permissions);
         // config file: ro
         assertExactPermissions(new FilePermission(environment.configFile().toString(), "read,readlink"), permissions);
-        // scripts file: ro
-        assertExactPermissions(new FilePermission(environment.scriptsFile().toString(), "read,readlink"), permissions);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {Environment.PATH_SCRIPTS_SETTING});
         // plugins: ro
         assertExactPermissions(new FilePermission(environment.pluginsFile().toString(), "read,readlink"), permissions);
 

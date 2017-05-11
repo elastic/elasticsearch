@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
+import org.elasticsearch.search.aggregations.bucket.filters.InternalFiltersTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGridTests;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
@@ -122,6 +123,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalRangeTests());
         aggsTests.add(new InternalDateRangeTests());
         aggsTests.add(new InternalGeoDistanceTests());
+        aggsTests.add(new InternalFiltersTests());
         return Collections.unmodifiableList(aggsTests);
     }
 

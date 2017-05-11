@@ -33,7 +33,7 @@ The Store SMB plugin provides two storage types optimized for SMB:
 To use one of these specific storage types, you need to install the Store SMB plugin and restart the node.
 Then configure Elasticsearch to set the storage type you want.
 
-This can be configured for all indices by adding this to the `elasticsearch.yml` file:
+This can be configured for all indices by adding this to the `elasticsearch.yaml` file:
 
 [source,yaml]
 ----

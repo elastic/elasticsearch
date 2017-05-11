@@ -10,7 +10,7 @@
 `MAX_LOCKED_MEMORY`::
 
     Maximum locked memory size. Set to `unlimited` if you use the
-    `bootstrap.memory_lock` option in elasticsearch.yml.
+    `bootstrap.memory_lock` option in elasticsearch.yaml.
 
 `MAX_MAP_COUNT`::
 
@@ -31,7 +31,7 @@
 
 `CONF_DIR`::
 
-    Configuration file directory (which needs to include `elasticsearch.yml`
+    Configuration file directory (which needs to include `elasticsearch.yaml`
     and `log4j2.properties` files), defaults to `/etc/elasticsearch`.
 
 `ES_JAVA_OPTS`::

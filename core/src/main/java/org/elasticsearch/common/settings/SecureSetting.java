@@ -85,7 +85,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
         if (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false) {
             if (super.exists(settings)) {
                 throw new IllegalArgumentException("Setting [" + getKey() + "] is a secure setting" +
-                    " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml");
+                    " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yaml");
             }
             return getFallback(settings);
         }

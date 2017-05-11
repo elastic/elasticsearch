@@ -95,7 +95,7 @@ To upgrade using a zip or compressed tarball:
 
 *   Either copy the files in the `data` directory from your old installation
     to your new installation, or configure the location of the data directory
-    in the `config/elasticsearch.yml` file, with the `path.data` setting.
+    in the `config/elasticsearch.yaml` file, with the `path.data` setting.
 --
 
 . *Upgrade any plugins*

@@ -49,7 +49,7 @@ load $BATS_UTILS/utils.bash
     skip_not_dpkg_or_rpm
     local temp=`mktemp -d`
     chown elasticsearch:elasticsearch "$temp"
-    echo "path.data: [$temp]" > "/etc/elasticsearch/elasticsearch.yml"
+    echo "path.data: [$temp]" > "/etc/elasticsearch/elasticsearch.yaml"
 }
 
 @test "[BAD data.path] start installed from package" {
@@ -70,7 +70,7 @@ load $BATS_UTILS/utils.bash
 @test "[BAD data.path] setup funny path.data in tar install" {
     local temp=`mktemp -d`
     chown elasticsearch:elasticsearch "$temp"
-    echo "path.data: [$temp]" > "/tmp/elasticsearch/config/elasticsearch.yml"
+    echo "path.data: [$temp]" > "/tmp/elasticsearch/config/elasticsearch.yaml"
 }
 
 @test "[BAD data.path] start installed from tar" {

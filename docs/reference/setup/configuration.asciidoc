@@ -14,7 +14,7 @@ able to join a cluster, such as `cluster.name` and `network.host`.
 
 Elasticsearch has two configuration files:
 
-* `elasticsearch.yml` for configuring Elasticsearch, and
+* `elasticsearch.yaml` for configuring Elasticsearch, and
 * `log4j2.properties` for configuring Elasticsearch logging.
 
 These files are located in the config directory, whose location defaults to

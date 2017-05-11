@@ -12,7 +12,7 @@ elasticsearch will pick the best implementation based on the operating
 environment.
 
 This can be overridden for all indices by adding this to the
-`config/elasticsearch.yml` file:
+`config/elasticsearch.yaml` file:
 
 [source,yaml]
 ---------------------------------
@@ -90,7 +90,7 @@ This setting is best-effort only and may not work at all depending on the store
 type and host operating system.
 
 The `index.store.preload` is a static setting that can either be set in the
-`config/elasticsearch.yml`:
+`config/elasticsearch.yaml`:
 
 [source,yaml]
 ---------------------------------

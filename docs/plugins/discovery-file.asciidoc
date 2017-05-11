@@ -13,7 +13,7 @@ include::install_remove.asciidoc[]
 
 The file-based discovery plugin provides the ability to specify the
 unicast hosts list through a simple `unicast_hosts.txt` file that can
-be dynamically updated at any time. To enable, add the following in `elasticsearch.yml`:
+be dynamically updated at any time. To enable, add the following in `elasticsearch.yaml`:
 
 [source,yaml]
 ----
@@ -29,7 +29,7 @@ addresses to connect to for zen discovery when those IP addresses may not be
 known at node startup.
 
 Note that the file-based discovery plugin is meant to augment the unicast
-hosts list in `elasticsearch.yml` (if specified), not replace it.  Therefore,
+hosts list in `elasticsearch.yaml` (if specified), not replace it.  Therefore,
 if there are valid unicast host entries in `discovery.zen.ping.unicast.hosts`,
 they will be used in addition to those supplied in `unicast_hosts.txt`.
 

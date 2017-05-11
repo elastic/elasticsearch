@@ -122,7 +122,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         Objects.requireNonNull(scriptSettings);
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
-                    "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: true` and `script.stored: true` in elasticsearch.yml");
+                    "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: true` and `script.stored: true` in elasticsearch.yaml");
         }
 
         this.scriptEngines = scriptEngineRegistry.getRegisteredLanguages().values();

@@ -532,7 +532,7 @@ move_config() {
     # Move configuration files to the new configuration directory
     mv "$oldConfig"/* "$ESCONFIG"
     chown -R elasticsearch:elasticsearch "$ESCONFIG"
-    assert_file_exist "$ESCONFIG/elasticsearch.yml"
+    assert_file_exist "$ESCONFIG/elasticsearch.yaml"
     assert_file_exist "$ESCONFIG/jvm.options"
     assert_file_exist "$ESCONFIG/log4j2.properties"
 }

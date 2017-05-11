@@ -43,10 +43,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * This test needs Azure to run and -Dtests.thirdparty=true to be set
- * and -Dtests.config=/path/to/elasticsearch.yml
+ * and -Dtests.config=/path/to/elasticsearch.yaml
  *
  * Note that this test requires an Azure storage account, with the account
- * and credentials set in the elasticsearch.yml config file passed in to the
+ * and credentials set in the elasticsearch.yaml config file passed in to the
  * test.  The Azure storage account type must be a Read-access geo-redundant
  * storage (RA-GRS) account.
  *

@@ -118,7 +118,7 @@ class NodeInfo {
         } else {
             dataDir = new File(homeDir, "data")
         }
-        configFile = new File(confDir, 'elasticsearch.yml')
+        configFile = new File(confDir, 'elasticsearch.yaml')
         // even for rpm/deb, the logs are under home because we dont start with real services
         File logsDir = new File(homeDir, 'logs')
         httpPortsFile = new File(logsDir, 'http.ports')
@@ -182,7 +182,7 @@ class NodeInfo {
             esCommandString += "|\n|  [${wrapperScript.name}]\n"
             wrapperScript.eachLine('UTF-8', { line -> esCommandString += "    ${line}\n"})
         }
-        esCommandString += '|\n|  [elasticsearch.yml]\n'
+        esCommandString += '|\n|  [elasticsearch.yaml]\n'
         configFile.eachLine('UTF-8', { line -> esCommandString += "|    ${line}\n" })
         esCommandString += "|-----------------------------------------"
         return esCommandString

@@ -8,7 +8,7 @@ This section contains modules responsible for various aspects of the functionali
 _static_::
 
 These settings must be set at the node level, either in the
-`elasticsearch.yml` file, or as an environment variable or on the command line
+`elasticsearch.yaml` file, or as an environment variable or on the command line
 when starting a node.  They must be set on every relevant node in the cluster.
 
 _dynamic_::

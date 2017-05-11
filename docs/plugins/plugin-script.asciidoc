@@ -159,7 +159,7 @@ sudo bin/elasticsearch-plugin install --batch [pluginname]
 [float]
 === Custom config directory
 
-If your `elasticsearch.yml` config file is in a custom location, you will need
+If your `elasticsearch.yaml` config file is in a custom location, you will need
 to specify the path to the config file when using the `plugin` script.  You
 can do this as follows:
 
@@ -203,7 +203,7 @@ The default location of the `plugins` directory depends on which package you ins
 === Mandatory Plugins
 
 If you rely on some plugins, you can define mandatory plugins by adding
-`plugin.mandatory` setting to the `config/elasticsearch.yml` file, for
+`plugin.mandatory` setting to the `config/elasticsearch.yaml` file, for
 example:
 
 [source,yaml]

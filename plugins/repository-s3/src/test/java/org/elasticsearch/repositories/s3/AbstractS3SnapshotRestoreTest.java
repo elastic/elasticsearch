@@ -442,9 +442,9 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         for (Settings bucket : buckets) {
             String bucketName = bucket.get("bucket");
 
-            // We check that settings has been set in elasticsearch.yml integration test file
+            // We check that settings has been set in elasticsearch.yaml integration test file
             // as described in README
-            assertThat("Your settings in elasticsearch.yml are incorrect. Check README file.", bucketName, notNullValue());
+            assertThat("Your settings in elasticsearch.yaml are incorrect. Check README file.", bucketName, notNullValue());
             AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(Settings.EMPTY);
             try {
                 ObjectListing prevListing = null;

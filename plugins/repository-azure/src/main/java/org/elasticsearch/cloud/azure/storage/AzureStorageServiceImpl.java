@@ -110,7 +110,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         AzureStorageSettings azureStorageSettings = null;
 
         if (this.primaryStorageSettings == null) {
-            throw new IllegalArgumentException("No primary azure storage can be found. Check your elasticsearch.yml.");
+            throw new IllegalArgumentException("No primary azure storage can be found. Check your elasticsearch.yaml.");
         }
 
         if (Strings.hasLength(account)) {
@@ -126,7 +126,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
         if (azureStorageSettings == null) {
             // We did not get an account. That's bad.
-            throw new IllegalArgumentException("Can not find azure account [" + account + "]. Check your elasticsearch.yml.");
+            throw new IllegalArgumentException("Can not find azure account [" + account + "]. Check your elasticsearch.yaml.");
         }
 
         CloudBlobClient client = this.clients.get(azureStorageSettings.getAccount());

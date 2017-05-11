@@ -318,7 +318,7 @@ set "%~2=%conv%"
 goto:eof
 
 :conffileset
-echo CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed.
+echo CONF_FILE setting is no longer supported. elasticsearch.yaml must be placed in the config directory and cannot be renamed.
 goto:eof
 
 ENDLOCAL

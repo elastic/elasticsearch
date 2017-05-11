@@ -107,7 +107,7 @@ master and data nodes. This location (or one of its parent directories) must be 
 setting on all master and data nodes.
 
 Assuming that the shared filesystem is mounted to `/mount/backups/my_backup`, the following setting should be added to
-`elasticsearch.yml` file:
+`elasticsearch.yaml` file:
 
 [source,yaml]
 --------------

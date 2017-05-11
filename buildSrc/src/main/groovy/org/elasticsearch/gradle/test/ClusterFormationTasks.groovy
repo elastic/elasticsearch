@@ -139,7 +139,7 @@ class ClusterFormationTasks {
      * <ol>
      *   <li>Cleanup the extraction directory</li>
      *   <li>Extract a fresh copy of elasticsearch</li>
-     *   <li>Write an elasticsearch.yml config file</li>
+     *   <li>Write an elasticsearch.yaml config file</li>
      *   <li>Copy plugins that will be installed to a temporary dir (which contains spaces)</li>
      *   <li>Install plugins</li>
      *   <li>Run additional setup commands</li>
@@ -277,7 +277,7 @@ class ClusterFormationTasks {
         return extract
     }
 
-    /** Adds a task to write elasticsearch.yml for the given node configuration */
+    /** Adds a task to write elasticsearch.yaml for the given node configuration */
     static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
         Map esConfig = [
                 'cluster.name'                 : node.clusterName,
@@ -310,7 +310,7 @@ class ClusterFormationTasks {
             if (unicastTransportUri != null) {
                 esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
             }
-            File configFile = new File(node.confDir, 'elasticsearch.yml')
+            File configFile = new File(node.confDir, 'elasticsearch.yaml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
         }

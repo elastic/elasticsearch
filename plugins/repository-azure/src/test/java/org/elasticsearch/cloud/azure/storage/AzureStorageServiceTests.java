@@ -52,7 +52,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             azureStorageService.getSelectedClient("whatever", LocationMode.PRIMARY_ONLY);
             fail("we should have raised an IllegalArgumentException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("No primary azure storage can be found. Check your elasticsearch.yml."));
+            assertThat(e.getMessage(), is("No primary azure storage can be found. Check your elasticsearch.yaml."));
         }
     }
 
@@ -104,7 +104,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             azureStorageService.getSelectedClient("azure4", LocationMode.PRIMARY_ONLY);
             fail("we should have raised an IllegalArgumentException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("Can not find azure account [azure4]. Check your elasticsearch.yml."));
+            assertThat(e.getMessage(), is("Can not find azure account [azure4]. Check your elasticsearch.yaml."));
         }
     }
 

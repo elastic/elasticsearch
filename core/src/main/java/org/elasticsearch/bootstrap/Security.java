@@ -59,7 +59,7 @@ import java.util.Set;
  * between security and ease of use:
  * <ul>
  *   <li>Assigns file permissions to user-configurable paths that can
- *       be specified from the command-line or {@code elasticsearch.yml}.</li>
+ *       be specified from the command-line or {@code elasticsearch.yaml}.</li>
  *   <li>Allows for some contained usage of native code that would not
  *       otherwise be permitted.</li>
  * </ul>

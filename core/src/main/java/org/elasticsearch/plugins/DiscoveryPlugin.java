@@ -81,7 +81,7 @@ public interface DiscoveryPlugin {
      * name.
      *
      * For example: you could call a third party service (an API) to resolve _mycard_.
-     * Then you could define in elasticsearch.yml settings like:
+     * Then you could define in elasticsearch.yaml settings like:
      *
      * <pre>{@code
      * network.host: _mycard_

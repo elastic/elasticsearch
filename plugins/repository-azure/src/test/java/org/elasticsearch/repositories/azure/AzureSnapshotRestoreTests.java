@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * This test needs Azure to run and -Dtests.thirdparty=true to be set
- * and -Dtests.config=/path/to/elasticsearch.yml
+ * and -Dtests.config=/path/to/elasticsearch.yaml
  * @see AbstractAzureWithThirdPartyIntegTestCase
  */
 @ClusterScope(

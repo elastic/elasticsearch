@@ -10,7 +10,7 @@ include::install_remove.asciidoc[]
 [[repository-azure-usage]]
 ==== Azure Repository
 
-To enable Azure repositories, you have first to set your azure storage settings in `elasticsearch.yml` file:
+To enable Azure repositories, you have first to set your azure storage settings in `elasticsearch.yaml` file:
 
 [source,yaml]
 ----
@@ -135,7 +135,7 @@ PUT _snapshot/my_backup2
 }
 
 
-# With two accounts defined in elasticsearch.yml (my_account1 and my_account2)
+# With two accounts defined in elasticsearch.yaml (my_account1 and my_account2)
 PUT _snapshot/my_backup3
 {
     "type": "azure",

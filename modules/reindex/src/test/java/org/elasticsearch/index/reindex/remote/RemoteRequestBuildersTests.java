@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -49,6 +48,13 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
+/**
+ * Tests for {@link RemoteRequestBuilders} which builds requests for remote version of
+ * Elasticsearch. Note that unlike most of the rest of Elasticsearch this file needs to
+ * be compatible with very old versions of Elasticsearch. Thus is often uses identifiers
+ * for versions like {@code 2000099} for {@code 2.0.0-alpha1}. Do not drop support for
+ * features from this file just because the version constants have been removed.
+ */
 public class RemoteRequestBuildersTests extends ESTestCase {
     public void testIntialSearchPath() {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
@@ -117,20 +123,33 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
 
         // Test request without any fields
-        Version remoteVersion = VersionUtils.randomVersion(random());
+        Version remoteVersion = Version.fromId(between(2000099, Version.CURRENT.id));
         assertThat(initialSearchParams(searchRequest, remoteVersion),
                 not(either(hasKey("stored_fields")).or(hasKey("fields"))));
 
-        // Setup some fields for the next two tests
-        searchRequest.source().storedField("_source").storedField("_id");
-
         // Test stored_fields for versions that support it
-        remoteVersion = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0_alpha4, null);
+        searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        searchRequest.source().storedField("_source").storedField("_id");
+        remoteVersion = Version.fromId(between(Version.V_5_0_0_alpha4_ID, Version.CURRENT.id));
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("stored_fields", "_source,_id"));
 
         // Test fields for versions that support it
-        remoteVersion = VersionUtils.randomVersionBetween(random(), null, Version.V_5_0_0_alpha3);
+        searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        searchRequest.source().storedField("_source").storedField("_id");
+        remoteVersion = Version.fromId(between(2000099, Version.V_5_0_0_alpha4_ID - 1));
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("fields", "_source,_id"));
+
+        // Test extra fields for versions that need it
+        searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        searchRequest.source().storedField("_source").storedField("_id");
+        remoteVersion = Version.fromId(between(0, 2000099 - 1));
+        assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("fields", "_source,_id,_parent,_routing,_ttl"));
+
+        // But only versions before 1.0 force _source to be in the list
+        searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        searchRequest.source().storedField("_id");
+        remoteVersion = Version.fromId(between(1000099, 2000099 - 1));
+        assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("fields", "_id,_parent,_routing,_ttl"));
     }
 
     public void testInitialSearchParamsMisc() {

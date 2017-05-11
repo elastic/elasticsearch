@@ -25,6 +25,7 @@ List projects = [
   'test:framework',
   'test:fixtures:example-fixture',
   'test:fixtures:hdfs-fixture',
+  'test:fixtures:krb5kdc-fixture',
   'test:logger-usage',
   'modules:aggs-matrix-stats',
   'modules:analysis-common',

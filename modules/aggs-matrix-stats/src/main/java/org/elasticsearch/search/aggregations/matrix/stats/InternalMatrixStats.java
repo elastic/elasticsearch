@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 
@@ -41,7 +42,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     private final MatrixStatsResults results;
 
     /** per shard ctor */
-    protected InternalMatrixStats(String name, long count, RunningStats multiFieldStatsResults, MatrixStatsResults results,
+    InternalMatrixStats(String name, long count, RunningStats multiFieldStatsResults, MatrixStatsResults results,
                                   List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         assert count >= 0;
@@ -136,6 +137,10 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
             return Double.NaN;
         }
         return results.getCorrelation(fieldX, fieldY);
+    }
+
+    MatrixStatsResults getResults() {
+        return results;
     }
 
     static class Fields {
@@ -237,5 +242,17 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         MatrixStatsResults results = new MatrixStatsResults(runningStats);
 
         return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, pipelineAggregators(), getMetaData());
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(stats, results);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalMatrixStats other = (InternalMatrixStats) obj;
+        return Objects.equals(this.stats, other.stats) &&
+            Objects.equals(this.results, other.results);
     }
 }

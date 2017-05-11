@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  * Tests failure capturing and abort-on-failure behavior of reindex.
  */
+@TestLogging("_root:DEBUG")
 public class ReindexFailureTests extends ReindexTestCase {
     public void testFailuresCauseAbortDefault() throws Exception {
         /*
@@ -108,7 +110,7 @@ public class ReindexFailureTests extends ReindexTestCase {
                 logger.info("Didn't trigger a reindex failure on the {} attempt", attempt);
                 attempt++;
             } catch (ExecutionException e) {
-                logger.info("Triggered a reindex failure on the {} attempt", attempt);
+                logger.info("Triggered a reindex failure on the {} attempt: {}", attempt, e.getMessage());
                 assertThat(e.getMessage(),
                         either(containsString("all shards failed"))
                         .or(containsString("No search context found"))

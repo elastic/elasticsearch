@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class MustacheTests extends ESTestCase {
 
-    private ScriptEngineService engine = new MustacheScriptEngineService();
+    private ScriptEngine engine = new MustacheScriptEngine();
 
     public void testBasics() {
         String template = "GET _search {\"query\": " + "{\"boosting\": {"

@@ -47,11 +47,11 @@ public class NativeScriptTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         ScriptModule scriptModule = new ScriptModule(settings, new Environment(settings), null,
-                singletonList(new NativeScriptEngineService(settings, singletonMap("my", new MyNativeScriptFactory()))), emptyList());
+                singletonList(new NativeScriptEngine(settings, singletonMap("my", new MyNativeScriptFactory()))), emptyList());
         List<Setting<?>> scriptSettings = scriptModule.getSettings();
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
 
-        Script script = new Script(ScriptType.INLINE, NativeScriptEngineService.NAME, "my", Collections.emptyMap());
+        Script script = new Script(ScriptType.INLINE, NativeScriptEngine.NAME, "my", Collections.emptyMap());
         CompiledScript compiledScript = scriptModule.getScriptService().compile(script, ScriptContext.Standard.SEARCH);
         ExecutableScript executable = scriptModule.getScriptService().executable(compiledScript, script.getParams());
         assertThat(executable.run().toString(), equalTo("test"));
@@ -71,7 +71,7 @@ public class NativeScriptTests extends ESTestCase {
         ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, null);
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(new NativeScriptEngineService(settings,
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(new NativeScriptEngine(settings,
             nativeScriptFactoryMap)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<>());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
@@ -79,7 +79,7 @@ public class NativeScriptTests extends ESTestCase {
             scriptContextRegistry, scriptSettings);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            assertThat(scriptService.compile(new Script(ScriptType.INLINE, NativeScriptEngineService.NAME, "my", Collections.emptyMap()),
+            assertThat(scriptService.compile(new Script(ScriptType.INLINE, NativeScriptEngine.NAME, "my", Collections.emptyMap()),
                 scriptContext), notNullValue());
         }
     }

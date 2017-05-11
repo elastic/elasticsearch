@@ -26,8 +26,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -67,7 +65,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -171,7 +168,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public List<SnapshotInfo> snapshots(final String repositoryName,
                                         final List<SnapshotId> snapshotIds,
-                                        final List<SnapshotId> incompatibleSnapshotIds,
+                                        final Set<SnapshotId> incompatibleSnapshotIds,
                                         final boolean ignoreUnavailable) {
         final Set<SnapshotInfo> snapshotSet = new HashSet<>();
         final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);

@@ -92,9 +92,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public static final Setting<Integer> SCRIPT_MAX_COMPILATIONS_PER_MINUTE =
         Setting.intSetting("script.max_compilations_per_minute", 15, 0, Property.Dynamic, Property.NodeScope);
 
-    private final Collection<ScriptEngineService> scriptEngines;
-    private final Map<String, ScriptEngineService> scriptEnginesByLang;
-    private final Map<String, ScriptEngineService> scriptEnginesByExt;
+    private final Collection<ScriptEngine> scriptEngines;
+    private final Map<String, ScriptEngine> scriptEnginesByLang;
+    private final Map<String, ScriptEngine> scriptEnginesByExt;
 
     private final ConcurrentMap<CacheKey, CompiledScript> staticCache = ConcurrentCollections.newConcurrentMap();
 
@@ -142,9 +142,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
-        Map<String, ScriptEngineService> enginesByLangBuilder = new HashMap<>();
-        Map<String, ScriptEngineService> enginesByExtBuilder = new HashMap<>();
-        for (ScriptEngineService scriptEngine : scriptEngines) {
+        Map<String, ScriptEngine> enginesByLangBuilder = new HashMap<>();
+        Map<String, ScriptEngine> enginesByExtBuilder = new HashMap<>();
+        for (ScriptEngine scriptEngine : scriptEngines) {
             String language = scriptEngineRegistry.getLanguage(scriptEngine.getClass());
             enginesByLangBuilder.put(language, scriptEngine);
             enginesByExtBuilder.put(scriptEngine.getExtension(), scriptEngine);
@@ -183,20 +183,20 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         IOUtils.close(scriptEngines);
     }
 
-    private ScriptEngineService getScriptEngineServiceForLang(String lang) {
-        ScriptEngineService scriptEngineService = scriptEnginesByLang.get(lang);
-        if (scriptEngineService == null) {
+    private ScriptEngine getScriptEngineServiceForLang(String lang) {
+        ScriptEngine scriptEngine = scriptEnginesByLang.get(lang);
+        if (scriptEngine == null) {
             throw new IllegalArgumentException("script_lang not supported [" + lang + "]");
         }
-        return scriptEngineService;
+        return scriptEngine;
     }
 
-    private ScriptEngineService getScriptEngineServiceForFileExt(String fileExtension) {
-        ScriptEngineService scriptEngineService = scriptEnginesByExt.get(fileExtension);
-        if (scriptEngineService == null) {
+    private ScriptEngine getScriptEngineServiceForFileExt(String fileExtension) {
+        ScriptEngine scriptEngine = scriptEnginesByExt.get(fileExtension);
+        if (scriptEngine == null) {
             throw new IllegalArgumentException("script file extension not supported [" + fileExtension + "]");
         }
-        return scriptEngineService;
+        return scriptEngine;
     }
 
     void setMaxCompilationsPerMinute(Integer newMaxPerMinute) {
@@ -258,7 +258,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");
         }
 
-        ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
+        ScriptEngine scriptEngine = getScriptEngineServiceForLang(lang);
 
         if (canExecuteScript(lang, type, scriptContext) == false) {
             throw new IllegalStateException("scripts of type [" + script.getType() + "]," +
@@ -304,7 +304,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     }
                     // Check whether too many compilations have happened
                     checkCompilationLimit();
-                    compiledScript = new CompiledScript(type, id, lang, scriptEngineService.compile(id, idOrCode, options));
+                    compiledScript = new CompiledScript(type, id, lang, scriptEngine.compile(id, idOrCode, options));
                 } catch (ScriptException good) {
                     // TODO: remove this try-catch completely, when all script engines have good exceptions!
                     throw good; // its already good
@@ -404,10 +404,10 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
 
         try {
-            ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(source.getLang());
+            ScriptEngine scriptEngine = getScriptEngineServiceForLang(source.getLang());
 
             if (isAnyScriptContextEnabled(source.getLang(), ScriptType.STORED)) {
-                Object compiled = scriptEngineService.compile(request.id(), source.getCode(), Collections.emptyMap());
+                Object compiled = scriptEngine.compile(request.id(), source.getCode(), Collections.emptyMap());
 
                 if (compiled == null) {
                     throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]" +
@@ -528,7 +528,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     /**
      * A small listener for the script cache that calls each
-     * {@code ScriptEngineService}'s {@code scriptRemoved} method when the
+     * {@code ScriptEngine}'s {@code scriptRemoved} method when the
      * script has been removed from the cache
      */
     private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, CompiledScript> {
@@ -571,7 +571,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 logger.trace("Loading script file : [{}]", file);
             }
 
-            ScriptEngineService engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());
+            ScriptEngine engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());
             if (engineService == null) {
                 logger.warn("No script engine found for [{}]", scriptNameExt.v2());
             } else {
@@ -629,7 +629,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         public void onFileDeleted(Path file) {
             Tuple<String, String> scriptNameExt = getScriptNameExt(file);
             if (scriptNameExt != null) {
-                ScriptEngineService engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());
+                ScriptEngine engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());
                 assert engineService != null;
                 logger.info("removing script file [{}]", file.toAbsolutePath());
                 staticCache.remove(new CacheKey(engineService.getType(), scriptNameExt.v1(), null));

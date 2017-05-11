@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class ReindexAction extends Action<ReindexRequest, BulkByScrollResponse, ReindexRequestBuilder> {

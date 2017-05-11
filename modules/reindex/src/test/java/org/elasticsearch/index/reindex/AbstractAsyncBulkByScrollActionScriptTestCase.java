@@ -20,8 +20,12 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction.OpType;
-import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
+import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction;
+import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction.OpType;
+import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction.RequestWrapper;
+import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollActionTestCase;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.script.CompiledScript;

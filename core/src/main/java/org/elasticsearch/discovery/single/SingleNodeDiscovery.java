@@ -109,11 +109,6 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     @Override
-    public int getMinimumMasterNodes() {
-        return 1;
-    }
-
-    @Override
     protected synchronized void doStart() {
         // set initial state
         DiscoveryNode localNode = transportService.getLocalNode();

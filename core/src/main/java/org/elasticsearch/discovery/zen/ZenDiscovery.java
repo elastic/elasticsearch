@@ -399,11 +399,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         return discoverySettings;
     }
 
-    @Override
-    public int getMinimumMasterNodes() {
-        return electMaster.minimumMasterNodes();
-    }
-
     /**
      * returns true if zen discovery is started and there is a currently a background thread active for (re)joining
      * the cluster used for testing.

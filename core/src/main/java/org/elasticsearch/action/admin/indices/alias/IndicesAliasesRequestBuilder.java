@@ -22,15 +22,15 @@ package org.elasticsearch.action.admin.indices.alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.Map;
 
 /**
- *
+ * Builder for request to modify many aliases at once.
  */
-public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<IndicesAliasesRequest, IndicesAliasesResponse, IndicesAliasesRequestBuilder> {
+public class IndicesAliasesRequestBuilder
+        extends AcknowledgedRequestBuilder<IndicesAliasesRequest, IndicesAliasesResponse, IndicesAliasesRequestBuilder> {
 
     public IndicesAliasesRequestBuilder(ElasticsearchClient client, IndicesAliasesAction action) {
         super(client, action, new IndicesAliasesRequest());
@@ -43,7 +43,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param alias The alias
      */
     public IndicesAliasesRequestBuilder addAlias(String index, String alias) {
-        request.addAlias(alias, index);
+        request.addAliasAction(AliasActions.add().index(index).alias(alias));
         return this;
     }
 
@@ -54,7 +54,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param alias   The alias
      */
     public IndicesAliasesRequestBuilder addAlias(String[] indices, String alias) {
-        request.addAlias(alias, indices);
+        request.addAliasAction(AliasActions.add().indices(indices).alias(alias));
         return this;
     }
 
@@ -66,8 +66,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param filter The filter
      */
     public IndicesAliasesRequestBuilder addAlias(String index, String alias, String filter) {
-        AliasActions action = new AliasActions(AliasAction.Type.ADD, index, alias).filter(filter);
-        request.addAliasAction(action);
+        request.addAliasAction(AliasActions.add().index(index).alias(alias).filter(filter));
         return this;
     }
 
@@ -79,8 +78,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param filter  The filter
      */
     public IndicesAliasesRequestBuilder addAlias(String indices[], String alias, String filter) {
-        AliasActions action = new AliasActions(AliasAction.Type.ADD, indices, alias).filter(filter);
-        request.addAliasAction(action);
+        request.addAliasAction(AliasActions.add().indices(indices).alias(alias).filter(filter));
         return this;
     }
 
@@ -92,7 +90,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param filter  The filter
      */
     public IndicesAliasesRequestBuilder addAlias(String[] indices, String alias, Map<String, Object> filter) {
-        request.addAlias(alias, filter, indices);
+        request.addAliasAction(AliasActions.add().indices(indices).alias(alias).filter(filter));
         return this;
     }
 
@@ -104,7 +102,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param filter The filter
      */
     public IndicesAliasesRequestBuilder addAlias(String index, String alias, Map<String, Object> filter) {
-        request.addAlias(alias, filter, index);
+        request.addAliasAction(AliasActions.add().index(index).alias(alias).filter(filter));
         return this;
     }
 
@@ -116,7 +114,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param filterBuilder The filter
      */
     public IndicesAliasesRequestBuilder addAlias(String indices[], String alias, QueryBuilder filterBuilder) {
-        request.addAlias(alias, filterBuilder, indices);
+        request.addAliasAction(AliasActions.add().indices(indices).alias(alias).filter(filterBuilder));
         return this;
     }
 
@@ -128,7 +126,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param filterBuilder The filter
      */
     public IndicesAliasesRequestBuilder addAlias(String index, String alias, QueryBuilder filterBuilder) {
-        request.addAlias(alias, filterBuilder, index);
+        request.addAliasAction(AliasActions.add().index(index).alias(alias).filter(filterBuilder));
         return this;
     }
 
@@ -139,7 +137,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param alias The alias
      */
     public IndicesAliasesRequestBuilder removeAlias(String index, String alias) {
-        request.removeAlias(index, alias);
+        request.addAliasAction(AliasActions.remove().index(index).alias(alias));
         return this;
     }
 
@@ -150,7 +148,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param aliases The aliases
      */
     public IndicesAliasesRequestBuilder removeAlias(String[] indices, String... aliases) {
-        request.removeAlias(indices, aliases);
+        request.addAliasAction(AliasActions.remove().indices(indices).aliases(aliases));
         return this;
     }
 
@@ -161,17 +159,12 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
      * @param aliases The aliases
      */
     public IndicesAliasesRequestBuilder removeAlias(String index, String[] aliases) {
-        request.removeAlias(index, aliases);
+        request.addAliasAction(AliasActions.remove().index(index).aliases(aliases));
         return this;
     }
 
-    /**
-     * Adds an alias action to the request.
-     *
-     * @param aliasAction The alias action
-     */
-    public IndicesAliasesRequestBuilder addAliasAction(AliasAction aliasAction) {
-        request.addAliasAction(aliasAction);
+    public IndicesAliasesRequestBuilder removeIndex(String index) {
+        request.addAliasAction(AliasActions.removeIndex().index(index));
         return this;
     }
 

@@ -22,15 +22,11 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 
-/**
- *
- */
 public class GatewayModule extends AbstractModule {
 
 
     @Override
     protected void configure() {
-        bind(MetaStateService.class).asEagerSingleton();
         bind(DanglingIndicesState.class).asEagerSingleton();
         bind(GatewayService.class).asEagerSingleton();
         bind(TransportNodesListGatewayMetaState.class).asEagerSingleton();

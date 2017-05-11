@@ -9,7 +9,8 @@ API. Here is an example:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/_mget' -d '{
+GET /_mget
+{
     "docs" : [
         {
             "_index" : "test",
@@ -22,15 +23,17 @@ curl 'localhost:9200/_mget' -d '{
             "_id" : "2"
         }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 The `mget` endpoint can also be used against an index (in which case it
 is not required in the body):
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/test/_mget' -d '{
+GET /test/_mget
+{
     "docs" : [
         {
             "_type" : "type",
@@ -41,14 +44,16 @@ curl 'localhost:9200/test/_mget' -d '{
             "_id" : "2"
         }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 And type:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/test/type/_mget' -d '{
+GET /test/type/_mget
+{
     "docs" : [
         {
             "_id" : "1"
@@ -57,18 +62,21 @@ curl 'localhost:9200/test/type/_mget' -d '{
             "_id" : "2"
         }
     ]
-}'
+}
 --------------------------------------------------
+//CONSOLE
 
 In which case, the `ids` element can directly be used to simplify the
 request:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/test/type/_mget' -d '{
+GET /test/type/_mget
+{
     "ids" : ["1", "2"]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 [float]
 [[mget-type]]
@@ -85,10 +93,12 @@ will give you back only the same document twice:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/test/_mget' -d '{
+GET /test/_mget
+{
     "ids" : ["1", "1"]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 You need in that case to explicitly set the `_type`:
 
@@ -108,6 +118,7 @@ GET /test/_mget/
     ]
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 [[mget-source-filtering]]
@@ -123,7 +134,8 @@ For example:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/_mget' -d '{
+GET /_mget
+{
     "docs" : [
         {
             "_index" : "test",
@@ -147,61 +159,66 @@ curl 'localhost:9200/_mget' -d '{
             }
         }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 
 [float]
 [[mget-fields]]
 === Fields
 
-Specific stored fields can be specified to be retrieved per document to get, similar to the <<get-fields,fields>> parameter of the Get API.
+Specific stored fields can be specified to be retrieved per document to get, similar to the <<get-stored-fields,stored_fields>> parameter of the Get API.
 For example:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/_mget' -d '{
+GET /_mget
+{
     "docs" : [
         {
             "_index" : "test",
             "_type" : "type",
             "_id" : "1",
-            "fields" : ["field1", "field2"]
+            "stored_fields" : ["field1", "field2"]
         },
         {
             "_index" : "test",
             "_type" : "type",
             "_id" : "2",
-            "fields" : ["field3", "field4"]
+            "stored_fields" : ["field3", "field4"]
         }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
-Alternatively, you can specify the `fields` parameter in the query string
+Alternatively, you can specify the `stored_fields` parameter in the query string
 as a default to be applied to all documents.
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/test/type/_mget?fields=field1,field2' -d '{
+GET /test/type/_mget?stored_fields=field1,field2
+{
     "docs" : [
         {
             "_id" : "1" <1>
         },
         {
             "_id" : "2",
-            "fields" : ["field3", "field4"] <2>
+            "stored_fields" : ["field3", "field4"] <2>
         }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 <1> Returns `field1` and `field2`
 <2> Returns `field3` and `field4`
 
 [float]
 === Generated fields
 
-See <<generated-fields>> for fields are generated only when indexing. 
+See <<generated-fields>> for fields generated only when indexing.
 
 [float]
 [[mget-routing]]
@@ -211,7 +228,8 @@ You can also specify routing value as a parameter:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/_mget?routing=key1' -d '{
+GET /_mget?routing=key1
+{
     "docs" : [
         {
             "_index" : "test",
@@ -225,8 +243,9 @@ curl 'localhost:9200/_mget?routing=key1' -d '{
             "_id" : "2"
         }
     ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 In this example, document `test/type/2` will be fetch from shard corresponding to routing key `key1` but
 document `test/type/1` will be fetch from shard corresponding to routing key `key2`.

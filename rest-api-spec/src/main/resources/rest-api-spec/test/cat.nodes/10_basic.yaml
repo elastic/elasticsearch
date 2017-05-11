@@ -57,3 +57,28 @@
   - match:
       $body: |
                /^      http \n ((\d{1,3}\.){3}\d{1,3}:\d{1,5}\n)+  $/
+
+---
+"Test cat nodes output with full_id set":
+  - skip:
+      version: " - 5.0.0"
+      reason:  The full_id setting was rejected in 5.0.0 see #21266
+
+
+  - do:
+      cat.nodes:
+          h: id
+  # check for a 4 char non-whitespace character string
+  - match:
+      $body: |
+               /^(\S{4}\n)+$/
+
+  - do:
+      cat.nodes:
+          h: id
+          full_id: true
+  # check for a 5+ char non-whitespace character string
+  - match:
+      $body: |
+               /^(\S{5,}\n)+$/
+

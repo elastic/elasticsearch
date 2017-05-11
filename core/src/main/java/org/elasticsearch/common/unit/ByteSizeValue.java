@@ -23,146 +23,107 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-public class ByteSizeValue implements Streamable {
+public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
 
-    private long size;
+    private final long size;
+    private final ByteSizeUnit unit;
 
-    private ByteSizeUnit sizeUnit;
+    public ByteSizeValue(StreamInput in) throws IOException {
+        size = in.readVLong();
+        unit = ByteSizeUnit.BYTES;
+    }
 
-    private ByteSizeValue() {
-
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(getBytes());
     }
 
     public ByteSizeValue(long bytes) {
         this(bytes, ByteSizeUnit.BYTES);
     }
 
-    public ByteSizeValue(long size, ByteSizeUnit sizeUnit) {
+    public ByteSizeValue(long size, ByteSizeUnit unit) {
         this.size = size;
-        this.sizeUnit = sizeUnit;
+        this.unit = unit;
     }
 
     public int bytesAsInt() {
-        long bytes = bytes();
+        long bytes = getBytes();
         if (bytes > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("size [" + toString() + "] is bigger than max int");
         }
         return (int) bytes;
     }
 
-    public long bytes() {
-        return sizeUnit.toBytes(size);
-    }
-
     public long getBytes() {
-        return bytes();
-    }
-
-    public long kb() {
-        return sizeUnit.toKB(size);
+        return unit.toBytes(size);
     }
 
     public long getKb() {
-        return kb();
-    }
-
-    public long mb() {
-        return sizeUnit.toMB(size);
+        return unit.toKB(size);
     }
 
     public long getMb() {
-        return mb();
-    }
-
-    public long gb() {
-        return sizeUnit.toGB(size);
+        return unit.toMB(size);
     }
 
     public long getGb() {
-        return gb();
-    }
-
-    public long tb() {
-        return sizeUnit.toTB(size);
+        return unit.toGB(size);
     }
 
     public long getTb() {
-        return tb();
-    }
-
-    public long pb() {
-        return sizeUnit.toPB(size);
+        return unit.toTB(size);
     }
 
     public long getPb() {
-        return pb();
-    }
-
-    public double kbFrac() {
-        return ((double) bytes()) / ByteSizeUnit.C1;
+        return unit.toPB(size);
     }
 
     public double getKbFrac() {
-        return kbFrac();
-    }
-
-    public double mbFrac() {
-        return ((double) bytes()) / ByteSizeUnit.C2;
+        return ((double) getBytes()) / ByteSizeUnit.C1;
     }
 
     public double getMbFrac() {
-        return mbFrac();
-    }
-
-    public double gbFrac() {
-        return ((double) bytes()) / ByteSizeUnit.C3;
+        return ((double) getBytes()) / ByteSizeUnit.C2;
     }
 
     public double getGbFrac() {
-        return gbFrac();
-    }
-
-    public double tbFrac() {
-        return ((double) bytes()) / ByteSizeUnit.C4;
+        return ((double) getBytes()) / ByteSizeUnit.C3;
     }
 
     public double getTbFrac() {
-        return tbFrac();
-    }
-
-    public double pbFrac() {
-        return ((double) bytes()) / ByteSizeUnit.C5;
+        return ((double) getBytes()) / ByteSizeUnit.C4;
     }
 
     public double getPbFrac() {
-        return pbFrac();
+        return ((double) getBytes()) / ByteSizeUnit.C5;
     }
 
     @Override
     public String toString() {
-        long bytes = bytes();
+        long bytes = getBytes();
         double value = bytes;
         String suffix = "b";
         if (bytes >= ByteSizeUnit.C5) {
-            value = pbFrac();
+            value = getPbFrac();
             suffix = "pb";
         } else if (bytes >= ByteSizeUnit.C4) {
-            value = tbFrac();
+            value = getTbFrac();
             suffix = "tb";
         } else if (bytes >= ByteSizeUnit.C3) {
-            value = gbFrac();
+            value = getGbFrac();
             suffix = "gb";
         } else if (bytes >= ByteSizeUnit.C2) {
-            value = mbFrac();
+            value = getMbFrac();
             suffix = "mb";
         } else if (bytes >= ByteSizeUnit.C1) {
-            value = kbFrac();
+            value = getKbFrac();
             suffix = "kb";
         }
         return Strings.format1Decimals(value, suffix);
@@ -172,7 +133,8 @@ public class ByteSizeValue implements Streamable {
         return parseBytesSizeValue(sValue, null, settingName);
     }
 
-    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue, String settingName) throws ElasticsearchParseException {
+    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue, String settingName)
+            throws ElasticsearchParseException {
         settingName = Objects.requireNonNull(settingName);
         if (sValue == null) {
             return defaultValue;
@@ -210,29 +172,14 @@ public class ByteSizeValue implements Streamable {
                 bytes = 0;
             } else {
                 // Missing units:
-                throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized", settingName, sValue);
+                throw new ElasticsearchParseException(
+                        "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized",
+                        settingName, sValue);
             }
         } catch (NumberFormatException e) {
             throw new ElasticsearchParseException("failed to parse [{}]", e, sValue);
         }
         return new ByteSizeValue(bytes, ByteSizeUnit.BYTES);
-    }
-
-    public static ByteSizeValue readBytesSizeValue(StreamInput in) throws IOException {
-        ByteSizeValue sizeValue = new ByteSizeValue();
-        sizeValue.readFrom(in);
-        return sizeValue;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        size = in.readVLong();
-        sizeUnit = ByteSizeUnit.BYTES;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(bytes());
     }
 
     @Override
@@ -244,15 +191,18 @@ public class ByteSizeValue implements Streamable {
             return false;
         }
 
-        ByteSizeValue sizeValue = (ByteSizeValue) o;
-
-        return bytes() == sizeValue.bytes();
+        return compareTo((ByteSizeValue) o) == 0;
     }
 
     @Override
     public int hashCode() {
-        int result = Long.hashCode(size);
-        result = 31 * result + (sizeUnit != null ? sizeUnit.hashCode() : 0);
-        return result;
+        return Double.hashCode(((double) size) * unit.toBytes(1));
+    }
+
+    @Override
+    public int compareTo(ByteSizeValue other) {
+        double thisValue = ((double) size) * unit.toBytes(1);
+        double otherValue = ((double) other.size) * other.unit.toBytes(1);
+        return Double.compare(thisValue, otherValue);
     }
 }

@@ -19,17 +19,14 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public abstract class AbstractIndexShardComponent implements IndexShardComponent {
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final DeprecationLogger deprecationLogger;
     protected final ShardId shardId;
     protected final IndexSettings indexSettings;

@@ -67,7 +67,7 @@ public class BasicAPITests extends ScriptTestCase {
         ctx.put("_source", _source);
         params.put("ctx", ctx);
 
-        assertEquals("testvalue", exec("ctx._source['load'].5 = ctx._source['load'].remove('load5')", params));
+        assertEquals("testvalue", exec("ctx._source['load'].5 = ctx._source['load'].remove('load5')", params, true));
     }
 
     /** Test loads and stores with a list */
@@ -118,7 +118,7 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals("{}", exec("Map map = new HashMap(); return map.toString();"));
         assertEquals("{}", exec("def map = new HashMap(); return map.toString();"));
     }
-    
+
     public void testPrimitivesHaveMethods() {
         assertEquals(5, exec("int x = 5; return x.intValue();"));
         assertEquals("5", exec("int x = 5; return x.toString();"));

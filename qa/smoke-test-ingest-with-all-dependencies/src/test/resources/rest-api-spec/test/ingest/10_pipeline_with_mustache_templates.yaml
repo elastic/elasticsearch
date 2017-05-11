@@ -234,7 +234,7 @@
                      "processor": {
                           "append": {
                              "field": "values_flat",
-                             "value": "{{_value.key}}_{{_value.value}}"
+                             "value": "{{_ingest._value.key}}_{{_ingest._value.value}}"
                           }
                     }
                   }
@@ -324,3 +324,29 @@
   - length: { docs.0.processor_results.1.doc._source: 2 }
   - match: { docs.0.processor_results.1.doc._source.foo: "bar"  }
   - match: { docs.0.processor_results.1.doc._source.error: "processor rename-status [rename]: field [status] doesn't exist" }
+
+---
+"Test invalid mustache template":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      catch: request
+      ingest.put_pipeline:
+        id: "my_pipeline_1"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field4",
+                  "value": "{{#join}}{{/join}}"
+                }
+              }
+            ]
+          }
+  - match: { error.header.processor_type: "set" }
+  - match: { error.type: "general_script_exception" }
+  - match: { error.reason: "Failed to compile inline script [{{#join}}{{/join}}] using lang [mustache]" }

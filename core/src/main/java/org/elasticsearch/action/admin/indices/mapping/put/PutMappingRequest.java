@@ -22,19 +22,24 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import com.carrotsearch.hppc.ObjectHashSet;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -56,7 +61,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
-            "_size", "_timestamp", "_ttl"
+            "_size", "_timestamp", "_ttl", "_field_names"
     );
 
     private String[] indices;
@@ -177,7 +182,17 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return source(buildFromSimplifiedDef(type, source));
     }
 
+    /**
+     * @param type the mapping type
+     * @param source consisting of field/properties pairs (e.g. "field1",
+     *            "type=string,store=true"). If the number of arguments is not
+     *            divisible by two an {@link IllegalArgumentException} is thrown
+     * @return the mappings definition
+     */
     public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
+        if (source.length % 2 != 0) {
+            throw new IllegalArgumentException("mapping source must be pairs of fieldnames and properties definition.");
+        }
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
@@ -235,7 +250,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      */
     public PutMappingRequest source(XContentBuilder mappingBuilder) {
         try {
-            return source(mappingBuilder.string());
+            return source(mappingBuilder.string(), mappingBuilder.contentType());
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to build json for mapping request", e);
         }
@@ -249,7 +264,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return source(builder.string());
+            return source(builder.string(), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
@@ -258,9 +273,21 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     /**
      * The mapping source definition.
      */
-    public PutMappingRequest source(String mappingSource) {
-        this.source = mappingSource;
-        return this;
+    public PutMappingRequest source(String mappingSource, XContentType xContentType) {
+        return source(new BytesArray(mappingSource), xContentType);
+    }
+
+    /**
+     * The mapping source definition.
+     */
+    public PutMappingRequest source(BytesReference mappingSource, XContentType xContentType) {
+        Objects.requireNonNull(xContentType);
+        try {
+            this.source = XContentHelper.convertToJson(mappingSource, false, false, xContentType);
+            return this;
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to convert source to json", e);
+        }
     }
 
     /** True if all fields that span multiple types should be updated, false otherwise */
@@ -281,6 +308,10 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
         source = in.readString();
+        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO change to V_5_3 once backported
+            // we do not know the format from earlier versions so convert if necessary
+            source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
+        }
         updateAllTypes = in.readBoolean();
         readTimeout(in);
         concreteIndex = in.readOptionalWriteable(Index::new);

@@ -24,8 +24,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-/**
- */
+
 public class SuggestionSearchContext {
 
     private final Map<String, SuggestionContext> suggestions = new LinkedHashMap<>(4);

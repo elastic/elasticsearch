@@ -2,12 +2,12 @@
 == Search API
 
 The search API is very similar to the
-// {java}/java-search.html[]
+// {javaclient}/java-search.html[]
 Java search API. The Groovy
 extension allows to provide the search source to execute as a `Closure`
 including the query itself (similar to GORM criteria builder):
 
-[source,js]
+[source,groovy]
 --------------------------------------------------
 def search = node.client.search {
     indices "test"
@@ -19,7 +19,7 @@ def search = node.client.search {
     }
 }
 
-search.response.hits.each {SearchHit hit -> 
+search.response.hits.each {SearchHit hit ->
     println "Got hit $hit.id from $hit.index/$hit.type"
 }
 --------------------------------------------------
@@ -27,13 +27,13 @@ search.response.hits.each {SearchHit hit ->
 It can also be executed using the "Java API" while still using a closure
 for the query:
 
-[source,js]
+[source,groovy]
 --------------------------------------------------
 def search = node.client.prepareSearch("test").setQuery({
         term(test: "value")
 }).gexecute();
 
-search.response.hits.each {SearchHit hit -> 
+search.response.hits.each {SearchHit hit ->
     println "Got hit $hit.id from $hit.index/$hit.type"
 }
 --------------------------------------------------
@@ -48,7 +48,7 @@ The format of the search `Closure` follows the same JSON syntax as the
 Term query where multiple values are provided (see
 {ref}/query-dsl-terms-query.html[terms]):
 
-[source,js]
+[source,groovy]
 --------------------------------------------------
 def search = node.client.search {
     indices "test"
@@ -64,7 +64,7 @@ def search = node.client.search {
 Query string (see
 {ref}/query-dsl-query-string-query.html[query string]):
 
-[source,js]
+[source,groovy]
 --------------------------------------------------
 def search = node.client.search {
     indices "test"
@@ -82,7 +82,7 @@ def search = node.client.search {
 Pagination (see
 {ref}/search-request-from-size.html[from/size]):
 
-[source,js]
+[source,groovy]
 --------------------------------------------------
 def search = node.client.search {
     indices "test"
@@ -99,7 +99,7 @@ def search = node.client.search {
 
 Sorting (see {ref}/search-request-sort.html[sort]):
 
-[source,js]
+[source,groovy]
 --------------------------------------------------
 def search = node.client.search {
     indices "test"

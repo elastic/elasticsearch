@@ -28,7 +28,7 @@
           type:    test
           id:      1
           routing: 5
-          fields:  [_routing]
+          stored_fields:  [_routing]
 
  - match:   { _id:              "1"}
  - match:   { _routing:  "5"}

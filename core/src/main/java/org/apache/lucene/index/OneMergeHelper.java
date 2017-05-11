@@ -19,6 +19,8 @@
 
 package org.apache.lucene.index;
 
+import java.io.IOException;
+
 /**
  * Allows pkg private access
  */
@@ -27,4 +29,33 @@ public class OneMergeHelper {
     public static String getSegmentName(MergePolicy.OneMerge merge) {
         return merge.info != null ? merge.info.info.name : "_na_";
     }
+
+    /**
+     * The current MB per second rate limit for this merge.
+     **/
+    public static double getMbPerSec(Thread thread, MergePolicy.OneMerge merge) {
+        if (thread instanceof ConcurrentMergeScheduler.MergeThread) {
+            return ((ConcurrentMergeScheduler.MergeThread) thread).rateLimiter.getMBPerSec();
+        }
+        assert false: "this is not merge thread";
+        return Double.POSITIVE_INFINITY;
+    }
+
+    /**
+     * Returns total bytes written by this merge.
+     **/
+    public static long getTotalBytesWritten(Thread thread,
+                                            MergePolicy.OneMerge merge) throws IOException {
+        /**
+         * TODO: The number of bytes written during the merge should be accessible in OneMerge.
+         */
+        if (thread instanceof ConcurrentMergeScheduler.MergeThread) {
+            return ((ConcurrentMergeScheduler.MergeThread) thread).rateLimiter
+                .getTotalBytesWritten();
+        }
+        assert false: "this is not merge thread";
+        return merge.totalBytesSize();
+    }
+
+
 }

@@ -114,8 +114,6 @@ PUT my_index
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST my_index/_analyze
 {
   "analyzer": "my_analyzer",
@@ -172,4 +170,3 @@ If we were to set `reverse` to `true`, it would produce the following:
 ---------------------------
 [ one/two/three/, two/three/, three/ ]
 ---------------------------
-

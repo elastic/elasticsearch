@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -117,7 +116,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     class TestTransportBroadcastByNodeAction extends TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult> {
         private final Map<ShardRouting, Object> shards = new HashMap<>();
 
-        public TestTransportBroadcastByNodeAction(Settings settings, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request, String executor) {
+        TestTransportBroadcastByNodeAction(Settings settings, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request, String executor) {
             super(settings, "indices:admin/test", THREAD_POOL, TransportBroadcastByNodeActionTests.this.clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor);
         }
 
@@ -171,7 +170,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     class MyResolver extends IndexNameExpressionResolver {
-        public MyResolver() {
+        MyResolver() {
             super(Settings.EMPTY);
         }
 
@@ -191,7 +190,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        final TransportService transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL);
+        final TransportService transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         setClusterState(clusterService, TEST_INDEX);
@@ -220,7 +220,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         int totalIndexShards = 0;
         for (int i = 0; i < numberOfNodes; i++) {
             final DiscoveryNode node = newNode(i);
-            discoBuilder = discoBuilder.put(node);
+            discoBuilder = discoBuilder.add(node);
             int numberOfShards = randomIntBetween(1, 10);
             totalIndexShards += numberOfShards;
             for (int j = 0; j < numberOfShards; j++) {
@@ -247,7 +247,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     static DiscoveryNode newNode(int nodeId) {
-        return new DiscoveryNode("node_" + nodeId, LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        return new DiscoveryNode("node_" + nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
     }
 
     @AfterClass
@@ -296,7 +296,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<String> set = new HashSet<>();
-        for (ShardRouting shard : shardIt.asUnordered()) {
+        for (ShardRouting shard : shardIt) {
             set.add(shard.currentNodeId());
         }
 
@@ -332,7 +332,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         // the master should not be in the list of nodes that requests were sent to
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<String> set = new HashSet<>();
-        for (ShardRouting shard : shardIt.asUnordered()) {
+        for (ShardRouting shard : shardIt) {
             if (!shard.currentNodeId().equals(masterNode.getId())) {
                 set.add(shard.currentNodeId());
             }
@@ -352,8 +352,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     public void testOperationExecution() throws Exception {
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<ShardRouting> shards = new HashSet<>();
-        String nodeId = shardIt.asUnordered().iterator().next().currentNodeId();
-        for (ShardRouting shard : shardIt.asUnordered()) {
+        String nodeId = shardIt.iterator().next().currentNodeId();
+        for (ShardRouting shard : shardIt) {
             if (nodeId.equals(shard.currentNodeId())) {
                 shards.add(shard);
             }
@@ -417,7 +417,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         ShardsIterator shardIt = clusterService.state().getRoutingTable().allShards(new String[]{TEST_INDEX});
         Map<String, List<ShardRouting>> map = new HashMap<>();
-        for (ShardRouting shard : shardIt.asUnordered()) {
+        for (ShardRouting shard : shardIt) {
             if (!map.containsKey(shard.currentNodeId())) {
                 map.put(shard.currentNodeId(), new ArrayList<>());
             }

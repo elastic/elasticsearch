@@ -27,17 +27,11 @@ import org.elasticsearch.tasks.Task;
 /**
  * A filter chain allowing to continue and process the transport action request
  */
-public interface ActionFilterChain<Request extends ActionRequest<Request>, Response extends ActionResponse> {
+public interface ActionFilterChain<Request extends ActionRequest, Response extends ActionResponse> {
 
     /**
      * Continue processing the request. Should only be called if a response has not been sent through
      * the given {@link ActionListener listener}
      */
-    void proceed(Task task, final String action, final Request request, final ActionListener<Response> listener);
-
-    /**
-     * Continue processing the response. Should only be called if a response has not been sent through
-     * the given {@link ActionListener listener}
-     */
-    void proceed(final String action, final Response response, final ActionListener<Response> listener);
+    void proceed(Task task, String action, Request request, ActionListener<Response> listener);
 }

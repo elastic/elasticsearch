@@ -19,10 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
@@ -33,8 +32,8 @@ import java.util.Set;
  */
 public final class EExplicit extends AExpression {
 
-    final String type;
-    AExpression child;
+    private final String type;
+    private AExpression child;
 
     public EExplicit(Location location, String type, AExpression child) {
         super(location);
@@ -42,7 +41,7 @@ public final class EExplicit extends AExpression {
         this.type = Objects.requireNonNull(type);
         this.child = Objects.requireNonNull(child);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         child.extractVariables(variables);
@@ -51,7 +50,7 @@ public final class EExplicit extends AExpression {
     @Override
     void analyze(Locals locals) {
         try {
-            actual = Definition.getType(this.type);
+            actual = locals.getDefinition().getType(type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
@@ -73,5 +72,10 @@ public final class EExplicit extends AExpression {
         child.internal = internal;
 
         return child.cast(locals);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(type, child);
     }
 }

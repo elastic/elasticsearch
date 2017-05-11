@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.Index;
@@ -33,67 +33,66 @@ import java.io.IOException;
 /**
  * The target that the search request was executed on.
  */
-public class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
+public final class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
 
-    private Text nodeId;
-    private Text index;
-    private ShardId shardId;
+    private final Text nodeId;
+    private final ShardId shardId;
+    //original indices and cluster alias are only needed in the coordinating node throughout the search request execution.
+    //no need to serialize them as part of SearchShardTarget.
+    private final transient OriginalIndices originalIndices;
+    private final transient String clusterAlias;
 
     public SearchShardTarget(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             nodeId = in.readText();
+        } else {
+            nodeId = null;
         }
         shardId = ShardId.readShardId(in);
-        index = new Text(shardId.getIndexName());
+        this.originalIndices = null;
+        this.clusterAlias = null;
     }
 
-    public SearchShardTarget(String nodeId, ShardId shardId) {
+    public SearchShardTarget(String nodeId, ShardId shardId, String clusterAlias, OriginalIndices originalIndices) {
         this.nodeId = nodeId == null ? null : new Text(nodeId);
-        this.index = new Text(shardId.getIndexName());
         this.shardId = shardId;
+        this.originalIndices = originalIndices;
+        this.clusterAlias = clusterAlias;
     }
 
+    //this constructor is only used in tests
     public SearchShardTarget(String nodeId, Index index, int shardId) {
-        this(nodeId,  new ShardId(index, shardId));
-    }
-
-    @Nullable
-    public String nodeId() {
-        return nodeId.string();
+        this(nodeId,  new ShardId(index, shardId), null, OriginalIndices.NONE);
     }
 
     @Nullable
     public String getNodeId() {
-        return nodeId();
+        return nodeId.string();
     }
 
-    public Text nodeIdText() {
+    public Text getNodeIdText() {
         return this.nodeId;
     }
 
-    public String index() {
-        return index.string();
-    }
-
     public String getIndex() {
-        return index();
-    }
-
-    public Text indexText() {
-        return this.index;
-    }
-
-    public ShardId shardId() {
-        return shardId;
+        return shardId.getIndexName();
     }
 
     public ShardId getShardId() {
         return shardId;
     }
 
+    public OriginalIndices getOriginalIndices() {
+        return originalIndices;
+    }
+
+    public String getClusterAlias() {
+        return clusterAlias;
+    }
+
     @Override
     public int compareTo(SearchShardTarget o) {
-        int i = index.string().compareTo(o.index());
+        int i = shardId.getIndexName().compareTo(o.getIndex());
         if (i == 0) {
             i = shardId.getId() - o.shardId.id();
         }
@@ -125,7 +124,7 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
     @Override
     public int hashCode() {
         int result = nodeId != null ? nodeId.hashCode() : 0;
-        result = 31 * result + (index != null ? index.hashCode() : 0);
+        result = 31 * result + (shardId.getIndexName() != null ? shardId.getIndexName().hashCode() : 0);
         result = 31 * result + shardId.hashCode();
         return result;
     }

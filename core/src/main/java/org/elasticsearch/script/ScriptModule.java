@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -26,8 +27,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,26 +44,27 @@ public class ScriptModule {
      * Build from {@linkplain ScriptPlugin}s. Convenient for normal use but not great for tests. See
      * {@link ScriptModule#ScriptModule(Settings, Environment, ResourceWatcherService, List, List)} for easier use in tests.
      */
-    public static ScriptModule create(Settings settings, Environment environment, ResourceWatcherService resourceWatcherService,
-            List<ScriptPlugin> scriptPlugins) {
+    public static ScriptModule create(Settings settings, Environment environment,
+                                      ResourceWatcherService resourceWatcherService, List<ScriptPlugin> scriptPlugins) {
         Map<String, NativeScriptFactory> factoryMap = scriptPlugins.stream().flatMap(x -> x.getNativeScripts().stream())
             .collect(Collectors.toMap(NativeScriptFactory::getName, Function.identity()));
-        NativeScriptEngineService nativeScriptEngineService = new NativeScriptEngineService(settings, factoryMap);
-        List<ScriptEngineService> scriptEngineServices = scriptPlugins.stream().map(x -> x.getScriptEngineService(settings))
+        NativeScriptEngine nativeScriptEngineService = new NativeScriptEngine(settings, factoryMap);
+        List<ScriptEngine> scriptEngines = scriptPlugins.stream().map(x -> x.getScriptEngine(settings))
             .filter(Objects::nonNull).collect(Collectors.toList());
-        scriptEngineServices.add(nativeScriptEngineService);
+        scriptEngines.add(nativeScriptEngineService);
         List<ScriptContext.Plugin> plugins = scriptPlugins.stream().map(x -> x.getCustomScriptContexts()).filter(Objects::nonNull)
                 .collect(Collectors.toList());
-        return new ScriptModule(settings, environment, resourceWatcherService, scriptEngineServices, plugins);
+        return new ScriptModule(settings, environment, resourceWatcherService, scriptEngines, plugins);
     }
 
     /**
-     * Build {@linkplain ScriptEngineService} and {@linkplain ScriptContext.Plugin}.
+     * Build {@linkplain ScriptEngine} and {@linkplain ScriptContext.Plugin}.
      */
-    public ScriptModule(Settings settings, Environment environment, ResourceWatcherService resourceWatcherService,
-            List<ScriptEngineService> scriptEngineServices, List<ScriptContext.Plugin> customScriptContexts) {
+    public ScriptModule(Settings settings, Environment environment,
+                        ResourceWatcherService resourceWatcherService, List<ScriptEngine> scriptEngines,
+                        List<ScriptContext.Plugin> customScriptContexts) {
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineServices);
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngines);
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         try {
             scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry,
@@ -86,5 +86,12 @@ public class ScriptModule {
      */
     public ScriptService getScriptService() {
         return scriptService;
+    }
+
+    /**
+     * Allow the script service to register any settings update handlers on the cluster settings
+     */
+    public void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
+        scriptService.registerClusterSettingsListeners(clusterSettings);
     }
 }

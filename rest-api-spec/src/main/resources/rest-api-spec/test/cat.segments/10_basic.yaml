@@ -46,9 +46,6 @@
         body: { foo: bar }
         refresh: true
   - do:
-       cluster.health:
-         wait_for_status: green
-  - do:
       cat.segments: {}
   - match:
       $body: |
@@ -62,11 +59,6 @@
           settings:
             number_of_shards: "3"
             number_of_replicas: "0"
-  - do:
-       cluster.health:
-         wait_for_status: green
-         wait_for_relocating_shards: 0
-
   - do:
       index:
         index: index2
@@ -103,10 +95,6 @@
             number_of_replicas: "0"
 
   - do:
-       cluster.health:
-         wait_for_status: green
-
-  - do:
       indices.close:
         index: index1
 
@@ -114,3 +102,71 @@
       catch: forbidden
       cat.segments:
         index: index1
+
+---
+"Test cat segments using wildcards":
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      index:
+        index: foo
+        type: type
+        body: { test: foo }
+        refresh: true
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      index:
+        index: bar
+        type: type
+        body: { test: bar }
+        refresh: true
+
+  - do:
+      indices.create:
+        index: baz
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      index:
+        index: baz
+        type: type
+        body: { test: baz }
+        refresh: true
+
+  - do:
+      cat.segments:
+        index: f*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(foo \n?)$/
+
+  - do:
+      cat.segments:
+        index: ba*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(ba(r|z) \n?){2}$/

@@ -39,6 +39,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -51,19 +52,16 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class FunctionScorePluginIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CustomDistanceScorePlugin.class);
+        return Arrays.asList(CustomDistanceScorePlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return pluginList(CustomDistanceScorePlugin.class);
+        return Arrays.asList(CustomDistanceScorePlugin.class);
     }
 
     public void testPlugin() throws Exception {
@@ -94,7 +92,7 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertNoFailures(sr);
         SearchHits sh = sr.getHits();
 
-        assertThat(sh.hits().length, equalTo(2));
+        assertThat(sh.getHits().length, equalTo(2));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
 

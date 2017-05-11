@@ -20,33 +20,32 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 
+import java.net.SocketAddress;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class FakeRestRequest extends RestRequest {
 
-    private final Map<String, String> headers;
-
-    private final Map<String, String> params;
-
     private final BytesReference content;
-
     private final Method method;
-
-    private final String path;
+    private final SocketAddress remoteAddress;
 
     public FakeRestRequest() {
-        this(new HashMap<>(), new HashMap<>(), null, Method.GET, "/");
+        this(NamedXContentRegistry.EMPTY, new HashMap<>(), new HashMap<>(), null, Method.GET, "/", null);
     }
 
-    private FakeRestRequest(Map<String, String> headers, Map<String, String> params, BytesReference content, Method method, String path) {
-        this.headers = headers;
-        this.params = params;
+    private FakeRestRequest(NamedXContentRegistry xContentRegistry, Map<String, List<String>> headers, Map<String, String> params,
+                            BytesReference content, Method method, String path, SocketAddress remoteAddress) {
+        super(xContentRegistry, params, path, headers);
         this.content = content;
         this.method = method;
-        this.path = path;
+        this.remoteAddress = remoteAddress;
     }
 
     @Override
@@ -56,12 +55,7 @@ public class FakeRestRequest extends RestRequest {
 
     @Override
     public String uri() {
-        return path;
-    }
-
-    @Override
-    public String rawPath() {
-        return path;
+        return rawPath();
     }
 
     @Override
@@ -75,41 +69,14 @@ public class FakeRestRequest extends RestRequest {
     }
 
     @Override
-    public String header(String name) {
-        return headers.get(name);
-    }
-
-    @Override
-    public Iterable<Map.Entry<String, String>> headers() {
-        return headers.entrySet();
-    }
-
-    @Override
-    public boolean hasParam(String key) {
-        return params.containsKey(key);
-    }
-
-    @Override
-    public String param(String key) {
-        return params.get(key);
-    }
-
-    @Override
-    public String param(String key, String defaultValue) {
-        String value = params.get(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        return value;
-    }
-
-    @Override
-    public Map<String, String> params() {
-        return params;
+    public SocketAddress getRemoteAddress() {
+        return remoteAddress;
     }
 
     public static class Builder {
-        private Map<String, String> headers = new HashMap<>();
+        private final NamedXContentRegistry xContentRegistry;
+
+        private Map<String, List<String>> headers = new HashMap<>();
 
         private Map<String, String> params = new HashMap<>();
 
@@ -119,7 +86,13 @@ public class FakeRestRequest extends RestRequest {
 
         private Method method = Method.GET;
 
-        public Builder withHeaders(Map<String, String> headers) {
+        private SocketAddress address = null;
+
+        public Builder(NamedXContentRegistry xContentRegistry) {
+            this.xContentRegistry = xContentRegistry;
+        }
+
+        public Builder withHeaders(Map<String, List<String>> headers) {
             this.headers = headers;
             return this;
         }
@@ -129,8 +102,11 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public Builder withContent(BytesReference content) {
+        public Builder withContent(BytesReference content, XContentType xContentType) {
             this.content = content;
+            if (xContentType != null) {
+                headers.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
+            }
             return this;
         }
 
@@ -144,9 +120,15 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public FakeRestRequest build() {
-            return new FakeRestRequest(headers, params, content, method, path);
+        public Builder withRemoteAddress(SocketAddress address) {
+            this.address = address;
+            return this;
         }
+
+        public FakeRestRequest build() {
+            return new FakeRestRequest(xContentRegistry, headers, params, content, method, path, address);
+        }
+
     }
 
 }

@@ -26,7 +26,7 @@ import java.io.IOException;
 /** Per-leaf {@link ScoreFunction}. */
 public abstract class LeafScoreFunction {
 
-    public abstract double score(int docId, float subQueryScore);
+    public abstract double score(int docId, float subQueryScore) throws IOException;
 
     public abstract Explanation explainScore(int docId, Explanation subQueryScore) throws IOException;
 

@@ -20,8 +20,8 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -34,7 +34,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
@@ -56,13 +58,15 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * Note, the {@link #index()}, {@link #type(String)} and {@link #id(String)} are
  * required.
  */
-public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements DocumentRequest<TermVectorsRequest>, RealtimeRequest {
+public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
 
     private String type;
 
     private String id;
 
     private BytesReference doc;
+
+    private XContentType xContentType;
 
     private String routing;
 
@@ -157,8 +161,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         super(other.index());
         this.id = other.id();
         this.type = other.type();
-        if (this.doc != null) {
+        if (other.doc != null) {
             this.doc = new BytesArray(other.doc().toBytesRef(), true);
+            this.xContentType = other.xContentType;
         }
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
@@ -180,7 +185,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         super(item.index());
         this.id = item.id();
         this.type = item.type();
-        this.selectedFields(item.fields());
+        this.selectedFields(item.storedFields());
         this.routing(item.routing());
         this.parent(item.parent());
     }
@@ -200,7 +205,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     /**
      * Returns the type of document to get the term vector for.
      */
-    @Override
     public String type() {
         return type;
     }
@@ -208,7 +212,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     /**
      * Returns the id of document the term vector is requested for.
      */
-    @Override
     public String id() {
         return id;
     }
@@ -228,40 +231,51 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         return doc;
     }
 
-    /**
-     * Sets an artificial document from which term vectors are requested for.
-     */
-    public TermVectorsRequest doc(XContentBuilder documentBuilder) {
-        return this.doc(documentBuilder.bytes(), true);
+    public XContentType xContentType() {
+        return xContentType;
     }
 
     /**
      * Sets an artificial document from which term vectors are requested for.
      */
+    public TermVectorsRequest doc(XContentBuilder documentBuilder) {
+        return this.doc(documentBuilder.bytes(), true, documentBuilder.contentType());
+    }
+
+    /**
+     * Sets an artificial document from which term vectors are requested for.
+     * @deprecated use {@link #doc(BytesReference, boolean, XContentType)} to avoid content auto detection
+     */
+    @Deprecated
     public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId) {
+        return this.doc(doc, generateRandomId, XContentFactory.xContentType(doc));
+    }
+
+    /**
+     * Sets an artificial document from which term vectors are requested for.
+     */
+    public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId, XContentType xContentType) {
         // assign a random id to this artificial document, for routing
         if (generateRandomId) {
             this.id(String.valueOf(randomInt.getAndAdd(1)));
         }
         this.doc = doc;
+        this.xContentType = xContentType;
         return this;
     }
 
     /**
      * @return The routing for this request.
      */
-    @Override
     public String routing() {
         return routing;
     }
 
-    @Override
     public TermVectorsRequest routing(String routing) {
         this.routing = routing;
         return this;
     }
 
-    @Override
     public String parent() {
         return parent;
     }
@@ -485,6 +499,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
         if (in.readBoolean()) {
             doc = in.readBytesReference();
+            if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+                xContentType = XContentType.readFrom(in);
+            } else {
+                xContentType = XContentFactory.xContentType(doc);
+            }
         }
         routing = in.readOptionalString();
         parent = in.readOptionalString();
@@ -525,6 +544,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(doc != null);
         if (doc != null) {
             out.writeBytesReference(doc);
+            if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+                xContentType.writeTo(out);
+            }
         }
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
@@ -555,7 +577,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeLong(version);
     }
 
-    public static enum Flag {
+    public enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
         Positions, Offsets, Payloads, FieldStatistics, TermStatistics

@@ -21,10 +21,9 @@
         scroll: 1m
         sort: foo
         body:
-          slice: {
-            id: 0,
+          slice:
+            id: 0
             max: 3
-          }
           query:
             match_all: {}
 
@@ -41,10 +40,9 @@
           size: 1
           scroll: 1m
           body:
-            slice: {
-              id: 0,
+            slice:
+              id: 0
               max: 1025
-            }
             query:
               match_all: {}
 
@@ -60,10 +58,9 @@
           size: 1
           scroll: 1m
           body:
-            slice: {
-              id: 0,
+            slice:
+              id: 0
               max: 1025
-            }
             query:
               match_all: {}
 

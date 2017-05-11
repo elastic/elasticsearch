@@ -91,6 +91,7 @@ class PrecommitTasks {
         if (testForbidden != null) {
             testForbidden.configure {
                 signaturesURLs += getClass().getResource('/forbidden/es-test-signatures.txt')
+                signaturesURLs += getClass().getResource('/forbidden/http-signatures.txt')
             }
         }
         Task forbiddenApis = project.tasks.findByName('forbiddenApis')
@@ -139,6 +140,7 @@ class PrecommitTasks {
             configProperties = [
                 suppressions: checkstyleSuppressions
             ]
+            toolVersion = 7.5
         }
         for (String taskName : ['checkstyleMain', 'checkstyleTest']) {
             Task task = project.tasks.findByName(taskName)
@@ -147,6 +149,9 @@ class PrecommitTasks {
                 checkstyleTask.dependsOn(task)
                 task.dependsOn(copyCheckstyleConf)
                 task.inputs.file(checkstyleSuppressions)
+                task.reports {
+                    html.enabled false
+                }
             }
         }
         return checkstyleTask

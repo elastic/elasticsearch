@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.create;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.junit.After;
@@ -57,7 +58,7 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
      */
     public void testSetSource() throws IOException {
         CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
-        builder.setSource("{\""+KEY+"\" : \""+VALUE+"\"}");
+        builder.setSource("{\""+KEY+"\" : \""+VALUE+"\"}", XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         XContentBuilder xContent = XContentFactory.jsonBuilder().startObject().field(KEY, VALUE).endObject();
@@ -68,7 +69,7 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
         ByteArrayOutputStream docOut = new ByteArrayOutputStream();
         XContentBuilder doc = XContentFactory.jsonBuilder(docOut).startObject().field(KEY, VALUE).endObject();
         doc.close();
-        builder.setSource(docOut.toByteArray());
+        builder.setSource(docOut.toByteArray(), XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         Map<String, String> settingsMap = new HashMap<>();
@@ -85,7 +86,7 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
         builder.setSettings(KEY, VALUE);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
-        builder.setSettings("{\""+KEY+"\" : \""+VALUE+"\"}");
+        builder.setSettings("{\""+KEY+"\" : \""+VALUE+"\"}", XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         builder.setSettings(Settings.builder().put(KEY, VALUE));

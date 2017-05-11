@@ -74,9 +74,6 @@ query.
 |`lenient` |If set to true will cause format based failures (like
 providing text to a numeric field) to be ignored. Defaults to false.
 
-|`lowercase_expanded_terms` |Should terms be automatically lowercased or
-not. Defaults to `true`.
-
 |`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
 not. Defaults to `false`.
 

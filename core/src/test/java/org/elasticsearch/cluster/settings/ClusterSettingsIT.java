@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.settings;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -28,7 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -176,7 +178,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testClusterSettingsUpdateResponse() {
-        String key1 = IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey();
+        String key1 = RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
         int value1 = 10;
 
         String key2 = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
@@ -281,7 +283,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
     }
 
-    private DiscoverySettings getDiscoverySettings() {return internalCluster().getInstance(Discovery.class).getDiscoverySettings();}
+    private DiscoverySettings getDiscoverySettings() {return ((ZenDiscovery) internalCluster().getInstance(Discovery.class)).getDiscoverySettings();}
 
     public void testClusterUpdateSettingsWithBlocks() {
         String key1 = "cluster.routing.allocation.enable";
@@ -331,27 +333,30 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
     public void testLoggerLevelUpdate() {
         assertAcked(prepareCreate("test"));
-        final String rootLevel = ESLoggerFactory.getRootLogger().getLevel();
-        final String testLevel = ESLoggerFactory.getLogger("test").getLevel();
-        try {
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("logger._root", "BOOM")).execute().actionGet();
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertEquals("No enum constant org.elasticsearch.common.logging.ESLoggerFactory.LogLevel.BOOM", e.getMessage());
-        }
+
+        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+
+        final IllegalArgumentException e =
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("logger._root", "BOOM")).execute().actionGet());
+        assertEquals("Unknown level constant [BOOM].", e.getMessage());
 
         try {
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("logger.test", "TRACE").put("logger._root", "trace")).execute().actionGet();
-            assertEquals("TRACE", ESLoggerFactory.getLogger("test").getLevel());
-            assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
+            final Settings.Builder testSettings = Settings.builder().put("logger.test", "TRACE").put("logger._root", "trace");
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(testSettings).execute().actionGet();
+            assertEquals(Level.TRACE, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
         } finally {
             if (randomBoolean()) {
-                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("logger.test").putNull("logger._root")).execute().actionGet();
+                final Settings.Builder defaultSettings = Settings.builder().putNull("logger.test").putNull("logger._root");
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(defaultSettings).execute().actionGet();
             } else {
-                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("logger.*")).execute().actionGet();
+                final Settings.Builder defaultSettings = Settings.builder().putNull("logger.*");
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(defaultSettings).execute().actionGet();
             }
-            assertEquals(testLevel, ESLoggerFactory.getLogger("test").getLevel());
-            assertEquals(rootLevel, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(level, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
         }
     }
 

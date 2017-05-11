@@ -29,7 +29,7 @@
       mget:
         index:  test_1
         type:   test
-        fields:  [ _routing , _parent]
+        stored_fields:  [ _routing , _parent]
         body:
           docs:
             - { _id: 1 }

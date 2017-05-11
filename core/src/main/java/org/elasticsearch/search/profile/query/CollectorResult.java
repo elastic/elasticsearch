@@ -24,19 +24,25 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * Public interface and serialization container for profiled timings of the
  * Collectors used in the search.  Children CollectorResult's may be
  * embedded inside of a parent CollectorResult
  */
-public class CollectorResult implements ToXContent, Writeable {
+public class CollectorResult implements ToXContentObject, Writeable {
 
     public static final String REASON_SEARCH_COUNT = "search_count";
     public static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
@@ -45,12 +51,14 @@ public class CollectorResult implements ToXContent, Writeable {
     public static final String REASON_SEARCH_MIN_SCORE = "search_min_score";
     public static final String REASON_SEARCH_MULTI = "search_multi";
     public static final String REASON_SEARCH_TIMEOUT = "search_timeout";
+    public static final String REASON_SEARCH_CANCELLED = "search_cancelled";
     public static final String REASON_AGGREGATION = "aggregation";
     public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField TIME = new ParseField("time");
+    private static final ParseField TIME_NANOS = new ParseField("time_in_nanos");
     private static final ParseField CHILDREN = new ParseField("children");
 
     /**
@@ -139,7 +147,7 @@ public class CollectorResult implements ToXContent, Writeable {
         builder = builder.startObject()
                 .field(NAME.getPreferredName(), getName())
                 .field(REASON.getPreferredName(), getReason())
-                .field(TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double) (getTime() / 1000000.0)));
+                .timeValueField(TIME_NANOS.getPreferredName(), TIME.getPreferredName(), getTime(), TimeUnit.NANOSECONDS);
 
         if (!children.isEmpty()) {
             builder = builder.startArray(CHILDREN.getPreferredName());
@@ -150,5 +158,43 @@ public class CollectorResult implements ToXContent, Writeable {
         }
         builder = builder.endObject();
         return builder;
+    }
+
+    public static CollectorResult fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        String currentFieldName = null;
+        String name = null, reason = null;
+        long time = -1;
+        List<CollectorResult> children = new ArrayList<>();
+        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (NAME.match(currentFieldName)) {
+                    name = parser.text();
+                } else if (REASON.match(currentFieldName)) {
+                    reason = parser.text();
+                } else if (TIME.match(currentFieldName)) {
+                    // we need to consume this value, but we use the raw nanosecond value
+                    parser.text();
+                } else if (TIME_NANOS.match(currentFieldName)) {
+                    time = parser.longValue();
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (CHILDREN.match(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        children.add(CollectorResult.fromXContent(parser));
+                    }
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else {
+                throwUnknownToken(token, parser.getTokenLocation());
+            }
+        }
+        return new CollectorResult(name, reason, time, children);
     }
 }

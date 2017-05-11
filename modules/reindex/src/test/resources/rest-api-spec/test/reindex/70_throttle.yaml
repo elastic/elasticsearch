@@ -10,9 +10,6 @@
             number_of_shards: "1"
             number_of_replicas: "0"
   - do:
-      cluster.health:
-          wait_for_status: yellow
-  - do:
       index:
         index:   source
         type:    foo
@@ -53,7 +50,7 @@
   - is_false: task
 
 ---
-"requests_per_second supports unlimited to turn off throttling":
+"requests_per_second supports -1 to turn off throttling":
   - do:
       indices.create:
         index: source
@@ -61,9 +58,6 @@
           settings:
             number_of_shards: "1"
             number_of_replicas: "0"
-  - do:
-      cluster.health:
-          wait_for_status: yellow
   - do:
       index:
         index:   source
@@ -87,7 +81,7 @@
 
   - do:
       reindex:
-        requests_per_second: unlimited
+        requests_per_second: -1
         body:
           source:
             index: source
@@ -103,7 +97,7 @@
   - is_false: task
 
 ---
-"Rethrottle":
+"Rethrottle to -1 which turns off throttling":
   # Throttling happens between each scroll batch so we need to control the size of the batch by using a single shard
   # and a small batch size on the request
   - do:
@@ -113,9 +107,6 @@
           settings:
             number_of_shards: "1"
             number_of_replicas: "0"
-  - do:
-      cluster.health:
-          wait_for_status: yellow
   - do:
       index:
         index:   source
@@ -151,8 +142,8 @@
   - set: {task: task}
 
   - do:
-      reindex.rethrottle:
-        requests_per_second: unlimited
+      reindex_rethrottle:
+        requests_per_second: -1
         task_id: $task
 
   - do:
@@ -172,9 +163,6 @@
             number_of_shards: "1"
             number_of_replicas: "0"
   - do:
-      cluster.health:
-          wait_for_status: yellow
-  - do:
       index:
         index:   source
         type:    foo
@@ -209,7 +197,7 @@
   - set: {task: task}
 
   - do:
-      reindex.rethrottle:
+      reindex_rethrottle:
         requests_per_second: 1
         task_id: $task
 

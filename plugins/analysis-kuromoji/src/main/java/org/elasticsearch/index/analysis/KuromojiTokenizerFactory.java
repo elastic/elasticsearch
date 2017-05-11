@@ -31,8 +31,6 @@ import org.elasticsearch.index.IndexSettings;
 import java.io.IOException;
 import java.io.Reader;
 
-/**
- */
 public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
 
     private static final String USER_DICT_OPTION = "user_dictionary";
@@ -50,7 +48,8 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
         super(indexSettings, name, settings);
         mode = getMode(settings);
         userDictionary = getUserDictionary(env, settings);
-        discartPunctuation = settings.getAsBoolean("discard_punctuation", true);
+        discartPunctuation = settings
+            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "discard_punctuation", true, deprecationLogger);
         nBestCost = settings.getAsInt(NBEST_COST, -1);
         nBestExamples = settings.get(NBEST_EXAMPLES);
     }

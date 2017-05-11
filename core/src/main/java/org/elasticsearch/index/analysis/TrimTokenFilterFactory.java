@@ -25,9 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class TrimTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private static final String UPDATE_OFFSETS_KEY = "update_offsets";

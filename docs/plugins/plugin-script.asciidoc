@@ -20,7 +20,7 @@ sudo bin/elasticsearch-plugin -h
 .Running as root
 =====================
 If Elasticsearch was installed using the deb or rpm package then run
-`/usr/share/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk.
+`/usr/share/elasticsearch/bin/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk.
 Otherwise run `bin/elasticsearch-plugin` as the user that owns all of the Elasticsearch
 files.
 =====================
@@ -53,7 +53,7 @@ sudo bin/elasticsearch-plugin install analysis-icu
 This command will install the version of the plugin that matches your
 Elasticsearch version and also show a progress bar while downloading.
 
-[float]
+[[plugin-management-custom-url]]
 === Custom URL or file system
 
 A plugin can also be downloaded directly from a custom location by specifying the URL:
@@ -80,8 +80,8 @@ to a local Java truststore and pass the location to the script as follows:
 sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://....
 -----------------------------------
 
-[[listing-removing]]
-=== Listing and Removing Installed Plugins
+[[listing-removing-updating]]
+=== Listing, Removing and Updating Installed Plugins
 
 [float]
 === Listing plugins
@@ -109,6 +109,18 @@ sudo bin/elasticsearch-plugin remove [pluginname]
 
 After a Java plugin has been removed, you will need to restart the node to complete the removal process.
 
+[float]
+=== Updating plugins
+
+Plugins are built for a specific version of Elasticsearch, and therefore must be reinstalled
+each time Elasticsearch is updated.
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin remove [pluginname]
+sudo bin/elasticsearch-plugin install [pluginname]
+-----------------------------------
+
 === Other command line parameters
 
 The `plugin` scripts supports a number of other command line parameters:
@@ -127,6 +139,24 @@ return the following exit codes:
 `70`:: any other error
 
 [float]
+=== Batch mode
+
+Certain plugins require more privileges than those provided by default in core
+Elasticsearch. These plugins will list the required privileges and ask the
+user for confirmation before continuing with installation.
+
+When running the plugin install script from another program (e.g. install
+automation scripts), the plugin script should detect that it is not being
+called from the console and skip the confirmation response, automatically
+granting all requested permissions.  If console detection fails, then batch
+mode can be forced by specifying `-b` or `--batch` as follows:
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin install --batch [pluginname]
+-----------------------------------
+
+[float]
 === Custom config directory
 
 If your `elasticsearch.yml` config file is in a custom location, you will need
@@ -142,43 +172,24 @@ You can also set the `CONF_DIR` environment variable to the custom config
 directory path.
 
 [float]
-=== Timeout settings
-
-By default, the `plugin` script will wait indefinitely when downloading before
-failing. The timeout parameter can be used to explicitly specify how long it
-waits. Here is some examples of setting it to different values:
-
-[source,shell]
------------------------------------
-# Wait for 30 seconds before failing
-sudo bin/elasticsearch-plugin install analysis-icu --timeout 30s
-
-# Wait for 1 minute before failing
-sudo bin/elasticsearch-plugin install analysis-icu --timeout 1m
-
-# Wait forever (default)
-sudo bin/elasticsearch-plugin install analysis-icu --timeout 0
------------------------------------
-
-[float]
 === Proxy settings
 
-To install a plugin via a proxy, you can pass the proxy details in with the
-Java settings `proxyHost` and `proxyPort`. On Unix based systems, these
-options can be set on the command line:
+To install a plugin via a proxy, you can add the proxy details to the
+`ES_JAVA_OPTS` environment variable with the Java settings `http.proxyHost`
+and `http.proxyPort` (or `https.proxyHost` and `https.proxyPort`):
 
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number" bin/elasticsearch-plugin install mobz/elasticsearch-head
+sudo ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
-On Windows, they need to be added to the `ES_JAVA_OPTS` environment variable:
+Or on Windows:
 
 [source,shell]
------------------------------------
-set ES_JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
-bin/elasticsearch-plugin install analysis-icu
------------------------------------
+------------------------------------
+set ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
+bin\elasticsearch-plugin install analysis-icu
+------------------------------------
 
 === Plugins directory
 

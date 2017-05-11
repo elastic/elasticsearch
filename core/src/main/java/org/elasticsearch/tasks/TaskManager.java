@@ -19,13 +19,15 @@
 
 package org.elasticsearch.tasks;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -33,25 +35,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes
  */
-public class TaskManager extends AbstractComponent implements ClusterStateListener {
+public class TaskManager extends AbstractComponent implements ClusterStateApplier {
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
     private final ConcurrentMapLong<Task> tasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
@@ -63,7 +61,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
 
     private final Map<TaskId, String> banedParents = new ConcurrentHashMap<>();
 
-    private TaskPersistenceService taskResultsService;
+    private TaskResultsService taskResultsService;
 
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
@@ -71,7 +69,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
         super(settings);
     }
 
-    public void setTaskResultsService(TaskPersistenceService taskResultsService) {
+    public void setTaskResultsService(TaskResultsService taskResultsService) {
         assert this.taskResultsService == null;
         this.taskResultsService = taskResultsService;
     }
@@ -81,7 +79,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
      * <p>
      * Returns the task manager tracked task or null if the task doesn't support the task manager
      */
-    public Task register(String type, String action, TransportRequest request) {
+    public Task register(String type, String action, TaskAwareRequest request) {
         Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask());
         if (task == null) {
             return null;
@@ -123,15 +121,18 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
     /**
      * Cancels a task
      * <p>
-     * Returns a set of nodes with child tasks where this task should be cancelled if cancellation was successful, null otherwise.
+     * Returns true if cancellation was started successful, null otherwise.
+     *
+     * After starting cancellation on the parent task, the task manager tries to cancel all children tasks
+     * of the current task. Once cancellation of the children tasks is done, the listener is triggered.
      */
-    public Set<String> cancel(CancellableTask task, String reason, Consumer<Set<String>> listener) {
+    public boolean cancel(CancellableTask task, String reason, Runnable listener) {
         CancellableTaskHolder holder = cancellableTasks.get(task.getId());
         if (holder != null) {
             logger.trace("cancelling task with id {}", task.getId());
             return holder.cancel(reason, listener);
         }
-        return null;
+        return false;
     }
 
     /**
@@ -155,22 +156,23 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
     /**
      * Stores the task failure
      */
-    public <Response extends ActionResponse> void persistResult(Task task, Exception error, ActionListener<Response> listener) {
+    public <Response extends ActionResponse> void storeResult(Task task, Exception error, ActionListener<Response> listener) {
         DiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
         if (localNode == null) {
-            // too early to persist anything, shouldn't really be here - just pass the error along
+            // too early to store anything, shouldn't really be here - just pass the error along
             listener.onFailure(error);
             return;
         }
-        final PersistedTaskInfo taskResult;
+        final TaskResult taskResult;
         try {
             taskResult = task.result(localNode, error);
         } catch (IOException ex) {
-            logger.warn("couldn't persist error {}", ex, ExceptionsHelper.detailedMessage(error));
+            logger.warn(
+                (Supplier<?>) () -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), ex);
             listener.onFailure(ex);
             return;
         }
-        taskResultsService.persist(taskResult, new ActionListener<Void>() {
+        taskResultsService.storeResult(taskResult, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 listener.onFailure(error);
@@ -178,7 +180,8 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn("couldn't persist error {}", e, ExceptionsHelper.detailedMessage(error));
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), e);
                 listener.onFailure(e);
             }
         });
@@ -187,24 +190,24 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
     /**
      * Stores the task result
      */
-    public <Response extends ActionResponse> void persistResult(Task task, Response response, ActionListener<Response> listener) {
+    public <Response extends ActionResponse> void storeResult(Task task, Response response, ActionListener<Response> listener) {
         DiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
         if (localNode == null) {
-            // too early to persist anything, shouldn't really be here - just pass the response along
-            logger.warn("couldn't persist response {}, the node didn't join the cluster yet", response);
+            // too early to store anything, shouldn't really be here - just pass the response along
+            logger.warn("couldn't store response {}, the node didn't join the cluster yet", response);
             listener.onResponse(response);
             return;
         }
-        final PersistedTaskInfo taskResult;
+        final TaskResult taskResult;
         try {
             taskResult = task.result(localNode, response);
         } catch (IOException ex) {
-            logger.warn("couldn't persist response {}", ex, response);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("couldn't store response {}", response), ex);
             listener.onFailure(ex);
             return;
         }
 
-        taskResultsService.persist(taskResult, new ActionListener<Void>() {
+        taskResultsService.storeResult(taskResult, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 listener.onResponse(response);
@@ -212,7 +215,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn("couldn't persist response {}", e, response);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("couldn't store response {}", response), e);
                 listener.onFailure(e);
             }
         });
@@ -310,7 +313,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void applyClusterState(ClusterChangedEvent event) {
         lastDiscoveryNodes = event.state().getNodes();
         if (event.nodesRemoved()) {
             synchronized (banedParents) {
@@ -340,17 +343,6 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
         }
     }
 
-    public void registerChildTask(Task task, String node) {
-        if (task == null || task instanceof CancellableTask == false) {
-            // We don't have a cancellable task - not much we can do here
-            return;
-        }
-        CancellableTaskHolder holder = cancellableTasks.get(task.getId());
-        if (holder != null) {
-            holder.registerChildTaskNode(node);
-        }
-    }
-
     /**
      * Blocks the calling thread, waiting for the task to vanish from the TaskManager.
      */
@@ -374,46 +366,44 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
 
         private final CancellableTask task;
 
-        private final Set<String> nodesWithChildTasks = new HashSet<>();
-
         private volatile String cancellationReason = null;
 
-        private volatile Consumer<Set<String>> cancellationListener = null;
+        private volatile Runnable cancellationListener = null;
 
-        public CancellableTaskHolder(CancellableTask task) {
+        CancellableTaskHolder(CancellableTask task) {
             this.task = task;
         }
 
         /**
          * Marks task as cancelled.
          * <p>
-         * Returns a set of nodes with child tasks where this task should be cancelled if cancellation was successful, null otherwise.
+         * Returns true if cancellation was successful, false otherwise.
          */
-        public Set<String> cancel(String reason, Consumer<Set<String>> listener) {
-            Set<String> nodes;
+        public boolean cancel(String reason, Runnable listener) {
+            final boolean cancelled;
             synchronized (this) {
                 assert reason != null;
                 if (cancellationReason == null) {
                     cancellationReason = reason;
                     cancellationListener = listener;
-                    nodes = Collections.unmodifiableSet(nodesWithChildTasks);
+                    cancelled = true;
                 } else {
                     // Already cancelled by somebody else
-                    nodes = null;
+                    cancelled = false;
                 }
             }
-            if (nodes != null) {
+            if (cancelled) {
                 task.cancel(reason);
             }
-            return nodes;
+            return cancelled;
         }
 
         /**
          * Marks task as cancelled.
          * <p>
-         * Returns a set of nodes with child tasks where this task should be cancelled if cancellation was successful, null otherwise.
+         * Returns true if cancellation was successful, false otherwise.
          */
-        public Set<String> cancel(String reason) {
+        public boolean cancel(String reason) {
             return cancel(reason, null);
         }
 
@@ -421,14 +411,12 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
          * Marks task as finished.
          */
         public void finish() {
-            Consumer<Set<String>> listener = null;
-            Set<String> nodes = null;
+            Runnable listener = null;
             synchronized (this) {
                 if (cancellationReason != null) {
                     // The task was cancelled, we need to notify the listener
                     if (cancellationListener != null) {
                         listener = cancellationListener;
-                        nodes = Collections.unmodifiableSet(nodesWithChildTasks);
                         cancellationListener = null;
                     }
                 } else {
@@ -438,7 +426,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
             // We need to call the listener outside of the synchronised section to avoid potential bottle necks
             // in the listener synchronization
             if (listener != null) {
-                listener.accept(nodes);
+                listener.run();
             }
 
         }
@@ -449,14 +437,6 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
 
         public CancellableTask getTask() {
             return task;
-        }
-
-        public synchronized void registerChildTaskNode(String nodeId) {
-            if (cancellationReason == null) {
-                nodesWithChildTasks.add(nodeId);
-            } else {
-                throw new IllegalStateException("cannot register child task request, the task is already cancelled");
-            }
         }
     }
 

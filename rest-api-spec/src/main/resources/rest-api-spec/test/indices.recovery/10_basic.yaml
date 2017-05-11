@@ -18,7 +18,7 @@
         index: [test_1]
         human: true
 
-  - match: { test_1.shards.0.type:                                 "STORE"                 }
+  - match: { test_1.shards.0.type:                                 "EMPTY_STORE"           }
   - match: { test_1.shards.0.stage:                                "DONE"                  }
   - match: { test_1.shards.0.primary:                              true                    }
   - match: { test_1.shards.0.start_time:                           /^2\d\d\d-.+/           }

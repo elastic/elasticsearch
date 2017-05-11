@@ -22,8 +22,7 @@ Test reset index settings:
   - do:
       indices.get_settings:
         flat_settings: false
-  - is_false:
-      test-index.settings.index\.refresh_interval
+  - is_false: test-index.settings.index\.refresh_interval
   - do:
       indices.get_settings:
         include_defaults: true

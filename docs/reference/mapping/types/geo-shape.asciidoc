@@ -156,16 +156,23 @@ cell right next to it -- even though the shape is very close to the point.
 
 [source,js]
 --------------------------------------------------
+PUT /example
 {
-    "properties": {
-        "location": {
-            "type": "geo_shape",
-            "tree": "quadtree",
-            "precision": "1m"
+    "mappings": {
+        "doc": {
+            "properties": {
+                "location": {
+                    "type": "geo_shape",
+                    "tree": "quadtree",
+                    "precision": "1m"
+                }
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TESTSETUP
 
 This mapping maps the location field to the geo_shape type using the
 quad_tree implementation and a precision of 1m. Elasticsearch translates
@@ -175,7 +182,7 @@ this into a tree_levels setting of 26.
 ===== Performance considerations
 
 Elasticsearch uses the paths in the prefix tree as terms in the index
-and in queries. The higher the levels is (and thus the precision), the
+and in queries. The higher the level is (and thus the precision), the
 more terms are generated. Of course, calculating the terms, keeping them in
 memory, and storing them on disk all have a price. Especially with higher
 tree levels, indices can become extremely large even with a modest
@@ -240,6 +247,7 @@ API.
 
 [source,js]
 --------------------------------------------------
+POST /example/doc
 {
     "location" : {
         "type" : "point",
@@ -247,6 +255,7 @@ API.
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
@@ -257,6 +266,7 @@ line.  Specifying more than two points creates an arbitrary path.
 
 [source,js]
 --------------------------------------------------
+POST /example/doc
 {
     "location" : {
         "type" : "linestring",
@@ -264,6 +274,7 @@ line.  Specifying more than two points creates an arbitrary path.
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The above `linestring` would draw a straight line starting at the White
 House to the US Capitol Building.
@@ -277,6 +288,7 @@ closed).
 
 [source,js]
 --------------------------------------------------
+POST /example/doc
 {
     "location" : {
         "type" : "polygon",
@@ -286,12 +298,14 @@ closed).
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The first array represents the outer boundary of the polygon, the other
 arrays represent the interior shapes ("holes"):
 
 [source,js]
 --------------------------------------------------
+POST /example/doc
 {
     "location" : {
         "type" : "polygon",
@@ -302,6 +316,8 @@ arrays represent the interior shapes ("holes"):
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 *IMPORTANT NOTE:* GeoJSON does not mandate a specific order for vertices thus ambiguous
 polygons around the dateline and poles are possible. To alleviate ambiguity
@@ -322,6 +338,7 @@ OGC standards to eliminate ambiguity resulting in a polygon that crosses the dat
 
 [source,js]
 --------------------------------------------------
+POST /example/doc
 {
     "location" : {
         "type" : "polygon",
@@ -332,6 +349,8 @@ OGC standards to eliminate ambiguity resulting in a polygon that crosses the dat
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 An `orientation` parameter can be defined when setting the geo_shape mapping (see <<geo-shape-mapping-options>>). This will define vertex
 order for the coordinate list on the mapped geo_shape field. It can also be overridden on each document.  The following is an example for
@@ -339,6 +358,7 @@ overriding the orientation on a document:
 
 [source,js]
 --------------------------------------------------
+POST /example/doc
 {
     "location" : {
         "type" : "polygon",
@@ -350,6 +370,8 @@ overriding the orientation on a document:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
@@ -358,6 +380,7 @@ A list of geojson points.
 
 [source,js]
 --------------------------------------------------
+POST /example/doc
 {
     "location" : {
         "type" : "multipoint",
@@ -367,6 +390,7 @@ A list of geojson points.
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
@@ -375,6 +399,7 @@ A list of geojson linestrings.
 
 [source,js]
 --------------------------------------------------
+POST /example/doc
 {
     "location" : {
         "type" : "multilinestring",
@@ -386,6 +411,8 @@ A list of geojson linestrings.
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
@@ -394,18 +421,20 @@ A list of geojson polygons.
 
 [source,js]
 --------------------------------------------------
+POST /example/doc
 {
     "location" : {
         "type" : "multipolygon",
         "coordinates" : [
             [ [[102.0, 2.0], [103.0, 2.0], [103.0, 3.0], [102.0, 3.0], [102.0, 2.0]] ],
-
             [ [[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]],
               [[100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8], [100.2, 0.2]] ]
         ]
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
@@ -414,6 +443,7 @@ A collection of geojson geometry objects.
 
 [source,js]
 --------------------------------------------------
+POST /example/doc
 {
     "location" : {
         "type": "geometrycollection",
@@ -430,7 +460,8 @@ A collection of geojson geometry objects.
     }
 }
 --------------------------------------------------
-
+// CONSOLE
+// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== Envelope
@@ -441,6 +472,7 @@ bounding rectangle:
 
 [source,js]
 --------------------------------------------------
+POST /example/doc
 {
     "location" : {
         "type" : "envelope",
@@ -448,6 +480,8 @@ bounding rectangle:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
 ===== Circle
@@ -457,6 +491,7 @@ point with a radius:
 
 [source,js]
 --------------------------------------------------
+POST /example/doc
 {
     "location" : {
         "type" : "circle",
@@ -465,6 +500,7 @@ point with a radius:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Note: The inner `radius` field is required. If not specified, then
 the units of the `radius` will default to `METERS`.

@@ -28,7 +28,8 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.script.ScriptService.ScriptType;
+
+import org.elasticsearch.script.ScriptType;
 
 /**
  * This class contains various mocked scripts that are used in aggregations integration tests.
@@ -43,26 +44,27 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
     //      res[i] = values.get(i) - dec;
     // };
     // return res;
-    public static final Script DECREMENT_ALL_VALUES = new Script("decrement all values", ScriptType.INLINE, NAME, singletonMap("dec", 1));
+    public static final Script DECREMENT_ALL_VALUES = new Script(ScriptType.INLINE, NAME, "decrement all values", singletonMap("dec", 1));
 
     @Override
     protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-        scripts.put("20 - _value", vars -> {
-            double value = (double) vars.get("_value");
-            return 20.0d - value;
-        });
-
-        scripts.put("_value - 1", vars -> {
-            double value = (double) vars.get("_value");
-            return value - 1.0d;
-        });
+        scripts.put("20 - _value", vars -> 20.0d - (double) vars.get("_value"));
+        scripts.put("_value - 1", vars -> (double) vars.get("_value") - 1);
+        scripts.put("_value + 1", vars -> (double) vars.get("_value") + 1);
+        scripts.put("_value * -1", vars -> (double) vars.get("_value") * -1);
 
         scripts.put("_value - dec", vars -> {
             double value = (double) vars.get("_value");
             int dec = (int) vars.get("dec");
             return value - dec;
+        });
+
+        scripts.put("_value + inc", vars -> {
+            double value = (double) vars.get("_value");
+            int inc = (int) vars.get("inc");
+            return value + inc;
         });
 
         scripts.put("doc['value'].value", vars -> {
@@ -77,12 +79,19 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
             return value.getValue() - dec;
         });
 
+        scripts.put("doc['value'].value + inc", vars -> {
+            int inc = (int) vars.get("inc");
+            Map<?, ?> doc = (Map) vars.get("doc");
+            ScriptDocValues.Longs value = (ScriptDocValues.Longs) doc.get("value");
+            return value.getValue() + inc;
+        });
+
         scripts.put("doc['values'].values", vars -> {
             Map<?, ?> doc = (Map) vars.get("doc");
             return doc.get("values");
         });
 
-        scripts.put(DECREMENT_ALL_VALUES.getScript(), vars -> {
+        scripts.put(DECREMENT_ALL_VALUES.getIdOrCode(), vars -> {
             int dec = (int) vars.get("dec");
             Map<?, ?> doc = (Map) vars.get("doc");
             ScriptDocValues.Longs values = (ScriptDocValues.Longs) doc.get("values");
@@ -94,7 +103,17 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
             return res;
         });
 
-        scripts.put("_value * -1", vars -> (double) vars.get("_value") * -1);
+        scripts.put("[ doc['value'].value, doc['value'].value - dec ]", vars -> {
+            Long a = ((ScriptDocValues.Longs) scripts.get("doc['value'].value").apply(vars)).getValue();
+            Long b = (Long) scripts.get("doc['value'].value - dec").apply(vars);
+            return new Long[]{a, b};
+        });
+
+        scripts.put("[ doc['value'].value, doc['value'].value + inc ]", vars -> {
+            Long a = ((ScriptDocValues.Longs) scripts.get("doc['value'].value").apply(vars)).getValue();
+            Long b = (Long) scripts.get("doc['value'].value + inc").apply(vars);
+            return new Long[]{a, b};
+        });
 
         return scripts;
     }

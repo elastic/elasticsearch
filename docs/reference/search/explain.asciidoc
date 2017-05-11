@@ -15,35 +15,87 @@ Full query example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/tweet/1/_explain' -d '{
+GET /twitter/tweet/0/_explain
+{
       "query" : {
-        "term" : { "message" : "search" }
+        "match" : { "message" : "elasticsearch" }
       }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 This will yield the following result:
 
 [source,js]
 --------------------------------------------------
 {
-  "matches" : true,
-  "explanation" : {
-    "value" : 0.15342641,
-    "description" : "fieldWeight(message:search in 0), product of:",
-    "details" : [ {
-      "value" : 1.0,
-      "description" : "tf(termFreq(message:search)=1)"
-    }, {
-      "value" : 0.30685282,
-      "description" : "idf(docFreq=1, maxDocs=1)"
-    }, {
-      "value" : 0.5,
-      "description" : "fieldNorm(field=message, doc=0)"
-    } ]
-  }
+   "_index": "twitter",
+   "_type": "tweet",
+   "_id": "0",
+   "matched": true,
+   "explanation": {
+      "value": 1.55077,
+      "description": "weight(message:elasticsearch in 0) [PerFieldSimilarity], result of:",
+      "details": [
+         {
+            "value": 1.55077,
+            "description": "score(doc=0,freq=1.0 = termFreq=1.0\n), product of:",
+            "details": [
+               {
+                  "value": 1.3862944,
+                  "description": "idf, computed as log(1 + (docCount - docFreq + 0.5) / (docFreq + 0.5)) from:",
+                  "details": [
+                     {
+                        "value": 1.0,
+                        "description": "docFreq",
+                        "details": []
+                     },
+                     {
+                        "value": 5.0,
+                        "description": "docCount",
+                        "details": []
+                      }
+                   ]
+               },
+                {
+                  "value": 1.1186441,
+                  "description": "tfNorm, computed as (freq * (k1 + 1)) / (freq + k1 * (1 - b + b * fieldLength / avgFieldLength)) from:",
+                  "details": [
+                     {
+                        "value": 1.0,
+                        "description": "termFreq=1.0",
+                        "details": []
+                     },
+                     {
+                        "value": 1.2,
+                        "description": "parameter k1",
+                        "details": []
+                     },
+                     {
+                        "value": 0.75,
+                        "description": "parameter b",
+                        "details": []
+                     },
+                     {
+                        "value": 5.4,
+                        "description": "avgFieldLength",
+                        "details": []
+                     },
+                     {
+                        "value": 4.0,
+                        "description": "fieldLength",
+                        "details": []
+                     }
+                  ]
+               }
+            ]
+         }
+      ]
+   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 There is also a simpler way of specifying the query via the `q`
 parameter. The specified `q` parameter value is then parsed as if the
@@ -52,8 +104,10 @@ explain api:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/tweet/1/_explain?q=message:search'
+GET /twitter/tweet/0/_explain?q=message:search
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 This will yield the same result as the previous request.
 
@@ -66,7 +120,7 @@ This will yield the same result as the previous request.
     Set to `true` to retrieve the `_source` of the document explained. You can also
     retrieve part of the document by using `_source_include` & `_source_exclude` (see <<get-source-filtering,Get API>> for more details)
 
-`fields`::
+`stored_fields`::
     Allows to control which stored fields to return as part of the
     document explained.
 
@@ -98,10 +152,6 @@ This will yield the same result as the previous request.
 `analyze_wildcard`::
     Should wildcard and prefix queries be analyzed or
     not. Defaults to false.
-
-`lowercase_expanded_terms`::
-    Should terms be automatically lowercased
-    or not. Defaults to true.
 
 `lenient`::
     If set to true will cause format based failures (like

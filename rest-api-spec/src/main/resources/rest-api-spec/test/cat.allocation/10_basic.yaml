@@ -34,7 +34,7 @@
                 (\d+                   \s+)?  #no value from client nodes
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                \w.*
+                [-\w]+
                 \n
               )+
             $/
@@ -47,10 +47,6 @@
             index: test
 
   - do:
-        cluster.health:
-            wait_for_status: yellow
-
-  - do:
         cat.allocation: {}
 
   - match:
@@ -58,14 +54,14 @@
             /^
               ( \s*                          #allow leading spaces to account for right-justified text
                 \d+                    \s+
-                \d+(\.\d+)?b           \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
                 (\d+                  \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                \w.*
+                [-\w]+
                 \n
               )+
               (
@@ -87,14 +83,14 @@
       $body: |
             /^
               ( 0                      \s+
-                0b                     \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
                 (\d+                  \s+)?  #no value from client nodes
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                \w.*
+                [-\w]+
                 \n
               )
             $/
@@ -121,14 +117,14 @@
              /^
                ( \s*                          #allow leading spaces to account for right-justified text
                  \d+                    \s+
-                 \d+(\.\d+)?b           \s+
+                 \d+(\.\d+)?[kmgt]?b    \s+
                  \d+(\.\d+)?[kmgt]?b    \s+
                  (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
                  (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
                  (\d+                  \s+)?  #no value from client nodes
                  [-\w.]+                \s+
                  \d+(\.\d+){3}          \s+
-                 \w.*
+                 [-\w]+
                  \n
                )+
                (
@@ -168,7 +164,7 @@
                 (\d+                  \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                \w.*
+                [-\w]+
                 \n
               )+
             $/
@@ -185,7 +181,7 @@
       $body: |
             /^
               ( \d*                 \s+
-                \w.*
+                [-\w]+
                 \n
               )+
             $/
@@ -203,7 +199,7 @@
               \n
               (
                 \s+\d*           \s+
-                \w.*
+                [-\w]+
                 \n
               )+
             $/
@@ -228,7 +224,7 @@
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+             \s+
                 \d+(\.\d+){3}       \s+
-                \w.*
+                [-\w]+
                 \n
               )+
             $/

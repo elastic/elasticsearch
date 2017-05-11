@@ -27,9 +27,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class UnavailableShardsException extends ElasticsearchException {
 
     public UnavailableShardsException(@Nullable ShardId shardId, String message, Object... args) {

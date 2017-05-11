@@ -29,9 +29,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class ResourceWatcherServiceTests extends ESTestCase {
     public void testSettings() throws Exception {
         ThreadPool threadPool = new TestThreadPool("test");

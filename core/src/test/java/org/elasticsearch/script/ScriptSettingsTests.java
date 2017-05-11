@@ -20,51 +20,60 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptSettingsTests extends ESTestCase {
 
-    public void testDefaultLanguageIsGroovy() {
-        ScriptEngineRegistry scriptEngineRegistry =
-                new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        assertThat(scriptSettings.getDefaultScriptLanguageSetting().get(Settings.EMPTY), equalTo("groovy"));
+    public static Setting<?>[] buildDeprecatedSettingsArray(ScriptSettings scriptSettings, String... keys) {
+        return buildDeprecatedSettingsArray(null, scriptSettings, keys);
     }
 
-    public void testCustomDefaultLanguage() {
-        ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        String defaultLanguage = CustomScriptEngineService.NAME;
-        Settings settings = Settings.builder().put("script.default_lang", defaultLanguage).build();
-        assertThat(scriptSettings.getDefaultScriptLanguageSetting().get(settings), equalTo(defaultLanguage));
-    }
+    public static Setting<?>[] buildDeprecatedSettingsArray(Setting<?>[] deprecated, ScriptSettings scriptSettings, String... keys) {
+        Setting<?>[] settings = new Setting[keys.length + (deprecated == null ? 0 : deprecated.length)];
+        int count = 0;
 
-    public void testInvalidDefaultLanguage() {
-        ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        Settings settings = Settings.builder().put("script.default_lang", "C++").build();
-        try {
-            scriptSettings.getDefaultScriptLanguageSetting().get(settings);
-            fail("should have seen unregistered default language");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("unregistered default language [C++]"));
+        for (Setting<?> setting : scriptSettings.getSettings()) {
+            for (String key : keys) {
+                if (setting.getKey().equals(key)) {
+                    settings[count++] = setting;
+                }
+            }
         }
+
+        if (deprecated != null) {
+            System.arraycopy(deprecated, 0, settings, keys.length, deprecated.length);
+        }
+
+        return settings;
     }
 
-    private static class CustomScriptEngineService implements ScriptEngineService {
+    public void testSettingsAreProperlyPropogated() {
+        ScriptEngineRegistry scriptEngineRegistry =
+            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngine()));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        boolean enabled = randomBoolean();
+        Settings s = Settings.builder().put("script.inline", enabled).build();
+        for (Iterator<Setting<Boolean>> iter = scriptSettings.getScriptLanguageSettings().iterator(); iter.hasNext();) {
+            Setting<Boolean> setting = iter.next();
+            if (setting.getKey().endsWith(".inline")) {
+                assertThat("inline settings should have propagated", setting.get(s), equalTo(enabled));
+                assertThat(setting.getDefaultRaw(s), equalTo(Boolean.toString(enabled)));
+            }
+        }
+        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
+    }
+
+    private static class CustomScriptEngine implements ScriptEngine {
 
         public static final String NAME = "custom";
 

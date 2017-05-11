@@ -21,42 +21,54 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.search.template.MultiSearchTemplateAction;
-import org.elasticsearch.action.search.template.SearchTemplateAction;
-import org.elasticsearch.action.search.template.TransportMultiSearchTemplateAction;
-import org.elasticsearch.action.search.template.TransportSearchTemplateAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.action.search.template.RestDeleteSearchTemplateAction;
-import org.elasticsearch.rest.action.search.template.RestGetSearchTemplateAction;
-import org.elasticsearch.rest.action.search.template.RestMultiSearchTemplateAction;
-import org.elasticsearch.rest.action.search.template.RestPutSearchTemplateAction;
-import org.elasticsearch.rest.action.search.template.RestRenderSearchTemplateAction;
-import org.elasticsearch.rest.action.search.template.RestSearchTemplateAction;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 
-public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin {
+import static java.util.Collections.singletonList;
+
+public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin, SearchPlugin {
 
     @Override
-    public ScriptEngineService getScriptEngineService(Settings settings) {
-        return new MustacheScriptEngineService(settings);
+    public ScriptEngine getScriptEngine(Settings settings) {
+        return new MustacheScriptEngine();
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class),
                 new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class));
     }
 
     @Override
-    public List<Class<? extends RestHandler>> getRestHandlers() {
-        return Arrays.asList(RestSearchTemplateAction.class, RestMultiSearchTemplateAction.class, RestGetSearchTemplateAction.class,
-                RestPutSearchTemplateAction.class, RestDeleteSearchTemplateAction.class, RestRenderSearchTemplateAction.class);
+    public List<QuerySpec<?>> getQueries() {
+        return singletonList(new QuerySpec<>(TemplateQueryBuilder.NAME, TemplateQueryBuilder::new, TemplateQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<DiscoveryNodes> nodesInCluster) {
+        return Arrays.asList(
+                new RestSearchTemplateAction(settings, restController),
+                new RestMultiSearchTemplateAction(settings, restController),
+                new RestGetSearchTemplateAction(settings, restController),
+                new RestPutSearchTemplateAction(settings, restController),
+                new RestDeleteSearchTemplateAction(settings, restController),
+                new RestRenderSearchTemplateAction(settings, restController));
     }
 }

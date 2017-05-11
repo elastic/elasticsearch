@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -52,9 +53,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexLifecycleActionIT extends ESIntegTestCase {
     public void testIndexLifecycleActionsWith11Shards1Backup() throws Exception {
@@ -93,7 +91,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
         client().admin().cluster().prepareReroute().execute().actionGet();
 
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2").waitForRelocatingShards(0)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2").waitForNoRelocatingShards(true)).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(2));
@@ -130,7 +128,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
         client().admin().cluster().prepareReroute().execute().actionGet();
 
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForRelocatingShards(0)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForNoRelocatingShards(true)).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(3));
@@ -171,7 +169,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         client().admin().cluster().prepareReroute().get();
 
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getRelocatingShards(), equalTo(0));
@@ -207,8 +205,8 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
     }
 
     private String getLocalNodeId(String name) {
-        Discovery discovery = internalCluster().getInstance(Discovery.class, name);
-        String nodeId = discovery.localNode().getId();
+        TransportService transportService = internalCluster().getInstance(TransportService.class, name);
+        String nodeId = transportService.getLocalNode().getId();
         assertThat(nodeId, not(nullValue()));
         return nodeId;
     }

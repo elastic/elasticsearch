@@ -54,17 +54,13 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
 
     private void searchWhileCreatingIndex(boolean createIndex, int numberOfReplicas) throws Exception {
 
-        // make sure we have enough nodes to guaranty default QUORUM consistency.
-        // TODO: add a smarter choice based on actual consistency (when that is randomized)
-        int shardsNo = numberOfReplicas + 1;
-        int neededNodes = shardsNo <= 2 ? 1 : shardsNo / 2 + 1;
-        internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(neededNodes, shardsNo));
-
-        String id = randomAsciiOfLength(5);
+        // TODO: randomize the wait for active shards value on index creation and ensure the appropriate
+        // number of data nodes are started for the randomized active shard count value
+        String id = randomAlphaOfLength(5);
         // we will go the primary or the replica, but in a
         // randomized re-creatable manner
         int counter = 0;
-        String preference = randomAsciiOfLength(5);
+        String preference = randomAlphaOfLength(5);
 
         logger.info("running iteration for id {}, preference {}", id, preference);
 

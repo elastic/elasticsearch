@@ -24,7 +24,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -32,6 +31,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -43,7 +43,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CustomScriptPlugin.class);
+        return Arrays.asList(CustomScriptPlugin.class);
     }
 
     static int[] intArray = { Integer.MAX_VALUE, Integer.MIN_VALUE, 3 };
@@ -61,11 +61,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
 
         client().admin().indices().prepareFlush("test").execute().actionGet();
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
-                .addScriptField("int", new Script("int", ScriptType.INLINE, "native", null))
-                .addScriptField("float", new Script("float", ScriptType.INLINE, "native", null))
-                .addScriptField("double", new Script("double", ScriptType.INLINE, "native", null))
-                .addScriptField("long", new Script("long", ScriptType.INLINE, "native", null)).execute().actionGet();
-        assertThat(sr.getHits().hits().length, equalTo(6));
+                .addScriptField("int", new Script(ScriptType.INLINE, "native", "int", Collections.emptyMap()))
+                .addScriptField("float", new Script(ScriptType.INLINE, "native", "float", Collections.emptyMap()))
+                .addScriptField("double", new Script(ScriptType.INLINE, "native", "double", Collections.emptyMap()))
+                .addScriptField("long", new Script(ScriptType.INLINE, "native", "long", Collections.emptyMap())).execute().actionGet();
+        assertThat(sr.getHits().getHits().length, equalTo(6));
         for (SearchHit hit : sr.getHits().getHits()) {
             Object result = hit.getFields().get("int").getValues().get(0);
             assertThat(result, equalTo((Object) intArray));

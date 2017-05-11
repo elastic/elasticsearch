@@ -22,7 +22,6 @@ package org.elasticsearch.client.sniff;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 
-import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -55,7 +54,7 @@ public class SniffOnFailureListener extends RestClient.FailureListener {
     }
 
     @Override
-    public void onFailure(HttpHost host) throws IOException {
+    public void onFailure(HttpHost host) {
         if (sniffer == null) {
             throw new IllegalStateException("sniffer was not set, unable to sniff on failure");
         }

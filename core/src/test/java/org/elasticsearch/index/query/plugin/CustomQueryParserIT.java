@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -40,12 +41,12 @@ import static org.hamcrest.Matchers.instanceOf;
 public class CustomQueryParserIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(DummyQueryParserPlugin.class);
+        return Arrays.asList(DummyQueryParserPlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return pluginList(DummyQueryParserPlugin.class);
+        return Arrays.asList(DummyQueryParserPlugin.class);
     }
 
     @Override
@@ -73,7 +74,8 @@ public class CustomQueryParserIT extends ESIntegTestCase {
 
     private static QueryShardContext queryShardContext() {
         IndicesService indicesService = internalCluster().getDataNodeInstance(IndicesService.class);
-        return indicesService.indexServiceSafe(resolveIndex("index")).newQueryShardContext();
+        return indicesService.indexServiceSafe(resolveIndex("index")).newQueryShardContext(
+                randomInt(20), null, () -> { throw new UnsupportedOperationException(); });
     }
 
     //see #11120

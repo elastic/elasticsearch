@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class ValidateQueryAction extends Action<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
 
     public static final ValidateQueryAction INSTANCE = new ValidateQueryAction();

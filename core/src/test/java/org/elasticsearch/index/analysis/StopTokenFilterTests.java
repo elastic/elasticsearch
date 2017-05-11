@@ -19,15 +19,16 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
@@ -47,7 +48,7 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
         builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString());
         Settings settings = builder.build();
         try {
-            AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("enable_position_increments is not supported anymore"));
@@ -62,8 +63,8 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
             // don't specify
         }
         builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString());
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(builder.build());
-        TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(builder.build());
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_stop");
         assertThat(tokenFilter, instanceOf(StopTokenFilterFactory.class));
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("foo bar"));
@@ -77,8 +78,8 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
                 .put("index.analysis.filter.my_stop.remove_trailing", false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
-        TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_stop");
         assertThat(tokenFilter, instanceOf(StopTokenFilterFactory.class));
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("foo an"));

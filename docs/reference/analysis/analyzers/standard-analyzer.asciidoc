@@ -145,7 +145,7 @@ The `standard` analyzer accepts the following parameters:
 `stopwords`::
 
     A pre-defined stop words list like `_english_` or an array  containing a
-    list of stop words.  Defaults to `_none_`.
+    list of stop words.  Defaults to `\_none_`.
 
 `stopwords_path`::
 
@@ -178,8 +178,6 @@ PUT my_index
     }
   }
 }
-
-GET _cluster/health?wait_for_status=yellow
 
 POST my_index/_analyze
 {
@@ -278,4 +276,3 @@ The above example produces the following terms:
 ---------------------------
 [ 2, quick, brown, foxes, jumpe, d, over, lazy, dog's, bone ]
 ---------------------------
-

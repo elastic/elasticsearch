@@ -40,9 +40,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 
-/**
- *
- */
 class InternalOrder extends Terms.Order {
 
     private static final byte COUNT_DESC_ID = 1;
@@ -244,11 +241,11 @@ class InternalOrder extends Terms.Order {
 
         private final List<Terms.Order> orderElements;
 
-        public CompoundOrder(List<Terms.Order> compoundOrder) {
+        CompoundOrder(List<Terms.Order> compoundOrder) {
             this(compoundOrder, true);
         }
 
-        public CompoundOrder(List<Terms.Order> compoundOrder, boolean absoluteOrdering) {
+        CompoundOrder(List<Terms.Order> compoundOrder, boolean absoluteOrdering) {
             this.orderElements = new LinkedList<>(compoundOrder);
             Terms.Order lastElement = compoundOrder.get(compoundOrder.size() - 1);
             if (absoluteOrdering && !(InternalOrder.TERM_ASC == lastElement || InternalOrder.TERM_DESC == lastElement)) {
@@ -303,7 +300,7 @@ class InternalOrder extends Terms.Order {
             private List<Terms.Order> compoundOrder;
             private Aggregator aggregator;
 
-            public CompoundOrderComparator(List<Terms.Order> compoundOrder, Aggregator aggregator) {
+            CompoundOrderComparator(List<Terms.Order> compoundOrder, Aggregator aggregator) {
                 this.compoundOrder = compoundOrder;
                 this.aggregator = aggregator;
             }

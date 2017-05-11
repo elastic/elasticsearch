@@ -20,15 +20,14 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.test.ESTestCase;
@@ -37,6 +36,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -44,19 +44,33 @@ import static org.hamcrest.Matchers.nullValue;
 public class MultiSearchRequestTests extends ESTestCase {
     public void testSimpleAdd() throws Exception {
         MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/simple-msearch1.json");
-        assertThat(request.requests().size(), equalTo(8));
-        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(0).indicesOptions(), equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
-        assertThat(request.requests().get(0).types().length, equalTo(0));
-        assertThat(request.requests().get(1).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(1).indicesOptions(), equalTo(IndicesOptions.fromOptions(false, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
-        assertThat(request.requests().get(2).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(2).indicesOptions(), equalTo(IndicesOptions.fromOptions(false, true, true, false, IndicesOptions.strictExpandOpenAndForbidClosed())));
-        assertThat(request.requests().get(3).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(3).indicesOptions(), equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
-        assertThat(request.requests().get(4).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(4).indicesOptions(), equalTo(IndicesOptions.fromOptions(true, false, false, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+        assertThat(request.requests().size(),
+                equalTo(8));
+        assertThat(request.requests().get(0).indices()[0],
+                equalTo("test"));
+        assertThat(request.requests().get(0).indicesOptions(),
+                equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+        assertThat(request.requests().get(0).types().length,
+                equalTo(0));
+        assertThat(request.requests().get(1).indices()[0],
+                equalTo("test"));
+        assertThat(request.requests().get(1).indicesOptions(),
+                equalTo(IndicesOptions.fromOptions(false, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+        assertThat(request.requests().get(1).types()[0],
+                equalTo("type1"));
+        assertThat(request.requests().get(2).indices()[0],
+                equalTo("test"));
+        assertThat(request.requests().get(2).indicesOptions(),
+                equalTo(IndicesOptions.fromOptions(false, true, true, false, IndicesOptions.strictExpandOpenAndForbidClosed())));
+        assertThat(request.requests().get(3).indices()[0],
+                equalTo("test"));
+        assertThat(request.requests().get(3).indicesOptions(),
+                equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+        assertThat(request.requests().get(4).indices()[0],
+                equalTo("test"));
+        assertThat(request.requests().get(4).indicesOptions(),
+                equalTo(IndicesOptions.fromOptions(true, false, false, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+
         assertThat(request.requests().get(5).indices(), is(Strings.EMPTY_ARRAY));
         assertThat(request.requests().get(5).types().length, equalTo(0));
         assertThat(request.requests().get(6).indices(), is(Strings.EMPTY_ARRAY));
@@ -64,6 +78,19 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(6).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
         assertThat(request.requests().get(7).indices(), is(Strings.EMPTY_ARRAY));
         assertThat(request.requests().get(7).types().length, equalTo(0));
+    }
+
+    public void testSimpleAddWithCarriageReturn() throws Exception {
+        final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"expand_wildcards\" : \"open,closed\"}}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON).build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
+        assertThat(request.requests().size(), equalTo(1));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(0).indicesOptions(),
+            equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+        assertThat(request.requests().get(0).types().length, equalTo(0));
     }
 
     public void testSimpleAdd2() throws Exception {
@@ -119,11 +146,23 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testResponseErrorToXContent() throws IOException {
-        MultiSearchResponse response = new MultiSearchResponse(new MultiSearchResponse.Item[]{new MultiSearchResponse.Item(null, new IllegalStateException("foobar")), new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))});
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("\"responses\"[{\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}],\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"},\"status\":500},{\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"}],\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"},\"status\":500}]",
-                builder.string());
+        MultiSearchResponse response = new MultiSearchResponse(
+                new MultiSearchResponse.Item[]{
+                    new MultiSearchResponse.Item(null, new IllegalStateException("foobar")),
+                    new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))
+        });
+
+        assertEquals("{\"responses\":["
+                        + "{"
+                        + "\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}],"
+                        + "\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"},\"status\":500"
+                        + "},"
+                        + "{"
+                        + "\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"}],"
+                        + "\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"},\"status\":500"
+                        + "}"
+                        + "]}",
+                Strings.toString(response));
     }
 
     public void testMaxConcurrentSearchRequests() {
@@ -135,14 +174,14 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
-        RestRequest restRequest = new FakeRestRequest.Builder().withContent(new BytesArray(data)).build();
-        return RestMultiSearchAction.parseRequest(restRequest, true, registry(), ParseFieldMatcher.EMPTY, null, null);
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(data), XContentType.JSON).build();
+        return RestMultiSearchAction.parseRequest(restRequest, true);
     }
 
-    private IndicesQueriesRegistry registry() {
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
-        QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
-        registry.register(parser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
-        return registry;
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(singletonList(new NamedXContentRegistry.Entry(QueryBuilder.class,
+                new ParseField(MatchAllQueryBuilder.NAME), (p, c) -> MatchAllQueryBuilder.fromXContent((QueryParseContext) c))));
     }
 }

@@ -34,9 +34,11 @@ public final class SContinue extends AStatement {
     public SContinue(Location location) {
         super(location);
     }
-    
+
     @Override
-    void extractVariables(Set<String> variables) {}
+    void extractVariables(Set<String> variables) {
+        // Do nothing.
+    }
 
     @Override
     void analyze(Locals locals) {
@@ -56,5 +58,10 @@ public final class SContinue extends AStatement {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.goTo(continu);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString();
     }
 }

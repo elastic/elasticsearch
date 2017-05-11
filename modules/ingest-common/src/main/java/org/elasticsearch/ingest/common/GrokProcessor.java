@@ -37,38 +37,49 @@ public final class GrokProcessor extends AbstractProcessor {
     private static final String PATTERN_MATCH_KEY = "_ingest._grok_match_index";
 
     private final String matchField;
+    private final List<String> matchPatterns;
     private final Grok grok;
     private final boolean traceMatch;
+    private final boolean ignoreMissing;
 
-    public GrokProcessor(String tag, Map<String, String> patternBank, List<String> matchPatterns, String matchField) {
-        this(tag, patternBank, matchPatterns, matchField, false);
-    }
-
-    public GrokProcessor(String tag, Map<String, String> patternBank, List<String> matchPatterns, String matchField, boolean traceMatch) {
+    public GrokProcessor(String tag, Map<String, String> patternBank, List<String> matchPatterns, String matchField,
+                         boolean traceMatch, boolean ignoreMissing) {
         super(tag);
         this.matchField = matchField;
+        this.matchPatterns = matchPatterns;
         this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch));
         this.traceMatch = traceMatch;
+        this.ignoreMissing = ignoreMissing;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
-        String fieldValue = ingestDocument.getFieldValue(matchField, String.class);
+        String fieldValue = ingestDocument.getFieldValue(matchField, String.class, ignoreMissing);
+
+        if (fieldValue == null && ignoreMissing) {
+            return;
+        } else if (fieldValue == null) {
+            throw new IllegalArgumentException("field [" + matchField + "] is null, cannot process it.");
+        }
+
         Map<String, Object> matches = grok.captures(fieldValue);
         if (matches == null) {
             throw new IllegalArgumentException("Provided Grok expressions do not match field value: [" + fieldValue + "]");
         }
 
         matches.entrySet().stream()
-            .filter((e) -> Objects.nonNull(e.getValue()))
             .forEach((e) -> ingestDocument.setFieldValue(e.getKey(), e.getValue()));
 
         if (traceMatch) {
-            @SuppressWarnings("unchecked")
-            HashMap<String, String> matchMap = (HashMap<String, String>) ingestDocument.getFieldValue(PATTERN_MATCH_KEY, Object.class);
-            matchMap.keySet().stream().findFirst().ifPresent((index) -> {
-                ingestDocument.setFieldValue(PATTERN_MATCH_KEY, index);
-            });
+            if (matchPatterns.size() > 1) {
+                @SuppressWarnings("unchecked")
+                HashMap<String, String> matchMap = (HashMap<String, String>) ingestDocument.getFieldValue(PATTERN_MATCH_KEY, Object.class);
+                matchMap.keySet().stream().findFirst().ifPresent((index) -> {
+                    ingestDocument.setFieldValue(PATTERN_MATCH_KEY, index);
+                });
+            } else {
+                ingestDocument.setFieldValue(PATTERN_MATCH_KEY, "0");
+            }
         }
     }
 
@@ -77,35 +88,39 @@ public final class GrokProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public Grok getGrok() {
+    Grok getGrok() {
         return grok;
+    }
+
+    boolean isIgnoreMissing() {
+        return ignoreMissing;
     }
 
     String getMatchField() {
         return matchField;
     }
 
+    List<String> getMatchPatterns() {
+        return matchPatterns;
+    }
+
     static String combinePatterns(List<String> patterns, boolean traceMatch) {
         String combinedPattern;
         if (patterns.size() > 1) {
-            if (traceMatch) {
-                combinedPattern = "";
-                for (int i = 0; i < patterns.size(); i++) {
-                    String valueWrap = "(?<" + PATTERN_MATCH_KEY + "." + i + ">" + patterns.get(i) + ")";
-                    if (combinedPattern.equals("")) {
-                        combinedPattern = valueWrap;
-                    } else {
-                        combinedPattern = combinedPattern + "|" + valueWrap;
-                    }
+            combinedPattern = "";
+            for (int i = 0; i < patterns.size(); i++) {
+                String pattern = patterns.get(i);
+                String valueWrap;
+                if (traceMatch) {
+                    valueWrap = "(?<" + PATTERN_MATCH_KEY + "." + i + ">" + pattern + ")";
+                } else {
+                    valueWrap = "(?:" + patterns.get(i) + ")";
                 }
-            } else {
-                combinedPattern = patterns.stream().reduce("", (prefix, value) -> {
-                    if (prefix.equals("")) {
-                        return "(?:" + value + ")";
-                    } else {
-                        return prefix + "|" + "(?:" + value + ")";
-                    }
-                });
+                if (combinedPattern.equals("")) {
+                    combinedPattern = valueWrap;
+                } else {
+                    combinedPattern = combinedPattern + "|" + valueWrap;
+                }
             }
         }  else {
             combinedPattern = patterns.get(0);
@@ -128,6 +143,7 @@ public final class GrokProcessor extends AbstractProcessor {
             String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");
             boolean traceMatch = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trace_match", false);
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
             if (matchPatterns.isEmpty()) {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
@@ -139,7 +155,7 @@ public final class GrokProcessor extends AbstractProcessor {
             }
 
             try {
-                return new GrokProcessor(processorTag, patternBank, matchPatterns, matchField, traceMatch);
+                return new GrokProcessor(processorTag, patternBank, matchPatterns, matchField, traceMatch, ignoreMissing);
             } catch (Exception e) {
                 throw newConfigurationException(TYPE, processorTag, "patterns",
                     "Invalid regex pattern found in: " + matchPatterns + ". " + e.getMessage());

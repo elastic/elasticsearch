@@ -53,7 +53,8 @@ public class ScoreTests extends ScriptTestCase {
                 public float score() throws IOException {
                     return 2.5f;
                 }
-            }));
+            },
+            true));
     }
 
     public void testScoreNotUsed() {
@@ -63,7 +64,8 @@ public class ScoreTests extends ScriptTestCase {
                 public float score() throws IOException {
                     throw new AssertionError("score() should not be called");
                 }
-            }));
+            },
+            true));
     }
 
     public void testScoreCached() {
@@ -77,6 +79,7 @@ public class ScoreTests extends ScriptTestCase {
                     }
                     throw new AssertionError("score() should not be called twice");
                 }
-            }));
+            },
+            true));
     }
 }

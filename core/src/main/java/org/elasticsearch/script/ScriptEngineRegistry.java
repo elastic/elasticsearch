@@ -21,23 +21,21 @@ package org.elasticsearch.script;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.elasticsearch.common.Strings;
 
 public class ScriptEngineRegistry {
 
-    private final Map<Class<? extends ScriptEngineService>, String> registeredScriptEngineServices;
-    private final Map<String, ScriptEngineService> registeredLanguages;
+    private final Map<Class<? extends ScriptEngine>, String> registeredScriptEngineServices;
+    private final Map<String, ScriptEngine> registeredLanguages;
     private final Map<String, Boolean> defaultInlineScriptEnableds;
 
-    public ScriptEngineRegistry(Iterable<ScriptEngineService> registrations) {
+    public ScriptEngineRegistry(Iterable<ScriptEngine> registrations) {
         Objects.requireNonNull(registrations);
-        Map<Class<? extends ScriptEngineService>, String> registeredScriptEngineServices = new HashMap<>();
-        Map<String, ScriptEngineService> registeredLanguages = new HashMap<>();
+        Map<Class<? extends ScriptEngine>, String> registeredScriptEngineServices = new HashMap<>();
+        Map<String, ScriptEngine> registeredLanguages = new HashMap<>();
         Map<String, Boolean> inlineScriptEnableds = new HashMap<>();
-        for (ScriptEngineService service : registrations) {
+        for (ScriptEngine service : registrations) {
             String oldLanguage = registeredScriptEngineServices.putIfAbsent(service.getClass(),
                     service.getType());
             if (oldLanguage != null) {
@@ -45,11 +43,11 @@ public class ScriptEngineRegistry {
                                 "] already registered for language [" + oldLanguage + "]");
             }
             String language = service.getType();
-            ScriptEngineService scriptEngineService =
+            ScriptEngine scriptEngine =
                     registeredLanguages.putIfAbsent(language, service);
-            if (scriptEngineService != null) {
+            if (scriptEngine != null) {
                 throw new IllegalArgumentException("scripting language [" + language + "] already registered for script engine service [" +
-                    scriptEngineService.getClass().getCanonicalName() + "]");
+                    scriptEngine.getClass().getCanonicalName() + "]");
             }
             inlineScriptEnableds.put(language, service.isInlineScriptEnabled());
         }
@@ -59,16 +57,16 @@ public class ScriptEngineRegistry {
         this.defaultInlineScriptEnableds = Collections.unmodifiableMap(inlineScriptEnableds);
     }
 
-    Iterable<Class<? extends ScriptEngineService>> getRegisteredScriptEngineServices() {
+    Iterable<Class<? extends ScriptEngine>> getRegisteredScriptEngineServices() {
         return registeredScriptEngineServices.keySet();
     }
 
-    String getLanguage(Class<? extends ScriptEngineService> scriptEngineService) {
+    String getLanguage(Class<? extends ScriptEngine> scriptEngineService) {
         Objects.requireNonNull(scriptEngineService);
         return registeredScriptEngineServices.get(scriptEngineService);
     }
 
-    public Map<String, ScriptEngineService> getRegisteredLanguages() {
+    public Map<String, ScriptEngine> getRegisteredLanguages() {
         return registeredLanguages;
     }
 

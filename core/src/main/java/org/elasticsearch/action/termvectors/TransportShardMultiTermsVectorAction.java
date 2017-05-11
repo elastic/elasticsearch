@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.termvectors;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
@@ -87,7 +89,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
                 if (TransportActions.isShardNotAvailableException(t)) {
                     throw (ElasticsearchException) t;
                 } else {
-                    logger.debug("{} failed to execute multi term vectors for [{}]/[{}]", t, shardId, termVectorsRequest.type(), termVectorsRequest.id());
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]/[{}]", shardId, termVectorsRequest.type(), termVectorsRequest.id()), t);
                     response.add(request.locations.get(i),
                             new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), t));
                 }

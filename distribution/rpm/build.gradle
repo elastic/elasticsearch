@@ -18,7 +18,7 @@
  */
 
 task buildRpm(type: Rpm) {
-  dependsOn dependencyFiles, preparePackagingFiles
+  dependsOn preparePackagingFiles
   baseName 'elasticsearch' // this is what pom generation uses for artifactId
   // Follow elasticsearch's rpm file naming convention
   archiveName "${packageName}-${project.version}.rpm"
@@ -36,6 +36,17 @@ task buildRpm(type: Rpm) {
   fileMode 0644
   addParentDirs false
   // TODO ospackage doesn't support icon but we used to have one
+
+  // Declare the folders so that the RPM package manager removes
+  // them when upgrading or removing the package
+  directory('/usr/share/elasticsearch/bin', 0755)
+  directory('/usr/share/elasticsearch/lib', 0755)
+  directory('/usr/share/elasticsearch/modules', 0755)
+  modulesFiles.eachFile { FileCopyDetails fcp ->
+    if (fcp.name == "plugin-descriptor.properties") {
+      directory('/usr/share/elasticsearch/modules/' + fcp.file.parentFile.name, 0755)
+    }
+  }
 }
 
 artifacts {

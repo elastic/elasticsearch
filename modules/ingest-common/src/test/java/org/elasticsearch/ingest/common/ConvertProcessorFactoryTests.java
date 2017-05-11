@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ConvertProcessorFactoryTests extends ESTestCase {
@@ -37,18 +38,19 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         ConvertProcessor.Type type = randomFrom(ConvertProcessor.Type.values());
         config.put("field", "field1");
         config.put("type", type.toString());
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         ConvertProcessor convertProcessor = factory.create(null, processorTag, config);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));
         assertThat(convertProcessor.getTargetField(), equalTo("field1"));
         assertThat(convertProcessor.getConvertType(), equalTo(type));
+        assertThat(convertProcessor.isIgnoreMissing(), is(false));
     }
 
     public void testCreateUnsupportedType() throws Exception {
         ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String type = "type-" + randomAsciiOfLengthBetween(1, 10);
+        String type = "type-" + randomAlphaOfLengthBetween(1, 10);
         config.put("field", "field1");
         config.put("type", type);
         try {
@@ -65,7 +67,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
     public void testCreateNoFieldPresent() throws Exception {
         ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String type = "type-" + randomAsciiOfLengthBetween(1, 10);
+        String type = "type-" + randomAlphaOfLengthBetween(1, 10);
         config.put("type", type);
         try {
             factory.create(null, null, config);
@@ -94,11 +96,28 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("target_field", "field2");
         config.put("type", type.toString());
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         ConvertProcessor convertProcessor = factory.create(null, processorTag, config);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));
         assertThat(convertProcessor.getTargetField(), equalTo("field2"));
         assertThat(convertProcessor.getConvertType(), equalTo(type));
+        assertThat(convertProcessor.isIgnoreMissing(), is(false));
+    }
+
+    public void testCreateWithIgnoreMissing() throws Exception {
+        ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        ConvertProcessor.Type type = randomFrom(ConvertProcessor.Type.values());
+        config.put("field", "field1");
+        config.put("type", type.toString());
+        config.put("ignore_missing", true);
+        String processorTag = randomAlphaOfLength(10);
+        ConvertProcessor convertProcessor = factory.create(null, processorTag, config);
+        assertThat(convertProcessor.getTag(), equalTo(processorTag));
+        assertThat(convertProcessor.getField(), equalTo("field1"));
+        assertThat(convertProcessor.getTargetField(), equalTo("field1"));
+        assertThat(convertProcessor.getConvertType(), equalTo(type));
+        assertThat(convertProcessor.isIgnoreMissing(), is(true));
     }
 }

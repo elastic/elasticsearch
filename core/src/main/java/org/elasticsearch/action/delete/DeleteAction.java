@@ -22,8 +22,6 @@ package org.elasticsearch.action.delete;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class DeleteAction extends Action<DeleteRequest, DeleteResponse, DeleteRequestBuilder> {
 
     public static final DeleteAction INSTANCE = new DeleteAction();

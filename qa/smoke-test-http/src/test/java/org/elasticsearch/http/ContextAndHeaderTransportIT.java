@@ -22,7 +22,6 @@ package org.elasticsearch.http;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
@@ -51,6 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -75,9 +76,9 @@ import static org.hamcrest.Matchers.is;
 public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
     private static final List<RequestAndHeaders> requests =  new CopyOnWriteArrayList<>();
     private static final String CUSTOM_HEADER = "SomeCustomHeader";
-    private String randomHeaderValue = randomAsciiOfLength(20);
-    private String queryIndex = "query-" + randomAsciiOfLength(10).toLowerCase(Locale.ROOT);
-    private String lookupIndex = "lookup-" + randomAsciiOfLength(10).toLowerCase(Locale.ROOT);
+    private String randomHeaderValue = randomAlphaOfLength(20);
+    private String queryIndex = "query-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+    private String lookupIndex = "lookup-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -85,11 +86,6 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
-    }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     @Override
@@ -114,9 +110,9 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
             .build();
         assertAcked(transportClient().admin().indices().prepareCreate(lookupIndex)
-            .setSettings(settings).addMapping("type", mapping));
+            .setSettings(settings).addMapping("type", mapping, XContentType.JSON));
         assertAcked(transportClient().admin().indices().prepareCreate(queryIndex)
-            .setSettings(settings).addMapping("type", mapping));
+            .setSettings(settings).addMapping("type", mapping, XContentType.JSON));
         ensureGreen(queryIndex, lookupIndex);
         requests.clear();
     }
@@ -218,20 +214,17 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
         assertRequestsContainHeader(MultiTermVectorsRequest.class);
     }
 
-    public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws Exception {
+    public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws IOException {
         final String IRRELEVANT_HEADER = "SomeIrrelevantHeader";
-
-        try (Response response = getRestClient().performRequest(
-                "GET", "/" + queryIndex + "/_search",
-                new BasicHeader(CUSTOM_HEADER, randomHeaderValue), new BasicHeader(IRRELEVANT_HEADER, randomHeaderValue))) {
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-            List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
-            assertThat(searchRequests, hasSize(greaterThan(0)));
-            for (RequestAndHeaders requestAndHeaders : searchRequests) {
-                assertThat(requestAndHeaders.headers.containsKey(CUSTOM_HEADER), is(true));
-                // was not specified, thus is not included
-                assertThat(requestAndHeaders.headers.containsKey(IRRELEVANT_HEADER), is(false));
-            }
+        Response response = getRestClient().performRequest("GET", "/" + queryIndex + "/_search",
+                new BasicHeader(CUSTOM_HEADER, randomHeaderValue), new BasicHeader(IRRELEVANT_HEADER, randomHeaderValue));
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
+        assertThat(searchRequests, hasSize(greaterThan(0)));
+        for (RequestAndHeaders requestAndHeaders : searchRequests) {
+            assertThat(requestAndHeaders.headers.containsKey(CUSTOM_HEADER), is(true));
+            // was not specified, thus is not included
+            assertThat(requestAndHeaders.headers.containsKey(IRRELEVANT_HEADER), is(false));
         }
     }
 
@@ -324,13 +317,8 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
         }
 
         @Override
-        protected boolean apply(String action, ActionRequest request, ActionListener listener) {
+        protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
             requests.add(new RequestAndHeaders(threadPool.getThreadContext().getHeaders(), request));
-            return true;
-        }
-
-        @Override
-        protected boolean apply(String action, ActionResponse response, ActionListener listener) {
             return true;
         }
     }

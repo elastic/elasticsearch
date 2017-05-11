@@ -21,8 +21,6 @@ package org.elasticsearch.search.rescore;
 
 
 
-/**
- */
 public class RescoreSearchContext {
 
     private int windowSize;

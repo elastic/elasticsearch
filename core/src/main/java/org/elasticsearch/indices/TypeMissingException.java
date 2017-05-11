@@ -27,13 +27,15 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Arrays;
 
-/**
- *
- */
 public class TypeMissingException extends ElasticsearchException {
 
     public TypeMissingException(Index index, String... types) {
-        super("type[" + Arrays.toString(types) + "] missing");
+        super("type" + Arrays.toString(types) + " missing");
+        setIndex(index);
+    }
+
+    public TypeMissingException(Index index, Throwable cause, String... types) {
+        super("type" + Arrays.toString(types) + " missing", cause);
         setIndex(index);
     }
 

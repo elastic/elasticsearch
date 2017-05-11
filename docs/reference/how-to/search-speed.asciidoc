@@ -141,6 +141,124 @@ In general, scripts should be avoided. If they are absolutely needed, you
 should prefer the `painless` and `expressions` engines.
 
 [float]
+=== Search rounded dates
+
+Queries on date fields that use `now` are typically not cacheable since the
+range that is being matched changes all the time. However switching to a
+rounded date is often acceptable in terms of user experience, and has the
+benefit of making better use of the query cache.
+
+For instance the below query:
+
+[source,js]
+--------------------------------------------------
+PUT index/type/1
+{
+  "my_date": "2016-05-11T16:30:55.328Z"
+}
+
+GET index/_search
+{
+  "query": {
+    "constant_score": {
+      "filter": {
+        "range": {
+          "my_date": {
+            "gte": "now-1h",
+            "lte": "now"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+could be replaced with the following query:
+
+[source,js]
+--------------------------------------------------
+GET index/_search
+{
+  "query": {
+    "constant_score": {
+      "filter": {
+        "range": {
+          "my_date": {
+            "gte": "now-1h/m",
+            "lte": "now/m"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+In that case we rounded to the minute, so if the current time is `16:31:29`,
+the range query will match everything whose value of the `my_date` field is
+between `15:31:00` and `16:31:59`. And if several users run a query that
+contains this range in the same minute, the query cache could help speed things
+up a bit. The longer the interval that is used for rounding, the more the query
+cache can help, but beware that too aggressive rounding might also hurt user
+experience.
+
+
+NOTE: It might be tempting to split ranges into a large cacheable part and
+smaller not cacheable parts in order to be able to leverage the query cache,
+as shown below:
+
+[source,js]
+--------------------------------------------------
+GET index/_search
+{
+  "query": {
+    "constant_score": {
+      "filter": {
+        "bool": {
+          "should": [
+            {
+              "range": {
+                "my_date": {
+                  "gte": "now-1h",
+                  "lte": "now-1h/m"
+                }
+              }
+            },
+            {
+              "range": {
+                "my_date": {
+                  "gt": "now-1h/m",
+                  "lt": "now/m"
+                }
+              }
+            },
+            {
+              "range": {
+                "my_date": {
+                  "gte": "now/m",
+                  "lte": "now"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+However such practice might make the query run slower in some cases since the
+overhead introduced by the `bool` query may defeat the savings from better
+leveraging the query cache.
+
+[float]
 === Force-merge read-only indices
 
 Indices that are read-only would benefit from being

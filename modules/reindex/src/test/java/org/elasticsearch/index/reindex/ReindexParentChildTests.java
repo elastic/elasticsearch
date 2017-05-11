@@ -20,13 +20,18 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Index-by-search tests for parent/child.
@@ -75,12 +80,11 @@ public class ReindexParentChildTests extends ReindexTestCase {
         createParentChildDocs("source");
 
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").filter(findsCity);
-        try {
-            copy.get();
-            fail("Expected exception");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
-        }
+        final BulkByScrollResponse response = copy.get();
+        assertThat(response.getBulkFailures().size(), equalTo(1));
+        final Exception cause = response.getBulkFailures().get(0).getCause();
+        assertThat(cause, instanceOf(IllegalArgumentException.class));
+        assertThat(cause, hasToString(containsString("can't specify parent if no parent field has been configured")));
     }
 
     /**
@@ -89,8 +93,9 @@ public class ReindexParentChildTests extends ReindexTestCase {
      */
     private void createParentChildIndex(String indexName) throws Exception {
         CreateIndexRequestBuilder create = client().admin().indices().prepareCreate(indexName);
-        create.addMapping("city", "{\"_parent\": {\"type\": \"country\"}}");
-        create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}");
+        create.setSettings("index.mapping.single_type", false);
+        create.addMapping("city", "{\"_parent\": {\"type\": \"country\"}}", XContentType.JSON);
+        create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}", XContentType.JSON);
         assertAcked(create);
         ensureGreen();
     }

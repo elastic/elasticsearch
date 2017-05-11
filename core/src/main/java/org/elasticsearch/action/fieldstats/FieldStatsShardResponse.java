@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.fieldstats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,9 +28,8 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-/**
- */
 public class FieldStatsShardResponse extends BroadcastShardResponse {
 
     private Map<String, FieldStats<?>> fieldStats;
@@ -44,6 +44,12 @@ public class FieldStatsShardResponse extends BroadcastShardResponse {
 
     public Map<String, FieldStats<?>> getFieldStats() {
         return fieldStats;
+    }
+
+    Map<String, FieldStats<?> > filterNullMinMax() {
+        return fieldStats.entrySet().stream()
+            .filter((e) -> e.getValue().hasMinMax())
+            .collect(Collectors.toMap(p -> p.getKey(), p -> p.getValue()));
     }
 
     @Override
@@ -61,8 +67,17 @@ public class FieldStatsShardResponse extends BroadcastShardResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(fieldStats.size());
-        for (Map.Entry<String, FieldStats<?>> entry : fieldStats.entrySet()) {
+        final Map<String, FieldStats<?> > stats;
+        if (out.getVersion().before(Version.V_5_2_0_UNRELEASED)) {
+            /**
+             * FieldStats with null min/max are not (de)serializable in versions prior to {@link Version.V_5_2_0_UNRELEASED}
+             */
+            stats = filterNullMinMax();
+        } else {
+            stats = getFieldStats();
+        }
+        out.writeVInt(stats.size());
+        for (Map.Entry<String, FieldStats<?>> entry : stats.entrySet()) {
             out.writeString(entry.getKey());
             entry.getValue().writeTo(out);
         }

@@ -1,5 +1,3 @@
-package org.elasticsearch.painless;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -19,10 +17,17 @@ package org.elasticsearch.painless;
  * under the License.
  */
 
+package org.elasticsearch.painless;
+
+import org.elasticsearch.test.ESTestCase;
+
+import static java.util.Collections.singletonMap;
+
 // TODO: Figure out a way to test autobox caching properly from methods such as Integer.valueOf(int);
 public class EqualsTests extends ScriptTestCase {
     public void testTypesEquals() {
         assertEquals(true, exec("return false === false;"));
+        assertEquals(false, exec("boolean x = false; boolean y = true; return x === y;"));
         assertEquals(true, exec("boolean x = false; boolean y = false; return x === y;"));
         assertEquals(false, exec("return (byte)3 === (byte)4;"));
         assertEquals(true, exec("byte x = 3; byte y = 3; return x === y;"));
@@ -40,6 +45,7 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(true, exec("double x = 3; double y = 3; return x === y;"));
 
         assertEquals(true, exec("return false == false;"));
+        assertEquals(false, exec("boolean x = false; boolean y = true; return x == y;"));
         assertEquals(true, exec("boolean x = false; boolean y = false; return x == y;"));
         assertEquals(false, exec("return (byte)3 == (byte)4;"));
         assertEquals(true, exec("byte x = 3; byte y = 3; return x == y;"));
@@ -59,6 +65,7 @@ public class EqualsTests extends ScriptTestCase {
 
     public void testTypesNotEquals() {
         assertEquals(false, exec("return true !== true;"));
+        assertEquals(true, exec("boolean x = true; boolean y = false; return x !== y;"));
         assertEquals(false, exec("boolean x = false; boolean y = false; return x !== y;"));
         assertEquals(true, exec("return (byte)3 !== (byte)4;"));
         assertEquals(false, exec("byte x = 3; byte y = 3; return x !== y;"));
@@ -76,6 +83,7 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(false, exec("double x = 3; double y = 3; return x !== y;"));
 
         assertEquals(false, exec("return true != true;"));
+        assertEquals(true, exec("boolean x = true; boolean y = false; return x != y;"));
         assertEquals(false, exec("boolean x = false; boolean y = false; return x != y;"));
         assertEquals(true, exec("return (byte)3 != (byte)4;"));
         assertEquals(false, exec("byte x = 3; byte y = 3; return x != y;"));
@@ -124,6 +132,16 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(1, exec("def a = 1; Number b = a; Number c = a; if (c === b) return 1; else return 0;"));
         assertEquals(0, exec("def a = 1; Object b = new HashMap(); if (a === (Object)b) return 1; else return 0;"));
     }
+    
+    public void testBranchEqualsDefAndPrimitive() {
+        /* This test needs an Integer that isn't cached by Integer.valueOf so we draw one randomly. We can't use any fixed integer because
+         * we can never be sure that the JVM hasn't configured itself to cache that Integer. It is sneaky like that. */
+        int uncachedAutoboxedInt = randomValueOtherThanMany(i -> Integer.valueOf(i) == Integer.valueOf(i), ESTestCase::randomInt);
+        assertEquals(true, exec("def x = params.i; int y = params.i; return x == y;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(false, exec("def x = params.i; int y = params.i; return x === y;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(true, exec("def x = params.i; int y = params.i; return y == x;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(false, exec("def x = params.i; int y = params.i; return y === x;", singletonMap("i", uncachedAutoboxedInt), true));
+    }
 
     public void testBranchNotEquals() {
         assertEquals(1, exec("def a = (char)'a'; def b = (char)'b'; if (a != b) return 1; else return 0;"));
@@ -133,6 +151,16 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(0, exec("def a = (char)'a'; Object b = a; if (a !== b) return 1; else return 0;"));
         assertEquals(0, exec("def a = 1; Number b = a; Number c = a; if (c !== b) return 1; else return 0;"));
         assertEquals(1, exec("def a = 1; Object b = new HashMap(); if (a !== (Object)b) return 1; else return 0;"));
+    }
+
+    public void testBranchNotEqualsDefAndPrimitive() {
+        /* This test needs an Integer that isn't cached by Integer.valueOf so we draw one randomly. We can't use any fixed integer because
+         * we can never be sure that the JVM hasn't configured itself to cache that Integer. It is sneaky like that. */
+        int uncachedAutoboxedInt = randomValueOtherThanMany(i -> Integer.valueOf(i) == Integer.valueOf(i), ESTestCase::randomInt);
+        assertEquals(false, exec("def x = params.i; int y = params.i; return x != y;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(true,  exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(false, exec("def x = params.i; int y = params.i; return y != x;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(true,  exec("def x = params.i; int y = params.i; return y !== x;", singletonMap("i", uncachedAutoboxedInt), true));
     }
 
     public void testRightHandNull() {

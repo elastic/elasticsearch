@@ -20,16 +20,15 @@
 package org.elasticsearch.common.xcontent.cbor;
 
 import com.fasterxml.jackson.core.JsonParser;
+
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 
-/**
- *
- */
 public class CborXContentParser extends JsonXContentParser {
 
-    public CborXContentParser(JsonParser parser) {
-        super(parser);
+    public CborXContentParser(NamedXContentRegistry xContentRegistry, JsonParser parser) {
+        super(xContentRegistry, parser);
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,16 +30,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
-/**
- */
 public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSearchShardsRequest> implements IndicesRequest.Replaceable {
-    private String[] indices;
+
+    private String[] indices = Strings.EMPTY_ARRAY;
     @Nullable
     private String routing;
     @Nullable
     private String preference;
-    private String[] types = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
 
@@ -59,14 +59,9 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
      */
     @Override
     public ClusterSearchShardsRequest indices(String... indices) {
-        if (indices == null) {
-            throw new IllegalArgumentException("indices must not be null");
-        } else {
-            for (int i = 0; i < indices.length; i++) {
-                if (indices[i] == null) {
-                    throw new IllegalArgumentException("indices[" + i + "] must not be null");
-                }
-            }
+        Objects.requireNonNull(indices, "indices must not be null");
+        for (int i = 0; i < indices.length; i++) {
+            Objects.requireNonNull(indices[i], "indices[" + i + "] must not be null");
         }
         this.indices = indices;
         return this;
@@ -87,23 +82,6 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
 
     public ClusterSearchShardsRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
-        return this;
-    }
-
-    /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     */
-    public String[] types() {
-        return types;
-    }
-
-    /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     */
-    public ClusterSearchShardsRequest types(String... types) {
-        this.types = types;
         return this;
     }
 
@@ -156,7 +134,10 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
         routing = in.readOptionalString();
         preference = in.readOptionalString();
 
-        types = in.readStringArray();
+        if (in.getVersion().onOrBefore(Version.V_5_1_1_UNRELEASED)) {
+            //types
+            in.readStringArray();
+        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
@@ -172,7 +153,10 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
 
-        out.writeStringArray(types);
+        if (out.getVersion().onOrBefore(Version.V_5_1_1_UNRELEASED)) {
+            //types
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         indicesOptions.writeIndicesOptions(out);
     }
 

@@ -84,7 +84,7 @@
                   "field" : "friends",
                   "processor" : {
                       "remove" : {
-                        "field" : "_value.id"
+                        "field" : "_ingest._value.id"
                       }
                   }
                 }
@@ -106,7 +106,7 @@
                   "field" : "address",
                   "processor" : {
                       "trim" : {
-                        "field" : "_value"
+                        "field" : "_ingest._value"
                       }
                   }
                 }

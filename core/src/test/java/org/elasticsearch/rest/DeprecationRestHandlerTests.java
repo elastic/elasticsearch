@@ -38,7 +38,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
     /**
      * Note: Headers should only use US ASCII (and this inevitably becomes one!).
      */
-    private final String deprecationMessage = randomAsciiOfLengthBetween(1, 30);
+    private final String deprecationMessage = randomAlphaOfLengthBetween(1, 30);
     private final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
 
     public void testNullHandler() {
@@ -78,8 +78,15 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         ASCIIHeaderGenerator generator = new ASCIIHeaderGenerator();
         String value = generator.ofCodeUnitsLength(random(), 1, 50);
 
-        assertTrue(DeprecationRestHandler.validHeaderValue(value));
-        assertSame(value, DeprecationRestHandler.requireValidHeader(value));
+        if (value.trim().length() == 0) {
+            // empty text, not a valid header
+            assertFalse(DeprecationRestHandler.validHeaderValue(value));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> DeprecationRestHandler.requireValidHeader(value));
+            assertEquals("header value must contain only US ASCII text", e.getMessage());
+        } else {
+            assertTrue(DeprecationRestHandler.validHeaderValue(value));
+            assertSame(value, DeprecationRestHandler.requireValidHeader(value));
+        }
     }
 
     public void testInvalidHeaderValue() {
@@ -131,7 +138,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         /**
          * Create a generator for characters [32, 126].
          */
-        public ASCIIHeaderGenerator() {
+        ASCIIHeaderGenerator() {
             super(asciiFromTo(32, 126));
         }
     }

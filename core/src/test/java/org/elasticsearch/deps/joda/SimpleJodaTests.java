@@ -22,7 +22,7 @@ package org.elasticsearch.deps.joda;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -42,9 +42,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class SimpleJodaTests extends ESTestCase {
     public void testMultiParsers() {
         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
@@ -314,6 +311,36 @@ public class SimpleJodaTests extends ESTestCase {
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Invalid format"));
+        }
+    }
+
+    public void testForInvalidTimeZoneWithEpochSeconds() {
+        DateTimeFormatter dateTimeFormatter = new DateTimeFormatterBuilder()
+            .append(new Joda.EpochTimeParser(false))
+            .toFormatter()
+            .withZone(DateTimeZone.forOffsetHours(1));
+        FormatDateTimeFormatter formatter =
+            new FormatDateTimeFormatter("epoch_seconds", dateTimeFormatter, Locale.ROOT);
+        try {
+            formatter.parser().parseDateTime("1433144433655");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("time_zone must be UTC"));
+        }
+    }
+
+    public void testForInvalidTimeZoneWithEpochMillis() {
+        DateTimeFormatter dateTimeFormatter = new DateTimeFormatterBuilder()
+            .append(new Joda.EpochTimeParser(true))
+            .toFormatter()
+            .withZone(DateTimeZone.forOffsetHours(1));
+        FormatDateTimeFormatter formatter =
+            new FormatDateTimeFormatter("epoch_millis", dateTimeFormatter, Locale.ROOT);
+        try {
+            formatter.parser().parseDateTime("1433144433");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("time_zone must be UTC"));
         }
     }
 

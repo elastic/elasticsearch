@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cloud.azure.storage;
 
+import com.microsoft.azure.storage.RetryPolicy;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
@@ -31,41 +32,37 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public final class AzureStorageSettings {
-    private static final String TIMEOUT_SUFFIX = "timeout";
-    private static final String ACCOUNT_SUFFIX = "account";
-    private static final String KEY_SUFFIX = "key";
-    private static final String DEFAULT_SUFFIX = "default";
-
-    private static final Setting.AffixKey TIMEOUT_KEY = Setting.AffixKey.withAdfix(Storage.PREFIX, TIMEOUT_SUFFIX);
-
-    private static final Setting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(
-        TIMEOUT_KEY,
-        (s) -> Storage.TIMEOUT_SETTING.get(s).toString(),
-        (s) -> Setting.parseTimeValue(s, TimeValue.timeValueSeconds(-1), TIMEOUT_KEY.toString()),
-        Setting.Property.NodeScope);
+    private static final Setting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "timeout",
+        (key) -> Setting.timeSetting(key, Storage.TIMEOUT_SETTING, Setting.Property.NodeScope));
     private static final Setting<String> ACCOUNT_SETTING =
-        Setting.adfixKeySetting(Storage.PREFIX, ACCOUNT_SUFFIX, "", Function.identity(), Setting.Property.NodeScope);
+        Setting.affixKeySetting(Storage.PREFIX, "account", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
     private static final Setting<String> KEY_SETTING =
-        Setting.adfixKeySetting(Storage.PREFIX, KEY_SUFFIX, "", Function.identity(), Setting.Property.NodeScope);
+        Setting.affixKeySetting(Storage.PREFIX, "key", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
     private static final Setting<Boolean> DEFAULT_SETTING =
-        Setting.adfixKeySetting(Storage.PREFIX, DEFAULT_SUFFIX, "false", Boolean::valueOf, Setting.Property.NodeScope);
-
+        Setting.affixKeySetting(Storage.PREFIX, "default", (key) -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
+    /**
+     * max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT).
+     */
+    private static final Setting<Integer> MAX_RETRIES_SETTING =
+        Setting.affixKeySetting(Storage.PREFIX, "max_retries",
+            (key) -> Setting.intSetting(key, RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT, Setting.Property.NodeScope));
 
     private final String name;
     private final String account;
     private final String key;
     private final TimeValue timeout;
     private final boolean activeByDefault;
+    private final int maxRetries;
 
-    public AzureStorageSettings(String name, String account, String key, TimeValue timeout, boolean activeByDefault) {
+    public AzureStorageSettings(String name, String account, String key, TimeValue timeout, boolean activeByDefault, int maxRetries) {
         this.name = name;
         this.account = account;
         this.key = key;
         this.timeout = timeout;
         this.activeByDefault = activeByDefault;
+        this.maxRetries = maxRetries;
     }
 
     public String getName() {
@@ -88,6 +85,10 @@ public final class AzureStorageSettings {
         return activeByDefault;
     }
 
+    public int getMaxRetries() {
+        return maxRetries;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
@@ -96,6 +97,7 @@ public final class AzureStorageSettings {
         sb.append(", key='").append(key).append('\'');
         sb.append(", activeByDefault='").append(activeByDefault).append('\'');
         sb.append(", timeout=").append(timeout);
+        sb.append(", maxRetries=").append(maxRetries);
         sb.append('}');
         return sb.toString();
     }
@@ -121,7 +123,8 @@ public final class AzureStorageSettings {
                     getValue(settings, groupName, ACCOUNT_SETTING),
                     getValue(settings, groupName, KEY_SETTING),
                     getValue(settings, groupName, TIMEOUT_SETTING),
-                    getValue(settings, groupName, DEFAULT_SETTING))
+                    getValue(settings, groupName, DEFAULT_SETTING),
+                    getValue(settings, groupName, MAX_RETRIES_SETTING))
             );
         }
         return storageSettings;
@@ -139,7 +142,8 @@ public final class AzureStorageSettings {
         } else if (settings.size() == 1) {
             // the only storage settings belong (implicitly) to the default primary storage
             AzureStorageSettings storage = settings.get(0);
-            return new AzureStorageSettings(storage.getName(), storage.getAccount(), storage.getKey(), storage.getTimeout(), true);
+            return new AzureStorageSettings(storage.getName(), storage.getAccount(), storage.getKey(), storage.getTimeout(), true,
+                storage.getMaxRetries());
         } else {
             AzureStorageSettings primary = null;
             for (AzureStorageSettings setting : settings) {
@@ -169,26 +173,5 @@ public final class AzureStorageSettings {
             }
         }
         return Collections.unmodifiableMap(secondaries);
-    }
-
-    public static <T> T getValue(Settings repositorySettings,
-                                 Settings globalSettings,
-                                 Setting<T> repositorySetting,
-                                 Setting<T> repositoriesSetting) {
-        if (repositorySetting.exists(repositorySettings)) {
-            return repositorySetting.get(repositorySettings);
-        } else {
-            return repositoriesSetting.get(globalSettings);
-        }
-    }
-
-    public static <T> Setting<T> getEffectiveSetting(Settings repositorySettings,
-                                              Setting<T> repositorySetting,
-                                              Setting<T> repositoriesSetting) {
-        if (repositorySetting.exists(repositorySettings)) {
-            return repositorySetting;
-        } else {
-            return repositoriesSetting;
-        }
     }
 }

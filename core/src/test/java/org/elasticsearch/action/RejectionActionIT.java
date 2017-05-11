@@ -36,8 +36,6 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 @ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class RejectionActionIT extends ESIntegTestCase {
 
@@ -82,7 +80,7 @@ public class RejectionActionIT extends ESIntegTestCase {
                     });
         }
         latch.await();
-        assertThat(responses.size(), equalTo(numberOfAsyncOps));
+
 
         // validate all responses
         for (Object response : responses) {
@@ -104,5 +102,6 @@ public class RejectionActionIT extends ESIntegTestCase {
                 }
             }
         }
+        assertThat(responses.size(), equalTo(numberOfAsyncOps));
     }
 }

@@ -20,10 +20,11 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class UpdateByQueryAction extends
-        Action<UpdateByQueryRequest, BulkIndexByScrollResponse, UpdateByQueryRequestBuilder> {
+        Action<UpdateByQueryRequest, BulkByScrollResponse, UpdateByQueryRequestBuilder> {
     public static final UpdateByQueryAction INSTANCE = new UpdateByQueryAction();
     public static final String NAME = "indices:data/write/update/byquery";
 
@@ -37,7 +38,7 @@ public class UpdateByQueryAction extends
     }
 
     @Override
-    public BulkIndexByScrollResponse newResponse() {
-        return new BulkIndexByScrollResponse();
+    public BulkByScrollResponse newResponse() {
+        return new BulkByScrollResponse();
     }
 }

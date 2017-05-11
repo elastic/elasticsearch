@@ -89,9 +89,11 @@ public final class SetProcessor extends AbstractProcessor {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
             boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "override", true);
+            TemplateService.Template compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
+                "field", field, templateService);
             return new SetProcessor(
                     processorTag,
-                    templateService.compile(field),
+                    compiledTemplate,
                     ValueSource.wrap(value, templateService),
                     overrideEnabled);
         }

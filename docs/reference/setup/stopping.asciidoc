@@ -23,7 +23,7 @@ From the Elasticsearch startup logs:
 
 [source,sh]
 --------------------------------------------------
-[2016-07-07 12:26:18,908][INFO ][node                     ] [Reaper] version[5.0.0-alpha4], pid[15399], build[3f5b994/2016-06-27T16:23:46.861Z], OS[Mac OS X/10.11.5/x86_64], JVM[Oracle Corporation/Java HotSpot(TM) 64-Bit Server VM/1.8.0_92/25.92-b14]
+[2016-07-07 12:26:18,908][INFO ][node                     ] [I8hydUG] version[5.0.0-alpha4], pid[15399], build[3f5b994/2016-06-27T16:23:46.861Z], OS[Mac OS X/10.11.5/x86_64], JVM[Oracle Corporation/Java HotSpot(TM) 64-Bit Server VM/1.8.0_92/25.92-b14]
 --------------------------------------------------
 
 Or by specifying a location to write a PID file to on startup (`-p <path>`):

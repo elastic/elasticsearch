@@ -32,6 +32,17 @@ setup:
           }
 
 ---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline1"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline2"
+        ignore: 404
+
+---
 "Test bulk request without default pipeline":
 
   - do:

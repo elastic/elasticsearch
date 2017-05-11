@@ -30,7 +30,7 @@
           type:    test
           id:      1
           routing: 5
-          fields:  _routing
+          stored_fields:  _routing
 
  - match: { _routing:  "5"}
 
@@ -49,9 +49,9 @@
           type:    test
           id:      1
           routing: 5
-          fields:  foo
+          _source: foo
           body:
             doc:        { foo: baz }
 
- - match: { get.fields.foo: [baz] }
+ - match: { get._source.foo: baz }
 

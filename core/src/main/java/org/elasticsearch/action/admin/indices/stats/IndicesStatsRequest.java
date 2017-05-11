@@ -274,6 +274,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        flags = CommonStatsFlags.readCommonStatsFlags(in);
+        flags = new CommonStatsFlags(in);
     }
 }

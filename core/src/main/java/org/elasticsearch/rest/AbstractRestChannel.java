@@ -19,64 +19,101 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.util.Collections;
+import java.util.Set;
+import java.util.function.Predicate;
+
+import static java.util.stream.Collectors.toSet;
 
 public abstract class AbstractRestChannel implements RestChannel {
 
+    private static final Predicate<String> INCLUDE_FILTER = f -> f.charAt(0) != '-';
+    private static final Predicate<String> EXCLUDE_FILTER = INCLUDE_FILTER.negate();
+
     protected final RestRequest request;
     protected final boolean detailedErrorsEnabled;
+    private final String format;
+    private final String filterPath;
+    private final boolean pretty;
+    private final boolean human;
 
     private BytesStreamOutput bytesOut;
 
     protected AbstractRestChannel(RestRequest request, boolean detailedErrorsEnabled) {
         this.request = request;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
+        this.format = request.param("format", request.header("Accept"));
+        this.filterPath = request.param("filter_path", null);
+        this.pretty = request.paramAsBoolean("pretty", false);
+        this.human = request.paramAsBoolean("human", false);
     }
 
     @Override
     public XContentBuilder newBuilder() throws IOException {
-        return newBuilder(request.hasContent() ? request.content() : null, request.hasParam("filter_path"));
+        return newBuilder(request.getXContentType(), true);
     }
 
     @Override
     public XContentBuilder newErrorBuilder() throws IOException {
         // Disable filtering when building error responses
-        return newBuilder(request.hasContent() ? request.content() : null, false);
+        return newBuilder(request.getXContentType(), false);
     }
 
+    /**
+     * Creates a new {@link XContentBuilder} for a response to be sent using this channel. The builder's type is determined by the following
+     * logic. If the request has a format parameter that will be used to attempt to map to an {@link XContentType}. If there is no format
+     * parameter, the HTTP Accept header is checked to see if it can be matched to a {@link XContentType}. If this first attempt to map
+     * fails, the request content type will be used if the value is not {@code null}; if the value is {@code null} the output format falls
+     * back to JSON.
+     */
     @Override
-    public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
-        XContentType contentType = XContentType.fromMediaTypeOrFormat(request.param("format", request.header("Accept")));
-        if (contentType == null) {
-            // try and guess it from the auto detect source
-            if (autoDetectSource != null) {
-                contentType = XContentFactory.xContentType(autoDetectSource);
+    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, boolean useFiltering) throws IOException {
+        // try to determine the response content type from the media type or the format query string parameter, with the format parameter
+        // taking precedence over the Accept header
+        XContentType responseContentType = XContentType.fromMediaTypeOrFormat(format);
+        if (responseContentType == null) {
+            if (requestContentType != null) {
+                // if there was a parsed content-type for the incoming request use that since no format was specified using the query
+                // string parameter or the HTTP Accept header
+                responseContentType = requestContentType;
+            } else {
+                // default to JSON output when all else fails
+                responseContentType = XContentType.JSON;
             }
         }
-        if (contentType == null) {
-            // default to JSON
-            contentType = XContentType.JSON;
+
+        Set<String> includes = Collections.emptySet();
+        Set<String> excludes = Collections.emptySet();
+        if (useFiltering) {
+            Set<String> filters = Strings.splitStringByCommaToSet(filterPath);
+            includes = filters.stream().filter(INCLUDE_FILTER).collect(toSet());
+            excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
         }
 
-        String[] filters = useFiltering ? request.paramAsStringArrayOrEmptyIfAll("filter_path") :  null;
-        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), bytesOutput(), filters);
-        if (request.paramAsBoolean("pretty", false)) {
+        OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
+        XContentBuilder builder =
+            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream, includes, excludes);
+        if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }
 
-        builder.humanReadable(request.paramAsBoolean("human", builder.humanReadable()));
+        builder.humanReadable(human);
         return builder;
     }
 
     /**
-     * A channel level bytes output that can be reused. It gets reset on each call to this
-     * method.
+     * A channel level bytes output that can be reused. The bytes output is lazily instantiated
+     * by a call to {@link #newBytesOutput()}. Once the stream is created, it gets reset on each
+     * call to this method.
      */
     @Override
     public final BytesStreamOutput bytesOutput() {
@@ -85,6 +122,14 @@ public abstract class AbstractRestChannel implements RestChannel {
         } else {
             bytesOut.reset();
         }
+        return bytesOut;
+    }
+
+    /**
+     * An accessor to the raw value of the channel bytes output. This method will not instantiate
+     * a new stream if one does not exist and this method will not reset the stream.
+     */
+    protected final BytesStreamOutput bytesOutputOrNull() {
         return bytesOut;
     }
 

@@ -29,8 +29,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- */
 public class FieldStatsShardRequest extends BroadcastShardRequest {
 
     private String[] fields;
@@ -41,8 +39,7 @@ public class FieldStatsShardRequest extends BroadcastShardRequest {
 
     public FieldStatsShardRequest(ShardId shardId, FieldStatsRequest request) {
         super(shardId, request);
-        Set<String> fields = new HashSet<>();
-        fields.addAll(Arrays.asList(request.getFields()));
+        Set<String> fields = new HashSet<>(Arrays.asList(request.getFields()));
         for (IndexConstraint indexConstraint : request.getIndexConstraints()) {
             fields.add(indexConstraint.getField());
         }

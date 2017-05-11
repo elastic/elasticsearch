@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bwcompat;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.FileTestUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -46,8 +47,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * as blob names and repository blob formats have changed between the snapshot versions.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-// this test sometimes fails in recovery when the recovery is reset, increasing the logging level to help debug 
-@TestLogging("indices.recovery:DEBUG")
+// this test sometimes fails in recovery when the recovery is reset, increasing the logging level to help debug
+@TestLogging("org.elasticsearch.indices.recovery:DEBUG")
 public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
 
     /**
@@ -70,7 +71,12 @@ public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
             final Set<SnapshotInfo> snapshotInfos = Sets.newHashSet(getSnapshots(repoName));
             assertThat(snapshotInfos.size(), equalTo(1));
             SnapshotInfo originalSnapshot = snapshotInfos.iterator().next();
-            assertThat(originalSnapshot.snapshotId(), equalTo(new SnapshotId("test_1", SnapshotId.UNASSIGNED_UUID)));
+            if (Version.fromString(version).before(Version.V_5_0_0_alpha1)) {
+                assertThat(originalSnapshot.snapshotId(), equalTo(new SnapshotId("test_1", "test_1")));
+            } else {
+                assertThat(originalSnapshot.snapshotId().getName(), equalTo("test_1"));
+                assertNotNull(originalSnapshot.snapshotId().getUUID()); // it's a random UUID now
+            }
             assertThat(Sets.newHashSet(originalSnapshot.indices()), equalTo(indices));
 
             logger.info("--> restore the original snapshot");
@@ -80,7 +86,7 @@ public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
             assertThat(restoredIndices, equalTo(indices));
             // make sure it has documents
             for (final String searchIdx : restoredIndices) {
-                assertThat(client().prepareSearch(searchIdx).setSize(0).get().getHits().totalHits(), greaterThan(0L));
+                assertThat(client().prepareSearch(searchIdx).setSize(0).get().getHits().getTotalHits(), greaterThan(0L));
             }
             deleteIndices(restoredIndices); // delete so we can restore again later
 
@@ -128,7 +134,7 @@ public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
             Set<String> oldRestoredIndices = Sets.newHashSet(restoreSnapshot(repoName, originalSnapshot.snapshotId().getName()));
             assertThat(oldRestoredIndices, equalTo(Sets.newHashSet(originalIndex)));
             for (final String searchIdx : oldRestoredIndices) {
-                assertThat(client().prepareSearch(searchIdx).setSize(0).get().getHits().totalHits(),
+                assertThat(client().prepareSearch(searchIdx).setSize(0).get().getHits().getTotalHits(),
                            greaterThanOrEqualTo((long)addedDocSize));
             }
             deleteIndices(oldRestoredIndices);
@@ -137,7 +143,7 @@ public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
             Set<String> newSnapshotIndices = Sets.newHashSet(restoreSnapshot(repoName, snapshotName3));
             assertThat(newSnapshotIndices, equalTo(Sets.newHashSet(originalIndex, indexName2)));
             for (final String searchIdx : newSnapshotIndices) {
-                assertThat(client().prepareSearch(searchIdx).setSize(0).get().getHits().totalHits(),
+                assertThat(client().prepareSearch(searchIdx).setSize(0).get().getHits().getTotalHits(),
                            greaterThanOrEqualTo((long)addedDocSize));
             }
             deleteIndices(newSnapshotIndices); // clean up indices before starting again
@@ -148,7 +154,7 @@ public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
         final String prefix = "repo";
         final List<String> repoVersions = new ArrayList<>();
         final Path repoFiles = getBwcIndicesPath();
-        try (final DirectoryStream<Path> dirStream = Files.newDirectoryStream(repoFiles, prefix + "-*.zip")) {
+        try (DirectoryStream<Path> dirStream = Files.newDirectoryStream(repoFiles, prefix + "-*.zip")) {
             for (final Path entry : dirStream) {
                 final String fileName = entry.getFileName().toString();
                 String version = fileName.substring(prefix.length() + 1);

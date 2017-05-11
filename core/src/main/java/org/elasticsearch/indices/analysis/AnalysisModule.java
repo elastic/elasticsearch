@@ -19,13 +19,14 @@
 
 package org.elasticsearch.indices.analysis;
 
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.standard.StandardFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.ASCIIFoldingTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.ApostropheFilterFactory;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.analysis.EnglishAnalyzerProvider;
 import org.elasticsearch.index.analysis.FingerprintAnalyzerProvider;
 import org.elasticsearch.index.analysis.FingerprintTokenFilterFactory;
 import org.elasticsearch.index.analysis.FinnishAnalyzerProvider;
+import org.elasticsearch.index.analysis.FlattenGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.FrenchAnalyzerProvider;
 import org.elasticsearch.index.analysis.FrenchStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.GalicianAnalyzerProvider;
@@ -69,7 +71,6 @@ import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.GreekAnalyzerProvider;
 import org.elasticsearch.index.analysis.HindiAnalyzerProvider;
 import org.elasticsearch.index.analysis.HindiNormalizationFilterFactory;
-import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
 import org.elasticsearch.index.analysis.HungarianAnalyzerProvider;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.IndicNormalizationFilterFactory;
@@ -89,20 +90,20 @@ import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
 import org.elasticsearch.index.analysis.LithuanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.LowerCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
-import org.elasticsearch.index.analysis.MappingCharFilterFactory;
+import org.elasticsearch.index.analysis.MinHashTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.index.analysis.NorwegianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PathHierarchyTokenizerFactory;
 import org.elasticsearch.index.analysis.PatternAnalyzerProvider;
 import org.elasticsearch.index.analysis.PatternCaptureGroupTokenFilterFactory;
-import org.elasticsearch.index.analysis.PatternReplaceCharFilterFactory;
 import org.elasticsearch.index.analysis.PatternReplaceTokenFilterFactory;
 import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.PorterStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.PortugueseAnalyzerProvider;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.ReverseTokenFilterFactory;
 import org.elasticsearch.index.analysis.RomanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.RussianAnalyzerProvider;
@@ -138,26 +139,30 @@ import org.elasticsearch.index.analysis.UniqueTokenFilterFactory;
 import org.elasticsearch.index.analysis.UpperCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
-import org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
 
 /**
  * Sets up {@link AnalysisRegistry}.
  */
 public final class AnalysisModule {
     static {
-        Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .build();
+        Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put(IndexMetaData
+            .SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build();
         IndexMetaData metaData = IndexMetaData.builder("_na_").settings(build).build();
         NA_INDEX_SETTINGS = new IndexSettings(metaData, Settings.EMPTY);
     }
+
     private static final IndexSettings NA_INDEX_SETTINGS;
 
     private final HunspellService hunspellService;
@@ -170,8 +175,12 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = setupTokenFilters(plugins, hunspellService);
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
-        analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(),
-                tokenizers.getRegistry(), analyzers.getRegistry());
+        NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
+
+        Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
+
+        analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers
+            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry(), preConfiguredTokenFilters);
     }
 
     HunspellService getHunspellService() {
@@ -184,9 +193,6 @@ public final class AnalysisModule {
 
     private NamedRegistry<AnalysisProvider<CharFilterFactory>> setupCharFilters(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<CharFilterFactory>> charFilters = new NamedRegistry<>("char_filter");
-        charFilters.register("html_strip", HtmlStripCharFilterFactory::new);
-        charFilters.register("pattern_replace", requriesAnalysisSettings(PatternReplaceCharFilterFactory::new));
-        charFilters.register("mapping", requriesAnalysisSettings(MappingCharFilterFactory::new));
         charFilters.extractAndRegister(plugins, AnalysisPlugin::getCharFilters);
         return charFilters;
     }
@@ -197,12 +203,11 @@ public final class AnalysisModule {
         return hunspellDictionaries;
     }
 
-    private NamedRegistry<AnalysisProvider<TokenFilterFactory>> setupTokenFilters(List<AnalysisPlugin> plugins,
-            HunspellService hunspellService) {
+    private NamedRegistry<AnalysisProvider<TokenFilterFactory>> setupTokenFilters(List<AnalysisPlugin> plugins, HunspellService
+        hunspellService) {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = new NamedRegistry<>("token_filter");
         tokenFilters.register("stop", StopTokenFilterFactory::new);
         tokenFilters.register("reverse", ReverseTokenFilterFactory::new);
-        tokenFilters.register("asciifolding", ASCIIFoldingTokenFilterFactory::new);
         tokenFilters.register("length", LengthTokenFilterFactory::new);
         tokenFilters.register("lowercase", LowerCaseTokenFilterFactory::new);
         tokenFilters.register("uppercase", UpperCaseTokenFilterFactory::new);
@@ -214,6 +219,7 @@ public final class AnalysisModule {
         tokenFilters.register("edgeNGram", EdgeNGramTokenFilterFactory::new);
         tokenFilters.register("edge_ngram", EdgeNGramTokenFilterFactory::new);
         tokenFilters.register("shingle", ShingleTokenFilterFactory::new);
+        tokenFilters.register("min_hash", MinHashTokenFilterFactory::new);
         tokenFilters.register("unique", UniqueTokenFilterFactory::new);
         tokenFilters.register("truncate", requriesAnalysisSettings(TruncateTokenFilterFactory::new));
         tokenFilters.register("trim", TrimTokenFilterFactory::new);
@@ -221,9 +227,9 @@ public final class AnalysisModule {
         tokenFilters.register("common_grams", requriesAnalysisSettings(CommonGramsTokenFilterFactory::new));
         tokenFilters.register("snowball", SnowballTokenFilterFactory::new);
         tokenFilters.register("stemmer", StemmerTokenFilterFactory::new);
-        tokenFilters.register("word_delimiter", WordDelimiterTokenFilterFactory::new);
         tokenFilters.register("delimited_payload_filter", DelimitedPayloadTokenFilterFactory::new);
         tokenFilters.register("elision", ElisionTokenFilterFactory::new);
+        tokenFilters.register("flatten_graph", FlattenGraphTokenFilterFactory::new);
         tokenFilters.register("keep", requriesAnalysisSettings(KeepWordFilterFactory::new));
         tokenFilters.register("keep_types", requriesAnalysisSettings(KeepTypesFilterFactory::new));
         tokenFilters.register("pattern_capture", requriesAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
@@ -249,8 +255,8 @@ public final class AnalysisModule {
         tokenFilters.register("scandinavian_folding", ScandinavianFoldingFilterFactory::new);
         tokenFilters.register("serbian_normalization", SerbianNormalizationFilterFactory::new);
 
-        tokenFilters.register("hunspell", requriesAnalysisSettings(
-                (indexSettings, env, name, settings) -> new HunspellTokenFilterFactory(indexSettings, name, settings, hunspellService)));
+        tokenFilters.register("hunspell", requriesAnalysisSettings((indexSettings, env, name, settings) -> new HunspellTokenFilterFactory
+            (indexSettings, name, settings, hunspellService)));
         tokenFilters.register("cjk_bigram", CJKBigramFilterFactory::new);
         tokenFilters.register("cjk_width", CJKWidthFilterFactory::new);
 
@@ -260,6 +266,40 @@ public final class AnalysisModule {
         tokenFilters.register("fingerprint", FingerprintTokenFilterFactory::new);
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
+    }
+
+    static Map<String, PreConfiguredTokenFilter> setupPreConfiguredTokenFilters(List<AnalysisPlugin> plugins) {
+        NamedRegistry<PreConfiguredTokenFilter> preConfiguredTokenFilters = new NamedRegistry<>("pre-configured token_filter");
+
+        // Add filters available in lucene-core
+        preConfiguredTokenFilters.register("lowercase",
+                new PreConfiguredTokenFilter("lowercase", true, CachingStrategy.LUCENE, LowerCaseFilter::new));
+        preConfiguredTokenFilters.register("standard",
+                new PreConfiguredTokenFilter("standard", false, CachingStrategy.LUCENE, StandardFilter::new));
+        /* Note that "stop" is available in lucene-core but it's pre-built
+         * version uses a set of English stop words that are in
+         * lucene-analyzers-common so "stop" is defined in the analysis-common
+         * module. */
+        
+        // Add token filters declared in PreBuiltTokenFilters until they have all been migrated
+        for (PreBuiltTokenFilters preBuilt : PreBuiltTokenFilters.values()) {
+            switch (preBuilt) {
+            case LOWERCASE:
+                // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
+                continue;
+            default:
+                String name = preBuilt.name().toLowerCase(Locale.ROOT);
+                preConfiguredTokenFilters.register(name,
+                        new PreConfiguredTokenFilter(name, preBuilt.isMultiTermAware(), preBuilt.getCachingStrategy(), preBuilt::create));
+            }
+        }
+
+        for (AnalysisPlugin plugin: plugins) {
+            for (PreConfiguredTokenFilter filter : plugin.getPreConfiguredTokenFilters()) {
+                preConfiguredTokenFilters.register(filter.getName(), filter);
+            }
+        }
+        return unmodifiableMap(preConfiguredTokenFilters.getRegistry());
     }
 
     private NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {
@@ -333,18 +373,13 @@ public final class AnalysisModule {
         return analyzers;
     }
 
-    private static <T> AnalysisModule.AnalysisProvider<T> requriesAnalysisSettings(AnalysisModule.AnalysisProvider<T> provider) {
-        return new AnalysisModule.AnalysisProvider<T>() {
-            @Override
-            public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
-                return provider.get(indexSettings, environment, name, settings);
-            }
-            @Override
-            public boolean requiresAnalysisSettings() {
-                return true;
-            }
-        };
+    private NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> setupNormalizers(List<AnalysisPlugin> plugins) {
+        NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = new NamedRegistry<>("normalizer");
+        // TODO: provide built-in normalizer providers?
+        // TODO: pluggability?
+        return normalizers;
     }
+
 
     /**
      * The basic factory interface for analysis components.
@@ -353,10 +388,11 @@ public final class AnalysisModule {
 
         /**
          * Creates a new analysis provider.
+         *
          * @param indexSettings the index settings for the index this provider is created for
-         * @param environment the nodes environment to load resources from persistent storage
-         * @param name the name of the analysis component
-         * @param settings the component specific settings without context prefixes
+         * @param environment   the nodes environment to load resources from persistent storage
+         * @param name          the name of the analysis component
+         * @param settings      the component specific settings without context prefixes
          * @return a new provider instance
          * @throws IOException if an {@link IOException} occurs
          */
@@ -367,11 +403,11 @@ public final class AnalysisModule {
          * This can be used to get a default instance of an analysis factory without binding to an index.
          *
          * @param environment the nodes environment to load resources from persistent storage
-         * @param name the name of the analysis component
+         * @param name        the name of the analysis component
          * @return a new provider instance
-         * @throws IOException if an {@link IOException} occurs
+         * @throws IOException              if an {@link IOException} occurs
          * @throws IllegalArgumentException if the provider requires analysis settings ie. if {@link #requiresAnalysisSettings()} returns
-         *  <code>true</code>
+         *                                  <code>true</code>
          */
         default T get(Environment environment, String name) throws IOException {
             if (requiresAnalysisSettings()) {

@@ -29,12 +29,12 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,9 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- *
- */
 public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends MultiValuesSourceAggregationBuilder<VS, AB>>
         extends AbstractAggregationBuilder<AB> {
 
@@ -55,29 +52,29 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     public abstract static class LeafOnly<VS extends ValuesSource, AB extends MultiValuesSourceAggregationBuilder<VS, AB>>
             extends MultiValuesSourceAggregationBuilder<VS, AB> {
 
-        protected LeafOnly(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-            super(name, type, valuesSourceType, targetValueType);
+        protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+            super(name, valuesSourceType, targetValueType);
         }
 
         /**
          * Read from a stream that does not serialize its targetValueType. This should be used by most subclasses.
          */
-        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
-            super(in, type, valuesSourceType, targetValueType);
+        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
+            super(in, valuesSourceType, targetValueType);
         }
 
         /**
          * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
          * {@link #serializeTargetValueType()} to return true.
          */
-        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
-            super(in, type, valuesSourceType);
+        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
+            super(in, valuesSourceType);
         }
 
         @Override
         public AB subAggregations(Builder subFactories) {
             throw new AggregationInitializationException("Aggregator [" + name + "] of type [" +
-                type + "] cannot accept sub-aggregations");
+                getType() + "] cannot accept sub-aggregations");
         }
     }
 
@@ -89,8 +86,8 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     private Object missing = null;
     private Map<String, Object> missingMap = Collections.emptyMap();
 
-    protected MultiValuesSourceAggregationBuilder(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-        super(name, type);
+    protected MultiValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+        super(name);
         if (valuesSourceType == null) {
             throw new IllegalArgumentException("[valuesSourceType] must not be null: [" + name + "]");
         }
@@ -98,17 +95,17 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         this.targetValueType = targetValueType;
     }
 
-    protected MultiValuesSourceAggregationBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType)
+    protected MultiValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
         throws IOException {
-        super(in, type);
+        super(in);
         assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
         read(in);
     }
 
-    protected MultiValuesSourceAggregationBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
-        super(in, type);
+    protected MultiValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
+        super(in);
         assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
@@ -222,14 +219,14 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final MultiValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
+    protected final MultiValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         Map<String, ValuesSourceConfig<VS>> configs = resolveConfig(context);
         MultiValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, configs, parent, subFactoriesBuilder);
         return factory;
     }
 
-    protected Map<String, ValuesSourceConfig<VS>> resolveConfig(AggregationContext context) {
+    protected Map<String, ValuesSourceConfig<VS>> resolveConfig(SearchContext context) {
         HashMap<String, ValuesSourceConfig<VS>> configs = new HashMap<>();
         for (String field : fields) {
             ValuesSourceConfig<VS> config = config(context, field, null);
@@ -238,17 +235,16 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         return configs;
     }
 
-    protected abstract MultiValuesSourceAggregatorFactory<VS, ?> innerBuild(AggregationContext context,
+    protected abstract MultiValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context,
             Map<String, ValuesSourceConfig<VS>> configs, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
-    public ValuesSourceConfig<VS> config(AggregationContext context, String field, Script script) {
+    public ValuesSourceConfig<VS> config(SearchContext context, String field, Script script) {
 
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
 
         if (field == null) {
             if (script == null) {
-                @SuppressWarnings("unchecked")
                 ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
                 return config.format(resolveFormat(null, valueType));
             }
@@ -265,7 +261,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
             return config.format(resolveFormat(format, valueType));
         }
 
-        MappedFieldType fieldType = context.searchContext().smartNameFieldType(field);
+        MappedFieldType fieldType = context.smartNameFieldType(field);
         if (fieldType == null) {
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
@@ -274,7 +270,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
             return config.unmapped(true);
         }
 
-        IndexFieldData<?> indexFieldData = context.searchContext().fieldData().getForField(fieldType);
+        IndexFieldData<?> indexFieldData = context.fieldData().getForField(fieldType);
 
         ValuesSourceConfig<VS> config;
         if (valuesSourceType == ValuesSourceType.ANY) {

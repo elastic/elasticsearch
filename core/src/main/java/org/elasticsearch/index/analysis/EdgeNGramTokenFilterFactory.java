@@ -28,9 +28,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 
-/**
- *
- */
 public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final int minGram;
@@ -73,5 +70,10 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
         }
         
         return result;
+    }
+
+    @Override
+    public boolean breaksFastVectorHighlighter() {
+        return true;
     }
 }

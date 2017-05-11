@@ -21,15 +21,16 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -44,7 +45,7 @@ public class ScriptModesTests extends ESTestCase {
     ScriptSettings scriptSettings;
     ScriptContextRegistry scriptContextRegistry;
     private ScriptContext[] scriptContexts;
-    private Map<String, ScriptEngineService> scriptEngines;
+    private Map<String, ScriptEngine> scriptEngines;
     private ScriptModes scriptModes;
     private Set<String> checkedSettings;
     private boolean assertAllSettingsWereChecked;
@@ -57,8 +58,8 @@ public class ScriptModesTests extends ESTestCase {
         //prevent duplicates using map
         Map<String, ScriptContext.Plugin> contexts = new HashMap<>();
         for (int i = 0; i < randomInt; i++) {
-            String plugin = randomAsciiOfLength(randomIntBetween(1, 10));
-            String operation = randomAsciiOfLength(randomIntBetween(1, 30));
+            String plugin = randomAlphaOfLength(randomIntBetween(1, 10));
+            String operation = randomAlphaOfLength(randomIntBetween(1, 30));
             String context = plugin + "-" + operation;
             contexts.put(context, new ScriptContext.Plugin(plugin, operation));
         }
@@ -66,8 +67,8 @@ public class ScriptModesTests extends ESTestCase {
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
         scriptEngines = buildScriptEnginesByLangMap(newHashSet(
                 //add the native engine just to make sure it gets filtered out
-                new NativeScriptEngineService(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
-                new CustomScriptEngineService()));
+                new NativeScriptEngine(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
+                new CustomScriptEngine()));
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngines.values());
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         checkedSettings = new HashSet<>();
@@ -78,7 +79,7 @@ public class ScriptModesTests extends ESTestCase {
     @After
     public void assertNativeScriptsAreAlwaysAllowed() {
         if (assertScriptModesNonNull) {
-            assertThat(scriptModes.getScriptEnabled(NativeScriptEngineService.NAME, randomFrom(ScriptType.values()), randomFrom(scriptContexts)), equalTo(true));
+            assertThat(scriptModes.getScriptEnabled(NativeScriptEngine.NAME, randomFrom(ScriptType.values()), randomFrom(scriptContexts)), equalTo(true));
         }
     }
 
@@ -124,9 +125,11 @@ public class ScriptModesTests extends ESTestCase {
             randomScriptModes[i] = randomBoolean();
         }
         ScriptType[] randomScriptTypes = randomScriptTypesSet.toArray(new ScriptType[randomScriptTypesSet.size()]);
+        List<String> deprecated = new ArrayList<>();
         Settings.Builder builder = Settings.builder();
         for (int i = 0; i < randomInt; i++) {
-            builder.put("script" + "." + randomScriptTypes[i].getScriptType(), randomScriptModes[i]);
+            builder.put("script" + "." + randomScriptTypes[i].getName(), randomScriptModes[i]);
+            deprecated.add("script" + "." + randomScriptTypes[i].getName());
         }
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
 
@@ -142,6 +145,8 @@ public class ScriptModesTests extends ESTestCase {
         if (randomScriptTypesSet.contains(ScriptType.INLINE) == false) {
             assertScriptModesAllOps(false, ScriptType.INLINE);
         }
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})));
     }
 
     public void testScriptContextGenericSettings() {
@@ -156,9 +161,11 @@ public class ScriptModesTests extends ESTestCase {
             randomScriptModes[i] = randomBoolean();
         }
         ScriptContext[] randomScriptContexts = randomScriptContextsSet.toArray(new ScriptContext[randomScriptContextsSet.size()]);
+        List<String> deprecated = new ArrayList<>();
         Settings.Builder builder = Settings.builder();
         for (int i = 0; i < randomInt; i++) {
             builder.put("script" + "." + randomScriptContexts[i].getKey(), randomScriptModes[i]);
+            deprecated.add("script" + "." + randomScriptContexts[i].getKey());
         }
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
 
@@ -169,6 +176,8 @@ public class ScriptModesTests extends ESTestCase {
         ScriptContext[] complementOf = complementOf(randomScriptContexts);
         assertScriptModes(true, new ScriptType[]{ScriptType.FILE}, complementOf);
         assertScriptModes(false, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})));
     }
 
     public void testConflictingScriptTypeAndOpGenericSettings() {
@@ -183,6 +192,9 @@ public class ScriptModesTests extends ESTestCase {
         ScriptContext[] complementOf = complementOf(scriptContext);
         assertScriptModes(true, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);
         assertScriptModes(true, new ScriptType[]{ScriptType.INLINE}, complementOf);
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(
+                scriptSettings, "script." + scriptContext.getKey(), "script.stored", "script.inline"));
     }
 
     private void assertScriptModesAllOps(boolean expectedScriptEnabled, ScriptType... scriptTypes) {
@@ -217,16 +229,16 @@ public class ScriptModesTests extends ESTestCase {
         return copy.values().toArray(new ScriptContext[copy.size()]);
     }
 
-    static Map<String, ScriptEngineService> buildScriptEnginesByLangMap(Set<ScriptEngineService> scriptEngines) {
-        Map<String, ScriptEngineService> builder = new HashMap<>();
-        for (ScriptEngineService scriptEngine : scriptEngines) {
+    static Map<String, ScriptEngine> buildScriptEnginesByLangMap(Set<ScriptEngine> scriptEngines) {
+        Map<String, ScriptEngine> builder = new HashMap<>();
+        for (ScriptEngine scriptEngine : scriptEngines) {
             String type = scriptEngine.getType();
             builder.put(type, scriptEngine);
         }
         return unmodifiableMap(builder);
     }
 
-    private static class CustomScriptEngineService implements ScriptEngineService {
+    private static class CustomScriptEngine implements ScriptEngine {
 
         public static final String NAME = "custom";
 

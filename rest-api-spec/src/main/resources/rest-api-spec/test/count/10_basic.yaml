@@ -38,6 +38,24 @@ setup:
   - match: {count : 0}
 
 ---
+"count with empty body":
+# empty body should default to match_all query
+  - do:
+      count:
+        index: test
+        type: test
+        body: { }
+
+  - match: {count : 1}
+
+  - do:
+      count:
+        index: test
+        type: test
+
+  - match: {count : 1}
+
+---
 "count body without query element":
   - do:
       catch: request

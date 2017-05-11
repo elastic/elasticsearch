@@ -21,6 +21,7 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 
 dependencies {
   compile 'org.ow2.asm:asm-debug-all:5.0.4' // use asm-debug-all as asm-all is broken
+  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   testCompile "org.elasticsearch.test:framework:${version}"
 }
 
@@ -31,3 +32,16 @@ forbiddenApisMain {
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')] // does not depend on core, only jdk signatures
 }
 jarHell.enabled = true // disabled by parent project
+
+thirdPartyAudit.excludes = [
+  // log4j
+  'org.osgi.framework.AdaptPermission',
+  'org.osgi.framework.AdminPermission',
+  'org.osgi.framework.Bundle',
+  'org.osgi.framework.BundleActivator',
+  'org.osgi.framework.BundleContext',
+  'org.osgi.framework.BundleEvent',
+  'org.osgi.framework.SynchronousBundleListener',
+  'org.osgi.framework.wiring.BundleWire',
+  'org.osgi.framework.wiring.BundleWiring'
+]

@@ -28,71 +28,43 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class TableTests extends ESTestCase {
+
     public void testFailOnStartRowWithoutHeader() {
         Table table = new Table();
-        try {
-            table.startRow();
-            fail("Expected IllegalStateException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("no headers added..."));
-        }
+        Exception e = expectThrows(IllegalStateException.class, () -> table.startRow());
+        assertThat(e.getMessage(), is("no headers added..."));
     }
 
     public void testFailOnEndHeadersWithoutStart() {
         Table table = new Table();
-        try {
-            table.endHeaders();
-            fail("Expected IllegalStateException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("no headers added..."));
-        }
-
+        Exception e = expectThrows(IllegalStateException.class, () -> table.endHeaders());
+        assertThat(e.getMessage(), is("no headers added..."));
     }
 
     public void testFailOnAddCellWithoutHeader() {
         Table table = new Table();
-        try {
-            table.addCell("error");
-            fail("Expected IllegalStateException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("no block started..."));
-        }
-
+        Exception e = expectThrows(IllegalStateException.class, () -> table.addCell("error"));
+        assertThat(e.getMessage(), is("no block started..."));
     }
 
     public void testFailOnAddCellWithoutRow() {
         Table table = this.getTableWithHeaders();
-        try {
-            table.addCell("error");
-            fail("Expected IllegalStateException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("no block started..."));
-        }
-
+        Exception e = expectThrows(IllegalStateException.class, () -> table.addCell("error"));
+        assertThat(e.getMessage(), is("no block started..."));
     }
 
     public void testFailOnEndRowWithoutStart() {
         Table table = this.getTableWithHeaders();
-        try {
-            table.endRow();
-            fail("Expected IllegalStateException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("no row started..."));
-        }
-
+        Exception e = expectThrows(IllegalStateException.class, () -> table.endRow());
+        assertThat(e.getMessage(), is("no row started..."));
     }
 
     public void testFailOnLessCellsThanDeclared() {
         Table table = this.getTableWithHeaders();
         table.startRow();
         table.addCell("foo");
-        try {
-            table.endRow(true);
-            fail("Expected IllegalStateException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("mismatch on number of cells 1 in a row compared to header 2"));
-        }
-
+        Exception e = expectThrows(IllegalStateException.class, () -> table.endRow());
+        assertThat(e.getMessage(), is("mismatch on number of cells 1 in a row compared to header 2"));
     }
 
     public void testOnLessCellsThanDeclaredUnchecked() {
@@ -107,13 +79,8 @@ public class TableTests extends ESTestCase {
         table.startRow();
         table.addCell("foo");
         table.addCell("bar");
-        try {
-            table.addCell("foobar");
-            fail("Expected IllegalStateException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("can't add more cells to a row than the header"));
-        }
-
+        Exception e = expectThrows(IllegalStateException.class, () -> table.addCell("foobar"));
+        assertThat(e.getMessage(), is("can't add more cells to a row than the header"));
     }
 
     public void testSimple() {
@@ -198,6 +165,19 @@ public class TableTests extends ESTestCase {
         assertEquals(2, rows.get(0).size());
         assertThat(rows.get(0).get(0).value, instanceOf(Long.class));
 
+    }
+
+    public void testAliasMap() {
+        Table table = new Table();
+        table.startHeaders();
+        table.addCell("asdf", "alias:a");
+        table.addCell("ghij", "alias:g,h");
+        table.endHeaders();
+        Map<String, String> aliasMap = table.getAliasMap();
+        assertEquals(5, aliasMap.size());
+        assertEquals("asdf", aliasMap.get("a"));
+        assertEquals("ghij", aliasMap.get("g"));
+        assertEquals("ghij", aliasMap.get("h"));
     }
 
     private Table getTableWithHeaders() {

@@ -23,9 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class TransportSerializationException extends TransportException {
 
     public TransportSerializationException(StreamInput in) throws IOException {

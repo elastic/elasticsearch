@@ -22,8 +22,6 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class MultiGetAction extends Action<MultiGetRequest, MultiGetResponse, MultiGetRequestBuilder> {
 
     public static final MultiGetAction INSTANCE = new MultiGetAction();

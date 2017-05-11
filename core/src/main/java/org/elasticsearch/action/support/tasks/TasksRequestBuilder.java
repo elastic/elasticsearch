@@ -48,7 +48,7 @@ public class TasksRequestBuilder<
 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setNodesIds(String... nodesIds) {
-        request.setNodesIds(nodesIds);
+        request.setNodes(nodesIds);
         return (RequestBuilder) this;
     }
 
@@ -61,6 +61,15 @@ public class TasksRequestBuilder<
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(TimeValue timeout) {
         request.setTimeout(timeout);
+        return (RequestBuilder) this;
+    }
+
+    /**
+     * Match all children of the provided task. 
+     */
+    @SuppressWarnings("unchecked")
+    public final RequestBuilder setParentTaskId(TaskId taskId) {
+        request.setParentTaskId(taskId);
         return (RequestBuilder) this;
     }
 }

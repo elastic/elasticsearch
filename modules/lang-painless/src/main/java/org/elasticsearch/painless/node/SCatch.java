@@ -19,34 +19,32 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
 
-import org.elasticsearch.painless.MethodWriter;
-
 /**
  * Represents a catch block as part of a try-catch block.
  */
 public final class SCatch extends AStatement {
 
-    final String type;
-    final String name;
-    final SBlock block;
+    private final String type;
+    private final String name;
+    private final SBlock block;
 
-    Variable variable;
+    private Variable variable = null;
 
-    Label begin;
-    Label end;
-    Label exception;
+    Label begin = null;
+    Label end = null;
+    Label exception = null;
 
     public SCatch(Location location, String type, String name, SBlock block) {
         super(location);
@@ -55,10 +53,11 @@ public final class SCatch extends AStatement {
         this.name = Objects.requireNonNull(name);
         this.block = block;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         variables.add(name);
+
         if (block != null) {
             block.extractVariables(variables);
         }
@@ -69,7 +68,7 @@ public final class SCatch extends AStatement {
         final Type type;
 
         try {
-            type = Definition.getType(this.type);
+            type = locals.getDefinition().getType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
@@ -116,5 +115,10 @@ public final class SCatch extends AStatement {
         if (exception != null && !block.allEscape) {
             writer.goTo(exception);
         }
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(type, name, block);
     }
 }

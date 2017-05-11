@@ -19,20 +19,15 @@
 
 package org.elasticsearch.search.suggest;
 
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -41,34 +36,28 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBuilder<SB>> extends ESTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     protected static NamedWriteableRegistry namedWriteableRegistry;
-    protected static IndicesQueriesRegistry queriesRegistry;
-    protected static ParseFieldMatcher parseFieldMatcher;
-    protected static Suggesters suggesters;
+    protected static NamedXContentRegistry xContentRegistry;
 
     /**
      * setup for the whole base test class
      */
     @BeforeClass
     public static void init() throws IOException {
-        namedWriteableRegistry = new NamedWriteableRegistry();
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, namedWriteableRegistry, false, emptyList());
-        queriesRegistry = searchModule.getQueryParserRegistry();
-        suggesters = searchModule.getSuggesters();
-        parseFieldMatcher = ParseFieldMatcher.STRICT;
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
-        suggesters = null;
-        queriesRegistry = null;
+        xContentRegistry = null;
     }
 
     /**
@@ -77,7 +66,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     public void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB original = randomTestBuilder();
-            SB deserialized = serializedCopy(original);
+            SB deserialized = copy(original);
             assertEquals(deserialized, original);
             assertEquals(deserialized.hashCode(), original.hashCode());
             assertNotSame(deserialized, original);
@@ -93,10 +82,10 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     public static void setCommonPropertiesOnRandomBuilder(SuggestionBuilder<?> randomSuggestion) {
-        randomSuggestion.text(randomAsciiOfLengthBetween(2, 20)); // have to set the text because we don't know if the global text was set
-        maybeSet(randomSuggestion::prefix, randomAsciiOfLengthBetween(2, 20));
-        maybeSet(randomSuggestion::regex, randomAsciiOfLengthBetween(2, 20));
-        maybeSet(randomSuggestion::analyzer, randomAsciiOfLengthBetween(2, 20));
+        randomSuggestion.text(randomAlphaOfLengthBetween(2, 20)); // have to set the text because we don't know if the global text was set
+        maybeSet(randomSuggestion::prefix, randomAlphaOfLengthBetween(2, 20));
+        maybeSet(randomSuggestion::regex, randomAlphaOfLengthBetween(2, 20));
+        maybeSet(randomSuggestion::analyzer, randomAlphaOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::size, randomIntBetween(1, 20));
         maybeSet(randomSuggestion::shardSize, randomIntBetween(1, 20));
     }
@@ -111,32 +100,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            SB firstBuilder = randomTestBuilder();
-            assertFalse("suggestion builder is equal to null", firstBuilder.equals(null));
-            assertFalse("suggestion builder is equal to incompatible type", firstBuilder.equals(""));
-            assertTrue("suggestion builder is not equal to self", firstBuilder.equals(firstBuilder));
-            assertThat("same suggestion builder's hashcode returns different values if called multiple times", firstBuilder.hashCode(),
-                    equalTo(firstBuilder.hashCode()));
-        final SB mutate = mutate(firstBuilder);
-        assertThat("different suggestion builders should not be equal", mutate, not(equalTo(firstBuilder)));
-
-            SB secondBuilder = serializedCopy(firstBuilder);
-            assertTrue("suggestion builder is not equal to self", secondBuilder.equals(secondBuilder));
-            assertTrue("suggestion builder is not equal to its copy", firstBuilder.equals(secondBuilder));
-            assertTrue("equals is not symmetric", secondBuilder.equals(firstBuilder));
-            assertThat("suggestion builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
-                    equalTo(firstBuilder.hashCode()));
-
-            SB thirdBuilder = serializedCopy(secondBuilder);
-            assertTrue("suggestion builder is not equal to self", thirdBuilder.equals(thirdBuilder));
-            assertTrue("suggestion builder is not equal to its copy", secondBuilder.equals(thirdBuilder));
-            assertThat("suggestion builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
-                    equalTo(thirdBuilder.hashCode()));
-            assertTrue("equals is not transitive", firstBuilder.equals(thirdBuilder));
-            assertThat("suggestion builder copy's hashcode is different from original hashcode", firstBuilder.hashCode(),
-                    equalTo(thirdBuilder.hashCode()));
-            assertTrue("equals is not symmetric", thirdBuilder.equals(secondBuilder));
-            assertTrue("equals is not symmetric", thirdBuilder.equals(firstBuilder));
+            checkEqualsAndHashCode(randomTestBuilder(), this::copy, this::mutate);
         }
     }
 
@@ -156,12 +120,11 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             xContentBuilder.endObject();
 
             XContentBuilder shuffled = shuffleXContent(xContentBuilder, shuffleProtectedFields());
-            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
-            QueryParseContext context = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+            XContentParser parser = createParser(shuffled);
             // we need to skip the start object and the name, those will be parsed by outer SuggestBuilder
             parser.nextToken();
 
-            SuggestionBuilder<?> secondSuggestionBuilder = SuggestionBuilder.fromXContent(context, suggesters);
+            SuggestionBuilder<?> secondSuggestionBuilder = SuggestionBuilder.fromXContent(parser);
             assertNotSame(suggestionBuilder, secondSuggestionBuilder);
             assertEquals(suggestionBuilder, secondSuggestionBuilder);
             assertEquals(suggestionBuilder.hashCode(), secondSuggestionBuilder.hashCode());
@@ -177,22 +140,22 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     private SB mutate(SB firstBuilder) throws IOException {
-        SB mutation = serializedCopy(firstBuilder);
+        SB mutation = copy(firstBuilder);
         assertNotSame(mutation, firstBuilder);
         // change ither one of the shared SuggestionBuilder parameters, or delegate to the specific tests mutate method
         if (randomBoolean()) {
             switch (randomIntBetween(0, 5)) {
             case 0:
-                mutation.text(randomValueOtherThan(mutation.text(), () -> randomAsciiOfLengthBetween(2, 20)));
+                mutation.text(randomValueOtherThan(mutation.text(), () -> randomAlphaOfLengthBetween(2, 20)));
                 break;
             case 1:
-                mutation.prefix(randomValueOtherThan(mutation.prefix(), () -> randomAsciiOfLengthBetween(2, 20)));
+                mutation.prefix(randomValueOtherThan(mutation.prefix(), () -> randomAlphaOfLengthBetween(2, 20)));
                 break;
             case 2:
-                mutation.regex(randomValueOtherThan(mutation.regex(), () -> randomAsciiOfLengthBetween(2, 20)));
+                mutation.regex(randomValueOtherThan(mutation.regex(), () -> randomAlphaOfLengthBetween(2, 20)));
                 break;
             case 3:
-                mutation.analyzer(randomValueOtherThan(mutation.analyzer(), () -> randomAsciiOfLengthBetween(2, 20)));
+                mutation.analyzer(randomValueOtherThan(mutation.analyzer(), () -> randomAlphaOfLengthBetween(2, 20)));
                 break;
             case 4:
                 mutation.size(randomValueOtherThan(mutation.size(), () -> randomIntBetween(1, 20)));
@@ -214,18 +177,13 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     protected abstract void mutateSpecificParameters(SB firstBuilder) throws IOException;
 
     @SuppressWarnings("unchecked")
-    protected SB serializedCopy(SB original) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeNamedWriteable(original);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                return (SB) in.readNamedWriteable(SuggestionBuilder.class);
-            }
-        }
+    protected SB copy(SB original) throws IOException {
+        return copyWriteable(original, namedWriteableRegistry,
+                (Writeable.Reader<SB>) namedWriteableRegistry.getReader(SuggestionBuilder.class, original.getWriteableName()));
     }
 
-    protected static QueryParseContext newParseContext(final String xcontent) throws IOException {
-        XContentParser parser = XContentFactory.xContent(xcontent).createParser(xcontent);
-        final QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
-        return parseContext;
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 }

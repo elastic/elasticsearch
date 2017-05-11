@@ -81,12 +81,6 @@ public class FlushStats implements Streamable, ToXContent {
         return new TimeValue(totalTimeInMillis);
     }
 
-    public static FlushStats readFlushStats(StreamInput in) throws IOException {
-        FlushStats flushStats = new FlushStats();
-        flushStats.readFrom(in);
-        return flushStats;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.FLUSH);

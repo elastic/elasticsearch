@@ -1,10 +1,15 @@
 ---
 "Put template":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new API that has been added in 6.0
+
   - do:
       indices.put_template:
         name: test
         body:
-          template: test-*
+          index_patterns: test-*
           settings:
             number_of_shards:   1
             number_of_replicas: 0
@@ -14,16 +19,45 @@
         name: test
         flat_settings: true
 
-  - match: {test.template: "test-*"}
+  - match: {test.index_patterns: ["test-*"]}
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
 
 ---
-"Put template with aliases":
+"Put multiple template":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new API that has been added in 6.0
+
   - do:
       indices.put_template:
         name: test
         body:
-          template: test-*
+          index_patterns: [test-*, test2-*]
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      indices.get_template:
+        name: test
+        flat_settings: true
+
+  - match: {test.index_patterns: ["test-*", "test2-*"]}
+  - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+
+---
+"Put template with aliases":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new API that has been added in 6.0
+
+  - do:
+      indices.put_template:
+        name: test
+        body:
+          index_patterns: test-*
           aliases:
             test_alias: {}
             test_blias: { routing: b }
@@ -33,7 +67,7 @@
       indices.get_template:
         name: test
 
-  - match:  { test.template: "test-*" }
+  - match:  { test.index_patterns: ["test-*"] }
   - length: { test.aliases: 3 }
   - is_true: test.aliases.test_alias
   - match: { test.aliases.test_blias.index_routing: "b" }
@@ -42,12 +76,17 @@
 
 ---
 "Put template create":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new API that has been added in 6.0
+
   - do:
       indices.put_template:
         name: test
         create: true
         body:
-          template: test-*
+          index_patterns: test-*
           settings:
             number_of_shards:   1
             number_of_replicas: 0
@@ -57,7 +96,7 @@
         name: test
         flat_settings: true
 
-  - match: {test.template: "test-*"}
+  - match: {test.index_patterns: ["test-*"]}
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
 
   - do:
@@ -66,8 +105,108 @@
         name: test
         create: true
         body:
-          template: test-*
+          index_patterns: test-*
           settings:
             number_of_shards:   1
             number_of_replicas: 0
 
+---
+"Test Put Versioned Template":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  this uses a new API that has been added in 6.0
+
+  - do:
+      indices.put_template:
+        name: "my_template"
+        body: >
+          {
+            "version": 10,
+            "index_patterns": "*",
+            "settings": { "number_of_shards": 1 }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_template:
+        name: "my_template"
+  - match: { my_template.version: 10 }
+
+  # Lower version
+  - do:
+      indices.put_template:
+        name: "my_template"
+        body: >
+          {
+            "version": 9,
+            "index_patterns": "*",
+            "settings": { "number_of_shards": 1 }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_template:
+        name: "my_template"
+  - match: { my_template.version: 9 }
+
+  # Higher version
+  - do:
+      indices.put_template:
+        name: "my_template"
+        body: >
+          {
+            "version": 6789,
+            "index_patterns": "*",
+            "settings": { "number_of_shards": 1 }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_template:
+        name: "my_template"
+  - match: { my_template.version: 6789 }
+
+  # No version
+  - do:
+      indices.put_template:
+        name: "my_template"
+        body: >
+          {
+            "index_patterns": "*",
+            "settings": { "number_of_shards": 1 }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_template:
+        name: "my_template"
+  - is_false: my_template.version
+
+  # Coming back with a version
+  - do:
+      indices.put_template:
+        name: "my_template"
+        body: >
+          {
+            "version": 5385,
+            "index_patterns": "*",
+            "settings": { "number_of_shards": 1 }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_template:
+        name: "my_template"
+  - match: { my_template.version: 5385 }
+
+  # Able to delete the versioned template
+  - do:
+      indices.delete_template:
+        name: "my_template"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      indices.get_template:
+        name: "my_template"

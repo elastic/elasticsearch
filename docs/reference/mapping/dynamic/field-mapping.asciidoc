@@ -4,7 +4,8 @@
 By default, when a previously unseen field is found in a document,
 Elasticsearch will add the new field to the type mapping.   This behaviour can
 be disabled, both at the document and at the <<object,`object`>>  level, by
-setting the <<dynamic,`dynamic`>> parameter to `false` or to `strict`.
+setting the <<dynamic,`dynamic`>> parameter to `false` (to ignore new fields) or to `strict` (to throw
+an exception if an unknown field is encountered).
 
 Assuming `dynamic` field mapping is enabled, some simple rules are used to
 determine which datatype the field should have:
@@ -29,20 +30,6 @@ detected.  All other datatypes must be mapped explicitly.
 
 Besides the options listed below, dynamic field mapping rules can be further
 customised with <<dynamic-templates,`dynamic_templates`>>.
-
-[[mapping-limit-settings]]
-==== Settings to prevent mappings explosion
-
-Two settings allow to control mapping explosion, in order to prevent adversary
-documents to create huge mappings through dynamic mappings for instance:
-
-`index.mapping.total_fields.limit`::
-    The maximum number of fields in an index. The default value is `1000`.
-`index.mapping.depth.limit`::
-    The maximum depth for a field, which is measured as the number of nested
-    objects. For instance, if all fields are defined at the root object level,
-    then the depth is `1`. If there is one object mapping, then the depth is
-    `2`, etc. The default is `20`.
 
 [[date-detection]]
 ==== Date detection

@@ -29,8 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- */
 public class QueryCacheStats implements Streamable, ToXContent {
 
     long ramBytesUsed;
@@ -107,13 +105,6 @@ public class QueryCacheStats implements Streamable, ToXContent {
     public long getEvictions() {
         return cacheCount - cacheSize;
     }
-
-    public static QueryCacheStats readQueryCacheStats(StreamInput in) throws IOException {
-        QueryCacheStats stats = new QueryCacheStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
 
     @Override
     public void readFrom(StreamInput in) throws IOException {

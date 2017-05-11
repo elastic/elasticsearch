@@ -33,12 +33,12 @@ import java.util.Set;
 /**
  * Represents a map initialization shortcut.
  */
-public class EMapInit extends AExpression {
-    final List<AExpression> keys;
-    final List<AExpression> values;
+public final class EMapInit extends AExpression {
+    private final List<AExpression> keys;
+    private final List<AExpression> values;
 
-    Method constructor = null;
-    Method method = null;
+    private Method constructor = null;
+    private Method method = null;
 
     public EMapInit(Location location, List<AExpression> keys, List<AExpression> values) {
         super(location);
@@ -60,11 +60,11 @@ public class EMapInit extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        try {
-            actual = Definition.getType("HashMap");
-        } catch (IllegalArgumentException exception) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
+        if (!read) {
+            throw createError(new IllegalArgumentException("Must read from map initializer."));
         }
+
+        actual = Definition.HASH_MAP_TYPE;
 
         constructor = actual.struct.constructors.get(new MethodKey("<init>", 0));
 
@@ -119,5 +119,10 @@ public class EMapInit extends AExpression {
             method.write(writer);
             writer.pop();
         }
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(pairwiseToString(keys, values));
     }
 }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.engine;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -28,7 +29,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -47,7 +47,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Support class to build MockEngines like {@link org.elasticsearch.test.engine.MockInternalEngine} or {@link org.elasticsearch.test.engine.MockShadowEngine}
+ * Support class to build MockEngines like {@link org.elasticsearch.test.engine.MockInternalEngine}
  * since they need to subclass the actual engine
  */
 public final class MockEngineSupport {
@@ -66,7 +66,7 @@ public final class MockEngineSupport {
 
 
     private final AtomicBoolean closing = new AtomicBoolean(false);
-    private final ESLogger logger = Loggers.getLogger(Engine.class);
+    private final Logger logger = Loggers.getLogger(Engine.class);
     private final ShardId shardId;
     private final QueryCache filterCache;
     private final QueryCachingPolicy filterCachingPolicy;
@@ -178,11 +178,6 @@ public final class MockEngineSupport {
         public DirectoryReaderWrapper(DirectoryReader in, SubReaderWrapper subReaderWrapper) throws IOException {
             super(in, subReaderWrapper);
             this.subReaderWrapper = subReaderWrapper;
-        }
-
-        @Override
-        public Object getCoreCacheKey() {
-            return in.getCoreCacheKey();
         }
 
     }

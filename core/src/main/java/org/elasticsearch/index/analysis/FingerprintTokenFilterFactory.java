@@ -27,9 +27,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 
-/**
- *
- */
 public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final char separator;

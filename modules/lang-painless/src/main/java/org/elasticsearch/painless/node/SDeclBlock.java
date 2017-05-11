@@ -28,19 +28,21 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
+
 /**
  * Represents a series of declarations.
  */
 public final class SDeclBlock extends AStatement {
 
-    final List<SDeclaration> declarations;
+    private final List<SDeclaration> declarations;
 
     public SDeclBlock(Location location, List<SDeclaration> declarations) {
         super(location);
 
         this.declarations = Collections.unmodifiableList(declarations);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         for (SDeclaration declaration : declarations) {
@@ -62,5 +64,10 @@ public final class SDeclBlock extends AStatement {
         for (AStatement declaration : declarations) {
             declaration.write(writer, globals);
         }
+    }
+
+    @Override
+    public String toString() {
+        return multilineToString(emptyList(), declarations);
     }
 }

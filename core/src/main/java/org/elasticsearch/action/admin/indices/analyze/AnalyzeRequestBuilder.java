@@ -21,9 +21,8 @@ package org.elasticsearch.action.admin.indices.analyze;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
+import java.util.Map;
+
 public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
 
     public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action) {
@@ -54,7 +53,7 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<An
     }
 
     /**
-     * Instead of setting the analyzer, sets the tokenizer that will be used as part of a custom
+     * Instead of setting the analyzer, sets the tokenizer as name that will be used as part of a custom
      * analyzer.
      */
     public AnalyzeRequestBuilder setTokenizer(String tokenizer) {
@@ -63,18 +62,43 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<An
     }
 
     /**
-     * Sets token filters that will be used on top of a tokenizer provided.
+     * Instead of setting the analyzer, sets the tokenizer using custom settings that will be used as part of a custom
+     * analyzer.
      */
-    public AnalyzeRequestBuilder setTokenFilters(String... tokenFilters) {
-        request.tokenFilters(tokenFilters);
+    public AnalyzeRequestBuilder setTokenizer(Map<String, ?> tokenizer) {
+        request.tokenizer(tokenizer);
         return this;
     }
 
     /**
-     * Sets char filters that will be used before the tokenizer.
+     * Add token filter setting that will be used on top of a tokenizer provided.
      */
-    public AnalyzeRequestBuilder setCharFilters(String... charFilters) {
-        request.charFilters(charFilters);
+    public AnalyzeRequestBuilder addTokenFilter(Map<String, ?> tokenFilter) {
+        request.addTokenFilter(tokenFilter);
+        return this;
+    }
+
+    /**
+     * Add a name of token filter that will be used on top of a tokenizer provided.
+     */
+    public AnalyzeRequestBuilder addTokenFilter(String tokenFilter) {
+        request.addTokenFilter(tokenFilter);
+        return this;
+    }
+
+    /**
+     * Add char filter setting that will be used on top of a tokenizer provided.
+     */
+    public AnalyzeRequestBuilder addCharFilter(Map<String, ?> charFilter) {
+        request.addCharFilter(charFilter);
+        return this;
+    }
+
+    /**
+     * Add a name of char filter that will be used before the tokenizer.
+     */
+    public AnalyzeRequestBuilder addCharFilter(String tokenFilter) {
+        request.addCharFilter(tokenFilter);
         return this;
     }
 
@@ -89,7 +113,7 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<An
     /**
      * Sets attributes that will include results
      */
-    public AnalyzeRequestBuilder setAttributes(String attributes){
+    public AnalyzeRequestBuilder setAttributes(String... attributes){
         request.attributes(attributes);
         return this;
     }

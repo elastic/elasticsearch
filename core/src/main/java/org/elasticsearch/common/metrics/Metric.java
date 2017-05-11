@@ -19,7 +19,5 @@
 
 package org.elasticsearch.common.metrics;
 
-/**
- */
 public interface Metric {
 }

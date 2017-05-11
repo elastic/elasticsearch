@@ -19,15 +19,18 @@
 
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
+
+import java.util.Arrays;
 
 import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 
-/**
- *
- */
 public final class GeoPoint {
 
     private double lat;
@@ -83,14 +86,32 @@ public final class GeoPoint {
     }
 
     public GeoPoint resetFromIndexHash(long hash) {
-        lon = GeoPointField.decodeLongitude(hash);
-        lat = GeoPointField.decodeLatitude(hash);
+        lon = GeoHashUtils.decodeLongitude(hash);
+        lat = GeoHashUtils.decodeLatitude(hash);
         return this;
+    }
+
+    // todo this is a crutch because LatLonPoint doesn't have a helper for returning .stringValue()
+    // todo remove with next release of lucene
+    public GeoPoint resetFromIndexableField(IndexableField field) {
+        if (field instanceof LatLonPoint) {
+            BytesRef br = field.binaryValue();
+            byte[] bytes = Arrays.copyOfRange(br.bytes, br.offset, br.length);
+            return this.reset(
+                GeoEncodingUtils.decodeLatitude(bytes, 0),
+                GeoEncodingUtils.decodeLongitude(bytes, Integer.BYTES));
+        } else if (field instanceof LatLonDocValuesField) {
+            long encoded = (long)(field.numericValue());
+            return this.reset(
+                GeoEncodingUtils.decodeLatitude((int)(encoded >>> 32)),
+                GeoEncodingUtils.decodeLongitude((int)encoded));
+        }
+        return resetFromIndexHash(Long.parseLong(field.stringValue()));
     }
 
     public GeoPoint resetFromGeoHash(String geohash) {
         final long hash = mortonEncode(geohash);
-        return this.reset(GeoPointField.decodeLatitude(hash), GeoPointField.decodeLongitude(hash));
+        return this.reset(GeoHashUtils.decodeLatitude(hash), GeoHashUtils.decodeLongitude(hash));
     }
 
     public GeoPoint resetFromGeoHash(long geohashLong) {

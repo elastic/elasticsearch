@@ -19,9 +19,6 @@
 
 package org.elasticsearch;
 
-/**
- *
- */
 public interface ElasticsearchWrapperException {
 
     Throwable getCause();

@@ -26,8 +26,6 @@ import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 
-/**
- */
 public class IndexCreationException extends ElasticsearchException implements ElasticsearchWrapperException {
 
     public IndexCreationException(String index, Throwable cause) {

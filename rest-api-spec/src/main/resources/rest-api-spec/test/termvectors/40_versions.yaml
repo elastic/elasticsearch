@@ -86,30 +86,3 @@
           id:     1
           version: 1
           version_type: external_gte
-
- - do:
-      get:
-          index:  test_1
-          type:   test
-          id:     1
-          version: 2
-          version_type: force
- - match:   { _id: "1" }
-
- - do:
-      get:
-          index:  test_1
-          type:   test
-          id:     1
-          version: 10
-          version_type: force
- - match:   { _id: "1" }
-
- - do:
-      get:
-          index:  test_1
-          type:   test
-          id:     1
-          version: 1
-          version_type: force
- - match:   { _id: "1" }

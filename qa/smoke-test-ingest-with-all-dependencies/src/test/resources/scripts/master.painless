@@ -1,1 +1,1 @@
-return ctx.bytes_in + ctx.bytes_out
+ctx.bytes_total = ctx.bytes_in + ctx.bytes_out

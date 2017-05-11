@@ -1,0 +1,38 @@
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "version": {
+        "created": "5000099"
+      },
+      "analysis": {
+        "analyzer": {
+          "my_ngrams": {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["my_ngrams"]
+          }
+        },
+        "filter": {
+          "my_ngrams": {
+            "type": "ngram",
+            "min_gram": 2,
+            "max_gram": 2
+          }
+        }
+      }
+    }
+  },
+  "mappings": {
+    "doc": {
+      "_all": {
+        "enabled": true
+      },
+      "properties": {
+        "f1": {"type": "text"},
+        "f2": {"type": "text", "analyzer": "my_ngrams"}
+      }
+    }
+  }
+}

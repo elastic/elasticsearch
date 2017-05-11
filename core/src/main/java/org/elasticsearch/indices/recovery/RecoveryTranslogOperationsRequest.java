@@ -28,9 +28,6 @@ import org.elasticsearch.transport.TransportRequest;
 import java.io.IOException;
 import java.util.List;
 
-/**
- *
- */
 public class RecoveryTranslogOperationsRequest extends TransportRequest {
 
     private long recoveryId;

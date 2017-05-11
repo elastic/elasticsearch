@@ -42,6 +42,7 @@ would be transformed internally into a document that looks more like this:
   "user.last" :  [ "smith", "white" ]
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 The `user.first` and `user.last` fields are flattened into multi-value fields,
 and the association between `alice` and `white` is lost.  This document would
@@ -171,13 +172,6 @@ The following parameters are accepted by `nested` fields:
     Whether or not new `properties` should be added dynamically to an existing
     nested object.  Accepts `true` (default), `false` and `strict`.
 
-<<include-in-all,`include_in_all`>>::
-
-    Sets the default `include_in_all` value for all the `properties` within
-    the nested object. Nested documents do not have their own `_all` field.
-    Instead, values are added to the `_all` field of the main ``root''
-    document.
-
 <<properties,`properties`>>::
 
     The fields within the nested object, which can be of any
@@ -205,5 +199,5 @@ phase.  Instead, highlighting needs to be performed via
 
 Indexing a document with 100 nested fields actually indexes 101 documents as each nested
 document is indexed as a separate document. To safeguard against ill-defined mappings
-the number of nested fields that can be defined per index has been limited to 50. This
-default limit can be changed with the index setting `index.mapping.nested_fields.limit`.
+the number of nested fields that can be defined per index has been limited to 50. See
+<<mapping-limit-settings>>.

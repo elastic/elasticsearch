@@ -58,8 +58,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class NestedSortingTests extends AbstractFieldDataTestCase {
     @Override
     protected String getFieldDataType() {
@@ -115,9 +113,9 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
     private TopDocs getTopDocs(IndexSearcher searcher, IndexFieldData<?> indexFieldData, String missingValue, MultiValueMode sortMode, int n, boolean reverse) throws IOException {
         Query parentFilter = new TermQuery(new Term("__type", "parent"));
         Query childFilter = new TermQuery(new Term("__type", "child"));
-        XFieldComparatorSource nestedComparatorSource = indexFieldData.comparatorSource(missingValue, sortMode, createNested(searcher, parentFilter, childFilter));
+        SortField sortField = indexFieldData.sortField(missingValue, sortMode, createNested(searcher, parentFilter, childFilter), reverse);
         Query query = new ConstantScoreQuery(parentFilter);
-        Sort sort = new Sort(new SortField("f", nestedComparatorSource, reverse));
+        Sort sort = new Sort(sortField);
         return searcher.search(query, n, sort);
     }
 

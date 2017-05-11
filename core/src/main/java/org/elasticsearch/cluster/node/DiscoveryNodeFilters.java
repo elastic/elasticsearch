@@ -21,22 +21,41 @@ package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
-/**
- */
 public class DiscoveryNodeFilters {
 
     public enum OpType {
         AND,
         OR
     }
+
+    /**
+     * Validates the IP addresses in a group of {@link Settings} by looking for the keys
+     * "_ip", "_host_ip", and "_publish_ip" and ensuring each of their comma separated values
+     * is a valid IP address.
+     */
+    public static final Consumer<Settings> IP_VALIDATOR = (settings) -> {
+        Map<String, String> settingsMap = settings.getAsMap();
+        for (Map.Entry<String, String> entry : settingsMap.entrySet()) {
+            String propertyKey = entry.getKey();
+            if ("_ip".equals(propertyKey) || "_host_ip".equals(propertyKey) || "_publish_ip".equals(propertyKey)) {
+                for (String value : Strings.tokenizeToStringArray(entry.getValue(), ",")) {
+                    if (InetAddresses.isInetAddress(value) == false) {
+                        throw new IllegalArgumentException("invalid IP address [" + value + "] for [" + propertyKey + "]");
+                    }
+                }
+            }
+        }
+    };
 
     public static DiscoveryNodeFilters buildFromSettings(OpType opType, String prefix, Settings settings) {
         return buildFromKeyValue(opType, settings.getByPrefix(prefix).getAsMap());
@@ -45,7 +64,7 @@ public class DiscoveryNodeFilters {
     public static DiscoveryNodeFilters buildFromKeyValue(OpType opType, Map<String, String> filters) {
         Map<String, String[]> bFilters = new HashMap<>();
         for (Map.Entry<String, String> entry : filters.entrySet()) {
-            String[] values = Strings.splitStringByCommaToArray(entry.getValue());
+            String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
             if (values.length > 0) {
                 bFilters.put(entry.getKey(), values);
             }
@@ -82,8 +101,8 @@ public class DiscoveryNodeFilters {
             if ("_ip".equals(attr)) {
                 // We check both the host_ip or the publish_ip
                 String publishAddress = null;
-                if (node.getAddress() instanceof InetSocketTransportAddress) {
-                    publishAddress = NetworkAddress.format(((InetSocketTransportAddress) node.getAddress()).address().getAddress());
+                if (node.getAddress() instanceof TransportAddress) {
+                    publishAddress = NetworkAddress.format(node.getAddress().address().getAddress());
                 }
 
                 boolean match = matchByIP(values, node.getHostAddress(), publishAddress);
@@ -116,8 +135,8 @@ public class DiscoveryNodeFilters {
             } else if ("_publish_ip".equals(attr)) {
                 // We check explicitly only the publish_ip
                 String address = null;
-                if (node.getAddress() instanceof InetSocketTransportAddress) {
-                    address = NetworkAddress.format(((InetSocketTransportAddress) node.getAddress()).address().getAddress());
+                if (node.getAddress() instanceof TransportAddress) {
+                    address = NetworkAddress.format(node.getAddress().address().getAddress());
                 }
 
                 boolean match = matchByIP(values, address, null);

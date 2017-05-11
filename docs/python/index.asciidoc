@@ -48,6 +48,7 @@ later, 0.4 releases are meant to work with Elasticsearch 0.90.*.
 The recommended way to set your requirements in your `setup.py` or
 `requirements.txt` is:
 
+[source,txt]
 ------------------------------------
     # Elasticsearch 2.x
     elasticsearch>=2.0.0,<3.0.0
@@ -124,4 +125,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-

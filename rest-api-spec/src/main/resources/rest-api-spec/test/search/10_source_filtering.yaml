@@ -1,11 +1,22 @@
 ---
 setup:
   - do:
+      indices.create:
+          index:  test
+          body:
+            mappings:
+              test:
+                properties:
+                  bigint:
+                    type: keyword
+
+
+  - do:
       index:
         index:  test_1
         type:   test
         id:     1
-        body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
+        body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1, "bigint": 72057594037927936 }
   - do:
       indices.refresh: {}
 
@@ -72,7 +83,7 @@ setup:
       search:
         body:
           _source:
-            include: [ include.field1, include.field2 ]
+            includes: [ include.field1, include.field2 ]
           query: { match_all: {} }
   - match:  { hits.hits.0._source.include.field1: v1 }
   - match:  { hits.hits.0._source.include.field2: v2 }
@@ -88,6 +99,17 @@ setup:
             excludes: "*.field2"
           query: { match_all: {} }
   - match:  { hits.hits.0._source.include.field1: v1 }
+  - is_false:  hits.hits.0._source.include.field2
+
+---
+"_source include on bigint":
+  - do:
+      search:
+        body:
+          _source:
+            includes: bigint
+          query: { match_all: {} }
+  - match:  { hits.hits.0._source.bigint: 72057594037927936 }
   - is_false:  hits.hits.0._source.include.field2
 
 ---

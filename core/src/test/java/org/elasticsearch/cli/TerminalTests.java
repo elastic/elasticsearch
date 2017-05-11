@@ -46,6 +46,35 @@ public class TerminalTests extends ESTestCase {
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "This message contains percent like %20n");
     }
 
+    public void testPromptYesNoDefault() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        terminal.addTextInput("");
+        assertTrue(terminal.promptYesNo("Answer?", true));
+        terminal.addTextInput("");
+        assertFalse(terminal.promptYesNo("Answer?", false));
+        terminal.addTextInput(null);
+        assertFalse(terminal.promptYesNo("Answer?", false));
+    }
+
+    public void testPromptYesNoReprompt() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        terminal.addTextInput("blah");
+        terminal.addTextInput("y");
+        assertTrue(terminal.promptYesNo("Answer? [Y/n]\nDid not understand answer 'blah'\nAnswer? [Y/n]", true));
+    }
+
+    public void testPromptYesNoCase() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        terminal.addTextInput("Y");
+        assertTrue(terminal.promptYesNo("Answer?", false));
+        terminal.addTextInput("y");
+        assertTrue(terminal.promptYesNo("Answer?", false));
+        terminal.addTextInput("N");
+        assertFalse(terminal.promptYesNo("Answer?", true));
+        terminal.addTextInput("n");
+        assertFalse(terminal.promptYesNo("Answer?", true));
+    }
+
     private void assertPrinted(MockTerminal logTerminal, Terminal.Verbosity verbosity, String text) throws Exception {
         logTerminal.println(verbosity, text);
         String output = logTerminal.getOutput();

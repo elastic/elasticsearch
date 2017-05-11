@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.util.Map;
  * specific type.
  */
 public abstract class PipelineAggregationBuilder extends ToXContentToBytes
-        implements NamedWriteable {
+        implements NamedWriteable, BaseAggregationBuilder {
 
     protected final String name;
     protected final String[] bucketsPaths;
@@ -79,6 +79,11 @@ public abstract class PipelineAggregationBuilder extends ToXContentToBytes
     protected abstract PipelineAggregator create() throws IOException;
 
     /** Associate metadata with this {@link PipelineAggregationBuilder}. */
+    @Override
     public abstract PipelineAggregationBuilder setMetaData(Map<String, Object> metaData);
 
+    @Override
+    public PipelineAggregationBuilder subAggregations(Builder subFactories) {
+        throw new IllegalArgumentException("Aggregation [" + name + "] cannot define sub-aggregations");
+    }
 }

@@ -28,8 +28,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
-/**
- */
 public class IndexShardStats implements Iterable<ShardStats>, Streamable {
 
     private ShardId shardId;

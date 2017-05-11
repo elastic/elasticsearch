@@ -26,9 +26,6 @@ import org.joda.time.chrono.ISOChronology;
 
 import java.util.function.Function;
 
-/**
- *
- */
 public enum DateTimeUnit {
 
     WEEK_OF_WEEKYEAR(   (byte) 1, tz -> ISOChronology.getInstance(tz).weekOfWeekyear()),
@@ -43,7 +40,7 @@ public enum DateTimeUnit {
     private final byte id;
     private final Function<DateTimeZone, DateTimeField> fieldFunction;
 
-    private DateTimeUnit(byte id, Function<DateTimeZone, DateTimeField> fieldFunction) {
+    DateTimeUnit(byte id, Function<DateTimeZone, DateTimeField> fieldFunction) {
         this.id = id;
         this.fieldFunction = fieldFunction;
     }

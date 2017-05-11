@@ -24,19 +24,15 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 
-public abstract class PipelineAggregator implements Streamable, NamedWriteable {
-    // NORELEASE remove Streamable
-
+public abstract class PipelineAggregator implements NamedWriteable {
     /**
      * Parse the {@link PipelineAggregationBuilder} from a {@link QueryParseContext}.
      */
@@ -66,9 +62,6 @@ public abstract class PipelineAggregator implements Streamable, NamedWriteable {
     private String[] bucketsPaths;
     private Map<String, Object> metaData;
 
-    protected PipelineAggregator() { // for Serialisation
-    }
-
     protected PipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
         this.name = name;
         this.bucketsPaths = bucketsPaths;
@@ -85,38 +78,14 @@ public abstract class PipelineAggregator implements Streamable, NamedWriteable {
     }
 
     @Override
-    public final void readFrom(StreamInput in) throws IOException {
-        try {
-            getWriteableName(); // Throws UnsupportedOperationException if this aggregation should be read using old style Streams
-            assert false : "Used reading constructor instead";
-        } catch (UnsupportedOperationException e) {
-            // OK
-        }
-        name = in.readString();
-        bucketsPaths = in.readStringArray();
-        metaData = in.readMap();
-        doReadFrom(in);
-    }
-
-    protected void doReadFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("Use reading constructor instead"); // NORELEASE remove when we remove Streamable
-    }
-
-    @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);  // NORELEASE remote writing the name - it is automatically handled with writeNamedWriteable
+        out.writeString(name);
         out.writeStringArray(bucketsPaths);
         out.writeMap(metaData);
         doWriteTo(out);
     }
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
-    @Override
-    public String getWriteableName() {
-        // NORELEASE remove me when all InternalAggregations override it
-        throw new UnsupportedOperationException("Override on every class");
-    }
 
     public String name() {
         return name;
@@ -128,11 +97,6 @@ public abstract class PipelineAggregator implements Streamable, NamedWriteable {
 
     public Map<String, Object> metaData() {
         return metaData;
-    }
-
-    public Type type() {
-        // NORELEASE remove this method
-        throw new UnsupportedOperationException(getClass().getName() + " used type but should Use getWriteableName instead");
     }
 
     public abstract InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext);

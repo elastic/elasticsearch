@@ -2,12 +2,12 @@
 == Get API
 
 The get API is very similar to the
-// {java}/java-docs-get.html[]
+// {javaclient}/java-docs-get.html[]
 Java get API. The main benefit
 of using groovy is handling the source content. It can be automatically
 converted to a `Map` which means using Groovy to navigate it is simple:
 
-[source,js]
+[source,groovy]
 --------------------------------------------------
 def getF = node.client.get {
     index "test"

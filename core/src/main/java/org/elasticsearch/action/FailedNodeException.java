@@ -25,9 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class FailedNodeException extends ElasticsearchException {
 
     private final String nodeId;

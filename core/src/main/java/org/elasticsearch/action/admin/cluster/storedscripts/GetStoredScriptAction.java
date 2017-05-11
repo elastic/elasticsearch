@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class GetStoredScriptAction extends Action<GetStoredScriptRequest, GetStoredScriptResponse,
         GetStoredScriptRequestBuilder> {
 

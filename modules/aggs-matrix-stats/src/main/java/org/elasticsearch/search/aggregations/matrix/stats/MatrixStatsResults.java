@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Descriptive stats gathered per shard. Coordinating node computes final pearson product coefficient
@@ -39,13 +40,13 @@ class MatrixStatsResults implements Writeable {
     protected final Map<String, HashMap<String, Double>> correlation;
 
     /** Base ctor */
-    public MatrixStatsResults() {
+    MatrixStatsResults() {
         results = new RunningStats();
         this.correlation = new HashMap<>();
     }
 
     /** creates and computes result from provided stats */
-    public MatrixStatsResults(RunningStats stats) {
+    MatrixStatsResults(RunningStats stats) {
         this.results = stats.clone();
         this.correlation = new HashMap<>();
         this.compute();
@@ -227,5 +228,19 @@ class MatrixStatsResults implements Writeable {
             results.covariances.put(rowName, covRow);
             correlation.put(rowName, corRow);
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MatrixStatsResults that = (MatrixStatsResults) o;
+        return Objects.equals(results, that.results) &&
+            Objects.equals(correlation, that.correlation);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(results, correlation);
     }
 }

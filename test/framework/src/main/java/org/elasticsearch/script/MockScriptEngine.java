@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -31,10 +32,21 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
+
 /**
  * A mocked script engine that can be used for testing purpose.
+ *
+ * This script engine allows to define a set of predefined scripts that basically a combination of a key and a
+ * function:
+ *
+ * The key can be anything as long as it is a {@link String} and is used to resolve the scripts
+ * at compilation time. For inline scripts, the key can be a description of the script. For stored and file scripts,
+ * the source must match a key in the predefined set of scripts.
+ *
+ * The function is used to provide the result of the script execution and can return anything.
  */
-public class MockScriptEngine implements ScriptEngineService {
+public class MockScriptEngine implements ScriptEngine {
 
     public static final String NAME = "mockscript";
 
@@ -62,7 +74,13 @@ public class MockScriptEngine implements ScriptEngineService {
 
     @Override
     public Object compile(String name, String source, Map<String, String> params) {
+        // Scripts are always resolved using the script's source. For inline scripts, it's easy because they don't have names and the
+        // source is always provided. For stored and file scripts, the source of the script must match the key of a predefined script.
         Function<Map<String, Object>, Object> script = scripts.get(source);
+        if (script == null) {
+            throw new IllegalArgumentException("No pre defined script matching [" + source + "] for script with name [" + name + "], " +
+                    "did you declare the mocked script?");
+        }
         return new MockCompiledScript(name, params, source, script);
     }
 
@@ -166,8 +184,7 @@ public class MockScriptEngine implements ScriptEngineService {
         public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
             LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
 
-            Map<String, Object> ctx = new HashMap<>();
-            ctx.putAll(leafLookup.asMap());
+            Map<String, Object> ctx = new HashMap<>(leafLookup.asMap());
             if (vars != null) {
                 ctx.putAll(vars);
             }
@@ -183,6 +200,12 @@ public class MockScriptEngine implements ScriptEngineService {
                 public void setNextVar(String name, Object value) {
                     ctx.put(name, value);
                 }
+
+                @Override
+                public void setScorer(Scorer scorer) {
+                    super.setScorer(scorer);
+                    ctx.put("_score", new ScoreAccessor(scorer));
+                }
             };
             leafSearchScript.setLookup(leafLookup);
             return leafSearchScript;
@@ -190,7 +213,12 @@ public class MockScriptEngine implements ScriptEngineService {
 
         @Override
         public boolean needsScores() {
-            return false;
+            return true;
         }
     }
+
+    public static Script mockInlineScript(final String script) {
+        return new Script(ScriptType.INLINE, "mock", script, emptyMap());
+    }
+
 }

@@ -39,19 +39,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Supplier;
 
-/**
- *
- */
 public abstract class TransportInstanceSingleOperationAction<Request extends InstanceShardOperationRequest<Request>, Response extends ActionResponse>
         extends HandledTransportAction<Request, Response> {
     protected final ClusterService clusterService;
@@ -114,7 +111,6 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
         private final Request request;
         private volatile ClusterStateObserver observer;
         private ShardIterator shardIt;
-        private DiscoveryNodes nodes;
 
         AsyncSingleAction(Request request, ActionListener<Response> listener) {
             this.request = request;
@@ -122,14 +118,14 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
         }
 
         public void start() {
-            this.observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-            doStart();
+            ClusterState state = clusterService.state();
+            this.observer = new ClusterStateObserver(state, clusterService, request.timeout(), logger, threadPool.getThreadContext());
+            doStart(state);
         }
 
-        protected void doStart() {
-            nodes = observer.observedState().nodes();
+        protected void doStart(ClusterState clusterState) {
             try {
-                ClusterBlockException blockException = checkGlobalBlock(observer.observedState());
+                ClusterBlockException blockException = checkGlobalBlock(clusterState);
                 if (blockException != null) {
                     if (blockException.retryable()) {
                         retry(blockException);
@@ -138,9 +134,9 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                         throw blockException;
                     }
                 }
-                request.concreteIndex(indexNameExpressionResolver.concreteSingleIndex(observer.observedState(), request).getName());
-                resolveRequest(observer.observedState(), request);
-                blockException = checkRequestBlock(observer.observedState(), request);
+                request.concreteIndex(indexNameExpressionResolver.concreteSingleIndex(clusterState, request).getName());
+                resolveRequest(clusterState, request);
+                blockException = checkRequestBlock(clusterState, request);
                 if (blockException != null) {
                     if (blockException.retryable()) {
                         retry(blockException);
@@ -149,7 +145,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                         throw blockException;
                     }
                 }
-                shardIt = shards(observer.observedState(), request);
+                shardIt = shards(clusterState, request);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
@@ -173,7 +169,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
             }
 
             request.shardId = shardIt.shardId();
-            DiscoveryNode node = nodes.get(shard.currentNodeId());
+            DiscoveryNode node = clusterState.nodes().get(shard.currentNodeId());
             transportService.sendRequest(node, shardActionName, request, transportOptions(), new TransportResponseHandler<Response>() {
 
                 @Override
@@ -223,18 +219,18 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    doStart();
+                    doStart(state);
                 }
 
                 @Override
                 public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(nodes.getLocalNode()));
+                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
                 }
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     // just to be on the safe side, see if we can start it now?
-                    doStart();
+                    doStart(observer.setAndGetObservedState());
                 }
             }, request.timeout());
         }

@@ -19,15 +19,13 @@
 
 import org.elasticsearch.gradle.MavenFilteringHack
 
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 ext.pluginsCount = 0
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
-  integTest {
-    cluster {
-      // need to get a non-decorated project object, so must re-lookup the project by path
-      plugin subproj.name, project(subproj.path)
-    }
+  integTestCluster {
+    plugin subproj.path
   }
   pluginsCount += 1
 }
@@ -41,4 +39,3 @@ processTestResources {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }
-

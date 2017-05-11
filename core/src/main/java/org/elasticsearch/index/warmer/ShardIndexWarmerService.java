@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.warmer;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.index.IndexSettings;
@@ -28,8 +28,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.concurrent.TimeUnit;
 
-/**
- */
 public class ShardIndexWarmerService extends AbstractIndexShardComponent {
 
     private final CounterMetric current = new CounterMetric();
@@ -39,7 +37,7 @@ public class ShardIndexWarmerService extends AbstractIndexShardComponent {
         super(shardId, indexSettings);
     }
 
-    public ESLogger logger() {
+    public Logger logger() {
         return this.logger;
     }
 

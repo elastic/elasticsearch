@@ -41,6 +41,8 @@ PUT /my_source_index/_settings
   }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT my_source_index\n/]
 <1> Forces the relocation of a copy of each shard to the node with name
     `shrink_node_name`.  See <<shard-allocation-filtering>> for more options.
 
@@ -50,7 +52,7 @@ PUT /my_source_index/_settings
 It can take a while to relocate the source index.  Progress can be tracked
 with the <<cat-recovery,`_cat recovery` API>>, or the <<cluster-health,
 `cluster health` API>> can be used to wait until all shards have relocated
-with the `wait_for_relocating_shards` parameter.
+with the `wait_for_no_relocating_shards` parameter.
 
 [float]
 === Shrinking an index
@@ -62,6 +64,8 @@ the following request:
 --------------------------------------------------
 POST my_source_index/_shrink/my_target_index
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The above request returns immediately once the target index has been added to
 the cluster state -- it doesn't wait for the shrink operation to start.
@@ -105,6 +109,8 @@ POST my_source_index/_shrink/my_target_index
   }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT my_source_index\n{"settings": {"index.blocks.write": true}}\n/]
 
 <1> The number of shards in the target index. This must be a factor of the
     number of shards in the source index.
@@ -136,3 +142,9 @@ shrink process begins. When the shrink operation completes, the shard will
 become `active`. At that  point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
+[float]
+=== Wait For Active Shards
+
+Because the shrink operation creates a new index to shrink the shards to,
+the <<create-index-wait-for-active-shards,wait for active shards>> setting
+on index creation applies to the shrink index action as well.

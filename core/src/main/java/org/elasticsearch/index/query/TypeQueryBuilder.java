@@ -33,11 +33,9 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
     public static final String NAME = "type";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField VALUE_FIELD = new ParseField("value");
 
@@ -82,7 +80,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
         builder.endObject();
     }
 
-    public static Optional<TypeQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static TypeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         BytesRef type = null;
 
@@ -95,11 +93,11 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                } else if (VALUE_FIELD.match(currentFieldName)) {
                     type = parser.utf8Bytes();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -115,9 +113,9 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
             throw new ParsingException(parser.getTokenLocation(),
                     "[" + TypeQueryBuilder.NAME + "] filter needs to be provided with a value for the type");
         }
-        return Optional.of(new TypeQueryBuilder(type)
+        return new TypeQueryBuilder(type)
                 .boost(boost)
-                .queryName(queryName));
+                .queryName(queryName);
     }
 
 
@@ -134,7 +132,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
             // no type means no documents
             return new MatchNoDocsQuery();
         } else {
-            return documentMapper.typeFilter();
+            return documentMapper.typeFilter(context);
         }
     }
 

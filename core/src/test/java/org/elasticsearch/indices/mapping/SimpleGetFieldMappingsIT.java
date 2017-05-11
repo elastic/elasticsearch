@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -66,9 +67,11 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
     public void testSimpleGetFieldMappings() throws Exception {
 
         assertAcked(prepareCreate("indexa")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB")));
         assertAcked(client().admin().indices().prepareCreate("indexb")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB")));
 
@@ -163,7 +166,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
 
 
         XContentBuilder prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();
-        prettyJsonBuilder.copyCurrentStructure(XContentFactory.xContent(responseStrings).createParser(responseStrings));
+        prettyJsonBuilder.copyCurrentStructure(createParser(JsonXContent.jsonXContent, responseStrings));
         assertThat(responseStrings, equalTo(prettyJsonBuilder.string()));
 
         params.put("pretty", "false");
@@ -176,13 +179,14 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
         responseStrings = responseBuilder.string();
 
         prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();
-        prettyJsonBuilder.copyCurrentStructure(XContentFactory.xContent(responseStrings).createParser(responseStrings));
+        prettyJsonBuilder.copyCurrentStructure(createParser(JsonXContent.jsonXContent, responseStrings));
         assertThat(responseStrings, not(equalTo(prettyJsonBuilder.string())));
 
     }
 
     public void testGetFieldMappingsWithBlocks() throws Exception {
         assertAcked(prepareCreate("test")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB")));
 

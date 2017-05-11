@@ -23,9 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class SizeValueTests extends ESTestCase {
     public void testThatConversionWorks() {
         SizeValue sizeValue = new SizeValue(1000);
@@ -66,5 +63,38 @@ public class SizeValueTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("may not be negative"));
         }
+    }
+
+    public void testCompareEquality() {
+        long randomValue = randomNonNegativeLong();
+        SizeUnit randomUnit = randomFrom(SizeUnit.values());
+        SizeValue firstValue = new SizeValue(randomValue, randomUnit);
+        SizeValue secondValue = new SizeValue(randomValue, randomUnit);
+        assertEquals(0, firstValue.compareTo(secondValue));
+    }
+
+    public void testCompareValue() {
+        long firstRandom = randomNonNegativeLong();
+        long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomNonNegativeLong);
+        SizeUnit unit = randomFrom(SizeUnit.values());
+        SizeValue firstSizeValue = new SizeValue(firstRandom, unit);
+        SizeValue secondSizeValue = new SizeValue(secondRandom, unit);
+        assertEquals(firstRandom > secondRandom, firstSizeValue.compareTo(secondSizeValue) > 0);
+        assertEquals(secondRandom > firstRandom, secondSizeValue.compareTo(firstSizeValue) > 0);
+    }
+
+    public void testCompareUnits() {
+        long number = randomNonNegativeLong();
+        SizeUnit randomUnit = randomValueOtherThan(SizeUnit.PETA, ()->randomFrom(SizeUnit.values()));
+        SizeValue firstValue = new SizeValue(number, randomUnit);
+        SizeValue secondValue = new SizeValue(number, SizeUnit.PETA);
+        assertTrue(firstValue.compareTo(secondValue) < 0);
+        assertTrue(secondValue.compareTo(firstValue) > 0);
+    }
+
+    public void testConversionHashCode() {
+        SizeValue firstValue = new SizeValue(randomIntBetween(0, Integer.MAX_VALUE), SizeUnit.GIGA);
+        SizeValue secondValue = new SizeValue(firstValue.getSingles(), SizeUnit.SINGLE);
+        assertEquals(firstValue.hashCode(), secondValue.hashCode());
     }
 }

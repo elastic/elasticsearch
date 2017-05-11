@@ -19,10 +19,11 @@
 
 package org.elasticsearch.gateway;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -37,25 +39,29 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.IndexFolderUpgrader;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.plugins.MetaDataUpgrader;
 
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
 
-public class GatewayMetaState extends AbstractComponent implements ClusterStateListener {
+public class GatewayMetaState extends AbstractComponent implements ClusterStateApplier {
 
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
-    private final DanglingIndicesState danglingIndicesState;
-    private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
 
     @Nullable
     private volatile MetaData previousMetaData;
@@ -64,13 +70,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     @Inject
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
-                            DanglingIndicesState danglingIndicesState, TransportNodesListGatewayMetaState nodesListGatewayMetaState,
-                            MetaDataIndexUpgradeService metaDataIndexUpgradeService) throws Exception {
+                            TransportNodesListGatewayMetaState nodesListGatewayMetaState,
+                            MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
+        throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
-        this.danglingIndicesState = danglingIndicesState;
-        this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
         nodesListGatewayMetaState.init(this);
 
         if (DiscoveryNode.isDataNode(settings)) {
@@ -84,7 +89,21 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             try {
                 ensureNoPre019State();
                 IndexFolderUpgrader.upgradeIndicesIfNeeded(settings, nodeEnv);
-                upgradeMetaData();
+                final MetaData metaData = metaStateService.loadFullState();
+                final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
+                // We finished global state validation and successfully checked all indices for backward compatibility
+                // and found no non-upgradable indices, which means the upgrade can continue.
+                // Now it's safe to overwrite global and index metadata.
+                if (metaData != upgradedMetaData) {
+                    if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
+                        metaStateService.writeGlobalState("upgrade", upgradedMetaData);
+                    }
+                    for (IndexMetaData indexMetaData : upgradedMetaData) {
+                        if (metaData.hasIndexMetaData(indexMetaData) == false) {
+                            metaStateService.writeIndex("upgrade", indexMetaData);
+                        }
+                    }
+                }
                 long startNS = System.nanoTime();
                 metaStateService.loadFullState();
                 logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
@@ -100,7 +119,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void applyClusterState(ClusterChangedEvent event) {
 
         final ClusterState state = event.state();
         if (state.blocks().disableStatePersistence()) {
@@ -164,7 +183,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             }
         }
 
-        danglingIndicesState.processDanglingIndices(newMetaData);
         if (success) {
             previousMetaData = newMetaData;
             previouslyWrittenIndices = unmodifiableSet(relevantIndices);
@@ -175,7 +193,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         Set<Index> relevantIndices;
         if (isDataOnlyNode(state)) {
             relevantIndices = getRelevantIndicesOnDataOnlyNode(state, previousState, previouslyWrittenIndices);
-        } else if (state.nodes().getLocalNode().isMasterNode() == true) {
+        } else if (state.nodes().getLocalNode().isMasterNode()) {
             relevantIndices = getRelevantIndicesForMasterEligibleNode(state);
         } else {
             relevantIndices = Collections.emptySet();
@@ -205,8 +223,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                     final String name = stateFile.getFileName().toString();
                     if (name.startsWith("metadata-")) {
                         throw new IllegalStateException("Detected pre 0.19 metadata file please upgrade to a version before "
-                                + Version.CURRENT.minimumCompatibilityVersion()
-                                + " first to upgrade state structures - metadata found: [" + stateFile.getParent().toAbsolutePath());
+                            + Version.CURRENT.minimumCompatibilityVersion()
+                            + " first to upgrade state structures - metadata found: [" + stateFile.getParent().toAbsolutePath());
                     }
                 }
             }
@@ -216,24 +234,56 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     /**
      * Elasticsearch 2.0 removed several deprecated features and as well as support for Lucene 3.x. This method calls
      * {@link MetaDataIndexUpgradeService} to makes sure that indices are compatible with the current version. The
-     * MetaDataIndexUpgradeService might also update obsolete settings if needed. When this happens we rewrite
-     * index metadata with new settings.
+     * MetaDataIndexUpgradeService might also update obsolete settings if needed.
+     * Allows upgrading global custom meta data via {@link MetaDataUpgrader#customMetaDataUpgraders}
+     *
+     * @return input <code>metaData</code> if no upgrade is needed or an upgraded metaData
      */
-    private void upgradeMetaData() throws Exception {
-        MetaData metaData = loadMetaState();
-        List<IndexMetaData> updateIndexMetaData = new ArrayList<>();
+    static MetaData upgradeMetaData(MetaData metaData,
+                                    MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                                    MetaDataUpgrader metaDataUpgrader) throws Exception {
+        // upgrade index meta data
+        boolean changed = false;
+        final MetaData.Builder upgradedMetaData = MetaData.builder(metaData);
         for (IndexMetaData indexMetaData : metaData) {
-            IndexMetaData newMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
-            if (indexMetaData != newMetaData) {
-                updateIndexMetaData.add(newMetaData);
+            IndexMetaData newMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData,
+                Version.CURRENT.minimumIndexCompatibilityVersion());
+            changed |= indexMetaData != newMetaData;
+            upgradedMetaData.put(newMetaData, false);
+        }
+        // upgrade global custom meta data
+        if (applyPluginUpgraders(metaData.getCustoms(), metaDataUpgrader.customMetaDataUpgraders,
+            upgradedMetaData::removeCustom,upgradedMetaData::putCustom)) {
+            changed = true;
+        }
+        // upgrade current templates
+        if (applyPluginUpgraders(metaData.getTemplates(), metaDataUpgrader.indexTemplateMetaDataUpgraders,
+            upgradedMetaData::removeTemplate, (s, indexTemplateMetaData) -> upgradedMetaData.put(indexTemplateMetaData))) {
+            changed = true;
+        }
+        return changed ? upgradedMetaData.build() : metaData;
+    }
+
+    private static <Data> boolean applyPluginUpgraders(ImmutableOpenMap<String, Data> existingData,
+                                                       UnaryOperator<Map<String, Data>> upgrader,
+                                                       Consumer<String> removeData,
+                                                       BiConsumer<String, Data> putData) {
+        // collect current data
+        Map<String, Data> existingMap = new HashMap<>();
+        for (ObjectObjectCursor<String, Data> customCursor : existingData) {
+            existingMap.put(customCursor.key, customCursor.value);
+        }
+        // upgrade global custom meta data
+        Map<String, Data> upgradedCustoms = upgrader.apply(existingMap);
+        if (upgradedCustoms.equals(existingMap) == false) {
+            // remove all data first so a plugin can remove custom metadata or templates if needed
+            existingMap.keySet().forEach(removeData);
+            for (Map.Entry<String, Data> upgradedCustomEntry : upgradedCustoms.entrySet()) {
+                putData.accept(upgradedCustomEntry.getKey(), upgradedCustomEntry.getValue());
             }
+            return true;
         }
-        // We successfully checked all indices for backward compatibility and found no non-upgradable indices, which
-        // means the upgrade can continue. Now it's safe to overwrite index metadata with the new version.
-        for (IndexMetaData indexMetaData : updateIndexMetaData) {
-            // since we upgraded the index folders already, write index state in the upgraded index folder
-            metaStateService.writeIndex("upgrade", indexMetaData);
-        }
+        return false;
     }
 
     // shard state BWC

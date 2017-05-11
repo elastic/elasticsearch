@@ -3,12 +3,8 @@
 
 See {ref}/query-dsl-span-or-query.html[Span Or Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = spanOrQuery(
-    spanTermQuery("field","value1"))            <1>
-    .clause(spanTermQuery("field","value2"))    <1>
-    .clause(spanTermQuery("field","value3"));   <1>
+include-tagged::{query-dsl-test}[span_or]
 --------------------------------------------------
 <1> span term queries
-

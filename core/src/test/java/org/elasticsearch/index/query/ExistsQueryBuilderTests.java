@@ -22,9 +22,11 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -41,7 +43,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         if (randomBoolean()) {
             fieldPattern = randomFrom(MAPPED_FIELD_NAMES);
         } else {
-            fieldPattern = randomAsciiOfLengthBetween(1, 10);
+            fieldPattern = randomAlphaOfLengthBetween(1, 10);
         }
         // also sometimes test wildcard patterns
         if (randomBoolean()) {
@@ -55,13 +57,19 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         String fieldPattern = queryBuilder.fieldName();
-        Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
+        Collection<String> fields = context.getQueryShardContext().simpleMatchToIndexNames(fieldPattern);
         if (getCurrentTypes().length == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
             assertThat(matchNoDocsQuery.toString(null), containsString("Missing types in \"exists\" query."));
+        } else if (fields.size() == 1) {
+            assertThat(query, instanceOf(ConstantScoreQuery.class));
+            ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
+            assertThat(constantScoreQuery.getQuery(), instanceOf(TermQuery.class));
+            TermQuery termQuery = (TermQuery) constantScoreQuery.getQuery();
+            assertEquals(fields.iterator().next(), termQuery.getTerm().text());
         } else {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;

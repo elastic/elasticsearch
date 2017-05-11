@@ -22,28 +22,28 @@
           body:    { foo: bar }
 
  - do:
-      get:
-          index:    test_1
-          type:     test
-          id:       1
-          realtime: 1
-
- - is_true: found
-
- - do:
       catch:        missing
       get:
           index:    test_1
           type:     test
           id:       1
-          realtime: 0
+          realtime: false
 
  - do:
       get:
           index:    test_1
           type:     test
           id:       1
-          realtime: 0
-          refresh:  1
+          realtime: true
+
+ - is_true: found
+
+ - do:
+      get:
+          index:    test_1
+          type:     test
+          id:       1
+          realtime: false
+          refresh:  true
 
  - is_true: found

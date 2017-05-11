@@ -109,6 +109,7 @@ public class CompoundProcessor implements Processor {
                     throw compoundProcessorException;
                 } else {
                     executeOnFailure(ingestDocument, compoundProcessorException);
+                    break;
                 }
             }
         }
@@ -134,14 +135,14 @@ public class CompoundProcessor implements Processor {
         List<String> processorTagHeader = cause.getHeader("processor_tag");
         String failedProcessorType = (processorTypeHeader != null) ? processorTypeHeader.get(0) : null;
         String failedProcessorTag = (processorTagHeader != null) ? processorTagHeader.get(0) : null;
-        Map<String, String> ingestMetadata = ingestDocument.getIngestMetadata();
+        Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
         ingestMetadata.put(ON_FAILURE_MESSAGE_FIELD, cause.getRootCause().getMessage());
         ingestMetadata.put(ON_FAILURE_PROCESSOR_TYPE_FIELD, failedProcessorType);
         ingestMetadata.put(ON_FAILURE_PROCESSOR_TAG_FIELD, failedProcessorTag);
     }
 
     private void removeFailureMetadata(IngestDocument ingestDocument) {
-        Map<String, String> ingestMetadata = ingestDocument.getIngestMetadata();
+        Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
         ingestMetadata.remove(ON_FAILURE_MESSAGE_FIELD);
         ingestMetadata.remove(ON_FAILURE_PROCESSOR_TYPE_FIELD);
         ingestMetadata.remove(ON_FAILURE_PROCESSOR_TAG_FIELD);

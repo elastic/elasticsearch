@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.alias.get;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class GetAliasesAction extends Action<GetAliasesRequest, GetAliasesResponse, GetAliasesRequestBuilder> {
 
     public static final GetAliasesAction INSTANCE = new GetAliasesAction();

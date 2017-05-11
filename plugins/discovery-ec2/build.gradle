@@ -19,7 +19,7 @@
 
 esplugin {
   description 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
-  classname 'org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin'
+  classname 'org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin'
 }
 
 versions << [
@@ -42,9 +42,15 @@ dependencyLicenses {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
+bundlePlugin {
+  from('config/discovery-ec2') {
+    into 'config'
+  }
+}
+
 test {
   // this is needed for insecure plugins, remove if possible!
-  systemProperty 'tests.artifact', project.name 
+  systemProperty 'tests.artifact', project.name
 }
 
 thirdPartyAudit.excludes = [

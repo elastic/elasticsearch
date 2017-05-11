@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -110,8 +109,22 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final long cardinality = getValue();
-        builder.field(CommonFields.VALUE, cardinality);
+        builder.field(CommonFields.VALUE.getPreferredName(), cardinality);
         return builder;
     }
 
+    @Override
+    protected int doHashCode() {
+        return counts.hashCode(0);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalCardinality other = (InternalCardinality) obj;
+        return counts.equals(0, other.counts);
+    }
+
+    HyperLogLogPlusPlus getState() {
+        return counts;
+    }
 }

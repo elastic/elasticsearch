@@ -21,9 +21,10 @@ package org.elasticsearch.search.searchafter;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,9 +44,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-/**
- *
- */
 public class SearchAfterBuilder implements ToXContent, Writeable {
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
     private static final Object[] EMPTY_SORT_VALUES = new Object[0];
@@ -132,12 +130,23 @@ public class SearchAfterBuilder implements ToXContent, Writeable {
         return new FieldDoc(Integer.MAX_VALUE, 0, fieldValues);
     }
 
+    private static SortField.Type extractSortType(SortField sortField) {
+        if (sortField instanceof SortedSetSortField) {
+            return SortField.Type.STRING;
+        } else if (sortField instanceof SortedNumericSortField) {
+            return ((SortedNumericSortField) sortField).getNumericType();
+        } else {
+            return sortField.getType();
+        }
+    }
+
     private static Object convertValueFromSortField(Object value, SortField sortField, DocValueFormat format) {
         if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource) {
             IndexFieldData.XFieldComparatorSource cmpSource = (IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource();
             return convertValueFromSortType(sortField.getField(), cmpSource.reducedType(), value, format);
         }
-        return convertValueFromSortType(sortField.getField(), sortField.getType(), value, format);
+        SortField.Type sortType = extractSortType(sortField);
+        return convertValueFromSortType(sortField.getField(), sortType, value, format);
     }
 
     private static Object convertValueFromSortType(String fieldName, SortField.Type sortType, Object value, DocValueFormat format) {
@@ -202,10 +211,10 @@ public class SearchAfterBuilder implements ToXContent, Writeable {
     }
 
     void innerToXContent(XContentBuilder builder) throws IOException {
-        builder.field(SEARCH_AFTER.getPreferredName(), sortValues);
+        builder.array(SEARCH_AFTER.getPreferredName(), sortValues);
     }
 
-    public static SearchAfterBuilder fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public static SearchAfterBuilder fromXContent(XContentParser parser) throws IOException {
         SearchAfterBuilder builder = new SearchAfterBuilder();
         XContentParser.Token token = parser.currentToken();
         List<Object> values = new ArrayList<> ();

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -111,7 +111,7 @@ public class SlicedInputStreamTests extends ESTestCase {
     }
 
     private byte[] randomBytes(Random random) {
-        int length = RandomInts.randomIntBetween(random, 1, 10);
+        int length = RandomNumbers.randomIntBetween(random, 1, 10);
         byte[] data = new byte[length];
         random.nextBytes(data);
         return data;
@@ -121,7 +121,7 @@ public class SlicedInputStreamTests extends ESTestCase {
 
         public boolean closed = false;
 
-        public CheckClosedInputStream(InputStream in) {
+        CheckClosedInputStream(InputStream in) {
             super(in);
         }
 

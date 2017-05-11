@@ -22,6 +22,7 @@ package org.apache.lucene.search.postingshighlight;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.highlight.Snippet;
 
 import java.io.IOException;
 import java.text.BreakIterator;

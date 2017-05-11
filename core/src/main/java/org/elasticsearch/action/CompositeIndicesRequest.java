@@ -19,16 +19,11 @@
 
 package org.elasticsearch.action;
 
-import java.util.List;
-
 /**
- * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that are composed of
- * multiple subrequests which relate to one or more indices. Allows to retrieve those subrequests.
+ * Marker interface that needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that are composed of
+ * multiple sub-requests which relate to one or more indices.  A composite request is executed by its own transport action class
+ * (e.g. {@link org.elasticsearch.action.search.TransportMultiSearchAction}), which goes through all sub-requests and delegates their
+ * execution to the appropriate transport action (e.g. {@link org.elasticsearch.action.search.TransportSearchAction}) for each single item.
  */
 public interface CompositeIndicesRequest {
-
-    /**
-     * Returns the subrequests that a composite request is composed of
-     */
-    List<? extends IndicesRequest> subRequests();
 }

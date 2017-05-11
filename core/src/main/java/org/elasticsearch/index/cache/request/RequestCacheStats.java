@@ -28,8 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- */
 public class RequestCacheStats implements Streamable, ToXContent {
 
     long memorySize;

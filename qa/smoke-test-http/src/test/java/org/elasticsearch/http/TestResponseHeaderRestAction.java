@@ -19,34 +19,32 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
-public class TestResponseHeaderRestAction extends BaseRestHandler {
+import java.io.IOException;
 
-    @Inject
+public class TestResponseHeaderRestAction extends BaseRestHandler {
     public TestResponseHeaderRestAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_protected", this);
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if ("password".equals(request.header("Secret"))) {
             RestResponse response = new BytesRestResponse(RestStatus.OK, "Access granted");
             response.addHeader("Secret", "granted");
-            channel.sendResponse(response);
+            return channel -> channel.sendResponse(response);
         } else {
             RestResponse response = new BytesRestResponse(RestStatus.UNAUTHORIZED, "Access denied");
             response.addHeader("Secret", "required");
-            channel.sendResponse(response);
+            return channel -> channel.sendResponse(response);
         }
     }
 }

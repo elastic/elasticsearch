@@ -82,8 +82,6 @@ class Chronology -> java.time.chrono.Chronology extends Comparable {
   ChronoLocalDate date(Era,int,int,int)
   ChronoLocalDate date(int,int,int)
   ChronoLocalDate dateEpochDay(long)
-  ChronoLocalDate dateNow()
-  ChronoLocalDate dateNow(ZoneId)
   ChronoLocalDate dateYearDay(Era,int,int)
   ChronoLocalDate dateYearDay(int,int)
   boolean equals(Object)
@@ -171,8 +169,6 @@ class HijrahChronology -> java.time.chrono.HijrahChronology extends AbstractChro
   HijrahDate date(int,int,int)
   HijrahDate date(Era,int,int,int)
   HijrahDate dateEpochDay(long)
-  HijrahDate dateNow()
-  HijrahDate dateNow(ZoneId)
   HijrahDate dateYearDay(int,int)
   HijrahDate dateYearDay(Era,int,int)
   HijrahEra eraOf(int)
@@ -185,8 +181,6 @@ class HijrahDate -> java.time.chrono.HijrahDate extends ChronoLocalDate,Temporal
   HijrahEra getEra()
   HijrahDate minus(TemporalAmount)
   HijrahDate minus(long,TemporalUnit)
-  HijrahDate now()
-  HijrahDate now(ZoneId)
   HijrahDate of(int,int,int)
   HijrahDate plus(TemporalAmount)
   HijrahDate plus(long,TemporalUnit)
@@ -201,8 +195,6 @@ class IsoChronology -> java.time.chrono.IsoChronology extends AbstractChronology
   LocalDate date(int,int,int)
   LocalDate date(Era,int,int,int)
   LocalDate dateEpochDay(long)
-  LocalDate dateNow()
-  LocalDate dateNow(ZoneId)
   LocalDate dateYearDay(int,int)
   LocalDate dateYearDay(Era,int,int)
   IsoEra eraOf(int)
@@ -219,8 +211,6 @@ class JapaneseChronology -> java.time.chrono.JapaneseChronology extends Abstract
   JapaneseDate date(int,int,int)
   JapaneseDate date(Era,int,int,int)
   JapaneseDate dateEpochDay(long)
-  JapaneseDate dateNow()
-  JapaneseDate dateNow(ZoneId)
   JapaneseDate dateYearDay(int,int)
   JapaneseDate dateYearDay(Era,int,int)
   JapaneseEra eraOf(int)
@@ -228,8 +218,6 @@ class JapaneseChronology -> java.time.chrono.JapaneseChronology extends Abstract
 }
 
 class JapaneseDate -> java.time.chrono.JapaneseDate extends ChronoLocalDate,Temporal,TemporalAccessor,TemporalAdjuster,Comparable,Object {
-  JapaneseDate now()
-  JapaneseDate now(ZoneId)
   JapaneseDate of(int,int,int)
   JapaneseDate from(TemporalAccessor)
   JapaneseChronology getChronology()
@@ -259,8 +247,6 @@ class MinguoChronology -> java.time.chrono.MinguoChronology extends AbstractChro
   MinguoDate date(int,int,int)
   MinguoDate date(Era,int,int,int)
   MinguoDate dateEpochDay(long)
-  MinguoDate dateNow()
-  MinguoDate dateNow(ZoneId)
   MinguoDate dateYearDay(int,int)
   MinguoDate dateYearDay(Era,int,int)
   MinguoEra eraOf(int)
@@ -268,8 +254,6 @@ class MinguoChronology -> java.time.chrono.MinguoChronology extends AbstractChro
 }
 
 class MinguoDate -> java.time.chrono.MinguoDate extends ChronoLocalDate,Temporal,TemporalAccessor,TemporalAdjuster,Comparable,Object {
-  MinguoDate now()
-  MinguoDate now(ZoneId)
   MinguoDate of(int,int,int)
   MinguoDate from(TemporalAccessor)
   MinguoChronology getChronology()
@@ -288,8 +272,6 @@ class ThaiBuddhistChronology -> java.time.chrono.ThaiBuddhistChronology extends 
   ThaiBuddhistDate date(int,int,int)
   ThaiBuddhistDate date(Era,int,int,int)
   ThaiBuddhistDate dateEpochDay(long)
-  ThaiBuddhistDate dateNow()
-  ThaiBuddhistDate dateNow(ZoneId)
   ThaiBuddhistDate dateYearDay(int,int)
   ThaiBuddhistDate dateYearDay(Era,int,int)
   ThaiBuddhistEra eraOf(int)
@@ -297,8 +279,6 @@ class ThaiBuddhistChronology -> java.time.chrono.ThaiBuddhistChronology extends 
 }
 
 class ThaiBuddhistDate -> java.time.chrono.ThaiBuddhistDate extends ChronoLocalDate,Temporal,TemporalAccessor,TemporalAdjuster,Comparable,Object {
-  ThaiBuddhistDate now()
-  ThaiBuddhistDate now(ZoneId)
   ThaiBuddhistDate of(int,int,int)
   ThaiBuddhistDate from(TemporalAccessor)
   ThaiBuddhistChronology getChronology()

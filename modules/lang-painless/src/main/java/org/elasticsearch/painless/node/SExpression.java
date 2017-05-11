@@ -19,30 +19,29 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents the top-level node for an expression as a statement.
  */
 public final class SExpression extends AStatement {
 
-    AExpression expression;
+    private AExpression expression;
 
     public SExpression(Location location, AExpression expression) {
         super(location);
 
         this.expression = Objects.requireNonNull(expression);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         expression.extractVariables(variables);
@@ -82,5 +81,10 @@ public final class SExpression extends AStatement {
         } else {
             writer.writePop(expression.expected.sort.size);
         }
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(expression);
     }
 }

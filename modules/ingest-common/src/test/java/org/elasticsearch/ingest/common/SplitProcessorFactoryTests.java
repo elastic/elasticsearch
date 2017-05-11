@@ -34,11 +34,12 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("separator", "\\.");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         SplitProcessor splitProcessor = factory.create(null, processorTag, config);
         assertThat(splitProcessor.getTag(), equalTo(processorTag));
         assertThat(splitProcessor.getField(), equalTo("field1"));
         assertThat(splitProcessor.getSeparator(), equalTo("\\."));
+        assertFalse(splitProcessor.isIgnoreMissing());
     }
 
     public void testCreateNoFieldPresent() throws Exception {

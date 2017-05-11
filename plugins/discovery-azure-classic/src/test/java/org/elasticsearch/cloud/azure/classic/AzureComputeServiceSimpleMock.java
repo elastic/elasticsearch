@@ -19,32 +19,35 @@
 
 package org.elasticsearch.cloud.azure.classic;
 
+import java.net.InetAddress;
+
 import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
 import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
 import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
 import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
 import com.microsoft.windowsazure.management.compute.models.RoleInstance;
+import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeServiceAbstractMock;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.plugins.Plugin;
-
-import java.net.InetAddress;
+import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 
 /**
  * Mock Azure API with a single started node
  */
 public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMock {
 
-    public static class TestPlugin extends Plugin {
-        public void onModule(AzureDiscoveryModule azureDiscoveryModule) {
-            azureDiscoveryModule.computeServiceImpl = AzureComputeServiceSimpleMock.class;
+    public static class TestPlugin extends AzureDiscoveryPlugin {
+        public TestPlugin(Settings settings) {
+            super(settings);
+        }
+        @Override
+        protected AzureComputeService createComputeService() {
+            return new AzureComputeServiceSimpleMock(settings);
         }
     }
 
-    @Inject
-    public AzureComputeServiceSimpleMock(Settings settings) {
+    private AzureComputeServiceSimpleMock(Settings settings) {
         super(settings);
     }
 

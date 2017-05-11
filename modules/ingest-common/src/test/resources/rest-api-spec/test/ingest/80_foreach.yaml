@@ -1,4 +1,11 @@
 ---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
 "Test foreach Processor":
   - do:
       ingest.put_pipeline:
@@ -12,7 +19,7 @@
                   "field" : "values",
                   "processor" : {
                       "uppercase" : {
-                        "field" : "_value"
+                        "field" : "_ingest._value"
                       }
                   }
                 }

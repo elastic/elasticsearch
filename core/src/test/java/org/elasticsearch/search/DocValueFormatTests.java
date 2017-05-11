@@ -24,22 +24,27 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class DocValueFormatTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        NamedWriteableRegistry registry = new NamedWriteableRegistry();
-        registry.register(DocValueFormat.class, DocValueFormat.BOOLEAN.getWriteableName(), in -> DocValueFormat.BOOLEAN);
-        registry.register(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new);
-        registry.register(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new);
-        registry.register(DocValueFormat.class, DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH);
-        registry.register(DocValueFormat.class, DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);
-        registry.register(DocValueFormat.class, DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
+        List<Entry> entries = new ArrayList<>();
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.BOOLEAN.getWriteableName(), in -> DocValueFormat.BOOLEAN));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW));
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(entries);
 
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeNamedWriteable(DocValueFormat.BOOLEAN);
@@ -103,6 +108,18 @@ public class DocValueFormatTests extends ESTestCase {
                 DocValueFormat.IP.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1")))));
     }
 
+    public void testDecimalFormat() {
+        DocValueFormat formatter = new DocValueFormat.Decimal("###.##");
+        assertEquals("0", formatter.format(0.0d));
+        assertEquals("1", formatter.format(1d));
+        formatter = new DocValueFormat.Decimal("000.000");
+        assertEquals("-000.500", formatter.format(-0.5));
+        formatter = new DocValueFormat.Decimal("###,###.###");
+        assertEquals("0.86", formatter.format(0.8598023539251286d));
+        formatter = new DocValueFormat.Decimal("###,###.###");
+        assertEquals("859,802.354", formatter.format(0.8598023539251286d * 1_000_000));
+    }
+
     public void testRawParse() {
         assertEquals(-1L, DocValueFormat.RAW.parseLong("-1", randomBoolean(), null));
         assertEquals(1L, DocValueFormat.RAW.parseLong("1", randomBoolean(), null));
@@ -139,5 +156,17 @@ public class DocValueFormatTests extends ESTestCase {
                 DocValueFormat.IP.parseBytesRef("192.168.1.7"));
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))),
                 DocValueFormat.IP.parseBytesRef("::1"));
+    }
+
+    public void testDecimalParse() {
+        DocValueFormat parser = new DocValueFormat.Decimal("###.##");
+        assertEquals(0.0d, parser.parseDouble(randomFrom("0.0", "0", ".0", ".0000"), true, null), 0.0d);
+        assertEquals(-1.0d, parser.parseDouble(randomFrom("-1.0", "-1", "-1.0", "-1.0000"), true, null), 0.0d);
+        assertEquals(0.0d, parser.parseLong("0", true, null), 0.0d);
+        assertEquals(1.0d, parser.parseLong("1", true, null), 0.0d);
+        parser = new DocValueFormat.Decimal("###,###.###");
+        assertEquals(859802.354d, parser.parseDouble("859,802.354", true, null), 0.0d);
+        assertEquals(0.859d, parser.parseDouble("0.859", true, null), 0.0d);
+        assertEquals(0.8598023539251286d, parser.parseDouble("0.8598023539251286", true, null), 0.0d);
     }
 }

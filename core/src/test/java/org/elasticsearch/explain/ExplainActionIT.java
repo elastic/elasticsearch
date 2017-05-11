@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
@@ -46,8 +45,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class ExplainActionIT extends ESIntegTestCase {
     public void testSimple() throws Exception {
         assertAcked(prepareCreate("test")
@@ -114,7 +111,9 @@ public class ExplainActionIT extends ESIntegTestCase {
     }
 
     public void testExplainWithFields() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        assertAcked(prepareCreate("test")
+                .addMapping("test", "obj1.field1", "type=keyword,store=true", "obj1.field2", "type=keyword,store=true")
+                .addAlias(new Alias("alias")));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1")
@@ -129,7 +128,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         refresh();
         ExplainResponse response = client().prepareExplain(indexOrAlias(), "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .setFields("obj1.field1").get();
+                .setStoredFields("obj1.field1").get();
         assertNotNull(response);
         assertTrue(response.isMatch());
         assertNotNull(response.getExplanation());
@@ -138,7 +137,6 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getGetResult().isExists(), equalTo(true));
         assertThat(response.getGetResult().getId(), equalTo("1"));
         Set<String> fields = new HashSet<>(response.getGetResult().getFields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly added via templates
         assertThat(fields, equalTo(singleton("obj1.field1")));
         assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
         assertThat(response.getGetResult().isSourceEmpty(), equalTo(true));
@@ -146,7 +144,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         refresh();
         response = client().prepareExplain(indexOrAlias(), "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .setFields("obj1.field1").setFetchSource(true).get();
+                .setStoredFields("obj1.field1").setFetchSource(true).get();
         assertNotNull(response);
         assertTrue(response.isMatch());
         assertNotNull(response.getExplanation());
@@ -155,14 +153,13 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getGetResult().isExists(), equalTo(true));
         assertThat(response.getGetResult().getId(), equalTo("1"));
         fields = new HashSet<>(response.getGetResult().getFields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly added via templates
         assertThat(fields, equalTo(singleton("obj1.field1")));
         assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
         assertThat(response.getGetResult().isSourceEmpty(), equalTo(false));
 
         response = client().prepareExplain(indexOrAlias(), "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .setFields("obj1.field1", "obj1.field2").get();
+                .setStoredFields("obj1.field1", "obj1.field2").get();
         assertNotNull(response);
         assertTrue(response.isMatch());
         String v1 = (String) response.getGetResult().field("obj1.field1").getValue();

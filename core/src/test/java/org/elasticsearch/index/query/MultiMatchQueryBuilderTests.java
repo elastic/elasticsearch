@@ -25,18 +25,19 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.LegacyNumericRangeQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -53,12 +54,17 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
 
+    private static final String MISSING_WILDCARD_FIELD_NAME = "missing_*";
+    private static final String MISSING_FIELD_NAME = "missing";
+
     @Override
     protected MultiMatchQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME);
+        String fieldName = randomFrom(STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME,
+                MISSING_FIELD_NAME, MISSING_WILDCARD_FIELD_NAME);
         if (fieldName.equals(DATE_FIELD_NAME)) {
             assumeTrue("test with date fields runs only when at least a type is registered", getCurrentTypes().length > 0);
         }
+
         // creates the query with random value and field name
         Object value;
         if (fieldName.equals(STRING_FIELD_NAME)) {
@@ -78,13 +84,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.operator(randomFrom(Operator.values()));
         }
-        if (randomBoolean()) {
-            if (fieldName.equals(DATE_FIELD_NAME)) {
-                // tokenized dates would trigger parse errors
-                query.analyzer("keyword");
-            } else {
-                query.analyzer(randomAnalyzer());
-            }
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
+            query.analyzer(randomAnalyzer());
         }
         if (randomBoolean()) {
             query.slop(randomIntBetween(0, 5));
@@ -137,45 +138,21 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     @Override
-    protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         // we rely on integration tests for deeper checks here
         assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
                 .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
                 .or(instanceOf(FuzzyQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
                 .or(instanceOf(MatchAllDocsQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
                 .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(PhraseQuery.class))
-                .or(instanceOf(LegacyNumericRangeQuery.class))
-                .or(instanceOf(PointRangeQuery.class)));
+                .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
     }
 
     public void testIllegaArguments() {
-        try {
-            new MultiMatchQueryBuilder(null, "field");
-            fail("value must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            new MultiMatchQueryBuilder("value", (String[]) null);
-            fail("initial fields must be supplied at construction time must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            new MultiMatchQueryBuilder("value", new String[]{""});
-            fail("field names cannot be empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            new MultiMatchQueryBuilder("value", "field").type(null);
-            fail("type must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder(null, "field"));
+        expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder("value", (String[]) null));
+        expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder("value", new String[]{""}));
+        expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder("value", "field").type(null));
     }
 
     public void testToQueryBoost() throws IOException {
@@ -238,6 +215,12 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
     }
 
+    public void testToQueryFieldMissing() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        assertThat(multiMatchQuery("test").field(MISSING_WILDCARD_FIELD_NAME).toQuery(createShardContext()), instanceOf(MatchNoDocsQuery.class));
+        assertThat(multiMatchQuery("test").field(MISSING_FIELD_NAME).toQuery(createShardContext()), instanceOf(TermQuery.class));
+    }
+
     public void testFromJson() throws IOException {
         String json =
                 "{\n" +
@@ -282,11 +265,11 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                     "}";
 
             ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
-            assertEquals("Fuziness not allowed for type [" + type +"]", e.getMessage());
+            assertEquals("Fuzziness not allowed for type [" + type +"]", e.getMessage());
         }
     }
 
-    public void testQueryParameterArrayException() throws IOException {
+    public void testQueryParameterArrayException() {
         String json =
                 "{\n" +
                 "  \"multi_match\" : {\n" +
@@ -297,6 +280,16 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[multi_match] unknown token [START_ARRAY] after [query]", e.getMessage());
+    }
+
+    public void testExceptionUsingAnalyzerOnNumericField() {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext shardContext = createShardContext();
+        MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder(6.075210893508043E-4);
+        multiMatchQueryBuilder.field(DOUBLE_FIELD_NAME);
+        multiMatchQueryBuilder.analyzer("simple");
+        NumberFormatException e = expectThrows(NumberFormatException.class, () -> multiMatchQueryBuilder.toQuery(shardContext));
+        assertEquals("For input string: \"e\"", e.getMessage());
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {

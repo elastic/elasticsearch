@@ -19,15 +19,14 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import java.util.Locale;
+
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.Locale;
 
 /**
  * This {@link AllocationDecider} controls re-balancing operations based on the
@@ -49,14 +48,15 @@ import java.util.Locale;
 public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "cluster_rebalance";
+    private static final String CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE = "cluster.routing.allocation.allow_rebalance";
     public static final Setting<ClusterRebalanceType> CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING =
-        new Setting<>("cluster.routing.allocation.allow_rebalance", ClusterRebalanceType.INDICES_ALL_ACTIVE.name().toLowerCase(Locale.ROOT),
+        new Setting<>(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceType.INDICES_ALL_ACTIVE.toString(),
             ClusterRebalanceType::parseString, Property.Dynamic, Property.NodeScope);
 
     /**
      * An enum representation for the configured re-balance type.
      */
-    public static enum ClusterRebalanceType {
+    public enum ClusterRebalanceType {
         /**
          * Re-balancing is allowed once a shard replication group is active
          */
@@ -81,11 +81,15 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             throw new IllegalArgumentException("Illegal value for " +
                             CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING + ": " + typeString);
         }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 
     private volatile ClusterRebalanceType type;
 
-    @Inject
     public ClusterRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         try {
@@ -96,8 +100,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
                     CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getRaw(settings));
             type = ClusterRebalanceType.INDICES_ALL_ACTIVE;
         }
-        logger.debug("using [{}] with [{}]", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-                type.toString().toLowerCase(Locale.ROOT));
+        logger.debug("using [{}] with [{}]", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
 
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING, this::setType);
     }
@@ -117,12 +120,14 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             // check if there are unassigned primaries.
             if ( allocation.routingNodes().hasUnassignedPrimaries() ) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the cluster has unassigned primary shards and rebalance type is set to [%s]", type);
+                        "the cluster has unassigned primary shards and cluster setting [%s] is set to [%s]",
+                        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
             }
             // check if there are initializing primaries that don't have a relocatingNodeId entry.
             if ( allocation.routingNodes().hasInactivePrimaries() ) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the cluster has inactive primary shards and rebalance type is set to [%s]", type);
+                        "the cluster has inactive primary shards and cluster setting [%s] is set to [%s]",
+                        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
             }
 
             return allocation.decision(Decision.YES, NAME, "all primary shards are active");
@@ -131,16 +136,18 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             // check if there are unassigned shards.
             if (allocation.routingNodes().hasUnassignedShards() ) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the cluster has unassigned shards and rebalance type is set to [%s]", type);
+                        "the cluster has unassigned shards and cluster setting [%s] is set to [%s]",
+                        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
             }
             // in case all indices are assigned, are there initializing shards which
             // are not relocating?
             if ( allocation.routingNodes().hasInactiveShards() ) {
                 return allocation.decision(Decision.NO, NAME,
-                        "the cluster has inactive shards and rebalance type is set to [%s]", type);
+                        "the cluster has inactive shards and cluster setting [%s] is set to [%s]",
+                        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
             }
         }
         // type == Type.ALWAYS
-        return allocation.decision(Decision.YES, NAME, "all shards are active, rebalance type is [%s]", type);
+        return allocation.decision(Decision.YES, NAME, "all shards are active");
     }
 }

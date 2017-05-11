@@ -33,12 +33,12 @@ import org.elasticsearch.test.client.NoOpClient;
 
 public class ParentTaskAssigningClientTests extends ESTestCase {
     public void testSetsParentId() {
-        TaskId[] parentTaskId = new TaskId[] {new TaskId(randomAsciiOfLength(3), randomLong())};
+        TaskId[] parentTaskId = new TaskId[] {new TaskId(randomAlphaOfLength(3), randomLong())};
 
         // This mock will do nothing but verify that parentTaskId is set on all requests sent to it.
         NoOpClient mock = new NoOpClient(getTestName()) {
             @Override
-            protected <     Request extends ActionRequest<Request>,
+            protected <     Request extends ActionRequest,
                             Response extends ActionResponse,
                             RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>
                         > void doExecute( Action<Request, Response, RequestBuilder> action, Request request,

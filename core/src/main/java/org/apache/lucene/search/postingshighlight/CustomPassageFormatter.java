@@ -19,8 +19,9 @@
 
 package org.apache.lucene.search.postingshighlight;
 
+import org.apache.lucene.search.highlight.Snippet;
 import org.apache.lucene.search.highlight.Encoder;
-import org.elasticsearch.search.highlight.HighlightUtils;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 
 /**
 Custom passage formatter that allows us to:
@@ -46,10 +47,10 @@ public class CustomPassageFormatter extends PassageFormatter {
         for (int j = 0; j < passages.length; j++) {
             Passage passage = passages[j];
             StringBuilder sb = new StringBuilder();
-            pos = passage.startOffset;
-            for (int i = 0; i < passage.numMatches; i++) {
-                int start = passage.matchStarts[i];
-                int end = passage.matchEnds[i];
+            pos = passage.getStartOffset();
+            for (int i = 0; i < passage.getNumMatches(); i++) {
+                int start = passage.getMatchStarts()[i];
+                int end = passage.getMatchEnds()[i];
                 // its possible to have overlapping terms
                 if (start > pos) {
                     append(sb, content, pos, start);
@@ -62,7 +63,7 @@ public class CustomPassageFormatter extends PassageFormatter {
                 }
             }
             // its possible a "term" from the analyzer could span a sentence boundary.
-            append(sb, content, pos, Math.max(pos, passage.endOffset));
+            append(sb, content, pos, Math.max(pos, passage.getEndOffset()));
             //we remove the paragraph separator if present at the end of the snippet (we used it as separator between values)
             if (sb.charAt(sb.length() - 1) == HighlightUtils.PARAGRAPH_SEPARATOR) {
                 sb.deleteCharAt(sb.length() - 1);
@@ -70,7 +71,7 @@ public class CustomPassageFormatter extends PassageFormatter {
                 sb.deleteCharAt(sb.length() - 1);
             }
             //and we trim the snippets too
-            snippets[j] = new Snippet(sb.toString().trim(), passage.score, passage.numMatches > 0);
+            snippets[j] = new Snippet(sb.toString().trim(), passage.getScore(), passage.getNumMatches() > 0);
         }
         return snippets;
     }

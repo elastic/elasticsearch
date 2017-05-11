@@ -34,9 +34,11 @@ public final class SBreak extends AStatement {
     public SBreak(Location location) {
         super(location);
     }
-    
+
     @Override
-    void extractVariables(Set<String> variables) {}
+    void extractVariables(Set<String> variables) {
+        // Do nothing.
+    }
 
     @Override
     void analyze(Locals locals) {
@@ -53,5 +55,10 @@ public final class SBreak extends AStatement {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.goTo(brake);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString();
     }
 }

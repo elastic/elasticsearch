@@ -22,9 +22,6 @@ package org.elasticsearch.common.util;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 
-/**
- *
- */
 public class ArrayUtils {
 
     private ArrayUtils() {}
@@ -87,5 +84,4 @@ public class ArrayUtils {
         System.arraycopy(other, 0, target, one.length, other.length);
         return target;
     }
-
 }

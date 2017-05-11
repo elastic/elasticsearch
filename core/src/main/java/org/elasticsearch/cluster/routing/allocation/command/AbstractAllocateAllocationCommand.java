@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -49,8 +49,8 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
     private static final String SHARD_FIELD = "shard";
     private static final String NODE_FIELD = "node";
 
-    protected static <T extends Builder<?>> ObjectParser<T, ParseFieldMatcherSupplier> createAllocateParser(String command) {
-        ObjectParser<T, ParseFieldMatcherSupplier> parser = new ObjectParser<>(command);
+    protected static <T extends Builder<?>> ObjectParser<T, Void> createAllocateParser(String command) {
+        ObjectParser<T, Void> parser = new ObjectParser<>(command);
         parser.declareString(Builder::setIndex, new ParseField(INDEX_FIELD));
         parser.declareInt(Builder::setShard, new ParseField(SHARD_FIELD));
         parser.declareString(Builder::setNode, new ParseField(NODE_FIELD));
@@ -187,7 +187,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
      * @param shardRouting the shard routing that is to be matched in unassigned shards
      */
     protected void initializeUnassignedShard(RoutingAllocation allocation, RoutingNodes routingNodes, RoutingNode routingNode, ShardRouting shardRouting) {
-        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, null);
+        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, null, null);
     }
 
     /**
@@ -198,18 +198,21 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
      * @param routingNode the node to initialize it to
      * @param shardRouting the shard routing that is to be matched in unassigned shards
      * @param unassignedInfo unassigned info to override
+     * @param recoverySource recovery source to override
      */
     protected void initializeUnassignedShard(RoutingAllocation allocation, RoutingNodes routingNodes, RoutingNode routingNode,
-                                             ShardRouting shardRouting, @Nullable UnassignedInfo unassignedInfo) {
+                                             ShardRouting shardRouting, @Nullable UnassignedInfo unassignedInfo,
+                                             @Nullable RecoverySource recoverySource) {
         for (RoutingNodes.UnassignedShards.UnassignedIterator it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
             ShardRouting unassigned = it.next();
             if (!unassigned.equalsIgnoringMetaData(shardRouting)) {
                 continue;
             }
-            if (unassignedInfo != null) {
-                unassigned = it.updateUnassignedInfo(unassignedInfo);
+            if (unassignedInfo != null || recoverySource != null) {
+                unassigned = it.updateUnassigned(unassignedInfo != null ? unassignedInfo : unassigned.unassignedInfo(),
+                    recoverySource != null ? recoverySource : unassigned.recoverySource(), allocation.changes());
             }
-            it.initialize(routingNode.nodeId(), null, allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+            it.initialize(routingNode.nodeId(), null, allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
             return;
         }
         assert false : "shard to initialize not found in list of unassigned shards";

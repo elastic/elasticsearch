@@ -30,8 +30,6 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 
-/**
- */
 public class Table {
 
     private List<Cell> headers = new ArrayList<>();
@@ -195,6 +193,22 @@ public class Table {
             }
         }
         return null;
+    }
+
+    public Map<String, String> getAliasMap() {
+        Map<String, String> headerAliasMap = new HashMap<>();
+        for (int i = 0; i < headers.size(); i++) {
+            Cell headerCell = headers.get(i);
+            String headerName = headerCell.value.toString();
+            if (headerCell.attr.containsKey("alias")) {
+                String[] aliases = Strings.splitStringByCommaToArray(headerCell.attr.get("alias"));
+                for (String alias : aliases) {
+                    headerAliasMap.put(alias, headerName);
+                }
+            }
+            headerAliasMap.put(headerName, headerName);
+        }
+        return headerAliasMap;
     }
 
     public static class Cell {

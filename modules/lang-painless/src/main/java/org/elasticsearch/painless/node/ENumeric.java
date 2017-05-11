@@ -31,12 +31,12 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
- * Respresents a non-decimal numeric constant.
+ * Represents a non-decimal numeric constant.
  */
 public final class ENumeric extends AExpression {
 
-    final String value;
-    int radix;
+    private final String value;
+    private int radix;
 
     public ENumeric(Location location, String value, int radix) {
         super(location);
@@ -44,12 +44,18 @@ public final class ENumeric extends AExpression {
         this.value = Objects.requireNonNull(value);
         this.radix = radix;
     }
-    
+
     @Override
-    void extractVariables(Set<String> variables) {}
+    void extractVariables(Set<String> variables) {
+        // Do nothing.
+    }
 
     @Override
     void analyze(Locals locals) {
+        if (!read) {
+            throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
+        }
+
         if (value.endsWith("d") || value.endsWith("D")) {
             if (radix != 10) {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -98,6 +104,14 @@ public final class ENumeric extends AExpression {
                     actual = Definition.INT_TYPE;
                 }
             } catch (NumberFormatException exception) {
+                try {
+                    // Check if we can parse as a long. If so then hint that the user might prefer that.
+                    Long.parseLong(value, radix);
+                    throw createError(new IllegalArgumentException("Invalid int constant [" + value + "]. If you want a long constant "
+                            + "then change it to [" + value + "L]."));
+                } catch (NumberFormatException longNoGood) {
+                    // Ignored
+                }
                 throw createError(new IllegalArgumentException("Invalid int constant [" + value + "]."));
             }
         }
@@ -106,5 +120,13 @@ public final class ENumeric extends AExpression {
     @Override
     void write(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    @Override
+    public String toString() {
+        if (radix != 10) {
+            return singleLineToString(value, radix);
+        }
+        return singleLineToString(value);
     }
 }

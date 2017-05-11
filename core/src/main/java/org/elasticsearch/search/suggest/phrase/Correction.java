@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 
 import java.util.Arrays;
@@ -73,7 +72,7 @@ public final class Correction implements Comparable<Correction> {
             len += toJoin[i].length;
         }
         result.grow(len);
-        return SuggestUtils.join(separator, result, toJoin);
+        return WordScorer.join(separator, result, toJoin);
     }
 
     /** Lower scores sorts first; if scores are equal,

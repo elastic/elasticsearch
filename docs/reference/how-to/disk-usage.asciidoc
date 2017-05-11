@@ -152,8 +152,9 @@ space. They can be compressed more aggressively by using the `best_compression`
 [float]
 === Use the smallest numeric type that is sufficient
 
-When storing <<number,numeric data>>, using `float` over `double`, or `half_float`
-over `float` can help save storage. This is also true for integer types, but less
-since Elasticsearch will more easily compress them based on the number of bits
-that they actually need.
-
+The type that you pick for <<number,numeric data>> can have a significant impact
+on disk usage. In particular, integers should be stored using an integer type
+(`byte`, `short`, `integer` or `long`) and floating points should either be
+stored in a `scaled_float` if appropriate or in the smallest type that fits the
+use-case: using `float` over `double`, or `half_float` over `float` will help
+save storage.

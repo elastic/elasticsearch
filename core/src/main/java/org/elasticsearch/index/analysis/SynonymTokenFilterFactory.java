@@ -20,9 +20,9 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
@@ -32,18 +32,18 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.util.List;
-import java.util.Map;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final SynonymMap synonymMap;
-    private final boolean ignoreCase;
+    protected final SynonymMap synonymMap;
+    protected final boolean ignoreCase;
 
-    public SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, Map<String, TokenizerFactory> tokenizerFactories,
+    public SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, AnalysisRegistry analysisRegistry,
                                       String name, Settings settings) throws IOException {
         super(indexSettings, name, settings);
 
@@ -61,15 +61,19 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
         }
 
-        this.ignoreCase = settings.getAsBoolean("ignore_case", false);
-        boolean expand = settings.getAsBoolean("expand", true);
+        this.ignoreCase =
+            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false, deprecationLogger);
+        boolean expand =
+            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "expand", true, deprecationLogger);
 
         String tokenizerName = settings.get("tokenizer", "whitespace");
-        final TokenizerFactory tokenizerFactory = tokenizerFactories.get(tokenizerName);
-        if (tokenizerFactory == null) {
+        AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =
+            analysisRegistry.getTokenizerProvider(tokenizerName, indexSettings);
+        if (tokenizerFactoryFactory == null) {
             throw new IllegalArgumentException("failed to find tokenizer [" + tokenizerName + "] for synonym token filter");
         }
-
+        final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.get(indexSettings, env, tokenizerName,
+            AnalysisRegistry.getSettingsFromIndexSettings(indexSettings, AnalysisRegistry.INDEX_ANALYSIS_TOKENIZER + "." + tokenizerName));
         Analyzer analyzer = new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {

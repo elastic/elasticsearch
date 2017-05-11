@@ -29,8 +29,9 @@ import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpUnsuccessfulResponseHandler;
 import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.client.util.Sleeper;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -43,8 +44,7 @@ public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
 
     private TimeValue maxWait;
 
-    private static final ESLogger logger =
-            ESLoggerFactory.getLogger(RetryHttpInitializerWrapper.class.getName());
+    private static final Logger logger = ESLoggerFactory.getLogger(RetryHttpInitializerWrapper.class.getName());
 
     // Intercepts the request for filling in the "Authorization"
     // header field, as well as recovering from certain unsuccessful
@@ -74,11 +74,7 @@ public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
     // Use only for testing
     static MockGoogleCredential.Builder newMockCredentialBuilder() {
         // TODO: figure out why GCE is so bad like this
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        return AccessController.doPrivileged((PrivilegedAction<MockGoogleCredential.Builder>) () -> new MockGoogleCredential.Builder());
+        return Access.doPrivileged(MockGoogleCredential.Builder::new);
     }
 
     @Override

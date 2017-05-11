@@ -19,12 +19,12 @@
 
 package org.elasticsearch;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
@@ -39,7 +39,7 @@ import java.util.Set;
 
 public final class ExceptionsHelper {
 
-    private static final ESLogger logger = Loggers.getLogger(ExceptionsHelper.class);
+    private static final Logger logger = Loggers.getLogger(ExceptionsHelper.class);
 
     public static RuntimeException convertToRuntime(Exception e) {
         if (e instanceof RuntimeException) {
@@ -180,19 +180,6 @@ public final class ExceptionsHelper {
     }
 
     /**
-     * Returns <code>true</code> iff the given throwable is and OutOfMemoryException, otherwise <code>false</code>
-     */
-    public static boolean isOOM(Throwable t) {
-        return t != null
-                && (t instanceof OutOfMemoryError
-                    || (t instanceof IllegalStateException
-                        && t.getMessage() != null
-                        && t.getMessage().contains("OutOfMemoryError")
-                        )
-                    );
-    }
-
-    /**
      * Throws the specified exception. If null if specified then <code>true</code> is returned.
      */
     public static boolean reThrowIfNotNull(@Nullable Throwable e) {
@@ -227,7 +214,7 @@ public final class ExceptionsHelper {
         final String index;
         final Class<? extends Throwable> causeType;
 
-        public GroupBy(Throwable t) {
+        GroupBy(Throwable t) {
             if (t instanceof ElasticsearchException) {
                 final Index index = ((ElasticsearchException) t).getIndex();
                 if (index != null) {

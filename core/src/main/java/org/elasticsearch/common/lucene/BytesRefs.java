@@ -22,8 +22,6 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 
-/**
- */
 public class BytesRefs {
 
     /**

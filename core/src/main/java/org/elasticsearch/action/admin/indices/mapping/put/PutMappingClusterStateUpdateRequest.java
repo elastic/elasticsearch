@@ -32,7 +32,7 @@ public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpda
 
     private boolean updateAllTypes = false;
 
-    PutMappingClusterStateUpdateRequest() {
+    public PutMappingClusterStateUpdateRequest() {
 
     }
 

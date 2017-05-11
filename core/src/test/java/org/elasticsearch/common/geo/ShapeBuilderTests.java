@@ -19,12 +19,6 @@
 
 package org.elasticsearch.common.geo;
 
-import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.Circle;
-import org.locationtech.spatial4j.shape.Point;
-import org.locationtech.spatial4j.shape.Rectangle;
-import org.locationtech.spatial4j.shape.Shape;
-import org.locationtech.spatial4j.shape.impl.PointImpl;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.Polygon;
@@ -35,6 +29,12 @@ import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.test.ESTestCase;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Circle;
+import org.locationtech.spatial4j.shape.Point;
+import org.locationtech.spatial4j.shape.Rectangle;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.impl.PointImpl;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiLineString;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiPolygon;
@@ -183,17 +183,13 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public void testPolygonSelfIntersection() {
-        try {
-            ShapeBuilders.newPolygon(new CoordinatesBuilder()
+            PolygonBuilder newPolygon = ShapeBuilders.newPolygon(new CoordinatesBuilder()
                     .coordinate(-40.0, 50.0)
                     .coordinate(40.0, 50.0)
                     .coordinate(-40.0, -50.0)
-                    .coordinate(40.0, -50.0).close())
-                    .build();
-            fail("Expected InvalidShapeException");
-        } catch (InvalidShapeException e) {
-            assertThat(e.getMessage(), containsString("Self-intersection at or near point (0.0"));
-        }
+                    .coordinate(40.0, -50.0).close());
+        Exception e = expectThrows(InvalidShapeException.class, () -> newPolygon.build());
+        assertThat(e.getMessage(), containsString("Self-intersection at or near point (0.0"));
     }
 
     public void testGeoCircle() {
@@ -550,12 +546,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(179, -10)
                 .coordinate(164, 0)
                 ));
-        try {
-            builder.close().build();
-            fail("Expected InvalidShapeException");
-        } catch (InvalidShapeException e) {
-            assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
-        }
+        Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().build());
+        assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
     }
 
     public void testBoundaryShapeWithTangentialHole() {
@@ -602,12 +594,8 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(176, -10)
                 .coordinate(-177, 10)
                 ));
-        try {
-            builder.close().build();
-            fail("Expected InvalidShapeException");
-        } catch (InvalidShapeException e) {
-            assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
-        }
+        Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().build());
+        assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
     }
 
     /**
@@ -659,11 +647,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(-176, 4)
                 .coordinate(180, 0)
                 );
-        try {
-            builder.close().build();
-            fail("Expected InvalidShapeException");
-        } catch (InvalidShapeException e) {
-            assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
-        }
+        Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().build());
+        assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
     }
 }

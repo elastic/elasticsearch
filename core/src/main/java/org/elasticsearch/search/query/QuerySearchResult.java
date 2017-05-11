@@ -21,58 +21,50 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
-/**
- *
- */
-public class QuerySearchResult extends QuerySearchResultProvider {
+public final class QuerySearchResult extends SearchPhaseResult {
 
-    private long id;
-    private SearchShardTarget shardTarget;
     private int from;
     private int size;
     private TopDocs topDocs;
     private DocValueFormat[] sortValueFormats;
     private InternalAggregations aggregations;
+    private boolean hasAggs;
     private List<SiblingPipelineAggregator> pipelineAggregators;
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
     private ProfileShardResult profileShardResults;
+    private boolean hasProfileResults;
+    private boolean hasScoreDocs;
+    private int totalHits;
+    private float maxScore;
 
     public QuerySearchResult() {
-
     }
 
     public QuerySearchResult(long id, SearchShardTarget shardTarget) {
-        this.id = id;
-        this.shardTarget = shardTarget;
-    }
-
-    @Override
-    public boolean includeFetch() {
-        return false;
+        this.requestId = id;
+        setSearchShardTarget(shardTarget);
     }
 
     @Override
@@ -80,20 +72,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         return this;
     }
 
-    @Override
-    public long id() {
-        return this.id;
-    }
-
-    @Override
-    public SearchShardTarget shardTarget() {
-        return shardTarget;
-    }
-
-    @Override
-    public void shardTarget(SearchShardTarget shardTarget) {
-        this.shardTarget = shardTarget;
-    }
 
     public void searchTimedOut(boolean searchTimedOut) {
         this.searchTimedOut = searchTimedOut;
@@ -112,11 +90,34 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     public TopDocs topDocs() {
+        if (topDocs == null) {
+            throw new IllegalStateException("topDocs already consumed");
+        }
+        return topDocs;
+    }
+
+    /**
+     * Returns <code>true</code> iff the top docs have already been consumed.
+     */
+    public boolean hasConsumedTopDocs() {
+        return topDocs == null;
+    }
+
+    /**
+     * Returns and nulls out the top docs for this search results. This allows to free up memory once the top docs are consumed.
+     * @throws IllegalStateException if the top docs have already been consumed.
+     */
+    public TopDocs consumeTopDocs() {
+        TopDocs topDocs = this.topDocs;
+        if (topDocs == null) {
+            throw new IllegalStateException("topDocs already consumed");
+        }
+        this.topDocs = null;
         return topDocs;
     }
 
     public void topDocs(TopDocs topDocs, DocValueFormat[] sortValueFormats) {
-        this.topDocs = topDocs;
+        setTopDocs(topDocs);
         if (topDocs.scoreDocs.length > 0 && topDocs.scoreDocs[0] instanceof FieldDoc) {
             int numFields = ((FieldDoc) topDocs.scoreDocs[0]).fields.length;
             if (numFields != sortValueFormats.length) {
@@ -127,24 +128,58 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         this.sortValueFormats = sortValueFormats;
     }
 
+    private void setTopDocs(TopDocs topDocs) {
+        this.topDocs = topDocs;
+        hasScoreDocs = topDocs.scoreDocs.length > 0;
+        this.totalHits = topDocs.totalHits;
+        this.maxScore = topDocs.getMaxScore();
+    }
+
     public DocValueFormat[] sortValueFormats() {
         return sortValueFormats;
     }
 
-    public Aggregations aggregations() {
-        return aggregations;
+    /**
+     * Returns <code>true</code> if this query result has unconsumed aggregations
+     */
+    public boolean hasAggs() {
+        return hasAggs;
+    }
+
+    /**
+     * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
+     * @throws IllegalStateException if the aggregations have already been consumed.
+     */
+    public Aggregations consumeAggs() {
+        if (aggregations == null) {
+            throw new IllegalStateException("aggs already consumed");
+        }
+        Aggregations aggs = aggregations;
+        aggregations = null;
+        return aggs;
     }
 
     public void aggregations(InternalAggregations aggregations) {
         this.aggregations = aggregations;
+        hasAggs = aggregations != null;
     }
 
     /**
-     * Returns the profiled results for this search, or potentially null if result was empty
-     * @return The profiled results, or null
+     * Returns and nulls out the profiled results for this search, or potentially null if result was empty.
+     * This allows to free up memory once the profiled result is consumed.
+     * @throws IllegalStateException if the profiled result has already been consumed.
      */
-    @Nullable public ProfileShardResult profileResults() {
-        return profileShardResults;
+    public ProfileShardResult consumeProfileResult() {
+        if (profileShardResults == null) {
+            throw new IllegalStateException("profile results already consumed");
+        }
+        ProfileShardResult result = profileShardResults;
+        profileShardResults = null;
+        return result;
+    }
+
+    public boolean hasProfileResults() {
+        return hasProfileResults;
     }
 
     /**
@@ -153,6 +188,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      */
     public void profileResults(ProfileShardResult shardResults) {
         this.profileShardResults = shardResults;
+        hasProfileResults = shardResults != null;
     }
 
     public List<SiblingPipelineAggregator> pipelineAggregators() {
@@ -180,6 +216,9 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         return this;
     }
 
+    /**
+     * Returns the maximum size of this results top docs.
+     */
     public int size() {
         return size;
     }
@@ -187,6 +226,17 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     public QuerySearchResult size(int size) {
         this.size = size;
         return this;
+    }
+
+    /**
+     * Returns <code>true</code> if this result has any suggest score docs
+     */
+    public boolean hasSuggestHits() {
+      return (suggest != null && suggest.hasScoreDocs());
+    }
+
+    public boolean hasSearchContext() {
+        return hasScoreDocs || hasSuggestHits();
     }
 
     public static QuerySearchResult readQuerySearchResult(StreamInput in) throws IOException {
@@ -203,8 +253,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     public void readFromWithId(long id, StreamInput in) throws IOException {
-        this.id = id;
-//        shardTarget = readSearchShardTarget(in);
+        this.requestId = id;
         from = in.readVInt();
         size = in.readVInt();
         int numSortFieldsPlus1 = in.readVInt();
@@ -216,45 +265,29 @@ public class QuerySearchResult extends QuerySearchResultProvider {
                 sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
             }
         }
-        topDocs = readTopDocs(in);
-        if (in.readBoolean()) {
+        setTopDocs(readTopDocs(in));
+        if (hasAggs = in.readBoolean()) {
             aggregations = InternalAggregations.readAggregations(in);
         }
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<SiblingPipelineAggregator> pipelineAggregators = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                // NORELEASE temporary hack to support old style streams and new style NamedWriteable at the same time
-                if (in.readBoolean()) {
-                    pipelineAggregators.add((SiblingPipelineAggregator) in.readNamedWriteable(PipelineAggregator.class));
-                } else {
-                    BytesReference type = in.readBytesReference();
-                    PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
-                    pipelineAggregators.add((SiblingPipelineAggregator) pipelineAggregator);
-                }
-            }
-            this.pipelineAggregators = pipelineAggregators;
-        }
+        pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream().map(a -> (SiblingPipelineAggregator) a)
+                .collect(Collectors.toList());
         if (in.readBoolean()) {
             suggest = Suggest.readSuggest(in);
         }
         searchTimedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
-
-        if (in.getVersion().onOrAfter(Version.V_2_2_0) && in.readBoolean()) {
-            profileShardResults = new ProfileShardResult(in);
-        }
+        profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
+        hasProfileResults = profileShardResults != null;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(id);
+        out.writeLong(requestId);
         writeToNoId(out);
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {
-//        shardTarget.writeTo(out);
         out.writeVInt(from);
         out.writeVInt(size);
         if (sortValueFormats == null) {
@@ -272,24 +305,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             out.writeBoolean(true);
             aggregations.writeTo(out);
         }
-        if (pipelineAggregators == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeVInt(pipelineAggregators.size());
-            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-                // NORELEASE temporary hack to support old style streams and new style NamedWriteable
-                try {
-                    pipelineAggregator.getWriteableName(); // Throws UnsupportedOperationException if we should use old style streams.
-                    out.writeBoolean(true);
-                    out.writeNamedWriteable(pipelineAggregator);
-                } catch (UnsupportedOperationException e) {
-                    out.writeBoolean(false);
-                    out.writeBytesReference(pipelineAggregator.type().stream());
-                    pipelineAggregator.writeTo(out);
-                }
-            }
-        }
+        out.writeNamedWriteableList(pipelineAggregators == null ? emptyList() : pipelineAggregators);
         if (suggest == null) {
             out.writeBoolean(false);
         } else {
@@ -298,14 +314,14 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         }
         out.writeBoolean(searchTimedOut);
         out.writeOptionalBoolean(terminatedEarly);
+        out.writeOptionalWriteable(profileShardResults);
+    }
 
-        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
-            if (profileShardResults == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                profileShardResults.writeTo(out);
-            }
-        }
+    public int getTotalHits() {
+        return totalHits;
+    }
+
+    public float getMaxScore() {
+        return maxScore;
     }
 }

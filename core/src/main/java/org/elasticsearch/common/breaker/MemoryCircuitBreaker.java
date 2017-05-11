@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.breaker;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -33,7 +33,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
     private final double overheadConstant;
     private final AtomicLong used;
     private final AtomicLong trippedCount;
-    private final ESLogger logger;
+    private final Logger logger;
 
 
     /**
@@ -43,7 +43,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
      * @param limit circuit breaker limit
      * @param overheadConstant constant multiplier for byte estimations
      */
-    public MemoryCircuitBreaker(ByteSizeValue limit, double overheadConstant, ESLogger logger) {
+    public MemoryCircuitBreaker(ByteSizeValue limit, double overheadConstant, Logger logger) {
         this(limit, overheadConstant, null, logger);
     }
 
@@ -56,8 +56,8 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
      * @param overheadConstant constant multiplier for byte estimations
      * @param oldBreaker the previous circuit breaker to inherit the used value from (starting offset)
      */
-    public MemoryCircuitBreaker(ByteSizeValue limit, double overheadConstant, MemoryCircuitBreaker oldBreaker, ESLogger logger) {
-        this.memoryBytesLimit = limit.bytes();
+    public MemoryCircuitBreaker(ByteSizeValue limit, double overheadConstant, MemoryCircuitBreaker oldBreaker, Logger logger) {
+        this.memoryBytesLimit = limit.getBytes();
         this.overheadConstant = overheadConstant;
         if (oldBreaker == null) {
             this.used = new AtomicLong(0);
@@ -79,7 +79,9 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public void circuitBreak(String fieldName, long bytesNeeded) throws CircuitBreakingException {
         this.trippedCount.incrementAndGet();
-        final String message = "Data too large, data for field [" + fieldName + "] would be larger than limit of [" +
+        final String message = "[" + getName() + "] Data too large, data for field [" + fieldName + "]" +
+                " would be [" + bytesNeeded + "/" + new ByteSizeValue(bytesNeeded) + "]" +
+                ", which is larger than the limit of [" +
                 memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
         logger.debug("{}", message);
         throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit);

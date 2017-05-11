@@ -19,14 +19,15 @@
 
 package org.elasticsearch.index.query;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
-
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -44,7 +45,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
             fieldName = STRING_FIELD_NAME;
         }
         if (frequently()) {
-            value = randomAsciiOfLengthBetween(1, 10);
+            value = randomAlphaOfLengthBetween(1, 10);
         } else {
             // generate unicode string in 10% of cases
             JsonStringEncoder encoder = JsonStringEncoder.getInstance();
@@ -52,7 +53,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
         }
 
         if (fieldName == null) {
-            fieldName = randomAsciiOfLengthBetween(1, 10);
+            fieldName = randomAlphaOfLengthBetween(1, 10);
         }
         return createQueryBuilder(fieldName, value);
     }
@@ -63,11 +64,11 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(SpanTermQuery.class));
         SpanTermQuery spanTermQuery = (SpanTermQuery) query;
         assertThat(spanTermQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
-        MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
+        MappedFieldType mapper = context.getQueryShardContext().fieldMapper(queryBuilder.fieldName());
         if (mapper != null) {
             Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
             assertThat(spanTermQuery.getTerm(), equalTo(term));
@@ -91,7 +92,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
                 spanTermQuery.boost(2.0f / randomIntBetween(1, 20));
             }
             if (randomBoolean()) {
-                spanTermQuery.queryName(randomAsciiOfLengthBetween(1, 10));
+                spanTermQuery.queryName(randomAlphaOfLengthBetween(1, 10));
             }
             clauses[i] = spanTermQuery;
         }
@@ -99,13 +100,44 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{    \"span_term\" : { \"user\" : { \"value\" : \"kimchy\", \"boost\" : 2.0 } }}    ";
-
+        String json = "{    \"span_term\" : { \"user\" : { \"value\" : \"kimchy\", \"boost\" : 2.0 } }}";
         SpanTermQueryBuilder parsed = (SpanTermQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-
         assertEquals(json, "kimchy", parsed.value());
         assertEquals(json, 2.0, parsed.boost(), 0.0001);
+    }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json = "{\n" +
+                "  \"span_term\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"term\" : \"this\"\n" +
+                "    },\n" +
+                "    \"message2\" : {\n" +
+                "      \"term\" : \"this\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+
+        String shortJson = "{\n" +
+                "  \"span_term\" : {\n" +
+                "    \"message1\" : \"this\",\n" +
+                "    \"message2\" : \"this\"\n" +
+                "  }\n" +
+                "}";
+        e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
+        assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+    }
+
+    public void testWithMetaDataField() throws IOException {
+        QueryShardContext context = createShardContext();
+        for (String field : new String[]{"_type", "_all"}) {
+            SpanTermQueryBuilder spanTermQueryBuilder = new SpanTermQueryBuilder(field, "toto");
+            Query query = spanTermQueryBuilder.toQuery(context);
+            Query expected = new SpanTermQuery(new Term(field, "toto"));
+            assertEquals(expected, query);
+        }
     }
 }

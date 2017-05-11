@@ -21,7 +21,7 @@ package org.elasticsearch.indices.breaker;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -30,16 +30,21 @@ import java.io.IOException;
 /**
  * Stats class encapsulating all of the different circuit breaker stats
  */
-public class AllCircuitBreakerStats implements Streamable, ToXContent {
+public class AllCircuitBreakerStats implements Writeable, ToXContent {
 
-    private CircuitBreakerStats[] allStats = new CircuitBreakerStats[0];
-
-    public AllCircuitBreakerStats() {
-
-    }
+    private final CircuitBreakerStats[] allStats;
 
     public AllCircuitBreakerStats(CircuitBreakerStats[] allStats) {
         this.allStats = allStats;
+    }
+
+    public AllCircuitBreakerStats(StreamInput in) throws IOException {
+        allStats = in.readArray(CircuitBreakerStats::new, CircuitBreakerStats[]::new);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeArray(allStats);
     }
 
     public CircuitBreakerStats[] getAllStats() {
@@ -53,33 +58,6 @@ public class AllCircuitBreakerStats implements Streamable, ToXContent {
             }
         }
         return null;
-    }
-
-    public static AllCircuitBreakerStats readOptionalAllCircuitBreakerStats(StreamInput in) throws IOException {
-        AllCircuitBreakerStats stats = in.readOptionalStreamable(AllCircuitBreakerStats::new);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        int statCount = in.readVInt();
-        CircuitBreakerStats[] newStats = new CircuitBreakerStats[statCount];
-        for (int i = 0; i < statCount; i++) {
-            CircuitBreakerStats stats = new CircuitBreakerStats();
-            stats.readFrom(in);
-            newStats[i] = stats;
-        }
-        allStats = newStats;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(allStats.length);
-        for (CircuitBreakerStats stats : allStats) {
-            if (stats != null) {
-                stats.writeTo(out);
-            }
-        }
     }
 
     @Override

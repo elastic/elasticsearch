@@ -121,7 +121,7 @@ public interface AliasOrIndex {
                         }
 
                         @Override
-                        public final void remove() {
+                        public void remove() {
                             throw new UnsupportedOperationException();
                         }
 

@@ -19,15 +19,16 @@
 
 package org.elasticsearch.ingest;
 
+import java.util.Collections;
+import java.util.Map;
+
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-
-import java.util.Collections;
-import java.util.Map;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.template.CompiledTemplate;
 
 public class InternalTemplateService implements TemplateService {
 
@@ -42,20 +43,12 @@ public class InternalTemplateService implements TemplateService {
         int mustacheStart = template.indexOf("{{");
         int mustacheEnd = template.indexOf("}}");
         if (mustacheStart != -1 && mustacheEnd != -1 && mustacheStart < mustacheEnd) {
-            Script script = new Script(template, ScriptService.ScriptType.INLINE, "mustache", Collections.emptyMap());
-            CompiledScript compiledScript = scriptService.compile(
-                script,
-                ScriptContext.Standard.INGEST,
-                Collections.emptyMap());
+            Script script = new Script(ScriptType.INLINE, "mustache", template, Collections.emptyMap());
+            CompiledTemplate compiledTemplate = scriptService.compileTemplate(script, ScriptContext.Standard.INGEST);
             return new Template() {
                 @Override
                 public String execute(Map<String, Object> model) {
-                    ExecutableScript executableScript = scriptService.executable(compiledScript, model);
-                    Object result = executableScript.run();
-                    if (result instanceof BytesReference) {
-                        return ((BytesReference) result).utf8ToString();
-                    }
-                    return String.valueOf(result);
+                    return compiledTemplate.run(model).utf8ToString();
                 }
 
                 @Override
@@ -72,7 +65,7 @@ public class InternalTemplateService implements TemplateService {
 
         private final String value;
 
-        public StringTemplate(String value) {
+        StringTemplate(String value) {
             this.value = value;
         }
 

@@ -30,9 +30,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-/**
- *
- */
 public final class RecoveryFileChunkRequest extends TransportRequest {
     private boolean lastChunk;
     private long recoveryId;

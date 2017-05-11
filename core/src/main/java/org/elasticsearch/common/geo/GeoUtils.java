@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
@@ -26,13 +27,15 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 
 import java.io.IOException;
 
-/**
- */
 public class GeoUtils {
 
     /** Maximum valid latitude in degrees. */
@@ -44,9 +47,9 @@ public class GeoUtils {
     /** Minimum valid longitude in degrees. */
     public static final double MIN_LON = -180.0;
 
-    public static final String LATITUDE = GeoPointFieldMapper.Names.LAT;
-    public static final String LONGITUDE = GeoPointFieldMapper.Names.LON;
-    public static final String GEOHASH = GeoPointFieldMapper.Names.GEOHASH;
+    public static final String LATITUDE = "lat";
+    public static final String LONGITUDE = "lon";
+    public static final String GEOHASH = "geohash";
 
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
@@ -68,14 +71,6 @@ public class GeoUtils {
 
     /** rounding error for quantized latitude and longitude values */
     public static final double TOLERANCE = 1E-6;
-
-    /** Returns the minimum between the provided distance 'initialRadius' and the
-     * maximum distance/radius from the point 'center' before overlapping
-     **/
-    public static double maxRadialDistance(GeoPoint center, double initialRadius) {
-        final double maxRadius = maxRadialDistanceMeters(center.lat(), center.lon());
-        return Math.min(initialRadius, maxRadius);
-    }
 
     /** Returns true if latitude is actually a valid latitude value.*/
     public static boolean isValidLatitude(double latitude) {
@@ -476,6 +471,82 @@ public class GeoUtils {
         return SloppyMath.haversinMeters(centerLat, centerLon, 0, centerLon);
       }
       return SloppyMath.haversinMeters(centerLat, centerLon, centerLat, (MAX_LON + centerLon) % 360);
+    }
+
+    /** Return the distance (in meters) between 2 lat,lon geo points using the haversine method implemented by lucene */
+    public static double arcDistance(double lat1, double lon1, double lat2, double lon2) {
+        return SloppyMath.haversinMeters(lat1, lon1, lat2, lon2);
+    }
+
+    /**
+     * Return the distance (in meters) between 2 lat,lon geo points using a simple tangential plane
+     * this provides a faster alternative to {@link GeoUtils#arcDistance} but is inaccurate for distances greater than
+     * 4 decimal degrees
+     */
+    public static double planeDistance(double lat1, double lon1, double lat2, double lon2) {
+        double x = (lon2 - lon1) * SloppyMath.TO_RADIANS * Math.cos((lat2 + lat1) / 2.0 * SloppyMath.TO_RADIANS);
+        double y = (lat2 - lat1) * SloppyMath.TO_RADIANS;
+        return Math.sqrt(x * x + y * y) * EARTH_MEAN_RADIUS;
+    }
+
+    /** check if point is within a rectangle
+     * todo: move this to lucene Rectangle class
+     */
+    public static boolean rectangleContainsPoint(Rectangle r, double lat, double lon) {
+        if (lat >= r.minLat && lat <= r.maxLat) {
+            // if rectangle crosses the dateline we only check if the lon is >= min or max
+            return r.crossesDateline() ? lon >= r.minLon || lon <= r.maxLon : lon >= r.minLon && lon <= r.maxLon;
+        }
+        return false;
+    }
+
+    /**
+     * Return a {@link SortedNumericDoubleValues} instance that returns the distances to a list of geo-points
+     * for each document.
+     */
+    public static SortedNumericDoubleValues distanceValues(final GeoDistance distance,
+                                                           final DistanceUnit unit,
+                                                           final MultiGeoPointValues geoPointValues,
+                                                           final GeoPoint... fromPoints) {
+        final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
+        if (singleValues != null && fromPoints.length == 1) {
+            return FieldData.singleton(new NumericDoubleValues() {
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return singleValues.advanceExact(doc);
+                }
+
+                @Override
+                public double doubleValue() throws IOException {
+                    final GeoPoint from = fromPoints[0];
+                    final GeoPoint to = singleValues.geoPointValue();
+                    return distance.calculate(from.lat(), from.lon(), to.lat(), to.lon(), unit);
+                }
+
+            });
+        } else {
+            return new SortingNumericDoubleValues() {
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    if (geoPointValues.advanceExact(target)) {
+                        resize(geoPointValues.docValueCount() * fromPoints.length);
+                        int v = 0;
+                        for (int i = 0; i < geoPointValues.docValueCount(); ++i) {
+                            final GeoPoint point = geoPointValues.nextValue();
+                            for (GeoPoint from : fromPoints) {
+                                values[v] = distance.calculate(from.lat(), from.lon(), point.lat(), point.lon(), unit);
+                                v++;
+                            }
+                        }
+                        sort();
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+            };
+        }
     }
 
     private GeoUtils() {

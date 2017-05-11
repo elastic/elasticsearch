@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -35,11 +36,13 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.hasSize;
 
 public class TransportRolloverActionTests extends ESTestCase {
 
@@ -54,7 +57,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        final IndexMetaData metaData = IndexMetaData.builder(randomAsciiOfLength(10))
+        final IndexMetaData metaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();
@@ -89,26 +92,26 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testCreateUpdateAliasRequest() throws Exception {
-        String sourceAlias = randomAsciiOfLength(10);
-        String sourceIndex = randomAsciiOfLength(10);
-        String targetIndex = randomAsciiOfLength(10);
+        String sourceAlias = randomAlphaOfLength(10);
+        String sourceIndex = randomAlphaOfLength(10);
+        String targetIndex = randomAlphaOfLength(10);
         final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
         final IndicesAliasesClusterStateUpdateRequest updateRequest =
             TransportRolloverAction.prepareRolloverAliasesUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
 
-        final AliasAction[] actions = updateRequest.actions();
-        assertThat(actions.length, equalTo(2));
+        List<AliasAction> actions = updateRequest.actions();
+        assertThat(actions, hasSize(2));
         boolean foundAdd = false;
         boolean foundRemove = false;
         for (AliasAction action : actions) {
-            if (action.actionType() == AliasAction.Type.ADD) {
+            if (action.getIndex().equals(targetIndex)) {
+                assertEquals(sourceAlias, ((AliasAction.Add) action).getAlias());
                 foundAdd = true;
-                assertThat(action.index(), equalTo(targetIndex));
-                assertThat(action.alias(), equalTo(sourceAlias));
-            } else if (action.actionType() == AliasAction.Type.REMOVE) {
+            } else if (action.getIndex().equals(sourceIndex)) {
+                assertEquals(sourceAlias, ((AliasAction.Remove) action).getAlias());
                 foundRemove = true;
-                assertThat(action.index(), equalTo(sourceIndex));
-                assertThat(action.alias(), equalTo(sourceAlias));
+            } else {
+                throw new AssertionError("Unknow index [" + action.getIndex() + "]");
             }
         }
         assertTrue(foundAdd);
@@ -116,10 +119,10 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testValidation() throws Exception {
-        String index1 = randomAsciiOfLength(10);
-        String alias = randomAsciiOfLength(10);
-        String index2 = randomAsciiOfLength(10);
-        String aliasWithMultipleIndices = randomAsciiOfLength(10);
+        String index1 = randomAlphaOfLength(10);
+        String alias = randomAlphaOfLength(10);
+        String index2 = randomAlphaOfLength(10);
+        String aliasWithMultipleIndices = randomAlphaOfLength(10);
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
@@ -139,34 +142,39 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         expectThrows(IllegalArgumentException.class, () ->
             TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithMultipleIndices,
-                randomAsciiOfLength(10))));
+                randomAlphaOfLength(10))));
         expectThrows(IllegalArgumentException.class, () ->
             TransportRolloverAction.validate(metaData, new RolloverRequest(randomFrom(index1, index2),
-                randomAsciiOfLength(10))));
+                randomAlphaOfLength(10))));
         expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(randomAsciiOfLength(5),
-                randomAsciiOfLength(10)))
+            TransportRolloverAction.validate(metaData, new RolloverRequest(randomAlphaOfLength(5),
+                randomAlphaOfLength(10)))
         );
-        TransportRolloverAction.validate(metaData, new RolloverRequest(alias, randomAsciiOfLength(10)));
+        TransportRolloverAction.validate(metaData, new RolloverRequest(alias, randomAlphaOfLength(10)));
     }
 
     public void testGenerateRolloverIndexName() throws Exception {
-        String invalidIndexName = randomAsciiOfLength(10) + "A";
+        String invalidIndexName = randomAlphaOfLength(10) + "A";
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
         expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.generateRolloverIndexName(invalidIndexName));
+            TransportRolloverAction.generateRolloverIndexName(invalidIndexName, indexNameExpressionResolver));
         int num = randomIntBetween(0, 100);
-        final String indexPrefix = randomAsciiOfLength(10);
+        final String indexPrefix = randomAlphaOfLength(10);
         String indexEndingInNumbers = indexPrefix + "-" + num;
-        assertThat(TransportRolloverAction.generateRolloverIndexName(indexEndingInNumbers),
-            equalTo(indexPrefix + "-" + (num + 1)));
-        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-1"), equalTo("index-name-2"));
-        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-2"), equalTo("index-name-3"));
+        assertThat(TransportRolloverAction.generateRolloverIndexName(indexEndingInNumbers, indexNameExpressionResolver),
+            equalTo(indexPrefix + "-" + String.format(Locale.ROOT, "%06d", num + 1)));
+        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-1", indexNameExpressionResolver),
+            equalTo("index-name-000002"));
+        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-2", indexNameExpressionResolver),
+            equalTo("index-name-000003"));
+        assertEquals( "<index-name-{now/d}-000002>", TransportRolloverAction.generateRolloverIndexName("<index-name-{now/d}-1>",
+            indexNameExpressionResolver));
     }
 
     public void testCreateIndexRequest() throws Exception {
-        String alias = randomAsciiOfLength(10);
-        String rolloverIndex = randomAsciiOfLength(10);
-        final RolloverRequest rolloverRequest = new RolloverRequest(alias, randomAsciiOfLength(10));
+        String alias = randomAlphaOfLength(10);
+        String rolloverIndex = randomAlphaOfLength(10);
+        final RolloverRequest rolloverRequest = new RolloverRequest(alias, randomAlphaOfLength(10));
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
         rolloverRequest.setWaitForActiveShards(activeShardCount);
         final Settings settings = Settings.builder()
@@ -177,7 +185,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .build();
         rolloverRequest.getCreateIndexRequest().settings(settings);
         final CreateIndexClusterStateUpdateRequest createIndexRequest =
-            TransportRolloverAction.prepareCreateIndexRequest(rolloverIndex, rolloverRequest);
+            TransportRolloverAction.prepareCreateIndexRequest(rolloverIndex, rolloverIndex, rolloverRequest);
         assertThat(createIndexRequest.settings(), equalTo(settings));
         assertThat(createIndexRequest.index(), equalTo(rolloverIndex));
         assertThat(createIndexRequest.cause(), equalTo("rollover_index"));

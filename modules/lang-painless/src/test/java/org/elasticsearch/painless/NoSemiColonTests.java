@@ -64,7 +64,7 @@ public class NoSemiColonTests extends ScriptTestCase {
         assertEquals(10, exec("10"));
         assertEquals(10, exec("5 + 5"));
         assertEquals(10, exec("5 + 5"));
-        assertEquals(10, exec("params.param == 'yes' ? 10 : 5", Collections.singletonMap("param", "yes")));
+        assertEquals(10, exec("params.param == 'yes' ? 10 : 5", Collections.singletonMap("param", "yes"), true));
     }
 
     @SuppressWarnings("rawtypes")

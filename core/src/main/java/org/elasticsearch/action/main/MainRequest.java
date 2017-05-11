@@ -22,7 +22,7 @@ package org.elasticsearch.action.main;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 
-public class MainRequest extends ActionRequest<MainRequest> {
+public class MainRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {

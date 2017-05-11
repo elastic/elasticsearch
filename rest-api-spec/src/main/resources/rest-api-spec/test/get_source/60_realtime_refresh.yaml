@@ -22,29 +22,29 @@
           body:    { foo: bar }
 
  - do:
-      get_source:
-          index:    test_1
-          type:     test
-          id:       1
-          realtime: 1
-
- - match:   { '': {foo: bar}}
-
- - do:
       catch:        missing
       get_source:
           index:    test_1
           type:     test
           id:       1
-          realtime: 0
+          realtime: false
 
  - do:
       get_source:
           index:    test_1
           type:     test
           id:       1
-          realtime: 0
-          refresh:  1
+          realtime: true
+
+ - match:   { '': {foo: bar}}
+
+ - do:
+      get_source:
+          index:    test_1
+          type:     test
+          id:       1
+          realtime: false
+          refresh:  true
 
  - match:   { '': {foo: bar}}
 

@@ -33,10 +33,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-// this must exist in the same package as IndexModule to allow access to setting the impl
+/**
+ * A plugin to use {@link MockEngineFactory}.
+ *
+ * Subclasses may override the reader wrapper used.
+ */
 public class MockEngineFactoryPlugin extends Plugin {
-
-    private Class<? extends FilterDirectoryReader> readerWrapper = AssertingDirectoryReader.class;
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -45,22 +47,10 @@ public class MockEngineFactoryPlugin extends Plugin {
 
     @Override
     public void onIndexModule(IndexModule module) {
-        module.engineFactory.set(new MockEngineFactory(readerWrapper));
+        module.engineFactory.set(new MockEngineFactory(getReaderWrapperClass()));
     }
 
-    @Override
-    public Collection<Module> createGuiceModules() {
-        return Collections.singleton(new MockEngineReaderModule());
-    }
-
-    public class MockEngineReaderModule extends AbstractModule {
-
-        public void setReaderClass(Class<? extends FilterDirectoryReader> readerWrapper) {
-            MockEngineFactoryPlugin.this.readerWrapper = readerWrapper;
-        }
-
-        @Override
-        protected void configure() {
-        }
+    protected Class<? extends FilterDirectoryReader> getReaderWrapperClass() {
+        return AssertingDirectoryReader.class;
     }
 }

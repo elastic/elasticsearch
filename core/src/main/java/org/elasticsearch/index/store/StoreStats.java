@@ -19,31 +19,26 @@
 
 package org.elasticsearch.index.store;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- */
 public class StoreStats implements Streamable, ToXContent {
 
     private long sizeInBytes;
-
-    private long throttleTimeInNanos;
 
     public StoreStats() {
 
     }
 
-    public StoreStats(long sizeInBytes, long throttleTimeInNanos) {
+    public StoreStats(long sizeInBytes) {
         this.sizeInBytes = sizeInBytes;
-        this.throttleTimeInNanos = throttleTimeInNanos;
     }
 
     public void add(StoreStats stats) {
@@ -51,7 +46,6 @@ public class StoreStats implements Streamable, ToXContent {
             return;
         }
         sizeInBytes += stats.sizeInBytes;
-        throttleTimeInNanos += stats.throttleTimeInNanos;
     }
 
 
@@ -71,37 +65,26 @@ public class StoreStats implements Streamable, ToXContent {
         return size();
     }
 
-    public TimeValue throttleTime() {
-        return TimeValue.timeValueNanos(throttleTimeInNanos);
-    }
-
-    public TimeValue getThrottleTime() {
-        return throttleTime();
-    }
-
-    public static StoreStats readStoreStats(StreamInput in) throws IOException {
-        StoreStats store = new StoreStats();
-        store.readFrom(in);
-        return store;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
-        throttleTimeInNanos = in.readVLong();
+        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            in.readVLong(); // throttleTimeInNanos
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
-        out.writeVLong(throttleTimeInNanos);
+        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeVLong(0L); // throttleTimeInNanos
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.STORE);
         builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, sizeInBytes);
-        builder.timeValueField(Fields.THROTTLE_TIME_IN_MILLIS, Fields.THROTTLE_TIME, throttleTime());
         builder.endObject();
         return builder;
     }
@@ -110,7 +93,5 @@ public class StoreStats implements Streamable, ToXContent {
         static final String STORE = "store";
         static final String SIZE = "size";
         static final String SIZE_IN_BYTES = "size_in_bytes";
-        static final String THROTTLE_TIME = "throttle_time";
-        static final String THROTTLE_TIME_IN_MILLIS = "throttle_time_in_millis";
     }
 }

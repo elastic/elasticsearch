@@ -21,7 +21,6 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TemplateService;
@@ -78,7 +77,9 @@ public final class AppendProcessor extends AbstractProcessor {
                                       Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
-            return new AppendProcessor(processorTag, templateService.compile(field), ValueSource.wrap(value, templateService));
+            TemplateService.Template compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
+                "field", field, templateService);
+            return new AppendProcessor(processorTag, compiledTemplate, ValueSource.wrap(value, templateService));
         }
     }
 }

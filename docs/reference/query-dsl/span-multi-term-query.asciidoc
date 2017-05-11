@@ -2,7 +2,7 @@
 === Span Multi Term Query
 
 The `span_multi` query allows you to wrap a `multi term query` (one of wildcard,
-fuzzy, prefix, term, range or regexp query) as a `span query`, so
+fuzzy, prefix, range or regexp query) as a `span query`, so
 it can be nested. Example:
 
 [source,js]

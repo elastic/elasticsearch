@@ -15,28 +15,33 @@ setup:
                   "suggest_context":
                      "type" : "completion"
                      "contexts":
-                        - "name" : "color"
+                        -
+                          "name" : "color"
                           "type" : "category"
                   "suggest_context_with_path":
                      "type" : "completion"
                      "contexts":
-                        - "name" : "color"
+                        -
+                          "name" : "color"
                           "type" : "category"
                           "path" : "color"
                   "suggest_geo":
                      "type" : "completion"
                      "contexts":
-                        - "name" : "location"
+                        -
+                          "name" : "location"
                           "type" : "geo"
                           "precision" : "5km"
                   "suggest_multi_contexts":
                      "type" : "completion"
                      "contexts":
-                        - "name" : "location"
+                        -
+                          "name" : "location"
                           "type" : "geo"
                           "precision" : "5km"
                           "path" : "location"
-                        - "name" : "color"
+                        -
+                          "name" : "color"
                           "type" : "category"
                           "path" : "color"
 
@@ -69,18 +74,19 @@ setup:
       indices.refresh: {}
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "foo"
-            completion:
-              field: suggest_context
-              contexts:
-                color: "red"
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_context
+                contexts:
+                  color: "red"
 
-  - length: { result: 1  }
-  - length: { result.0.options: 1  }
-  - match:  {  result.0.options.0.text: "foo red" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "foo red" }
 
 ---
 "Category suggest context from path should work":
@@ -109,45 +115,48 @@ setup:
       indices.refresh: {}
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "foo"
-            completion:
-              field: suggest_context_with_path
-              contexts:
-                color: "red"
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_context_with_path
+                contexts:
+                  color: "red"
 
-  - length: { result: 1  }
-  - length: { result.0.options: 1  }
-  - match:  { result.0.options.0.text: "Foo red" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "Foo red" }
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "foo"
-            completion:
-              field: suggest_context_with_path
-              contexts:
-                color: "blue"
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_context_with_path
+                contexts:
+                  color: "blue"
 
-  - length: { result: 1  }
-  - length: { result.0.options: 1  }
-  - match:  { result.0.options.0.text: "Foo blue" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "Foo blue" }
 
   - do:
-      suggest:
+      search:
         body:
-          result:
-            text: "foo"
-            completion:
-              field: suggest_context_with_path
-              contexts:
-                color: ["blue", "red"]
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_context_with_path
+                contexts:
+                  color: ["blue", "red"]
 
-  - length: { result: 1  }
-  - length: { result.0.options: 2  }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 2  }
 
 ---
 "Geo suggest should work":
@@ -185,21 +194,22 @@ setup:
       indices.get_mapping: {}
 
   - do:
-      suggest:
+      search:
         index: test
         body:
-          result:
-            text: "mar"
-            completion:
-              field: suggest_geo
-              contexts:
-                location:
-                  lat : 52.2263
-                  lon : 4.543
+          suggest:
+            result:
+              text: "mar"
+              completion:
+                field: suggest_geo
+                contexts:
+                  location:
+                    lat : 52.2263
+                    lon : 4.543
 
-  - length: { result: 1  }
-  - length: { result.0.options: 1  }
-  - match:  { result.0.options.0.text: "Marriot in Amsterdam" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "Marriot in Amsterdam" }
 
 ---
 "Multi contexts should work":
@@ -235,33 +245,35 @@ setup:
       indices.get_mapping: {}
 
   - do:
-      suggest:
+      search:
         index: test
         body:
-          result:
-            text: "mar"
-            completion:
-              field: suggest_multi_contexts
-              contexts:
-                location:
-                  lat : 52.22
-                  lon : 4.53
+          suggest:
+            result:
+              text: "mar"
+              completion:
+                field: suggest_multi_contexts
+                contexts:
+                  location:
+                    lat : 52.22
+                    lon : 4.53
 
-  - length: { result: 1  }
-  - length: { result.0.options: 1  }
-  - match:  { result.0.options.0.text: "Marriot in Amsterdam" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "Marriot in Amsterdam" }
 
   - do:
-      suggest:
+      search:
         index: test
         body:
-          result:
-            text: "mar"
-            completion:
-              field: suggest_multi_contexts
-              contexts:
-                color: "blue"
+          suggest:
+            result:
+              text: "mar"
+              completion:
+                field: suggest_multi_contexts
+                contexts:
+                  color: "blue"
 
-  - length: { result: 1  }
-  - length: { result.0.options: 1  }
-  - match:  { result.0.options.0.text: "Marriot in Berlin" }
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "Marriot in Berlin" }

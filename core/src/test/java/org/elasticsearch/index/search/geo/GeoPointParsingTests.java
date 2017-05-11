@@ -30,11 +30,11 @@ import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.is;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
+import static org.hamcrest.Matchers.is;
 
 public class GeoPointParsingTests  extends ESTestCase {
-    static double TOLERANCE = 1E-5;
+    private static final double TOLERANCE = 1E-5;
 
     public void testGeoPointReset() throws IOException {
         double lat = 1 + randomDouble() * 89;
@@ -110,15 +110,10 @@ public class GeoPointParsingTests  extends ESTestCase {
         content.endObject();
         content.endObject();
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, content.bytes());
         parser.nextToken();
-
-        try {
-            GeoUtils.parseGeoPoint(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+        assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
     }
 
     public void testInvalidPointLatHashMix() throws IOException {
@@ -127,15 +122,11 @@ public class GeoPointParsingTests  extends ESTestCase {
         content.field("lat", 0).field("geohash", stringEncode(0d, 0d));
         content.endObject();
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, content.bytes());
         parser.nextToken();
 
-        try {
-            GeoUtils.parseGeoPoint(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+        assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
     }
 
     public void testInvalidPointLonHashMix() throws IOException {
@@ -144,15 +135,11 @@ public class GeoPointParsingTests  extends ESTestCase {
         content.field("lon", 0).field("geohash", stringEncode(0d, 0d));
         content.endObject();
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, content.bytes());
         parser.nextToken();
 
-        try {
-            GeoUtils.parseGeoPoint(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+        assertThat(e.getMessage(), is("field must be either lat/lon or geohash"));
     }
 
     public void testInvalidField() throws IOException {
@@ -161,47 +148,43 @@ public class GeoPointParsingTests  extends ESTestCase {
         content.field("lon", 0).field("lat", 0).field("test", 0);
         content.endObject();
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, content.bytes());
         parser.nextToken();
 
-        try {
-            GeoUtils.parseGeoPoint(parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+        assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
     }
 
-    private static XContentParser objectLatLon(double lat, double lon) throws IOException {
+    private XContentParser objectLatLon(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startObject();
         content.field("lat", lat).field("lon", lon);
         content.endObject();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, content.bytes());
         parser.nextToken();
         return parser;
     }
 
-    private static XContentParser arrayLatLon(double lat, double lon) throws IOException {
+    private XContentParser arrayLatLon(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startArray().value(lon).value(lat).endArray();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, content.bytes());
         parser.nextToken();
         return parser;
     }
 
-    private static XContentParser stringLatLon(double lat, double lon) throws IOException {
+    private XContentParser stringLatLon(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.value(Double.toString(lat) + ", " + Double.toString(lon));
-        XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, content.bytes());
         parser.nextToken();
         return parser;
     }
 
-    private static XContentParser geohash(double lat, double lon) throws IOException {
+    private XContentParser geohash(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.value(stringEncode(lon, lat));
-        XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, content.bytes());
         parser.nextToken();
         return parser;
     }

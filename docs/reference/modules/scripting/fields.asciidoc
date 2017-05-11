@@ -44,13 +44,13 @@ relevance `_score` of each document:
 
 [source,js]
 -------------------------------------
-PUT my_index/my_type/1
+PUT my_index/my_type/1?refresh
 {
   "text": "quick brown fox",
   "popularity": 1
 }
 
-PUT my_index/my_type/2
+PUT my_index/my_type/2?refresh
 {
   "text": "quick fox",
   "popularity": 5
@@ -89,7 +89,7 @@ store, enabled by default on all fields except for <<text,analyzed `text` fields
 
 [source,js]
 -------------------------------
-PUT my_index/my_type/1
+PUT my_index/my_type/1?refresh
 {
   "cost_price": 100
 }
@@ -182,7 +182,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/my_type/1?refresh
 {
   "title": "Mr",
   "first_name": "Barry",
@@ -194,14 +194,14 @@ GET my_index/_search
   "script_fields": {
     "source": {
       "script": {
-        "lang": "groovy",
-        "inline": "_source.title + ' ' + _source.first_name + ' ' + _source.last_name" <2>
+        "lang": "painless",
+        "inline": "params._source.title + ' ' + params._source.first_name + ' ' + params._source.last_name" <2>
       }
     },
     "stored_fields": {
       "script": {
-        "lang": "groovy",
-        "inline": "_fields['first_name'].value + ' ' + _fields['last_name'].value"
+        "lang": "painless",
+        "inline": "params._fields['first_name'].value + ' ' + params._fields['last_name'].value"
       }
     }
   }
@@ -225,4 +225,3 @@ The only time it really makes sense to use stored fields instead of the
 access a few small stored fields instead of the entire `_source`.
 
 =======================================================
-

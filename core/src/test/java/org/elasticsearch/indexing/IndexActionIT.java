@@ -18,13 +18,18 @@
  */
 package org.elasticsearch.indexing;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,18 +40,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/**
- *
- */
 public class IndexActionIT extends ESIntegTestCase {
     /**
      * This test tries to simulate load while creating an index and indexing documents
      * while the index is being created.
      */
+
+    @TestLogging("_root:DEBUG,org.elasticsearch.index.shard.IndexShard:TRACE,org.elasticsearch.action.search:TRACE")
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
@@ -56,7 +61,7 @@ public class IndexActionIT extends ESIntegTestCase {
             logger.info("indexing [{}] docs", numOfDocs);
             List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
             for (int j = 0; j < numOfDocs; j++) {
-                builders.add(client().prepareIndex("test", "type").setSource("field", "value"));
+                builders.add(client().prepareIndex("test", "type").setSource("field", "value_" + j));
             }
             indexRandom(true, builders);
             logger.info("verifying indexed content");
@@ -64,7 +69,13 @@ public class IndexActionIT extends ESIntegTestCase {
             for (int j = 0; j < numOfChecks; j++) {
                 try {
                     logger.debug("running search with all types");
-                    assertHitCount(client().prepareSearch("test").get(), numOfDocs);
+                    SearchResponse response = client().prepareSearch("test").get();
+                    if (response.getHits().getTotalHits() != numOfDocs) {
+                        final String message = "Count is " + response.getHits().getTotalHits() + " but " + numOfDocs + " was expected. "
+                            + ElasticsearchAssertions.formatShardStatus(response);
+                        logger.error("{}. search response: \n{}", message, response);
+                        fail(message);
+                    }
                 } catch (Exception e) {
                     logger.error("search for all docs types failed", e);
                     if (firstError == null) {
@@ -73,7 +84,13 @@ public class IndexActionIT extends ESIntegTestCase {
                 }
                 try {
                     logger.debug("running search with a specific type");
-                    assertHitCount(client().prepareSearch("test").setTypes("type").get(), numOfDocs);
+                    SearchResponse response = client().prepareSearch("test").setTypes("type").get();
+                    if (response.getHits().getTotalHits() != numOfDocs) {
+                        final String message = "Count is " + response.getHits().getTotalHits() + " but " + numOfDocs + " was expected. "
+                            + ElasticsearchAssertions.formatShardStatus(response);
+                        logger.error("{}. search response: \n{}", message, response);
+                        fail(message);
+                    }
                 } catch (Exception e) {
                     logger.error("search for all docs of a specific type failed", e);
                     if (firstError == null) {
@@ -93,15 +110,15 @@ public class IndexActionIT extends ESIntegTestCase {
         ensureGreen();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
-        assertTrue(indexResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
-        assertFalse(indexResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.UPDATED, indexResponse.getResult());
 
         client().prepareDelete("test", "type", "1").execute().actionGet();
 
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
-        assertTrue(indexResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
     }
 
@@ -110,14 +127,14 @@ public class IndexActionIT extends ESIntegTestCase {
         ensureGreen();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
-        assertTrue(indexResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         client().prepareDelete("test", "type", "1").execute().actionGet();
 
         flush();
 
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
-        assertTrue(indexResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
     }
 
     public void testCreatedFlagParallelExecution() throws Exception {
@@ -138,7 +155,9 @@ public class IndexActionIT extends ESIntegTestCase {
                 public Void call() throws Exception {
                     int docId = random.nextInt(docCount);
                     IndexResponse indexResponse = index("test", "type", Integer.toString(docId), "field1", "value");
-                    if (indexResponse.isCreated()) createdCounts.incrementAndGet(docId);
+                    if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
+                        createdCounts.incrementAndGet(docId);
+                    }
                     return null;
                 }
             });
@@ -158,7 +177,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(123)
                                               .setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertTrue(indexResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
     }
 
     public void testCreateFlagWithBulk() {
@@ -169,14 +188,14 @@ public class IndexActionIT extends ESIntegTestCase {
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(1));
         IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
-        assertTrue(indexResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
     }
 
     public void testCreateIndexWithLongName() {
         int min = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES + 1;
         int max = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES * 2;
         try {
-            createIndex(randomAsciiOfLengthBetween(min, max).toLowerCase(Locale.ROOT));
+            createIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT));
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat("exception contains message about index name too long: " + e.getMessage(),
@@ -184,7 +203,7 @@ public class IndexActionIT extends ESIntegTestCase {
         }
 
         try {
-            client().prepareIndex(randomAsciiOfLengthBetween(min, max).toLowerCase(Locale.ROOT), "mytype").setSource("foo", "bar").get();
+            client().prepareIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT), "mytype").setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat("exception contains message about index name too long: " + e.getMessage(),
@@ -193,7 +212,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
         try {
             // Catch chars that are more than a single byte
-            client().prepareIndex(randomAsciiOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) +
+            client().prepareIndex(randomAlphaOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) +
                             "Ϟ".toLowerCase(Locale.ROOT),
                     "mytype").setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
@@ -203,7 +222,7 @@ public class IndexActionIT extends ESIntegTestCase {
         }
 
         // we can create an index of max length
-        createIndex(randomAsciiOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES).toLowerCase(Locale.ROOT));
+        createIndex(randomAlphaOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES).toLowerCase(Locale.ROOT));
     }
 
     public void testInvalidIndexName() {
@@ -222,5 +241,15 @@ public class IndexActionIT extends ESIntegTestCase {
             assertThat("exception contains message about index name is dot " + e.getMessage(),
                     e.getMessage().contains("Invalid index name [..], must not be \'.\' or '..'"), equalTo(true));
         }
+    }
+
+    public void testDocumentWithBlankFieldName() {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+                client().prepareIndex("test", "type", "1").setSource("", "value1_2").execute().actionGet();
+            }
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getRootCause().getMessage(),
+                containsString("object field starting or ending with a [.] makes object resolution ambiguous: []"));
     }
 }

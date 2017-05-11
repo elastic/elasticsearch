@@ -33,8 +33,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,15 +52,15 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
             Terms.Order order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
-            IncludeExclude.StringFilter includeExclude, AggregationContext aggregationContext,
+            IncludeExclude.StringFilter includeExclude, SearchContext context,
             Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, aggregationContext, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
+        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
                 pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
-        bucketOrds = new BytesRefHash(1, aggregationContext.bigArrays());
+        bucketOrds = new BytesRefHash(1, context.bigArrays());
     }
 
     @Override
@@ -78,27 +78,29 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0;
-                values.setDocument(doc);
-                final int valuesCount = values.count();
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
 
-                // SortedBinaryDocValues don't guarantee uniqueness so we need to take care of dups
-                previous.clear();
-                for (int i = 0; i < valuesCount; ++i) {
-                    final BytesRef bytes = values.valueAt(i);
-                    if (includeExclude != null && !includeExclude.accept(bytes)) {
-                        continue;
+                    // SortedBinaryDocValues don't guarantee uniqueness so we
+                    // need to take care of dups
+                    previous.clear();
+                    for (int i = 0; i < valuesCount; ++i) {
+                        final BytesRef bytes = values.nextValue();
+                        if (includeExclude != null && !includeExclude.accept(bytes)) {
+                            continue;
+                        }
+                        if (previous.get().equals(bytes)) {
+                            continue;
+                        }
+                        long bucketOrdinal = bucketOrds.add(bytes);
+                        if (bucketOrdinal < 0) { // already seen
+                            bucketOrdinal = -1 - bucketOrdinal;
+                            collectExistingBucket(sub, doc, bucketOrdinal);
+                        } else {
+                            collectBucket(sub, doc, bucketOrdinal);
+                        }
+                        previous.copyBytes(bytes);
                     }
-                    if (previous.get().equals(bytes)) {
-                        continue;
-                    }
-                    long bucketOrdinal = bucketOrds.add(bytes);
-                    if (bucketOrdinal < 0) { // already seen
-                        bucketOrdinal = - 1 - bucketOrdinal;
-                        collectExistingBucket(sub, doc, bucketOrdinal);
-                    } else {
-                        collectBucket(sub, doc, bucketOrdinal);
-                    }
-                    previous.copyBytes(bytes);
                 }
             }
         };
@@ -110,16 +112,17 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
         if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
-            for (LeafReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
+            for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
                 final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
                 // brute force
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    values.setDocument(docId);
-                    final int valueCount = values.count();
-                    for (int i = 0; i < valueCount; ++i) {
-                        final BytesRef term = values.valueAt(i);
-                        if (includeExclude == null || includeExclude.accept(term)) {
-                            bucketOrds.add(term);
+                    if (values.advanceExact(docId)) {
+                        final int valueCount = values.docValueCount();
+                        for (int i = 0; i < valueCount; ++i) {
+                            final BytesRef term = values.nextValue();
+                            if (includeExclude == null || includeExclude.accept(term)) {
+                                bucketOrds.add(term);
+                            }
                         }
                     }
                 }

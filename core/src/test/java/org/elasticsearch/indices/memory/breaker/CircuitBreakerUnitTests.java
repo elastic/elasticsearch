@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class CircuitBreakerUnitTests extends ESTestCase {
     public static long pctBytes(String percentString) {
-        return Settings.EMPTY.getAsMemory("", percentString).bytes();
+        return Settings.EMPTY.getAsMemory("", percentString).getBytes();
     }
 
     public void testBreakerSettingsValidationWithValidSettings() {

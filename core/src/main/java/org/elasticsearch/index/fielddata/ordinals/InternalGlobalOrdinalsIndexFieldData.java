@@ -20,13 +20,15 @@ package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 
 import java.util.Collection;
+import java.util.function.Function;
 
 /**
  * {@link org.elasticsearch.index.fielddata.IndexFieldData} impl based on global ordinals.
@@ -34,13 +36,16 @@ import java.util.Collection;
 final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFieldData {
 
     private final Atomic[] atomicReaders;
+    private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
-    InternalGlobalOrdinalsIndexFieldData(IndexSettings indexSettings, String fieldName, AtomicOrdinalsFieldData[] segmentAfd, OrdinalMap ordinalMap, long memorySizeInBytes) {
+    InternalGlobalOrdinalsIndexFieldData(IndexSettings indexSettings, String fieldName, AtomicOrdinalsFieldData[] segmentAfd,
+            OrdinalMap ordinalMap, long memorySizeInBytes, Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
         super(indexSettings, fieldName, memorySizeInBytes);
         this.atomicReaders = new Atomic[segmentAfd.length];
         for (int i = 0; i < segmentAfd.length; i++) {
             atomicReaders[i] = new Atomic(segmentAfd[i], ordinalMap, i);
         }
+        this.scriptFunction = scriptFunction;
     }
 
     @Override
@@ -55,19 +60,20 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
         private final int segmentIndex;
 
         private Atomic(AtomicOrdinalsFieldData afd, OrdinalMap ordinalMap, int segmentIndex) {
+            super(scriptFunction);
             this.afd = afd;
             this.ordinalMap = ordinalMap;
             this.segmentIndex = segmentIndex;
         }
 
         @Override
-        public RandomAccessOrds getOrdinalsValues() {
-            final RandomAccessOrds values = afd.getOrdinalsValues();
+        public SortedSetDocValues getOrdinalsValues() {
+            final SortedSetDocValues values = afd.getOrdinalsValues();
             if (values.getValueCount() == ordinalMap.getValueCount()) {
                 // segment ordinals match global ordinals
                 return values;
             }
-            final RandomAccessOrds[] bytesValues = new RandomAccessOrds[atomicReaders.length];
+            final SortedSetDocValues[] bytesValues = new SortedSetDocValues[atomicReaders.length];
             for (int i = 0; i < bytesValues.length; i++) {
                 bytesValues[i] = atomicReaders[i].afd.getOrdinalsValues();
             }

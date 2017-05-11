@@ -23,3 +23,38 @@
 
   - match: {count: 2}
 
+---
+"Empty _id":
+  - skip:
+      version: " - 5.3.0"
+      reason: empty IDs were not rejected until 5.3.1
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test
+              _type: type
+              _id: ''
+          - f: 1
+          - index:
+              _index: test
+              _type: type
+              _id: id
+          - f: 2
+          - index:
+              _index: test
+              _type: type
+          - f: 3
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: illegal_argument_exception }
+  - match: { items.0.index.error.reason: if _id is specified it must not be empty }
+  - match: { items.1.index.created: true }
+  - match: { items.2.index.created: true }
+
+  - do:
+      count:
+        index: test
+
+  - match: { count: 2 }

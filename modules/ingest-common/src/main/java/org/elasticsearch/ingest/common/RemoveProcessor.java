@@ -67,7 +67,9 @@ public final class RemoveProcessor extends AbstractProcessor {
         public RemoveProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            return new RemoveProcessor(processorTag, templateService.compile(field));
+            TemplateService.Template compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
+                "field", field, templateService);
+            return new RemoveProcessor(processorTag, compiledTemplate);
         }
     }
 }

@@ -9,9 +9,6 @@ setup:
                   properties:
                     text:
                       type:     text
-  - do:
-         cluster.health:
-           wait_for_status: yellow
 
 ---
 "Get field mapping with no index and type":

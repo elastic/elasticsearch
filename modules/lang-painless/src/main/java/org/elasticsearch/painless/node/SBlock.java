@@ -28,19 +28,21 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
+
 /**
  * Represents a set of statements as a branch of control-flow.
  */
 public final class SBlock extends AStatement {
 
-    final List<AStatement> statements;
+    private final List<AStatement> statements;
 
     public SBlock(Location location, List<AStatement> statements) {
         super(location);
 
         this.statements = Collections.unmodifiableList(statements);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         for (AStatement statement : statements) {
@@ -85,5 +87,10 @@ public final class SBlock extends AStatement {
             statement.brake = brake;
             statement.write(writer, globals);
         }
+    }
+
+    @Override
+    public String toString() {
+        return multilineToString(emptyList(), statements);
     }
 }

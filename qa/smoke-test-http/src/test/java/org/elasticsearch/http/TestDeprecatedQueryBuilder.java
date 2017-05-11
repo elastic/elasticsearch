@@ -20,7 +20,6 @@
 package org.elasticsearch.http;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.util.Optional;
 
 /**
  * A query that performs a <code>match_all</code> query, but with each <em>index</em> touched getting a unique deprecation warning.
@@ -42,9 +40,7 @@ import java.util.Optional;
  * This makes it easy to test multiple unique responses for a single request.
  */
 public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDeprecatedQueryBuilder> {
-
     public static final String NAME = "deprecated_match_all";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TestDeprecatedQueryBuilder.class));
 
@@ -69,14 +65,14 @@ public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDepreca
         builder.startObject(NAME).endObject();
     }
 
-    public static Optional<TestDeprecatedQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
+    public static TestDeprecatedQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(), "[{}] query does not have any fields", NAME);
         }
 
-        return Optional.of(new TestDeprecatedQueryBuilder());
+        return new TestDeprecatedQueryBuilder();
     }
 
     @Override

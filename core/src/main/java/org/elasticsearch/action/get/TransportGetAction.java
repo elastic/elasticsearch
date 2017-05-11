@@ -68,13 +68,6 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
         IndexMetaData indexMeta = state.getMetaData().index(request.concreteIndex());
-        if (request.request().realtime && // if the realtime flag is set
-                request.request().preference() == null && // the preference flag is not already set
-                indexMeta != null && // and we have the index
-                IndexMetaData.isIndexUsingShadowReplicas(indexMeta.getSettings())) { // and the index uses shadow replicas
-            // set the preference for the request to use "_primary" automatically
-            request.request().preference(Preference.PRIMARY.type());
-        }
         // update the routing (request#index here is possibly an alias)
         request.request().routing(state.metaData().resolveIndexRouting(request.request().parent(), request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
@@ -92,8 +85,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             indexShard.refresh("refresh_flag_get");
         }
 
-        GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(),
-                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext(), request.ignoreErrorsOnGeneratedFields());
+        GetResult result = indexShard.getService().get(request.type(), request.id(), request.storedFields(),
+                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext());
         return new GetResponse(result);
     }
 

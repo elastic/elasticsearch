@@ -25,9 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class SendRequestTransportException extends ActionTransportException implements ElasticsearchWrapperException {
 
     public SendRequestTransportException(DiscoveryNode node, String action, Throwable cause) {

@@ -21,8 +21,6 @@ package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.common.settings.Settings;
 
-/**
- */
 public class S3SnapshotRestoreOverHttpsTests extends AbstractS3SnapshotRestoreTest {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {

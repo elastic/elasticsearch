@@ -8,10 +8,6 @@
           body:   { foo: bar }
 
   - do:
-      cluster.health:
-          wait_for_status: yellow
-
-  - do:
       mget:
         body:
           docs:
@@ -25,7 +21,6 @@
   - do:
       mget:
         body:
-          index:  test_2
           docs:
             - { _index: test_1, _type: test, _id: 1}
 

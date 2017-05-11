@@ -25,9 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class LimitTokenCountFilterFactory extends AbstractTokenFilterFactory {
 
     public static final int DEFAULT_MAX_TOKEN_COUNT = 1;
@@ -39,7 +36,8 @@ public class LimitTokenCountFilterFactory extends AbstractTokenFilterFactory {
     public LimitTokenCountFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.maxTokenCount = settings.getAsInt("max_token_count", DEFAULT_MAX_TOKEN_COUNT);
-        this.consumeAllTokens = settings.getAsBoolean("consume_all_tokens", DEFAULT_CONSUME_ALL_TOKENS);
+        this.consumeAllTokens = settings.getAsBooleanLenientForPreEs6Indices(
+            indexSettings.getIndexVersionCreated(), "consume_all_tokens", DEFAULT_CONSUME_ALL_TOKENS, deprecationLogger);
     }
 
     @Override

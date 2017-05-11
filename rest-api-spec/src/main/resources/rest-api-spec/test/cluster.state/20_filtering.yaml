@@ -6,8 +6,6 @@ setup:
         id:    testing_document
         body:
             "text" : "The quick brown fox is brown."
-  - do:
-      indices.refresh: {}
 
 ---
 "Filtering the cluster state by blocks should return the blocks field even if the response is empty":
@@ -106,9 +104,6 @@ setup:
             "text" : "The quick brown fox is brown."
 
   - do:
-      indices.refresh: {}
-
-  - do:
       cluster.state:
         metric: [ routing_table, metadata ]
         index: [ testidx ]
@@ -130,3 +125,34 @@ setup:
   - is_true: metadata
   - is_true: routing_table
   - is_true: routing_nodes
+
+---
+"Filtering the cluster state by indices using wildcards should work in routing table and metadata":
+  - do:
+      index:
+        index: index1
+        type:  type
+        id:    testing_document
+        body:
+            "text" : "The quick brown fox is brown."
+
+  - do:
+      index:
+        index: index2
+        type:  type
+        id:    testing_document
+        body:
+            "text" : "The quick brown fox is brown."
+
+  - do:
+      cluster.state:
+        metric: [ routing_table, metadata ]
+        index: [ index* ]
+
+  - is_false: metadata.indices.testidx
+  - is_false: routing_table.indices.testidx
+
+  - is_true: metadata.indices.index1
+  - is_true: routing_table.indices.index1
+  - is_true: metadata.indices.index2
+  - is_true: routing_table.indices.index2

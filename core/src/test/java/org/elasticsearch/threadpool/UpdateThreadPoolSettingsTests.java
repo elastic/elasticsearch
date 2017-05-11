@@ -62,7 +62,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
     public void testIndexingThreadPoolsMaxSize() throws InterruptedException {
         final String name = randomFrom(Names.BULK, Names.INDEX);
-        final int maxSize = 1 + EsExecutors.boundedNumberOfProcessors(Settings.EMPTY);
+        final int maxSize = 1 + EsExecutors.numberOfProcessors(Settings.EMPTY);
         final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
 
         // try to create a too big thread pool
@@ -89,7 +89,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
         if (name.equals(ThreadPool.Names.BULK) || name.equals(ThreadPool.Names.INDEX)) {
-            return Math.min(size, EsExecutors.boundedNumberOfProcessors(settings));
+            return Math.min(size, EsExecutors.numberOfProcessors(settings));
         } else {
             return size;
         }
@@ -185,7 +185,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 new ScalingExecutorBuilder(
                     "my_pool1",
                     1,
-                    EsExecutors.boundedNumberOfProcessors(Settings.EMPTY),
+                    EsExecutors.numberOfProcessors(Settings.EMPTY),
                     TimeValue.timeValueMinutes(1));
 
             final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1);

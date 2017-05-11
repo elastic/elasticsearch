@@ -31,10 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- *
- */
-public abstract class SingleShardRequest<Request extends SingleShardRequest<Request>> extends ActionRequest<Request> implements IndicesRequest {
+public abstract class SingleShardRequest<Request extends SingleShardRequest<Request>> extends ActionRequest implements IndicesRequest {
 
     public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 

@@ -31,18 +31,18 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.tasks.PersistedTaskInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.tasks.TaskPersistenceService;
+import org.elasticsearch.tasks.TaskResult;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -67,14 +67,17 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Client client;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportGetTaskAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, Client client) {
+            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, Client client,
+            NamedXContentRegistry xContentRegistry) {
         super(settings, GetTaskAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, GetTaskRequest::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.client = client;
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
@@ -105,11 +108,18 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         DiscoveryNode node = clusterService.state().nodes().get(request.getTaskId().getNodeId());
         if (node == null) {
             // Node is no longer part of the cluster! Try and look the task up from the results index.
-            getFinishedTaskFromIndex(thisTask, request, listener);
+            getFinishedTaskFromIndex(thisTask, request, ActionListener.wrap(listener::onResponse, e -> {
+                if (e instanceof ResourceNotFoundException) {
+                    e = new ResourceNotFoundException(
+                            "task [" + request.getTaskId() + "] belongs to the node [" + request.getTaskId().getNodeId()
+                                    + "] which isn't part of the cluster and there is no record of the task",
+                            e);
+                }
+                listener.onFailure(e);
+            }));
             return;
         }
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
-        taskManager.registerChildTask(thisTask, node.getId());
         transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, builder.build(),
                 new TransportResponseHandler<GetTaskResponse>() {
                     @Override
@@ -150,7 +160,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     @Override
                     protected void doRun() throws Exception {
                         taskManager.waitForTaskCompletion(runningTask, waitForCompletionTimeout(request.getTimeout()));
-                        waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode(), true), listener);
+                        waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), listener);
                     }
 
                     @Override
@@ -159,8 +169,8 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     }
                 });
             } else {
-                TaskInfo info = runningTask.taskInfo(clusterService.localNode(), true);
-                listener.onResponse(new GetTaskResponse(new PersistedTaskInfo(false, info)));
+                TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
+                listener.onResponse(new GetTaskResponse(new TaskResult(false, info)));
             }
         }
     }
@@ -185,7 +195,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                  * the error isn't a 404 then we'll just throw it back to the user.
                  */
                 if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
-                    listener.onResponse(new GetTaskResponse(new PersistedTaskInfo(true, snapshotOfRunningTask)));
+                    listener.onResponse(new GetTaskResponse(new TaskResult(true, snapshotOfRunningTask)));
                 } else {
                     listener.onFailure(e);
                 }
@@ -195,11 +205,11 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
     /**
      * Send a {@link GetRequest} to the tasks index looking for a persisted copy of the task completed task. It'll only be found only if the
-     * task's result was persisted. Called on the node that once had the task if that node is still part of the cluster or on the
+     * task's result was stored. Called on the node that once had the task if that node is still part of the cluster or on the
      * coordinating node if the node is no longer part of the cluster.
      */
     void getFinishedTaskFromIndex(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        GetRequest get = new GetRequest(TaskPersistenceService.TASK_INDEX, TaskPersistenceService.TASK_TYPE,
+        GetRequest get = new GetRequest(TaskResultsService.TASK_INDEX, TaskResultsService.TASK_TYPE,
                 request.getTaskId().toString());
         get.setParentTask(clusterService.localNode().getId(), thisTask.getId());
         client.get(get, new ActionListener<GetResponse>() {
@@ -216,7 +226,8 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             public void onFailure(Exception e) {
                 if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
                     // We haven't yet created the index for the task results so it can't be found.
-                    listener.onFailure(new ResourceNotFoundException("task [{}] isn't running or persisted", e, request.getTaskId()));
+                    listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e,
+                        request.getTaskId()));
                 } else {
                     listener.onFailure(e);
                 }
@@ -230,15 +241,15 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      */
     void onGetFinishedTaskFromIndex(GetResponse response, ActionListener<GetTaskResponse> listener) throws IOException {
         if (false == response.isExists()) {
-            listener.onFailure(new ResourceNotFoundException("task [{}] isn't running or persisted", response.getId()));
+            listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", response.getId()));
             return;
         }
         if (response.isSourceEmpty()) {
             listener.onFailure(new ElasticsearchException("Stored task status for [{}] didn't contain any source!", response.getId()));
             return;
         }
-        try (XContentParser parser = XContentHelper.createParser(response.getSourceAsBytesRef())) {
-            PersistedTaskInfo result = PersistedTaskInfo.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        try (XContentParser parser = XContentHelper.createParser(xContentRegistry, response.getSourceAsBytesRef())) {
+            TaskResult result = TaskResult.PARSER.apply(parser, null);
             listener.onResponse(new GetTaskResponse(result));
         }
     }

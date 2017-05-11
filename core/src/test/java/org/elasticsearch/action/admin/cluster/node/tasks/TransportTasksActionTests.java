@@ -70,6 +70,7 @@ import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
@@ -189,7 +190,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         private final String status;
 
-        public TestTaskResponse(StreamInput in) throws IOException {
+        TestTaskResponse(StreamInput in) throws IOException {
             status = in.readString();
         }
 
@@ -198,7 +199,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             out.writeString(status);
         }
 
-        public TestTaskResponse(String status) {
+        TestTaskResponse(String status) {
             this.status = status;
         }
 
@@ -215,11 +216,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         private List<TestTaskResponse> tasks;
 
-        public TestTasksResponse() {
+        TestTasksResponse() {
 
         }
 
-        public TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,
+        TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,
                 List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
             this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
@@ -309,7 +310,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                         Thread.currentThread().interrupt();
                     }
                     logger.info("Action on node {} finished", node);
-                    return new NodeResponse(testNodes[node].discoveryNode);
+                    return new NodeResponse(testNodes[node].discoveryNode());
                 }
             };
         }
@@ -369,10 +370,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
 
         // Coordinating node
-        assertEquals(2, response.getPerNodeTasks().get(testNodes[0].discoveryNode.getId()).size());
+        assertEquals(2, response.getPerNodeTasks().get(testNodes[0].getNodeId()).size());
         // Other nodes node
         for (int i = 1; i < testNodes.length; i++) {
-            assertEquals(1, response.getPerNodeTasks().get(testNodes[i].discoveryNode.getId()).size());
+            assertEquals(1, response.getPerNodeTasks().get(testNodes[i].getNodeId()).size());
         }
         // There should be a single main task when grouped by tasks
         assertEquals(1, response.getTaskGroups().size());
@@ -534,7 +535,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Try to cancel main task using action name
         CancelTasksRequest request = new CancelTasksRequest();
-        request.setNodesIds(testNodes[0].discoveryNode.getId());
+        request.setNodes(testNodes[0].getNodeId());
         request.setReason("Testing Cancellation");
         request.setActions(actionName);
         CancelTasksResponse response = testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction.execute(request)
@@ -549,7 +550,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // Try to cancel main task using id
         request = new CancelTasksRequest();
         request.setReason("Testing Cancellation");
-        request.setTaskId(new TaskId(testNodes[0].discoveryNode.getId(), task.getId()));
+        request.setTaskId(new TaskId(testNodes[0].getNodeId(), task.getId()));
         response = testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction.execute(request).get();
 
         // Shouldn't match any tasks since testAction doesn't support cancellation
@@ -625,13 +626,34 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "testTasksAction", threadPool, testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
-                protected TestTaskResponse taskOperation(TestTasksRequest request, Task task) {
+                protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
                     logger.info("Task action on node {}", node);
                     if (failTaskOnNode == node && task.getParentTaskId().isSet()) {
                         logger.info("Failing on node {}", node);
-                        throw new RuntimeException("Task level failure");
+                        // Fail in a random way to make sure we can handle all these ways
+                        Runnable failureMode = randomFrom(
+                                () -> {
+                                    logger.info("Throwing exception from taskOperation");
+                                    throw new RuntimeException("Task level failure (direct)");
+                                },
+                                () -> {
+                                    logger.info("Calling listener synchronously with exception from taskOperation");
+                                    listener.onFailure(new RuntimeException("Task level failure (sync listener)"));
+                                },
+                                () -> {
+                                    logger.info("Calling listener asynchronously with exception from taskOperation");
+                                    threadPool.generic()
+                                            .execute(() -> listener.onFailure(new RuntimeException("Task level failure (async listener)")));
+                                }
+                                );
+                        failureMode.run();
+                    } else {
+                        if (randomBoolean()) {
+                            listener.onResponse(new TestTaskResponse("Success on node (sync)" + node));
+                        } else {
+                            threadPool.generic().execute(() -> listener.onResponse(new TestTaskResponse("Success on node (async)" + node)));
+                        }
                     }
-                    return new TestTaskResponse("Success on node " + node);
                 }
             };
         }
@@ -641,10 +663,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestTasksRequest testTasksRequest = new TestTasksRequest();
         testTasksRequest.setActions("testAction[n]"); // pick all test actions
         TestTasksResponse response = tasksActions[0].execute(testTasksRequest).get();
+        assertThat(response.getTaskFailures(), hasSize(1)); // one task failed
+        assertThat(response.getTaskFailures().get(0).getReason(), containsString("Task level failure"));
         // Get successful responses from all nodes except one
         assertEquals(testNodes.length - 1, response.tasks.size());
-        assertEquals(1, response.getTaskFailures().size()); // one task failed
-        assertThat(response.getTaskFailures().get(0).getReason(), containsString("Task level failure"));
         assertEquals(0, response.getNodeFailures().size()); // no nodes failed
 
         // Release all node tasks and wait for response
@@ -696,8 +718,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 }
 
                 @Override
-                protected TestTaskResponse taskOperation(TestTasksRequest request, Task task) {
-                    return new TestTaskResponse(testNodes[node].getNodeId());
+                protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
+                    if (randomBoolean()) {
+                        listener.onResponse(new TestTaskResponse(testNodes[node].getNodeId()));
+                    } else {
+                        threadPool.generic().execute(() -> listener.onResponse(new TestTaskResponse(testNodes[node].getNodeId())));
+                    }
                 }
             };
         }
@@ -736,27 +762,21 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         ListTasksResponse response = testNodes[0].transportListTasksAction.execute(listTasksRequest).get();
         assertEquals(testNodes.length + 1, response.getTasks().size());
 
-        // First group by node
-        DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
-        for (TestNode testNode : this.testNodes) {
-            discoNodes.put(testNode.discoveryNode);
-        }
-        response.setDiscoveryNodes(discoNodes.build());
-        Map<String, Object> byNodes = serialize(response, new ToXContent.MapParams(Collections.singletonMap("group_by", "nodes")));
+        Map<String, Object> byNodes = serialize(response, true);
         byNodes = (Map<String, Object>) byNodes.get("nodes");
         // One element on the top level
         assertEquals(testNodes.length, byNodes.size());
-        Map<String, Object> firstNode = (Map<String, Object>) byNodes.get(testNodes[0].discoveryNode.getId());
+        Map<String, Object> firstNode = (Map<String, Object>) byNodes.get(testNodes[0].getNodeId());
         firstNode = (Map<String, Object>) firstNode.get("tasks");
         assertEquals(2, firstNode.size()); // two tasks for the first node
         for (int i = 1; i < testNodes.length; i++) {
-            Map<String, Object> otherNode = (Map<String, Object>) byNodes.get(testNodes[i].discoveryNode.getId());
+            Map<String, Object> otherNode = (Map<String, Object>) byNodes.get(testNodes[i].getNodeId());
             otherNode = (Map<String, Object>) otherNode.get("tasks");
             assertEquals(1, otherNode.size()); // one tasks for the all other nodes
         }
 
         // Group by parents
-        Map<String, Object> byParent = serialize(response, new ToXContent.MapParams(Collections.singletonMap("group_by", "parents")));
+        Map<String, Object> byParent = serialize(response, false);
         byParent = (Map<String, Object>) byParent.get("tasks");
         // One element on the top level
         assertEquals(1, byParent.size()); // Only one top level task
@@ -769,13 +789,18 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
     }
 
-    private Map<String, Object> serialize(ToXContent response, ToXContent.Params params) throws IOException {
+    private Map<String, Object> serialize(ListTasksResponse response, boolean byParents) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject();
-        response.toXContent(builder, params);
+        if (byParents) {
+            DiscoveryNodes nodes = testNodes[0].clusterService.state().nodes();
+            response.toXContentGroupedByNode(builder, ToXContent.EMPTY_PARAMS, nodes);
+        } else {
+            response.toXContentGroupedByParents(builder, ToXContent.EMPTY_PARAMS);
+        }
         builder.endObject();
         builder.flush();
         logger.info(builder.string());
-        return XContentHelper.convertToMap(builder.bytes(), false).v2();
+        return XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
     }
 }

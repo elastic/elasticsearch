@@ -19,11 +19,10 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.test.ESTestCase;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -57,20 +56,63 @@ public class StringsTests extends ESTestCase {
         assertEquals("", Strings.cleanTruncate("foo", 0));
     }
 
-    public void testEvilToString() {
-        ToXContent needsEnclosingObject = new ToXContent() {
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.field("ok", "here").field("catastrophe", "");
+    public void testToStringToXContent() {
+        final ToXContent toXContent;
+        final boolean error;
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                error = false;
+                toXContent  = (builder, params) -> builder.field("ok", "here").field("catastrophe", "");
+            } else {
+                error = true;
+                toXContent  = (builder, params) ->
+                        builder.startObject().field("ok", "here").field("catastrophe", "").endObject();
             }
-        };
-        String toString = Strings.toString(needsEnclosingObject);
-        assertThat(toString, containsString("Error building toString out of XContent"));
-        assertThat(toString, containsString("Can not write a field name, expecting a value"));
+        } else {
+            if (randomBoolean()) {
+                error = false;
+                toXContent = (ToXContentObject) (builder, params) ->
+                        builder.startObject().field("ok", "here").field("catastrophe", "").endObject();
+            } else {
+                error = true;
+                toXContent = (ToXContentObject) (builder, params) -> builder.field("ok", "here").field("catastrophe", "");
+            }
+        }
 
-        // We can salvage it!
-        toString = Strings.toString(needsEnclosingObject, true);
-        assertThat(toString, containsString("\"ok\":\"here\""));
-        assertThat(toString, containsString("\"catastrophe\":\"\""));
+        String toString = Strings.toString(toXContent);
+        if (error) {
+            assertThat(toString, containsString("Error building toString out of XContent"));
+        } else {
+            assertThat(toString, containsString("\"ok\":\"here\""));
+            assertThat(toString, containsString("\"catastrophe\":\"\""));
+        }
+    }
+
+    public void testSplitStringToSet() {
+        assertEquals(Strings.splitStringByCommaToSet(null), Sets.newHashSet());
+        assertEquals(Strings.splitStringByCommaToSet(""), Sets.newHashSet());
+        assertEquals(Strings.splitStringByCommaToSet("a,b,c"), Sets.newHashSet("a","b","c"));
+        assertEquals(Strings.splitStringByCommaToSet("a, b, c"), Sets.newHashSet("a","b","c"));
+        assertEquals(Strings.splitStringByCommaToSet(" a ,  b, c  "), Sets.newHashSet("a","b","c"));
+        assertEquals(Strings.splitStringByCommaToSet("aa, bb, cc"), Sets.newHashSet("aa","bb","cc"));
+        assertEquals(Strings.splitStringByCommaToSet(" a "), Sets.newHashSet("a"));
+        assertEquals(Strings.splitStringByCommaToSet("   a   "), Sets.newHashSet("a"));
+        assertEquals(Strings.splitStringByCommaToSet("   aa   "), Sets.newHashSet("aa"));
+        assertEquals(Strings.splitStringByCommaToSet("   "), Sets.newHashSet());
+
+        assertEquals(Strings.splitStringToSet(null, ' '), Sets.newHashSet());
+        assertEquals(Strings.splitStringToSet("", ' '), Sets.newHashSet());
+        assertEquals(Strings.splitStringToSet("a b c", ' '), Sets.newHashSet("a","b","c"));
+        assertEquals(Strings.splitStringToSet("a, b, c", ' '), Sets.newHashSet("a,","b,","c"));
+        assertEquals(Strings.splitStringToSet(" a   b c  ", ' '), Sets.newHashSet("a","b","c"));
+        assertEquals(Strings.splitStringToSet("  a   b   c  ", ' '), Sets.newHashSet("a","b","c"));
+        assertEquals(Strings.splitStringToSet("aa bb cc", ' '), Sets.newHashSet("aa","bb","cc"));
+        assertEquals(Strings.splitStringToSet(" a ", ' '), Sets.newHashSet("a"));
+        assertEquals(Strings.splitStringToSet("    a    ", ' '), Sets.newHashSet("a"));
+        assertEquals(Strings.splitStringToSet(" a   ", ' '), Sets.newHashSet("a"));
+        assertEquals(Strings.splitStringToSet("a   ", ' '), Sets.newHashSet("a"));
+        assertEquals(Strings.splitStringToSet("   aa   ", ' '), Sets.newHashSet("aa"));
+        assertEquals(Strings.splitStringToSet("aa   ", ' '), Sets.newHashSet("aa"));
+        assertEquals(Strings.splitStringToSet("   ", ' '), Sets.newHashSet());
     }
 }

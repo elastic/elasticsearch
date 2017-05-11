@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.index.IndexService;
@@ -57,9 +58,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-/**
- *
- */
 public class TransportNodesListShardStoreMetaData extends TransportNodesAction<TransportNodesListShardStoreMetaData.Request,
     TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData,
     TransportNodesListShardStoreMetaData.NodeRequest,
@@ -123,14 +121,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             if (indexService != null) {
                 IndexShard indexShard = indexService.getShardOrNull(shardId.id());
                 if (indexShard != null) {
-                    final Store store = indexShard.store();
-                    store.incRef();
-                    try {
-                        exists = true;
-                        return new StoreFilesMetaData(shardId, store.getMetadataOrEmpty());
-                    } finally {
-                        store.decRef();
-                    }
+                    exists = true;
+                    return new StoreFilesMetaData(shardId, indexShard.snapshotStoreMetadata());
                 }
             }
             // try and see if we an list unallocated
@@ -139,7 +131,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 // we may send this requests while processing the cluster state that recovered the index
                 // sometimes the request comes in before the local node processed that cluster state
                 // in such cases we can load it from disk
-                metaData = IndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.indexPaths(shardId.getIndex()));
+                metaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+                    nodeEnv.indexPaths(shardId.getIndex()));
             }
             if (metaData == null) {
                 logger.trace("{} node doesn't have meta data for the requests index, responding with empty", shardId);
@@ -150,7 +143,12 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             if (shardPath == null) {
                 return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
             }
-            return new StoreFilesMetaData(shardId, Store.readMetadataSnapshot(shardPath.resolveIndex(), shardId, logger));
+            // note that this may fail if it can't get access to the shard lock. Since we check above there is an active shard, this means:
+            // 1) a shard is being constructed, which means the master will not use a copy of this replica
+            // 2) A shard is shutting down and has not cleared it's content within lock timeout. In this case the master may not
+            //    reuse local resources.
+            return new StoreFilesMetaData(shardId, Store.readMetadataSnapshot(shardPath.resolveIndex(), shardId,
+                nodeEnv::shardLock, logger));
         } finally {
             TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
             if (exists) {

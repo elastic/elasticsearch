@@ -31,6 +31,7 @@ import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -39,7 +40,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class TimeValue implements Writeable {
+public class TimeValue implements Writeable, Comparable<TimeValue> {
 
     /** How many nano-seconds in one milli-second */
     public static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
@@ -48,7 +49,7 @@ public class TimeValue implements Writeable {
     private static Map<Byte, TimeUnit> BYTE_TIME_UNIT_MAP;
 
     static {
-        final Map<TimeUnit, Byte> timeUnitByteMap = new HashMap<>();
+        final Map<TimeUnit, Byte> timeUnitByteMap = new EnumMap<>(TimeUnit.class);
         timeUnitByteMap.put(TimeUnit.NANOSECONDS, (byte)0);
         timeUnitByteMap.put(TimeUnit.MICROSECONDS, (byte)1);
         timeUnitByteMap.put(TimeUnit.MILLISECONDS, (byte)2);
@@ -249,6 +250,12 @@ public class TimeValue implements Writeable {
         return PeriodFormat.getDefault().withParseType(type).print(period);
     }
 
+    /**
+     * Returns a {@link String} representation of the current {@link TimeValue}.
+     *
+     * Note that this method might produce fractional time values (ex 1.6m) which cannot be
+     * parsed by method like {@link TimeValue#parse(String, String, String)}.
+     */
     @Override
     public String toString() {
         if (duration < 0) {
@@ -319,19 +326,20 @@ public class TimeValue implements Writeable {
         }
         final String normalized = sValue.toLowerCase(Locale.ROOT).trim();
         if (normalized.endsWith("nanos")) {
-            return new TimeValue(parse(sValue, normalized, 5), TimeUnit.NANOSECONDS);
+            return new TimeValue(parse(sValue, normalized, "nanos"), TimeUnit.NANOSECONDS);
         } else if (normalized.endsWith("micros")) {
-            return new TimeValue(parse(sValue, normalized, 6), TimeUnit.MICROSECONDS);
+            return new TimeValue(parse(sValue, normalized, "micros"), TimeUnit.MICROSECONDS);
         } else if (normalized.endsWith("ms")) {
-            return new TimeValue(parse(sValue, normalized, 2), TimeUnit.MILLISECONDS);
+            return new TimeValue(parse(sValue, normalized, "ms"), TimeUnit.MILLISECONDS);
         } else if (normalized.endsWith("s")) {
-            return new TimeValue(parse(sValue, normalized, 1), TimeUnit.SECONDS);
-        } else if (normalized.endsWith("m")) {
-            return new TimeValue(parse(sValue, normalized, 1), TimeUnit.MINUTES);
+            return new TimeValue(parse(sValue, normalized, "s"), TimeUnit.SECONDS);
+        } else if (sValue.endsWith("m")) {
+            // parsing minutes should be case-sensitive as 'M' means "months", not "minutes"; this is the only special case.
+            return new TimeValue(parse(sValue, normalized, "m"), TimeUnit.MINUTES);
         } else if (normalized.endsWith("h")) {
-            return new TimeValue(parse(sValue, normalized, 1), TimeUnit.HOURS);
+            return new TimeValue(parse(sValue, normalized, "h"), TimeUnit.HOURS);
         } else if (normalized.endsWith("d")) {
-            return new TimeValue(parse(sValue, normalized, 1), TimeUnit.DAYS);
+            return new TimeValue(parse(sValue, normalized, "d"), TimeUnit.DAYS);
         } else if (normalized.matches("-0*1")) {
             return TimeValue.MINUS_ONE;
         } else if (normalized.matches("0+")) {
@@ -345,8 +353,8 @@ public class TimeValue implements Writeable {
         }
     }
 
-    private static long parse(final String initialInput, final String normalized, final int suffixLength) {
-        final String s = normalized.substring(0, normalized.length() - suffixLength).trim();
+    private static long parse(final String initialInput, final String normalized, final String suffix) {
+        final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
             return Long.parseLong(s);
         } catch (final NumberFormatException e) {
@@ -372,17 +380,22 @@ public class TimeValue implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        TimeValue timeValue = (TimeValue) o;
-        return timeUnit.toNanos(duration) == timeValue.timeUnit.toNanos(timeValue.duration);
+        return this.compareTo(((TimeValue) o)) == 0;
     }
 
     @Override
     public int hashCode() {
-        long normalized = timeUnit.toNanos(duration);
-        return Long.hashCode(normalized);
+        return Double.hashCode(((double) duration) * timeUnit.toNanos(1));
     }
 
     public static long nsecToMSec(long ns) {
         return ns / NSEC_PER_MSEC;
+    }
+
+    @Override
+    public int compareTo(TimeValue timeValue) {
+        double thisValue = ((double) duration) * timeUnit.toNanos(1);
+        double otherValue = ((double) timeValue.duration) * timeValue.timeUnit.toNanos(1);
+        return Double.compare(thisValue, otherValue);
     }
 }

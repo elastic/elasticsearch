@@ -1,8 +1,6 @@
 [[docs-update-by-query]]
 == Update By Query API
 
-experimental[The update-by-query API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
-
 The simplest usage of `_update_by_query` just performs an update on every
 document in the index without changing the source. This is useful to
 <<picking-up-a-new-property,pick up a new property>> or some other online
@@ -32,7 +30,7 @@ That will return something like this:
     "search": 0
   },
   "throttled_millis": 0,
-  "requests_per_second": "unlimited",
+  "requests_per_second": -1.0,
   "throttled_until_millis": 0,
   "total": 120,
   "failures" : [ ]
@@ -53,9 +51,9 @@ version number, documents with version equal to zero cannot be updated using
 All update and query failures cause the `_update_by_query` to abort and are
 returned in the `failures` of the response. The updates that have been
 performed still stick. In other words, the process is not rolled back, only
-aborted. While the first failure causes the abort all failures that are
-returned by the failing bulk request are returned in the `failures` element so
-it's possible for there to be quite a few.
+aborted. While the first failure causes the abort, all failures that are
+returned by the failing bulk request are returned in the `failures` element; therefore
+it's possible for there to be quite a few failed entities.
 
 If you want to simply count version conflicts not cause the `_update_by_query`
 to abort you can set `conflicts=proceed` on the url or `"conflicts": "proceed"`
@@ -156,7 +154,7 @@ types at once, just like the search API:
 POST twitter,blog/tweet,post/_update_by_query
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT twitter\nPUT blog\n/]
 
 If you provide `routing` then the routing is copied to the scroll query,
 limiting the process to the shards that match that routing value:
@@ -202,7 +200,7 @@ POST twitter/_update_by_query?pipeline=set-foo
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Update By Query API
-also supports `refresh`, `wait_for_completion`, `consistency`, and `timeout`.
+also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, and `timeout`.
 
 Sending the `refresh` will update all shards in the index being updated when
 the request completes. This is different than the Index API's `refresh`
@@ -216,20 +214,21 @@ record of this task as a document at `.tasks/task/${taskId}`. This is yours
 to keep or remove as you see fit. When you are done with it, delete it so
 Elasticsearch can reclaim the space it uses.
 
-`consistency` controls how many copies of a shard must respond to each write
-request. `timeout` controls how long each write request waits for unavailable
+`wait_for_active_shards` controls how many copies of a shard must be active
+before proceeding with the request. See <<index-wait-for-active-shards,here>>
+for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
 
-`requests_per_second` can be set to any decimal number (`1.4`, `6`, `1000`, etc)
-and throttles the number of requests per second that the update by query issues.
-The throttling is done waiting between bulk batches so that it can manipulate
-the scroll timeout. The wait time is the difference between the time it took the
-batch to complete and the time `requests_per_second * requests_in_the_batch`.
-Since the batch isn't broken into multiple bulk requests large batch sizes will
-cause Elasticsearch to create many requests and then wait for a while before
-starting the next set. This is "bursty" instead of "smooth". The default is
-`unlimited` which is also the only non-number value that it accepts.
+`requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
+`1000`, etc) and throttles the number of requests per second that the update-by-query
+issues or it can be set to `-1` to disabled throttling. The throttling is done
+waiting between bulk batches so that it can manipulate the scroll timeout. The
+wait time is the difference between the time it took the batch to complete and
+the time `requests_per_second * requests_in_the_batch`. Since the batch isn't
+broken into multiple bulk requests large batch sizes will cause Elasticsearch
+to create many requests and then wait for a while before starting the next set.
+This is "bursty" instead of "smooth". The default is `-1`.
 
 [float]
 [[docs-update-by-query-response-body]]
@@ -294,7 +293,7 @@ You can fetch the status of all running update-by-query requests with the
 
 [source,js]
 --------------------------------------------------
-GET _tasks?detailed=true&action=*byquery
+GET _tasks?detailed=true&actions=*byquery
 --------------------------------------------------
 // CONSOLE
 
@@ -305,7 +304,7 @@ The responses looks like:
 {
   "nodes" : {
     "r1A2WoRbTwKZ516z6NEs5A" : {
-      "name" : "Tyrannus",
+      "name" : "r1A2WoR",
       "transport_address" : "127.0.0.1:9300",
       "host" : "127.0.0.1",
       "ip" : "127.0.0.1:9300",
@@ -372,13 +371,13 @@ Any Update By Query can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/taskid:1/_cancel
+POST _tasks/task_id:1/_cancel
 --------------------------------------------------
 // CONSOLE
 
 The `task_id` can be found using the tasks API above.
 
-Cancelation should happen quickly but might take a few seconds. The task status
+Cancellation should happen quickly but might take a few seconds. The task status
 API above will continue to list the task until it is wakes to cancel itself.
 
 
@@ -391,17 +390,154 @@ using the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _update_by_query/taskid:1/_rethrottle?requests_per_second=unlimited
+POST _update_by_query/task_id:1/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
 
 The `task_id` can be found using the tasks API above.
 
 Just like when setting it on the `_update_by_query` API `requests_per_second`
-can be either `unlimited` to disable throttling or any decimal number like `1.7`
-or `12` to throttle to that level. Rethrottling that speeds up the query takes
-effect immediately but rethrotting that slows down the query will take effect
-on after completing the current batch. This prevents scroll timeouts.
+can be either `-1` to disable throttling or any decimal number
+like `1.7` or `12` to throttle to that level. Rethrottling that speeds up the
+query takes effect immediately but rethrotting that slows down the query will
+take effect on after completing the current batch. This prevents scroll
+timeouts.
+
+[float]
+[[docs-update-by-query-manual-slice]]
+==== Manual slicing
+Update-by-query supports <<sliced-scroll>> allowing you to manually parallelize
+the process relatively easily:
+
+[source,js]
+----------------------------------------------------------------
+POST twitter/_update_by_query
+{
+  "slice": {
+    "id": 0,
+    "max": 2
+  },
+  "script": {
+    "inline": "ctx._source['extra'] = 'test'"
+  }
+}
+POST twitter/_update_by_query
+{
+  "slice": {
+    "id": 1,
+    "max": 2
+  },
+  "script": {
+    "inline": "ctx._source['extra'] = 'test'"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+Which you can verify works with:
+
+[source,js]
+----------------------------------------------------------------
+GET _refresh
+POST twitter/_search?size=0&q=extra:test&filter_path=hits.total
+----------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which results in a sensible `total` like this one:
+
+[source,js]
+----------------------------------------------------------------
+{
+  "hits": {
+    "total": 120
+  }
+}
+----------------------------------------------------------------
+// TESTRESPONSE
+
+[float]
+[[docs-update-by-query-automatic-slice]]
+=== Automatic slicing
+
+You can also let update-by-query automatically parallelize using
+<<sliced-scroll>> to slice on `_uid`:
+
+[source,js]
+----------------------------------------------------------------
+POST twitter/_update_by_query?refresh&slices=5
+{
+  "script": {
+    "inline": "ctx._source['extra'] = 'test'"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+Which you also can verify works with:
+
+[source,js]
+----------------------------------------------------------------
+POST twitter/_search?size=0&q=extra:test&filter_path=hits.total
+----------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which results in a sensible `total` like this one:
+
+[source,js]
+----------------------------------------------------------------
+{
+  "hits": {
+    "total": 120
+  }
+}
+----------------------------------------------------------------
+// TESTRESPONSE
+
+Adding `slices` to `_update_by_query` just automates the manual process used in
+the section above, creating sub-requests which means it has some quirks:
+
+* You can see these requests in the
+<<docs-update-by-query-task-api,Tasks APIs>>. These sub-requests are "child"
+tasks of the task for the request with `slices`.
+* Fetching the status of the task for the request with `slices` only contains
+the status of completed slices.
+* These sub-requests are individually addressable for things like cancellation
+and rethrottling.
+* Rethrottling the request with `slices` will rethrottle the unfinished
+sub-request proportionally.
+* Canceling the request with `slices` will cancel each sub-request.
+* Due to the nature of `slices` each sub-request won't get a perfectly even
+portion of the documents. All documents will be addressed, but some slices may
+be larger than others. Expect larger slices to have a more even distribution.
+* Parameters like `requests_per_second` and `size` on a request with `slices`
+are distributed proportionally to each sub-request. Combine that with the point
+above about distribution being uneven and you should conclude that the using
+`size` with `slices` might not result in exactly `size` documents being
+`_update_by_query`ed.
+* Each sub-requests gets a slightly different snapshot of the source index
+though these are all taken at approximately the same time.
+
+[float]
+[[docs-update-by-query-picking-slices]]
+=== Picking the number of slices
+
+At this point we have a few recommendations around the number of `slices` to
+use (the `max` parameter in the slice API if manually parallelizing):
+
+* Don't use large numbers. `500` creates fairly massive CPU thrash.
+* It is more efficient from a query performance standpoint to use some multiple
+of the number of shards in the source index.
+* Using exactly as many shards as are in the source index is the most efficient
+from a query performance standpoint.
+* Indexing performance should scale linearly across available resources with
+the number of `slices`.
+* Whether indexing or query performance dominates that process depends on lots
+of factors like the documents being reindexed and the cluster doing the
+reindexing.
 
 
 [float]

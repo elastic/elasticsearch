@@ -92,10 +92,6 @@ public class TimeValueTests extends ESTestCase {
                      TimeValue.parseTimeValue("10 m", null, "test"));
         assertEquals(new TimeValue(10, TimeUnit.MINUTES),
                      TimeValue.parseTimeValue("10m", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.MINUTES),
-                     TimeValue.parseTimeValue("10 M", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.MINUTES),
-                     TimeValue.parseTimeValue("10M", null, "test"));
 
         assertEquals(new TimeValue(10, TimeUnit.HOURS),
                      TimeValue.parseTimeValue("10 h", null, "test"));
@@ -115,6 +111,17 @@ public class TimeValueTests extends ESTestCase {
         assertEquals(new TimeValue(10, TimeUnit.DAYS),
                      TimeValue.parseTimeValue("10D", null, "test"));
 
+        // Time values of months should throw an exception as months are not
+        // supported. Note that this is the only unit that is not case sensitive
+        // as `m` is the only character that is overloaded in terms of which
+        // time unit is expected between the upper and lower case versions
+        expectThrows(ElasticsearchParseException.class, () -> {
+            TimeValue.parseTimeValue("10 M", null, "test");
+        });
+        expectThrows(ElasticsearchParseException.class, () -> {
+            TimeValue.parseTimeValue("10M", null, "test");
+        });
+
         final int length = randomIntBetween(0, 8);
         final String zeros = new String(new char[length]).replace('\0', '0');
         assertTrue(TimeValue.parseTimeValue("-" + zeros + "1", null, "test") == TimeValue.MINUS_ONE);
@@ -131,7 +138,7 @@ public class TimeValueTests extends ESTestCase {
     private static final String FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED = "fractional time values are not supported";
 
     public void testNonFractionalTimeValues() {
-        final String s = randomAsciiOfLength(10) + randomTimeUnit();
+        final String s = randomAlphaOfLength(10) + randomTimeUnit();
         final ElasticsearchParseException e =
             expectThrows(ElasticsearchParseException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
         assertThat(e, hasToString(containsString("failed to parse [" + s + "]")));
@@ -216,5 +223,38 @@ public class TimeValueTests extends ESTestCase {
         assertEquals("90m", new TimeValue(90, TimeUnit.MINUTES).getStringRep());
         assertEquals("36h", new TimeValue(36, TimeUnit.HOURS).getStringRep());
         assertEquals("1000d", new TimeValue(1000, TimeUnit.DAYS).getStringRep());
+    }
+
+    public void testCompareEquality() {
+        long randomLong = randomNonNegativeLong();
+        TimeUnit randomUnit = randomFrom(TimeUnit.values());
+        TimeValue firstValue = new TimeValue(randomLong, randomUnit);
+        TimeValue secondValue = new TimeValue(randomLong, randomUnit);
+        assertEquals(0, firstValue.compareTo(secondValue));
+    }
+
+    public void testCompareValue() {
+        long firstRandom = randomNonNegativeLong();
+        long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomNonNegativeLong);
+        TimeUnit unit = randomFrom(TimeUnit.values());
+        TimeValue firstValue = new TimeValue(firstRandom, unit);
+        TimeValue secondValue = new TimeValue(secondRandom, unit);
+        assertEquals(firstRandom > secondRandom, firstValue.compareTo(secondValue) > 0);
+        assertEquals(secondRandom > firstRandom, secondValue.compareTo(firstValue) > 0);
+    }
+
+    public void testCompareUnits() {
+        long number = randomNonNegativeLong();
+        TimeUnit randomUnit = randomValueOtherThan(TimeUnit.DAYS, ()->randomFrom(TimeUnit.values()));
+        TimeValue firstValue = new TimeValue(number, randomUnit);
+        TimeValue secondValue = new TimeValue(number, TimeUnit.DAYS);
+        assertTrue(firstValue.compareTo(secondValue) < 0);
+        assertTrue(secondValue.compareTo(firstValue) > 0);
+    }
+
+    public void testConversionHashCode() {
+        TimeValue firstValue = new TimeValue(randomIntBetween(0, Integer.MAX_VALUE), TimeUnit.MINUTES);
+        TimeValue secondValue = new TimeValue(firstValue.getSeconds(), TimeUnit.SECONDS);
+        assertEquals(firstValue.hashCode(), secondValue.hashCode());
     }
 }

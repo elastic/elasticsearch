@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.hamcrest.Matchers;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +70,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockIndexEventListener.TestPlugin.class);
+        return Arrays.asList(MockIndexEventListener.TestPlugin.class);
     }
 
     public void testBeforeIndexAddedToCluster() throws Exception {

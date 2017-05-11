@@ -74,8 +74,6 @@ PUT my_index
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST my_index/_analyze
 {
   "analyzer": "my_custom_analyzer",
@@ -196,8 +194,6 @@ PUT my_index
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST my_index/_analyze
 {
   "analyzer": "my_custom_analyzer",
@@ -258,4 +254,3 @@ The above example produces the following terms:
 ---------------------------
 [ i'm, _happy_, person, you ]
 ---------------------------
-

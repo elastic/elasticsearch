@@ -18,9 +18,8 @@
  */
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
@@ -46,8 +45,8 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_STRIN
 
 /**
  * A declarative, stateless parser that turns XContent into setter calls. A single parser should be defined for each object being parsed,
- * nested elements can be added via {@link #declareObject(BiConsumer, BiFunction, ParseField)} which should be satisfied where possible by
- * passing another instance of {@link ObjectParser}, this one customized for that Object.
+ * nested elements can be added via {@link #declareObject(BiConsumer, ContextParser, ParseField)} which should be satisfied where possible
+ * by passing another instance of {@link ObjectParser}, this one customized for that Object.
  * <p>
  * This class works well for object that do have a constructor argument or that can be built using information available from earlier in the
  * XContent. For objects that have constructors with required arguments that are specified on the same level as other fields see
@@ -67,7 +66,7 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_STRIN
  * It's highly recommended to use the high level declare methods like {@link #declareString(BiConsumer, ParseField)} instead of
  * {@link #declareField} which can be used to implement exceptional parsing operations not covered by the high level methods.
  */
-public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier> extends AbstractObjectParser<Value, Context> {
+public final class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
     /**
      * Adapts an array (or varags) setter into a list setter.
      */
@@ -83,6 +82,11 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
     private final Map<String, FieldParser> fieldParserMap = new HashMap<>();
     private final String name;
     private final Supplier<Value> valueSupplier;
+    /**
+     * Should this parser ignore unknown fields? This should generally be set to true only when parsing responses from external systems,
+     * never when parsing requests from users.
+     */
+    private final boolean ignoreUnknownFields;
 
     /**
      * Creates a new ObjectParser instance with a name. This name is used to reference the parser in exceptions and messages.
@@ -96,18 +100,31 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
      * @param name the parsers name, used to reference the parser in exceptions and messages.
      * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
      */
-    public ObjectParser(String name, Supplier<Value> valueSupplier) {
+    public ObjectParser(String name, @Nullable Supplier<Value> valueSupplier) {
+        this(name, false, valueSupplier);
+    }
+
+    /**
+     * Creates a new ObjectParser instance which a name.
+     * @param name the parsers name, used to reference the parser in exceptions and messages.
+     * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing
+     *      responses from external systems, never when parsing requests from users.
+     * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
+     */
+    public ObjectParser(String name, boolean ignoreUnknownFields, @Nullable Supplier<Value> valueSupplier) {
         this.name = name;
         this.valueSupplier = valueSupplier;
+        this.ignoreUnknownFields = ignoreUnknownFields;
     }
 
     /**
      * Parses a Value from the given {@link XContentParser}
      * @param parser the parser to build a value from
-     * @param context must at least provide a {@link ParseFieldMatcher}
+     * @param context context needed for parsing
      * @return a new value instance drawn from the provided value supplier on {@link #ObjectParser(String, Supplier)}
      * @throws IOException if an IOException occurs.
      */
+    @Override
     public Value parse(XContentParser parser, Context context) throws IOException {
         if (valueSupplier == null) {
             throw new NullPointerException("valueSupplier is not set");
@@ -134,7 +151,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
             }
         }
 
-        FieldParser<Value> fieldParser = null;
+        FieldParser fieldParser = null;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -144,9 +161,13 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
                 if (currentFieldName == null) {
                     throw new IllegalStateException("[" + name  + "] no field found");
                 }
-                assert fieldParser != null;
-                fieldParser.assertSupports(name, token, currentFieldName, context.getParseFieldMatcher());
-                parseSub(parser, fieldParser, currentFieldName, value, context);
+                if (fieldParser == null) {
+                    assert ignoreUnknownFields : "this should only be possible if configured to ignore known fields";
+                    parser.skipChildren(); // noop if parser points to a value, skips children if parser is start object or start array
+                } else {
+                    fieldParser.assertSupports(name, token, currentFieldName);
+                    parseSub(parser, fieldParser, currentFieldName, value, context);
+                }
                 fieldParser = null;
             }
         }
@@ -169,6 +190,12 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         void parse(XContentParser parser, Value value, Context context) throws IOException;
     }
     public void declareField(Parser<Value, Context> p, ParseField parseField, ValueType type) {
+        if (parseField == null) {
+            throw new IllegalArgumentException("[parseField] is required");
+        }
+        if (type == null) {
+            throw new IllegalArgumentException("[type] is required");
+        }
         FieldParser fieldParser = new FieldParser(p, type.supportedTokens(), parseField, type);
         for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
             fieldParserMap.putIfAbsent(fieldValue, fieldParser);
@@ -178,6 +205,12 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
     @Override
     public <T> void declareField(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ParseField parseField,
             ValueType type) {
+        if (consumer == null) {
+            throw new IllegalArgumentException("[consumer] is required");
+        }
+        if (parser == null) {
+            throw new IllegalArgumentException("[parser] is required");
+        }
         declareField((p, v, c) -> consumer.accept(v, parser.parse(p, c)), parseField, type);
     }
 
@@ -194,41 +227,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         }, field, ValueType.OBJECT_OR_BOOLEAN);
     }
 
-    /**
-     * Declares named objects in the style of highlighting's field element. These are usually named inside and object like this:
-     * <pre><code>
-     * {
-     *   "highlight": {
-     *     "fields": {        &lt;------ this one
-     *       "title": {},
-     *       "body": {},
-     *       "category": {}
-     *     }
-     *   }
-     * }
-     * </code></pre>
-     * but, when order is important, some may be written this way:
-     * <pre><code>
-     * {
-     *   "highlight": {
-     *     "fields": [        &lt;------ this one
-     *       {"title": {}},
-     *       {"body": {}},
-     *       {"category": {}}
-     *     ]
-     *   }
-     * }
-     * </code></pre>
-     * This is because json doesn't enforce ordering. Elasticsearch reads it in the order sent but tools that generate json are free to put
-     * object members in an unordered Map, jumbling them. Thus, if you care about order you can send the object in the second way.
-     *
-     * See NamedObjectHolder in ObjectParserTests for examples of how to invoke this.
-     *
-     * @param consumer sets the values once they have been parsed
-     * @param namedObjectParser parses each named object
-     * @param orderedModeCallback called when the named object is parsed using the "ordered" mode (the array of objects)
-     * @param field the field to parse
-     */
+    @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             Consumer<Value> orderedModeCallback, ParseField field) {
         // This creates and parses the named object
@@ -278,26 +277,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         }, field, ValueType.OBJECT_ARRAY);
     }
 
-    /**
-     * Declares named objects in the style of aggregations. These are named inside and object like this:
-     * <pre><code>
-     * {
-     *   "aggregations": {
-     *     "name_1": { "aggregation_type": {} },
-     *     "name_2": { "aggregation_type": {} },
-     *     "name_3": { "aggregation_type": {} }
-     *     }
-     *   }
-     * }
-     * </code></pre>
-     * Unlike the other version of this method, "ordered" mode (arrays of objects) is not supported.
-     *
-     * See NamedObjectHolder in ObjectParserTests for examples of how to invoke this.
-     *
-     * @param consumer sets the values once they have been parsed
-     * @param namedObjectParser parses each named object
-     * @param field the field to parse
-     */
+    @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             ParseField field) {
         Consumer<Value> orderedModeCallback = (v) -> {
@@ -322,13 +302,13 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         return name;
     }
 
-    private void parseArray(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
+    private void parseArray(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context)
             throws IOException {
         assert parser.currentToken() == XContentParser.Token.START_ARRAY : "Token was: " + parser.currentToken();
         parseValue(parser, fieldParser, currentFieldName, value, context);
     }
 
-    private void parseValue(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
+    private void parseValue(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context)
             throws IOException {
         try {
             fieldParser.parser.parse(parser, value, context);
@@ -337,7 +317,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         }
     }
 
-    private void parseSub(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
+    private void parseSub(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context)
             throws IOException {
         final XContentParser.Token token = parser.currentToken();
         switch (token) {
@@ -361,28 +341,28 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
     }
 
     private FieldParser getParser(String fieldName) {
-        FieldParser<Value> parser = fieldParserMap.get(fieldName);
-        if (parser == null) {
+        FieldParser parser = fieldParserMap.get(fieldName);
+        if (parser == null && false == ignoreUnknownFields) {
             throw new IllegalArgumentException("[" + name  + "] unknown field [" + fieldName + "], parser not found");
         }
         return parser;
     }
 
-    public static class FieldParser<T> {
-        private final Parser parser;
+    private class FieldParser {
+        private final Parser<Value, Context> parser;
         private final EnumSet<XContentParser.Token> supportedTokens;
         private final ParseField parseField;
         private final ValueType type;
 
-        public FieldParser(Parser parser, EnumSet<XContentParser.Token> supportedTokens, ParseField parseField, ValueType type) {
+        FieldParser(Parser<Value, Context> parser, EnumSet<XContentParser.Token> supportedTokens, ParseField parseField, ValueType type) {
             this.parser = parser;
             this.supportedTokens = supportedTokens;
             this.parseField = parseField;
             this.type = type;
         }
 
-        public void assertSupports(String parserName, XContentParser.Token token, String currentFieldName, ParseFieldMatcher matcher) {
-            if (matcher.match(currentFieldName, parseField) == false) {
+        void assertSupports(String parserName, XContentParser.Token token, String currentFieldName) {
+            if (parseField.match(currentFieldName) == false) {
                 throw new IllegalStateException("[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }
             if (supportedTokens.contains(token) == false) {
@@ -416,6 +396,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         FLOAT_OR_NULL(VALUE_NUMBER, VALUE_STRING, VALUE_NULL),
         DOUBLE(VALUE_NUMBER, VALUE_STRING),
         LONG(VALUE_NUMBER, VALUE_STRING),
+        LONG_OR_NULL(VALUE_NUMBER, VALUE_STRING, VALUE_NULL),
         INT(VALUE_NUMBER, VALUE_STRING),
         BOOLEAN(VALUE_BOOLEAN),
         STRING_ARRAY(START_ARRAY, VALUE_STRING),
@@ -428,6 +409,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         OBJECT_ARRAY(START_OBJECT, START_ARRAY),
         OBJECT_OR_BOOLEAN(START_OBJECT, VALUE_BOOLEAN),
         OBJECT_OR_STRING(START_OBJECT, VALUE_STRING),
+        OBJECT_ARRAY_OR_STRING(START_OBJECT, START_ARRAY, VALUE_STRING),
         VALUE(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING);
 
         private final EnumSet<XContentParser.Token> tokens;

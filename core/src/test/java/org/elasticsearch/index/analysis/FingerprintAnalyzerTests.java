@@ -20,7 +20,7 @@ package org.elasticsearch.index.analysis;
  */
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
+import org.apache.lucene.analysis.CharArraySet;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 public class FingerprintAnalyzerTests extends ESTokenStreamTestCase {

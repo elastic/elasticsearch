@@ -36,19 +36,22 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.core.TypeParsers;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
+import org.elasticsearch.index.mapper.TypeParsers;
+import org.elasticsearch.rest.action.document.RestTermVectorsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.hamcrest.Matchers;
@@ -57,6 +60,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
@@ -178,7 +182,7 @@ public class TermVectorsUnitTests extends ESTestCase {
                 " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}");
 
         TermVectorsRequest tvr = new TermVectorsRequest(null, null, null);
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
         TermVectorsRequest.parseRequest(tvr, parser);
 
         Set<String> fields = tvr.selectedFields();
@@ -199,7 +203,7 @@ public class TermVectorsUnitTests extends ESTestCase {
 
         inputBytes = new BytesArray(" {\"offsets\":false, \"positions\":false, \"payloads\":true}");
         tvr = new TermVectorsRequest(null, null, null);
-        parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
+        parser = createParser(JsonXContent.jsonXContent, inputBytes);
         TermVectorsRequest.parseRequest(tvr, parser);
         additionalFields = "";
         RestTermVectorsAction.addFieldStringsFromParameter(tvr, additionalFields);
@@ -216,7 +220,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         TermVectorsRequest tvr = new TermVectorsRequest(null, null, null);
         boolean threwException = false;
         try {
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
+            XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
             TermVectorsRequest.parseRequest(tvr, parser);
         } catch (Exception e) {
             threwException = true;
@@ -237,6 +241,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             request.parent(parent);
             String pref = random().nextBoolean() ? "somePreference" : null;
             request.preference(pref);
+            request.doc(new BytesArray("{}"), randomBoolean(), XContentType.JSON);
 
             // write
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
@@ -256,7 +261,37 @@ public class TermVectorsUnitTests extends ESTestCase {
             assertThat(request.termStatistics(), equalTo(req2.termStatistics()));
             assertThat(request.preference(), equalTo(pref));
             assertThat(request.routing(), equalTo(null));
+            assertEquals(new BytesArray("{}"), request.doc());
+            assertEquals(XContentType.JSON, request.xContentType());
+        }
+    }
 
+    public void testStreamRequestWithXContentBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("AAABBWluZGV4BHR5cGUCaWQBAnt9AAABDnNvbWVQcmVmZXJlbmNlFgAAAAEA//////////0AAAA=");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            TermVectorsRequest request = new TermVectorsRequest();
+            request.readFrom(in);
+            assertEquals("index", request.index());
+            assertEquals("type", request.type());
+            assertEquals("id", request.id());
+            assertTrue(request.offsets());
+            assertFalse(request.fieldStatistics());
+            assertTrue(request.payloads());
+            assertFalse(request.positions());
+            assertTrue(request.termStatistics());
+            assertNull(request.parent());
+            assertEquals("somePreference", request.preference());
+            assertEquals("{}", request.doc().utf8ToString());
+            assertEquals(XContentType.JSON, request.xContentType());
+
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
+                request.writeTo(out);
+                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
+            }
         }
     }
 
@@ -289,16 +324,16 @@ public class TermVectorsUnitTests extends ESTestCase {
     }
 
     public void testMultiParser() throws Exception {
-        byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest1.json");
-        BytesReference bytes = new BytesArray(data);
+        byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest1.json");
+        XContentParser data = createParser(JsonXContent.jsonXContent, bytes);
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), bytes);
+        request.add(new TermVectorsRequest(), data);
         checkParsedParameters(request);
 
-        data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest2.json");
-        bytes = new BytesArray(data);
+        bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest2.json");
+        data = createParser(JsonXContent.jsonXContent, new BytesArray(bytes));
         request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), bytes);
+        request.add(new TermVectorsRequest(), data);
         checkParsedParameters(request);
     }
 
@@ -325,10 +360,10 @@ public class TermVectorsUnitTests extends ESTestCase {
 
     // issue #12311
     public void testMultiParserFilter() throws Exception {
-        byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest3.json");
-        BytesReference bytes = new BytesArray(data);
+        byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest3.json");
+        XContentParser data = createParser(JsonXContent.jsonXContent, bytes);
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), bytes);
+        request.add(new TermVectorsRequest(), data);
         checkParsedFilterParameters(request);
     }
 

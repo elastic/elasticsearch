@@ -71,7 +71,7 @@ public class FileTestUtils {
         }
         Files.createDirectories(destDir);
 
-        try (final ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
+        try (ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
             ZipEntry entry;
             while ((entry = zipInput.getNextEntry()) != null) {
                 final String entryPath;

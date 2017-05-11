@@ -75,7 +75,7 @@ public class ReservedWordTests extends ScriptTestCase {
 
     /** check that we can modify its contents though */
     public void testCtxStoreMap() {
-        assertEquals(5, exec("ctx.foo = 5; return ctx.foo;", Collections.singletonMap("ctx", new HashMap<String,Object>())));
+        assertEquals(5, exec("ctx.foo = 5; return ctx.foo;", Collections.singletonMap("ctx", new HashMap<String,Object>()), true));
     }
 
     /** check that we can't declare a variable of _value, its really reserved! */

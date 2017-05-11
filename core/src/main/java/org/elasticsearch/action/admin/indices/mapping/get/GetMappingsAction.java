@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class GetMappingsAction extends Action<GetMappingsRequest, GetMappingsResponse, GetMappingsRequestBuilder> {
 
     public static final GetMappingsAction INSTANCE = new GetMappingsAction();

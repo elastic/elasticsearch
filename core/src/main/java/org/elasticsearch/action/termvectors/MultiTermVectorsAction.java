@@ -22,8 +22,6 @@ package org.elasticsearch.action.termvectors;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class MultiTermVectorsAction extends Action<MultiTermVectorsRequest, MultiTermVectorsResponse, MultiTermVectorsRequestBuilder> {
 
     public static final MultiTermVectorsAction INSTANCE = new MultiTermVectorsAction();

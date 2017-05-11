@@ -24,10 +24,11 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class VersionConflictEngineException extends EngineException {
+
+    public VersionConflictEngineException(ShardId shardId, Engine.Operation op, long currentVersion, boolean deleted) {
+        this(shardId, op.type(), op.id(), op.versionType().explainConflictForWrites(currentVersion, op.version(), deleted));
+    }
 
     public VersionConflictEngineException(ShardId shardId, String type, String id, String explanation) {
         this(shardId, null, type, id, explanation);

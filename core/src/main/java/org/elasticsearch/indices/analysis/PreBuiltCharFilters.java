@@ -26,9 +26,6 @@ import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import java.io.Reader;
 import java.util.Locale;
 
-/**
- *
- */
 public enum PreBuiltCharFilters {
 
     HTML_STRIP(CachingStrategy.ONE) {

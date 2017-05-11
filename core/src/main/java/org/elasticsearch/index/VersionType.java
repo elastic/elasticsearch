@@ -25,9 +25,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 
 import java.io.IOException;
 
-/**
- *
- */
 public enum VersionType implements Writeable {
     INTERNAL((byte) 0) {
         @Override
@@ -201,7 +198,10 @@ public enum VersionType implements Writeable {
     },
     /**
      * Warning: this version type should be used with care. Concurrent indexing may result in loss of data on replicas
+     *
+     * @deprecated this will be removed in 7.0 and should not be used! It is *ONLY* for backward compatibility with 5.0 indices
      */
+    @Deprecated
     FORCE((byte) 3) {
         @Override
         public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {
@@ -364,13 +364,11 @@ public enum VersionType implements Writeable {
     }
 
     public static VersionType readFromStream(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        assert (ordinal == 0 || ordinal == 1 || ordinal == 2 || ordinal == 3);
-        return VersionType.values()[ordinal];
+        return in.readEnum(VersionType.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(ordinal());
+        out.writeEnum(this);
     }
 }

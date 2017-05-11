@@ -31,16 +31,13 @@ import org.elasticsearch.index.search.MatchQuery;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Match query is a query that analyzes the text and constructs a phrase prefix
  * query as the result of the analysis.
  */
 public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhrasePrefixQueryBuilder> {
-
     public static final String NAME = "match_phrase_prefix";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
     public static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
 
     private final String fieldName;
@@ -166,7 +163,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         // validate context specific fields
-        if (analyzer != null && context.getAnalysisService().analyzer(analyzer) == null) {
+        if (analyzer != null && context.getIndexAnalyzers().get(analyzer) == null) {
             throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
         }
 
@@ -192,64 +189,55 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         return Objects.hash(fieldName, value, analyzer, slop, maxExpansions);
     }
 
-    public static Optional<MatchPhrasePrefixQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static MatchPhrasePrefixQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-
-        XContentParser.Token token = parser.nextToken();
-        if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query malformed, no field");
-        }
-        String fieldName = parser.currentName();
-
+        String fieldName = null;
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String analyzer = null;
         int slop = MatchQuery.DEFAULT_PHRASE_SLOP;
         int maxExpansion = FuzzyQuery.defaultMaxExpansions;
         String queryName = null;
-
-        token = parser.nextToken();
-        if (token == XContentParser.Token.START_OBJECT) {
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if (parseContext.getParseFieldMatcher().match(currentFieldName, MatchQueryBuilder.QUERY_FIELD)) {
-                        value = parser.objectText();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MatchQueryBuilder.ANALYZER_FIELD)) {
-                        analyzer = parser.text();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
-                        boost = parser.floatValue();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MatchPhraseQueryBuilder.SLOP_FIELD)) {
-                        slop = parser.intValue();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MAX_EXPANSIONS_FIELD)) {
-                        maxExpansion = parser.intValue();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
-                        queryName = parser.text();
+        XContentParser.Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
+                fieldName = currentFieldName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if (token.isValue()) {
+                        if (MatchQueryBuilder.QUERY_FIELD.match(currentFieldName)) {
+                            value = parser.objectText();
+                        } else if (MatchQueryBuilder.ANALYZER_FIELD.match(currentFieldName)) {
+                            analyzer = parser.text();
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                            boost = parser.floatValue();
+                        } else if (MatchPhraseQueryBuilder.SLOP_FIELD.match(currentFieldName)) {
+                            slop = parser.intValue();
+                        } else if (MAX_EXPANSIONS_FIELD.match(currentFieldName)) {
+                            maxExpansion = parser.intValue();
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                            queryName = parser.text();
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                        }
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),
-                                "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                                "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
                     }
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
                 }
+            } else {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
+                fieldName = parser.currentName();
+                value = parser.objectText();
             }
-            parser.nextToken();
-        } else {
-            value = parser.objectText();
-            // move to the next token
-            token = parser.nextToken();
-            if (token != XContentParser.Token.END_OBJECT) {
-                throw new ParsingException(parser.getTokenLocation(), "[" + NAME
-                        + "] query parsed in simplified form, with direct field name, "
-                        + "but included more options than just the field name, possibly use its 'options' form, with 'query' element?");
-            }
-        }
-
-        if (value == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No text specified for text query");
         }
 
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(fieldName, value);
@@ -258,6 +246,6 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         matchQuery.maxExpansions(maxExpansion);
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
-        return Optional.of(matchQuery);
+        return matchQuery;
     }
 }

@@ -23,9 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class NoSuchNodeException extends FailedNodeException {
 
     public NoSuchNodeException(String nodeId) {

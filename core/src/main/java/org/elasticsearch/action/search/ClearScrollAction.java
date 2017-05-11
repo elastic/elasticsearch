@@ -22,8 +22,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class ClearScrollAction extends Action<ClearScrollRequest, ClearScrollResponse, ClearScrollRequestBuilder> {
 
     public static final ClearScrollAction INSTANCE = new ClearScrollAction();

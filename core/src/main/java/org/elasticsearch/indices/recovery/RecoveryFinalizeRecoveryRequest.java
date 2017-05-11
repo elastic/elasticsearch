@@ -19,28 +19,28 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
 
     private long recoveryId;
-
     private ShardId shardId;
+    private long globalCheckpoint;
 
     public RecoveryFinalizeRecoveryRequest() {
     }
 
-    RecoveryFinalizeRecoveryRequest(long recoveryId, ShardId shardId) {
+    RecoveryFinalizeRecoveryRequest(final long recoveryId, final ShardId shardId, final long globalCheckpoint) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
+        this.globalCheckpoint = globalCheckpoint;
     }
 
     public long recoveryId() {
@@ -51,11 +51,20 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         return shardId;
     }
 
+    public long globalCheckpoint() {
+        return globalCheckpoint;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            globalCheckpoint = in.readZLong();
+        } else {
+            globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
     }
 
     @Override
@@ -63,5 +72,9 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeZLong(globalCheckpoint);
+        }
     }
+
 }

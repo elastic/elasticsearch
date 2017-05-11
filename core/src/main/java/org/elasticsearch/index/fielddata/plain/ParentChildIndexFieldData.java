@@ -27,6 +27,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -48,7 +50,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -89,8 +91,9 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
-        return new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+        final XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+        return new SortField(getFieldName(), source, reverse);
     }
 
     @Override
@@ -179,7 +182,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         final OrdinalMap ordMap;
         final AtomicParentChildFieldData[] fieldData;
 
-        public OrdinalMapAndAtomicFieldData(OrdinalMap ordMap, AtomicParentChildFieldData[] fieldData) {
+        OrdinalMapAndAtomicFieldData(OrdinalMap ordMap, AtomicParentChildFieldData[] fieldData) {
             this.ordMap = ordMap;
             this.fieldData = fieldData;
         }
@@ -223,7 +226,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         private final Map<String, OrdinalMapAndAtomicFieldData> atomicFD;
         private final int segmentIndex;
 
-        public GlobalAtomicFieldData(Set<String> types, Map<String, OrdinalMapAndAtomicFieldData> atomicFD, int segmentIndex) {
+        GlobalAtomicFieldData(Set<String> types, Map<String, OrdinalMapAndAtomicFieldData> atomicFD, int segmentIndex) {
             this.types = types;
             this.atomicFD = atomicFD;
             this.segmentIndex = segmentIndex;
@@ -252,10 +255,10 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                 return segmentValues;
             }
             final LongValues globalOrds = ordMap.getGlobalOrds(segmentIndex);
-            return new SortedDocValues() {
+            return new AbstractSortedDocValues() {
 
                 @Override
-                public BytesRef lookupOrd(int ord) {
+                public BytesRef lookupOrd(int ord) throws IOException {
                     final int segmentIndex = ordMap.getFirstSegmentNumber(ord);
                     final int segmentOrd = (int) ordMap.getFirstSegmentOrd(ord);
                     return allSegmentValues[segmentIndex].lookupOrd(segmentOrd);
@@ -267,14 +270,18 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                 }
 
                 @Override
-                public int getOrd(int docID) {
-                    final int segmentOrd = segmentValues.getOrd(docID);
-                    // TODO: is there a way we can get rid of this branch?
-                    if (segmentOrd >= 0) {
-                        return (int) globalOrds.get(segmentOrd);
-                    } else {
-                        return segmentOrd;
-                    }
+                public int ordValue() throws IOException {
+                    return (int) globalOrds.get(segmentValues.ordValue());
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return segmentValues.advanceExact(target);
+                }
+
+                @Override
+                public int docID() {
+                    return segmentValues.docID();
                 }
             };
         }
@@ -311,7 +318,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         private final Map<String, OrdinalMapAndAtomicFieldData> ordinalMapPerType;
 
         GlobalFieldData(IndexReader reader, AtomicParentChildFieldData[] fielddata, long ramBytesUsed, Map<String, OrdinalMapAndAtomicFieldData> ordinalMapPerType) {
-            this.coreCacheKey = reader.getCoreCacheKey();
+            this.coreCacheKey = reader.getReaderCacheHelper().getKey();
             this.leaves = reader.leaves();
             this.ramBytesUsed = ramBytesUsed;
             this.fielddata = fielddata;
@@ -325,7 +332,8 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
         @Override
         public AtomicParentChildFieldData load(LeafReaderContext context) {
-            assert context.reader().getCoreCacheKey() == leaves.get(context.ord).reader().getCoreCacheKey();
+            assert context.reader().getCoreCacheHelper().getKey() == leaves.get(context.ord)
+                    .reader().getCoreCacheHelper().getKey();
             return fielddata[context.ord];
         }
 
@@ -335,7 +343,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
             throw new UnsupportedOperationException("No sorting on global ords");
         }
 
@@ -361,7 +369,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
         @Override
         public IndexParentChildFieldData loadGlobal(DirectoryReader indexReader) {
-            if (indexReader.getCoreCacheKey() == coreCacheKey) {
+            if (indexReader.getReaderCacheHelper().getKey() == coreCacheKey) {
                 return this;
             }
             throw new IllegalStateException();

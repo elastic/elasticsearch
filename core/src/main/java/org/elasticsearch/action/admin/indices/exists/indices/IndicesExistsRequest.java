@@ -61,8 +61,15 @@ public class IndicesExistsRequest extends MasterNodeReadRequest<IndicesExistsReq
         return indicesOptions;
     }
 
-    public IndicesExistsRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
+    public IndicesExistsRequest expandWilcardsOpen(boolean expandWildcardsOpen) {
+        this.indicesOptions = IndicesOptions.fromOptions(indicesOptions.ignoreUnavailable(), indicesOptions.allowNoIndices(),
+                expandWildcardsOpen, indicesOptions.expandWildcardsClosed());
+        return this;
+    }
+
+    public IndicesExistsRequest expandWilcardsClosed(boolean expandWildcardsClosed) {
+        this.indicesOptions = IndicesOptions.fromOptions(indicesOptions.ignoreUnavailable(), indicesOptions.allowNoIndices(),
+                indicesOptions.expandWildcardsOpen(), expandWildcardsClosed);
         return this;
     }
 

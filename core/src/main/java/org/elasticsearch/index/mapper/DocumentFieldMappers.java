@@ -31,9 +31,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-/**
- *
- */
 public final class DocumentFieldMappers implements Iterable<FieldMapper> {
 
     /** Full field name to mapper */
@@ -77,8 +74,6 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
         Set<String> fields = new HashSet<>();
         for (FieldMapper fieldMapper : this) {
             if (Regex.simpleMatch(pattern, fieldMapper.fieldType().name())) {
-                fields.add(fieldMapper.fieldType().name());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.fieldType().name())) {
                 fields.add(fieldMapper.fieldType().name());
             }
         }

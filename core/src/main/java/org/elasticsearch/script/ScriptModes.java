@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,7 +57,7 @@ public class ScriptModes {
      */
     public boolean getScriptEnabled(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         //native scripts are always enabled as they are static by definition
-        if (NativeScriptEngineService.NAME.equals(lang)) {
+        if (NativeScriptEngine.NAME.equals(lang)) {
             return true;
         }
         Boolean scriptMode = scriptEnabled.get(getKey(lang, scriptType, scriptContext));
@@ -73,7 +72,7 @@ public class ScriptModes {
     }
 
     static String sourceKey(ScriptType scriptType) {
-        return SCRIPT_SETTINGS_PREFIX + "." + scriptType.getScriptType();
+        return SCRIPT_SETTINGS_PREFIX + "." + scriptType.getName();
     }
 
     static String getGlobalKey(String lang, ScriptType scriptType) {

@@ -18,6 +18,7 @@
  */
 
 task buildTar(type: Tar) {
+  dependsOn createPluginsDir
   baseName = 'elasticsearch'
   extension = 'tar.gz'
   with archivesFiles
@@ -28,9 +29,5 @@ task buildTar(type: Tar) {
 
 artifacts {
   'default' buildTar
-  project.afterEvaluate {
-    // gradle is broken for extensions that contain a dot, so we must be explicit about the name of the .asc file
-    project.signArchives.singleSignature.type = 'tar.gz.asc'
-  }
 }
 

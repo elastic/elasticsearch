@@ -29,9 +29,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- *
- */
 public class RecoverFilesRecoveryException extends ElasticsearchException implements ElasticsearchWrapperException {
 
     private final int numberOfFiles;
@@ -57,7 +54,7 @@ public class RecoverFilesRecoveryException extends ElasticsearchException implem
     public RecoverFilesRecoveryException(StreamInput in) throws IOException{
         super(in);
         numberOfFiles = in.readInt();
-        totalFilesSize = ByteSizeValue.readBytesSizeValue(in);
+        totalFilesSize = new ByteSizeValue(in);
     }
 
     @Override

@@ -41,9 +41,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class NodeMappingRefreshAction extends AbstractComponent {
 
     public static final String ACTION_NAME = "internal:cluster/node/mapping/refresh";

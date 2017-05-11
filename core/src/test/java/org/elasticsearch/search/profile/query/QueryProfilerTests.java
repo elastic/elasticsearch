@@ -56,7 +56,7 @@ public class QueryProfilerTests extends ESTestCase {
     static ContextIndexSearcher searcher;
 
     @BeforeClass
-    public static void before() throws IOException {
+    public static void setup() throws IOException {
         dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
         final int numDocs = TestUtil.nextInt(random(), 1, 20);
@@ -76,7 +76,7 @@ public class QueryProfilerTests extends ESTestCase {
     }
 
     @AfterClass
-    public static void after() throws IOException {
+    public static void cleanup() throws IOException {
         IOUtils.close(reader, dir);
         dir = null;
         reader = null;

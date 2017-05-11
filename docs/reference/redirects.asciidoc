@@ -10,6 +10,12 @@ The `_shutdown` API has been removed.  Instead, setup Elasticsearch to run as
 a service (see <<rpm>>, <<deb>>,  or <<windows>>) or use the `-p`
 command line option to <<setup-installation-daemon,write the PID to a file>>.
 
+[role="exclude",id="indices-upgrade"]
+=== Upgrade API
+
+The `_upgrade` API is no longer useful and will be removed.  Instead, see
+<<reindex-upgrade>>.
+
 [role="exclude",id="docs-bulk-udp"]
 === Bulk UDP API
 
@@ -54,14 +60,14 @@ directory.  Instead, mappings should be created using the API with:
 
 The `memcached` transport is no longer supported.  Instead use the REST
 interface over <<modules-http,HTTP>> or the
-https://www.elastic.co/guide/en/elasticsearch/client/java-api/current/index.html[Java API].
+{javaclient}/index.html[Java API].
 
 [role="exclude",id="modules-thrift"]
 === Thrift
 
 The `thrift` transport is no longer supported.  Instead use the REST
 interface over <<modules-http,HTTP>> or the
-https://www.elastic.co/guide/en/elasticsearch/client/java-api/current/index.html[Java API].
+{javaclient}/index.html[Java API].
 
 // QUERY DSL
 
@@ -80,7 +86,7 @@ in ``query context'' and as a filter in ``filter context'' (see <<query-dsl>>).
 [role="exclude",id="query-dsl-not-filter"]
 === Not Filter
 
-The `not` query has been replaced by using a `mustNot` clause in a Boolean query.
+The `not` query has been replaced by using a `must_not` clause in a `bool` query (see <<query-dsl-bool-query>>).
 
 [role="exclude",id="query-dsl-bool-filter"]
 === Bool Filter
@@ -131,13 +137,6 @@ The `geo_shape` filter has been replaced by the <<query-dsl-geo-shape-query>>.
 It behaves as a query in ``query context'' and as a filter in ``filter
 context'' (see <<query-dsl>>).
 
-[role="exclude",id="query-dsl-geohash-cell-filter"]
-=== Geohash Cell Filter
-
-The `geohash_cell` filter has been replaced by the <<query-dsl-geohash-cell-query>>.
-It behaves as a query in ``query context'' and as a filter in ``filter
-context'' (see <<query-dsl>>).
-
 [role="exclude",id="query-dsl-has-child-filter"]
 === Has Child Filter
 
@@ -161,13 +160,6 @@ The `top_children` query has been removed. Use the <<query-dsl-has-child-query>>
 === IDs Filter
 
 The `ids` filter has been replaced by the <<query-dsl-ids-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-indices-filter"]
-=== Indices Filter
-
-The `indices` filter has been replaced by the <<query-dsl-indices-query>>.  It behaves
 as a query in ``query context'' and as a filter in ``filter context'' (see
 <<query-dsl>>).
 
@@ -254,6 +246,21 @@ the <<query-dsl-match-query-fuzziness,`fuzziness`>> parameter with the
 The `fuzzy_like_this_field` or `flt_field` query has been removed.  Instead use
 the <<query-dsl-match-query-fuzziness,`fuzziness`>> parameter with the
 <<query-dsl-match-query,`match` query>> or the <<query-dsl-mlt-query>>.
+
+[role="exclude",id="query-dsl-geo-distance-range-query"]
+=== Geo distance range Query
+
+The `geo_distance_range` query has been removed. Instead use the
+<<query-dsl-geo-distance-query, Geo Distance Query>> with pagination
+or the
+<<search-aggregations-bucket-geodistance-aggregation, Geo Distance Aggregation>>
+depending on your needs.
+
+[role="exclude",id="query-dsl-geohash-cell-query"]
+=== Geohash Cell Query
+
+The `geohash_cell` query has been removed. Instead use the
+<<query-dsl-geo-bounding-box-query, Geo Bounding Box Query>>.
 
 [role="exclude",id="search-more-like-this"]
 === More Like This API
@@ -377,6 +384,7 @@ GET _search
   }
 }
 -------------------------
+// NOTCONSOLE
 
 move the query and filter to the `must` and `filter` parameters in the `bool`
 query:
@@ -401,6 +409,7 @@ GET _search
   }
 }
 -------------------------
+// CONSOLE
 
 [role="exclude",id="query-dsl-or-query"]
 === Or query

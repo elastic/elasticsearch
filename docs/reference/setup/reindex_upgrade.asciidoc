@@ -1,0 +1,106 @@
+[[reindex-upgrade]]
+=== Reindex to upgrade
+
+Elasticsearch is able to use indices created in the previous major version
+only.  For instance, Elasticsearch 6.x can use indices created in
+Elasticsearch 5.x, but not those created in Elasticsearch 2.x or before.
+
+NOTE: Elasticsearch 6.x nodes will fail to start in the presence of too old indices.
+
+If you are running an Elasticsearch 5.x cluster which contains indices that
+were created before 5.x, you will either need to delete those old indices or
+to reindex them before upgrading to 6.x.  See <<reindex-upgrade-inplace>>.
+
+If you are running an Elasticsearch 2.x cluster or older, you have two options:
+
+* First upgrade to Elasticsearch 5.x, reindex the old indices, then upgrade
+  to 6.x. See <<reindex-upgrade-inplace>>.
+
+* Create a new 6.x cluster and use reindex-from-remote to import indices
+  directly from the 2.x cluster. See <<reindex-upgrade-remote>>.
+
+.Time-based indices and retention periods
+*******************************************
+
+For many use cases with time-based indices, you will not need to worry about
+carrying old 2.x indices with you to 6.x.  Data in time-based indices usually
+becomes less interesting as time passes. Old indices can be deleted once they
+fall outside of your retention period.
+
+Users in this position can continue to use 5.x until all old 2.x indices have
+been deleted, then upgrade to 6.x directly.
+
+*******************************************
+
+
+[[reindex-upgrade-inplace]]
+==== Reindex in place
+
+If you are running a 5.x cluster which contains indices created in
+Elasticsearch 2.x, you will need to reindex (or delete) those indices before
+upgrading to Elasticsearch 6.x.
+
+The reindex process works as follows:
+
+* Create a new index, copying the mappings and settings from the old index.
+  Set the `refresh_interval` to `-1` and the `number_of_replicas` to `0` for
+  efficient reindexing.
+
+* Reindex all documents from the old index to the new index using the
+  <<docs-reindex,reindex API>>.
+
+* Reset the `refresh_interval` and `number_of_replicas` to the values
+  used in the old index, and wait for the index to become green.
+
+* In a single <<indices-aliases,update aliases>> request:
+
+  * Delete the old index.
+  * Add an alias with the old index name to the new index.
+  * Add any aliases that existed on the old index to the new index.
+
+At the end of this process, you will have a new 5.x index which can be used
+by an Elasticsearch 6.x cluster.
+
+[[reindex-upgrade-remote]]
+==== Upgrading with reindex-from-remote
+
+If you are running a 1.x or 2.x cluster and would like to migrate directly to 6.x
+without first migrating to 5.x, you can do so using
+<<reindex-from-remote,reindex-from-remote>>.
+
+[WARNING]
+=============================================
+
+Elasticsearch includes backwards compatibility code that allows indices from
+the previous major version to be upgraded to the current major version.  By
+moving directly from Elasticsearch 2.x or before to 6.x, you will have to solve any
+backwards compatibility issues yourself.
+
+=============================================
+
+You will need to set up a 6.x cluster alongside your existing old cluster.
+The 6.x cluster needs to have access to the REST API of the old cluster.
+
+For each old index that you want to transfer to the 6.x cluster, you will need
+to:
+
+* Create a new index in 6.x with the appropriate mappings and settings.  Set
+  the `refresh_interval` to `-1` and set `number_of_replicas` to `0` for
+  faster reindexing.
+
+* Use <<reindex-from-remote,reindex-from-remote>> to pull documents from the
+  old index into the new 6.x index.
+
+* If you run the reindex job in the background (with `wait_for_completion` set
+  to `false`), the reindex request will return a `task_id` which can be used to
+  monitor progress of the reindex job in the <<tasks,task API>>:
+  `GET _tasks/TASK_ID`.
+
+* Once reindex has completed, set the `refresh_interval` and
+  `number_of_replicas` to the desired values (the defaults are `30s` and `1`
+  respectively).
+
+* Once the new index has finished replication, you can delete the old index.
+
+The 6.x cluster can start out small, and you can gradually move nodes from the
+old cluster to the 6.x cluster as you migrate indices across.

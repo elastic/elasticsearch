@@ -26,9 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class UAX29URLEmailTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int maxTokenLength;

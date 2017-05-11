@@ -30,8 +30,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class UniqueTokenFilterTests extends ESTestCase {
     public void testSimple() throws IOException {
         Analyzer analyzer = new Analyzer() {

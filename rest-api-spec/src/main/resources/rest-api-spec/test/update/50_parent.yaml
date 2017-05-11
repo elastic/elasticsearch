@@ -7,10 +7,6 @@ setup:
             mappings:
               test:
                 _parent: { type: "foo" }
- - do:
-      cluster.health:
-          wait_for_status: yellow
-
 ---
 "Parent":
 
@@ -40,7 +36,7 @@ setup:
           type:    test
           id:      1
           parent:  5
-          fields:  [_parent, _routing]
+          stored_fields:  [_parent, _routing]
 
  - match: { _parent:  "5"}
  - match: { _routing: "5"}
@@ -51,11 +47,11 @@ setup:
           type:    test
           id:      1
           parent:  5
-          fields:  foo
+          _source:  foo
           body:
             doc:        { foo: baz }
 
- - match: { get.fields.foo: [baz] }
+ - match: { get._source.foo: baz }
 
 ---
 "Parent omitted":

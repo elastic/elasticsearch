@@ -4,7 +4,7 @@
 [partintro]
 --
 Elasticsearch ships with defaults which are intended to give a good out of
-the box experience. Full text search, highlighting, aggregations, indexing
+the box experience. Full text search, highlighting, aggregations, and indexing
 should all just work without the user having to change anything.
 
 Once you better understand how you want to use Elasticsearch, however,
@@ -16,6 +16,8 @@ made.
 --
 
 include::how-to/general.asciidoc[]
+
+include::how-to/recipes.asciidoc[]
 
 include::how-to/indexing-speed.asciidoc[]
 

@@ -87,12 +87,11 @@
       indices.create:
           index: new_twitter
           body:
+            settings:
+              mapping.single_type: false
             mappings:
               tweet:
                 _parent: { type: "user" }
-  - do:
-      cluster.health:
-          wait_for_status: yellow
 
   - do:
       index:
@@ -189,12 +188,11 @@
       indices.create:
           index: new_twitter
           body:
+            settings:
+              mapping.single_type: false
             mappings:
               tweet:
                 _parent: { type: "user" }
-  - do:
-      cluster.health:
-          wait_for_status: yellow
 
   - do:
       index:

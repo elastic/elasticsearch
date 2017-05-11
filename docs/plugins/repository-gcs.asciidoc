@@ -4,34 +4,8 @@
 The GCS repository plugin adds support for using the https://cloud.google.com/storage/[Google Cloud Storage]
 service as a repository for {ref}/modules-snapshots.html[Snapshot/Restore].
 
-[[repository-gcs-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install repository-gcs
-----------------------------------------------------------------
-
-NOTE: The plugin requires new permission to be installed in order to work
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-[[repository-gcs-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove repository-gcs
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: repository-gcs
+include::install_remove.asciidoc[]
 
 [[repository-gcs-usage]]
 ==== Getting started
@@ -131,6 +105,7 @@ A service account file looks like this:
   "client_x509_cert_url": "..."
 }
 ----
+// NOTCONSOLE
 
 This file must be copied in the `config` directory of the elasticsearch installation and on
 every node of the cluster.

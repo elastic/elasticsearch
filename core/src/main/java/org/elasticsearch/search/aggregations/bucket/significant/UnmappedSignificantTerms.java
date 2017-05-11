@@ -43,7 +43,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     public static final String NAME = "umsigterms";
 
     /**
-     * Concrete type that can't be built because Java needs a concrent type so {@link InternalTerms.Bucket} can have a self type but
+     * Concrete type that can't be built because Java needs a concrete type so {@link InternalTerms.Bucket} can have a self type but
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
      */
     protected abstract static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
@@ -76,6 +76,11 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
+    protected String getType() {
+        return SignificantStringTerms.NAME;
+    }
+
+    @Override
     public UnmappedSignificantTerms create(List<Bucket> buckets) {
         return new UnmappedSignificantTerms(name, requiredSize, minDocCount, pipelineAggregators(), metaData);
     }
@@ -102,7 +107,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(CommonFields.BUCKETS).endArray();
+        builder.startArray(CommonFields.BUCKETS.getPreferredName()).endArray();
         return builder;
     }
 

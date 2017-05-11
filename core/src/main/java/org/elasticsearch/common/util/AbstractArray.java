@@ -23,13 +23,14 @@ import org.apache.lucene.util.Accountable;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 
 abstract class AbstractArray implements BigArray {
 
     private final BigArrays bigArrays;
     public final boolean clearOnResize;
-    private boolean released = false;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     AbstractArray(BigArrays bigArrays, boolean clearOnResize) {
         this.bigArrays = bigArrays;
@@ -38,10 +39,13 @@ abstract class AbstractArray implements BigArray {
 
     @Override
     public final void close() {
-        bigArrays.adjustBreaker(-ramBytesUsed());
-        assert !released : "double release";
-        released = true;
-        doClose();
+        if (closed.compareAndSet(false, true)) {
+            try {
+                bigArrays.adjustBreaker(-ramBytesUsed());
+            } finally {
+                doClose();
+            }
+        }
     }
 
     protected abstract void doClose();

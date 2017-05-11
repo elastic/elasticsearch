@@ -45,9 +45,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-/**
- *
- */
 public class TransportNodesListGatewayMetaState extends TransportNodesAction<TransportNodesListGatewayMetaState.Request,
                                                                              TransportNodesListGatewayMetaState.NodesGatewayMetaState,
                                                                              TransportNodesListGatewayMetaState.NodeRequest,
@@ -188,7 +185,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             if (in.readBoolean()) {
-                metaData = MetaData.Builder.readFrom(in);
+                metaData = MetaData.readFrom(in);
             }
         }
 

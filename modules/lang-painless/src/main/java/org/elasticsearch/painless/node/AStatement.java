@@ -19,12 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
-import org.objectweb.asm.Label;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Label;
 
 /**
  * The superclass for all S* (statement) nodes.
@@ -110,17 +107,10 @@ public abstract class AStatement extends ANode {
      */
     Label brake = null;
 
+    /**
+     * Standard constructor with location used for error tracking.
+     */
     AStatement(Location location) {
         super(location);
     }
-
-    /**
-     * Checks for errors and collects data for the writing phase.
-     */
-    abstract void analyze(Locals locals);
-
-    /**
-     * Writes ASM based on the data collected during the analysis phase.
-     */
-    abstract void write(MethodWriter writer, Globals globals);
 }

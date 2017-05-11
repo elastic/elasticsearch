@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.cache.clear;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class ClearIndicesCacheAction extends Action<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ClearIndicesCacheRequestBuilder> {
 
     public static final ClearIndicesCacheAction INSTANCE = new ClearIndicesCacheAction();

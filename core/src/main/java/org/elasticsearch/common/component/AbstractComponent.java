@@ -19,18 +19,17 @@
 
 package org.elasticsearch.common.component;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 
-/**
- *
- */
 public abstract class AbstractComponent {
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final DeprecationLogger deprecationLogger;
     protected final Settings settings;
 
@@ -41,7 +40,7 @@ public abstract class AbstractComponent {
     }
 
     public AbstractComponent(Settings settings, Class customClass) {
-        this.logger = Loggers.getLogger(customClass, settings);
+        this.logger = LogManager.getLogger(customClass);
         this.deprecationLogger = new DeprecationLogger(logger);
         this.settings = settings;
     }
@@ -50,7 +49,7 @@ public abstract class AbstractComponent {
      * Returns the nodes name from the settings or the empty string if not set.
      */
     public final String nodeName() {
-        return settings.get("node.name", "");
+        return Node.NODE_NAME_SETTING.get(settings);
     }
 
     /**
@@ -70,4 +69,5 @@ public abstract class AbstractComponent {
             deprecationLogger.deprecated("Setting [{}] has been removed, use [{}] instead", settingName, alternativeName);
         }
     }
+
 }

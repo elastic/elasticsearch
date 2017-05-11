@@ -22,10 +22,13 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -56,8 +59,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class ChildrenIT extends ESIntegTestCase {
 
@@ -67,6 +68,7 @@ public class ChildrenIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(
                 prepareCreate("test")
+                    .setSettings("index.mapping.single_type", false)
                     .addMapping("article", "category", "type=keyword")
                     .addMapping("comment", "_parent", "type=article", "commenter", "type=keyword")
         );
@@ -123,8 +125,8 @@ public class ChildrenIT extends ESIntegTestCase {
         requests.add(client().prepareIndex("test", "article", "b").setSource("category", new String[]{"a", "b"}, "randomized", false));
         requests.add(client().prepareIndex("test", "article", "c").setSource("category", new String[]{"a", "b", "c"}, "randomized", false));
         requests.add(client().prepareIndex("test", "article", "d").setSource("category", new String[]{"c"}, "randomized", false));
-        requests.add(client().prepareIndex("test", "comment", "a").setParent("a").setSource("{}"));
-        requests.add(client().prepareIndex("test", "comment", "c").setParent("c").setSource("{}"));
+        requests.add(client().prepareIndex("test", "comment", "a").setParent("a").setSource("{}", XContentType.JSON));
+        requests.add(client().prepareIndex("test", "comment", "c").setParent("c").setSource("{}", XContentType.JSON));
 
         indexRandom(true, requests);
         ensureSearchable("test");
@@ -153,10 +155,10 @@ public class ChildrenIT extends ESIntegTestCase {
             Children childrenBucket = categoryBucket.getAggregations().get("to_comment");
             assertThat(childrenBucket.getName(), equalTo("to_comment"));
             assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
-            assertThat((long) childrenBucket.getProperty("_count"), equalTo((long) entry1.getValue().commentIds.size()));
+            assertThat((long) ((InternalAggregation)childrenBucket).getProperty("_count"), equalTo((long) entry1.getValue().commentIds.size()));
 
             Terms commentersTerms = childrenBucket.getAggregations().get("commenters");
-            assertThat((Terms) childrenBucket.getProperty("commenters"), sameInstance(commentersTerms));
+            assertThat((Terms) ((InternalAggregation)childrenBucket).getProperty("commenters"), sameInstance(commentersTerms));
             assertThat(commentersTerms.getBuckets().size(), equalTo(entry1.getValue().commenterToCommentId.size()));
             for (Map.Entry<String, Set<String>> entry2 : entry1.getValue().commenterToCommentId.entrySet()) {
                 Terms.Bucket commentBucket = commentersTerms.getBucketByKey(entry2.getKey());
@@ -190,7 +192,7 @@ public class ChildrenIT extends ESIntegTestCase {
             TopHits topHits = childrenBucket.getAggregations().get("top_comments");
             logger.info("total_hits={}", topHits.getHits().getTotalHits());
             for (SearchHit searchHit : topHits.getHits()) {
-                logger.info("hit= {} {} {}", searchHit.sortValues()[0], searchHit.getType(), searchHit.getId());
+                logger.info("hit= {} {} {}", searchHit.getSortValues()[0], searchHit.getType(), searchHit.getId());
             }
         }
 
@@ -202,7 +204,7 @@ public class ChildrenIT extends ESIntegTestCase {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(2L));
         TopHits topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().totalHits(), equalTo(2L));
+        assertThat(topHits.getHits().getTotalHits(), equalTo(2L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("a"));
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
         assertThat(topHits.getHits().getAt(1).getId(), equalTo("c"));
@@ -216,7 +218,7 @@ public class ChildrenIT extends ESIntegTestCase {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(1L));
         topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().totalHits(), equalTo(1L));
+        assertThat(topHits.getHits().getTotalHits(), equalTo(1L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
 
@@ -228,7 +230,7 @@ public class ChildrenIT extends ESIntegTestCase {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(1L));
         topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().totalHits(), equalTo(1L));
+        assertThat(topHits.getHits().getTotalHits(), equalTo(1L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
     }
@@ -237,12 +239,13 @@ public class ChildrenIT extends ESIntegTestCase {
         String indexName = "xyz";
         assertAcked(
                 prepareCreate(indexName)
+                        .setSettings("index.mapping.single_type", false)
                         .addMapping("parent")
                         .addMapping("child", "_parent", "type=parent", "count", "type=long")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex(indexName, "parent", "1").setSource("{}"));
+        requests.add(client().prepareIndex(indexName, "parent", "1").setSource("{}", XContentType.JSON));
         requests.add(client().prepareIndex(indexName, "child", "0").setParent("1").setSource("count", 1));
         requests.add(client().prepareIndex(indexName, "child", "1").setParent("1").setSource("count", 1));
         requests.add(client().prepareIndex(indexName, "child", "2").setParent("1").setSource("count", 1));
@@ -269,7 +272,7 @@ public class ChildrenIT extends ESIntegTestCase {
              */
             UpdateResponse updateResponse = client().prepareUpdate(indexName, "child", idToUpdate)
                     .setParent("1")
-                    .setDoc("count", 1)
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
                     .setDetectNoop(false)
                     .get();
             assertThat(updateResponse.getVersion(), greaterThan(1L));
@@ -295,6 +298,7 @@ children("non-existing", "xyz")
         String childType = "variantsku";
         assertAcked(
                 prepareCreate(indexName)
+                        .setSettings("index.mapping.single_type", false)
                         .addMapping(masterType, "brand", "type=text", "name", "type=keyword", "material", "type=text")
                         .addMapping(childType, "_parent", "type=masterprod", "color", "type=keyword", "size", "type=keyword")
         );
@@ -358,6 +362,7 @@ children("non-existing", "xyz")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                         )
+                        .setSettings("index.mapping.single_type", false)
                         .addMapping(grandParentType, "name", "type=keyword")
                         .addMapping(parentType, "_parent", "type=" + grandParentType)
                         .addMapping(childType, "_parent", "type=" + parentType)
@@ -401,6 +406,7 @@ children("non-existing", "xyz")
 
         assertAcked(
             prepareCreate("index")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parentType", "name", "type=keyword", "town", "type=keyword")
                 .addMapping("childType", "_parent", "type=parentType", "name", "type=keyword", "age", "type=integer")
         );

@@ -31,21 +31,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Constructs a query that only match on documents that the field has a value in them.
  */
 public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder> {
-
     public static final String NAME = "exists";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
 
@@ -86,7 +83,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         builder.endObject();
     }
 
-    public static Optional<ExistsQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static ExistsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldPattern = null;
@@ -99,11 +96,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, FIELD_FIELD)) {
+                if (FIELD_FIELD.match(currentFieldName)) {
                     fieldPattern = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
@@ -122,7 +119,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         ExistsQueryBuilder builder = new ExistsQueryBuilder(fieldPattern);
         builder.queryName(queryName);
         builder.boost(boost);
-        return Optional.of(builder);
+        return builder;
     }
 
     @Override
@@ -132,7 +129,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     public static Query newFilter(QueryShardContext context, String fieldPattern) {
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-                (FieldNamesFieldMapper.FieldNamesFieldType)context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+                (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
             return Queries.newMatchNoDocsQuery("Missing types in \"" + NAME + "\" query.");
@@ -145,6 +142,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             fields = Collections.singleton(fieldPattern);
         } else {
             fields = context.simpleMatchToIndexNames(fieldPattern);
+        }
+
+        if (fields.size() == 1) {
+            Query filter = fieldNamesFieldType.termQuery(fields.iterator().next(), context);
+            return new ConstantScoreQuery(filter);
         }
 
         BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();

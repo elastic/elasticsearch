@@ -22,8 +22,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class MultiSearchAction extends Action<MultiSearchRequest, MultiSearchResponse, MultiSearchRequestBuilder> {
 
     public static final MultiSearchAction INSTANCE = new MultiSearchAction();

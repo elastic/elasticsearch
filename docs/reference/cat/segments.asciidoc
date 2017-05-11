@@ -3,24 +3,24 @@
 
 The `segments` command provides low level information about the segments
 in the shards of an index. It provides information similar to the
-link:indices-segments.html[_segments] endpoint.
+link:indices-segments.html[_segments] endpoint. For example:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl 'http://localhost:9200/_cat/segments?v'
-index shard prirep ip            segment generation docs.count [...]
-test  4     p      192.168.2.105 _0               0          1
-test1 2     p      192.168.2.105 _0               0          1
-test1 3     p      192.168.2.105 _2               2          1
+GET /_cat/segments?v
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT \/test\/test\/1?refresh\n{"test":"test"}\nPUT \/test1\/test\/1?refresh\n{"test":"test"}\n/]
 
-[source,sh]
+might look like:
+
+["source","txt",subs="attributes,callouts"]
 --------------------------------------------------
-[...] docs.deleted  size size.memory committed searchable version compound
-                 0 2.9kb        7818 false     true       4.10.2  true
-                 0 2.9kb        7818 false     true       4.10.2  true
-                 0 2.9kb        7818 false     true       4.10.2  true
+index shard prirep ip        segment generation docs.count docs.deleted size size.memory committed searchable version compound
+test  3     p      127.0.0.1 _0               0          1            0  3kb        2042 false     true       {lucene_version}   true
+test1 3     p      127.0.0.1 _0               0          1            0  3kb        2042 false     true       {lucene_version}   true
 --------------------------------------------------
+// TESTRESPONSE[s/3kb/\\d+(\\.\\d+)?[mk]?b/ s/2042/\\d+/ _cat]
 
 The output shows information about index names and shard numbers in the first
 two columns.
@@ -34,7 +34,7 @@ The following columns provide additional monitoring information:
 
 prirep::        Whether this segment belongs to a primary or replica shard.
 
-ip::            The ip address of the segments shard.
+ip::            The ip address of the segment's shard.
 
 segment::       A segment name, derived from the segment generation. The name
                 is internally used to generate the file names in the directory

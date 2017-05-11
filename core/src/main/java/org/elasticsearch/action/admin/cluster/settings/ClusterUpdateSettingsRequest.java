@@ -51,7 +51,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (transientSettings.getAsMap().isEmpty() && persistentSettings.getAsMap().isEmpty()) {
+        if (transientSettings.isEmpty() && persistentSettings.isEmpty()) {
             validationException = addValidationError("no settings to update", validationException);
         }
         return validationException;
@@ -84,8 +84,8 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
      */
-    public ClusterUpdateSettingsRequest transientSettings(String source) {
-        this.transientSettings = Settings.builder().loadFromSource(source).build();
+    public ClusterUpdateSettingsRequest transientSettings(String source, XContentType xContentType) {
+        this.transientSettings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -97,7 +97,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            transientSettings(builder.string());
+            transientSettings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -123,8 +123,8 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the source containing the persistent settings to be updated. They will get applied cross restarts
      */
-    public ClusterUpdateSettingsRequest persistentSettings(String source) {
-        this.persistentSettings = Settings.builder().loadFromSource(source).build();
+    public ClusterUpdateSettingsRequest persistentSettings(String source, XContentType xContentType) {
+        this.persistentSettings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -136,7 +136,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            persistentSettings(builder.string());
+            persistentSettings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }

@@ -24,8 +24,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
-/**
- */
 public class ShardBitsetFilterCache extends AbstractIndexShardComponent {
 
     private final CounterMetric totalMetric = new CounterMetric();

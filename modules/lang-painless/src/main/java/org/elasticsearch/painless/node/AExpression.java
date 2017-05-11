@@ -19,39 +19,47 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Locals;
-import org.objectweb.asm.Label;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
+
+import java.util.Objects;
 
 /**
- * The superclass for all E* (expression) nodes.
+ * The superclass for all E* (expression) and P* (postfix) nodes.
  */
 public abstract class AExpression extends ANode {
+
+    /**
+     * Prefix is the predecessor to this node in a variable chain.
+     * This is used to analyze and write variable chains in a
+     * more natural order since the parent node of a variable
+     * chain will want the data from the final postfix to be
+     * analyzed.
+     */
+    AExpression prefix;
 
     /**
      * Set to false when an expression will not be read from such as
      * a basic assignment.  Note this variable is always set by the parent
      * as input.
      */
-    protected boolean read = true;
+    boolean read = true;
 
     /**
      * Set to true when an expression can be considered a stand alone
      * statement.  Used to prevent extraneous bytecode. This is always
      * set by the node as output.
      */
-    protected boolean statement = false;
+    boolean statement = false;
 
     /**
      * Set to the expected type this node needs to be.  Note this variable
      * is always set by the parent as input and should never be read from.
      */
-    protected Type expected = null;
+    Type expected = null;
 
     /**
      * Set to the actual type this node is.  Note this variable is always
@@ -59,19 +67,19 @@ public abstract class AExpression extends ANode {
      * node itself.  <b>Also, actual can always be read after a cast is
      * called on this node to get the type of the node after the cast.</b>
      */
-    protected Type actual = null;
+    Type actual = null;
 
     /**
      * Set by {@link EExplicit} if a cast made on an expression node should be
      * explicit.
      */
-    protected boolean explicit = false;
+    boolean explicit = false;
 
     /**
      * Set to true if a cast is allowed to boxed/unboxed.  This is used
      * for method arguments because casting may be required.
      */
-    protected boolean internal = false;
+    boolean internal = false;
 
     /**
      * Set to the value of the constant this expression node represents if
@@ -79,40 +87,30 @@ public abstract class AExpression extends ANode {
      * this node will be replaced by an {@link EConstant} during casting
      * if it's not already one.
      */
-    protected Object constant = null;
+    Object constant = null;
 
     /**
      * Set to true by {@link ENull} to represent a null value.
      */
-    protected boolean isNull = false;
+    boolean isNull = false;
 
     /**
-     * If an expression represents a branch statement, represents the jump should
-     * the expression evaluate to a true value.  It should always be the case that only
-     * one of tru and fals are non-null or both are null.  Only used during the writing phase.
+     * Standard constructor with location used for error tracking.
      */
-    protected Label tru = null;
-
-    /**
-     * If an expression represents a branch statement, represents the jump should
-     * the expression evaluate to a false value.  It should always be the case that only
-     * one of tru and fals are non-null or both are null.  Only used during the writing phase.
-     */
-    protected Label fals = null;
-
-    public AExpression(Location location) {
+    AExpression(Location location) {
         super(location);
+
+        prefix = null;
     }
 
     /**
-     * Checks for errors and collects data for the writing phase.
+     * This constructor is used by variable/method chains when postfixes are specified.
      */
-    abstract void analyze(Locals locals);
+    AExpression(Location location, AExpression prefix) {
+        super(location);
 
-    /**
-     * Writes ASM based on the data collected during the analysis phase.
-     */
-    abstract void write(MethodWriter writer, Globals globals);
+        this.prefix = Objects.requireNonNull(prefix);
+    }
 
     /**
      * Inserts {@link ECast} nodes into the tree for implicit casts.  Also replaces
@@ -120,7 +118,7 @@ public abstract class AExpression extends ANode {
      * @return The new child node for the parent node calling this method.
      */
     AExpression cast(Locals locals) {
-        final Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
+        Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
 
         if (cast == null) {
             if (constant == null || this instanceof EConstant) {

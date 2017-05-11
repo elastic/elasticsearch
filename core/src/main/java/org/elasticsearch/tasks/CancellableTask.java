@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * A task that can be canceled
  */
-public class CancellableTask extends Task {
+public abstract class CancellableTask extends Task {
 
     private final AtomicReference<String> reason = new AtomicReference<>();
 
@@ -50,6 +50,11 @@ public class CancellableTask extends Task {
     public boolean cancelOnParentLeaving() {
         return true;
     }
+
+    /**
+     * Returns true if this task should can potentially have children that needs to be cancelled when the parent is cancelled.
+     */
+    public abstract boolean shouldCancelChildrenOnCancellation();
 
     public boolean isCancelled() {
         return reason.get() != null;

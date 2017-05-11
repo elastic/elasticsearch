@@ -26,9 +26,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 
-/**
- *
- */
 public class StandardTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public StandardTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {

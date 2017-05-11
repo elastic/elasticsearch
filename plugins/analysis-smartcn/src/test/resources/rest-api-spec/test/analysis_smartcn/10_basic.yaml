@@ -3,8 +3,9 @@
 "Tokenizer":
     - do:
         indices.analyze:
-          text:         我购买了道具和服装。
-          tokenizer:    smartcn_tokenizer
+          body:
+            text:         我购买了道具和服装。
+            tokenizer:    smartcn_tokenizer
     - length: { tokens: 7 }
     - match:  { tokens.0.token: 我  }
     - match:  { tokens.1.token: 购买 }
@@ -17,8 +18,9 @@
 "Analyzer":
     - do:
         indices.analyze:
-          text:         我购买了道具和服装。
-          analyzer:     smartcn
+          body:
+            text:         我购买了道具和服装。
+            analyzer:     smartcn
     - length: { tokens: 6 }
     - match:  { tokens.0.token: 我  }
     - match:  { tokens.1.token: 购买 }

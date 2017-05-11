@@ -19,20 +19,19 @@
 
 package org.elasticsearch.cloud.azure.classic;
 
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
+
 import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
 import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
 import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
 import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
 import com.microsoft.windowsazure.management.compute.models.RoleInstance;
+import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeServiceAbstractMock;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-
-import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Arrays;
+import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 
 import static org.elasticsearch.common.util.CollectionUtils.newSingletonArrayList;
 
@@ -41,18 +40,19 @@ import static org.elasticsearch.common.util.CollectionUtils.newSingletonArrayLis
  * Mock Azure API with two started nodes
  */
 public class AzureComputeServiceTwoNodesMock extends AzureComputeServiceAbstractMock {
-    public static class TestPlugin extends Plugin {
-        public void onModule(AzureDiscoveryModule azureDiscoveryModule) {
-            azureDiscoveryModule.computeServiceImpl = AzureComputeServiceTwoNodesMock.class;
+
+    public static class TestPlugin extends AzureDiscoveryPlugin {
+        public TestPlugin(Settings settings) {
+            super(settings);
+        }
+        @Override
+        protected AzureComputeService createComputeService() {
+            return new AzureComputeServiceTwoNodesMock(settings);
         }
     }
 
-    NetworkService networkService;
-
-    @Inject
-    protected AzureComputeServiceTwoNodesMock(Settings settings, NetworkService networkService) {
+    private AzureComputeServiceTwoNodesMock(Settings settings) {
         super(settings);
-        this.networkService = networkService;
     }
 
     @Override

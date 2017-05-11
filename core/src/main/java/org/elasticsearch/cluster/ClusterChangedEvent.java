@@ -20,17 +20,21 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -144,6 +148,33 @@ public class ClusterChangedEvent {
     }
 
     /**
+     * Returns a set of custom meta data types when any custom metadata for the cluster has changed
+     * between the previous cluster state and the new cluster state. custom meta data types are
+     * returned iff they have been added, updated or removed between the previous and the current state
+     */
+    public Set<String> changedCustomMetaDataSet() {
+        Set<String> result = new HashSet<>();
+        ImmutableOpenMap<String, MetaData.Custom> currentCustoms = state.metaData().customs();
+        ImmutableOpenMap<String, MetaData.Custom> previousCustoms = previousState.metaData().customs();
+        if (currentCustoms.equals(previousCustoms) == false) {
+            for (ObjectObjectCursor<String, MetaData.Custom> currentCustomMetaData : currentCustoms) {
+                // new custom md added or existing custom md changed
+                if (previousCustoms.containsKey(currentCustomMetaData.key) == false
+                        || currentCustomMetaData.value.equals(previousCustoms.get(currentCustomMetaData.key)) == false) {
+                    result.add(currentCustomMetaData.key);
+                }
+            }
+            // existing custom md deleted
+            for (ObjectObjectCursor<String, MetaData.Custom> previousCustomMetaData : previousCustoms) {
+                if (currentCustoms.containsKey(previousCustomMetaData.key) == false) {
+                    result.add(previousCustomMetaData.key);
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
      * Returns <code>true</code> iff the {@link IndexMetaData} for a given index
      * has changed between the previous cluster state and the new cluster state.
      * Note that this is an object reference equality test, not an equals test.
@@ -199,10 +230,14 @@ public class ClusterChangedEvent {
         return nodesRemoved() || nodesAdded();
     }
 
-    // Determines whether or not the current cluster state represents an entirely
-    // different cluster from the previous cluster state, which will happen when a
-    // master node is elected that has never been part of the cluster before.
-    private boolean isNewCluster() {
+    /**
+     * Determines whether or not the current cluster state represents an entirely
+     * new cluster, either when a node joins a cluster for the first time or when
+     * the node receives a cluster state update from a brand new cluster (different
+     * UUID from the previous cluster), which will happen when a master node is
+     * elected that has never been part of the cluster before.
+     */
+    public boolean isNewCluster() {
         final String prevClusterUUID = previousState.metaData().clusterUUID();
         final String currClusterUUID = state.metaData().clusterUUID();
         return prevClusterUUID.equals(currClusterUUID) == false;

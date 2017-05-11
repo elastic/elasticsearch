@@ -2,7 +2,7 @@
 === Number of threads
 
 Elasticsearch uses a number of thread pools for different types of operations.
-It is important that it is able to created new threads whenever needed.   Make
+It is important that it is able to create new threads whenever needed.   Make
 sure that the number of threads that the Elasticsearch user can create is at
 least 2048.
 

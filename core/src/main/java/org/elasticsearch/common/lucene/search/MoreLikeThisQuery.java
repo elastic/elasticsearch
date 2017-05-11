@@ -45,9 +45,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-/**
- *
- */
 public class MoreLikeThisQuery extends Query {
 
     public static final String DEFAULT_MINIMUM_SHOULD_MATCH = "30%";

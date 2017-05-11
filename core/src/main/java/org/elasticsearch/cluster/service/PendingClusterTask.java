@@ -28,8 +28,6 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-/**
- */
 public class PendingClusterTask implements Streamable {
 
     private long insertOrder;

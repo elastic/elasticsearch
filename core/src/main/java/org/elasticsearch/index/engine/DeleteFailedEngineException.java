@@ -25,14 +25,12 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 
 /**
- *
+ * Deprecated as not used in 6.0, should be removed in 7.0
+ * Still exists for bwc in serializing/deserializing from
+ * 5.x nodes
  */
+@Deprecated
 public class DeleteFailedEngineException extends EngineException {
-
-    public DeleteFailedEngineException(ShardId shardId, Engine.Delete delete, Throwable cause) {
-        super(shardId, "Delete failed for [" + delete.uid().text() + "]", cause);
-    }
-
     public DeleteFailedEngineException(StreamInput in) throws IOException{
         super(in);
     }

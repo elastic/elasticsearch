@@ -20,9 +20,6 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 
 import java.util.List;
 
-/**
- *
- */
 public class RunningStatsTests extends BaseMatrixStatsTestCase {
 
     /** test running stats */

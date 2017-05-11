@@ -24,6 +24,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 public enum RestStatus {
     /**
@@ -477,6 +481,15 @@ public enum RestStatus {
      */
     INSUFFICIENT_STORAGE(506);
 
+    private static final Map<Integer, RestStatus> CODE_TO_STATUS;
+    static {
+        RestStatus[] values = values();
+        Map<Integer, RestStatus> codeToStatus = new HashMap<>(values.length);
+        for (RestStatus value : values) {
+            codeToStatus.put(value.status, value);
+        }
+        CODE_TO_STATUS = unmodifiableMap(codeToStatus);
+    }
 
     private int status;
 
@@ -514,5 +527,12 @@ public enum RestStatus {
             return status;
         }
         return status;
+    }
+
+    /**
+     * Turn a status code into a {@link RestStatus}, returning null if we don't know that status.
+     */
+    public static RestStatus fromCode(int code) {
+        return CODE_TO_STATUS.get(code);
     }
 }

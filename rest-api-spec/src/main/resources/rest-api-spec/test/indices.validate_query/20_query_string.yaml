@@ -6,8 +6,6 @@
           body:
             mappings:
               test:
-                _all:
-                  enabled: false
                 properties:
                   field:
                     type: text
@@ -49,15 +47,6 @@
       indices.validate_query:
         index: test
         q: field:BA*
-        lowercase_expanded_terms: false
-
-  - is_true: valid
-
-  - do:
-      indices.validate_query:
-        index: test
-        q: field:BA*
-        analyze_wildcard: true
 
   - is_true: valid
 

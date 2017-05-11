@@ -19,31 +19,59 @@
 
 package org.elasticsearch.index.reindex.remote;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 public class RemoteInfo implements Writeable {
+    /**
+     * Default {@link #socketTimeout} for requests that don't have one set.
+     */
+    public static final TimeValue DEFAULT_SOCKET_TIMEOUT = timeValueSeconds(30);
+    /**
+     * Default {@link #connectTimeout} for requests that don't have one set.
+     */
+    public static final TimeValue DEFAULT_CONNECT_TIMEOUT = timeValueSeconds(30);
+
     private final String scheme;
     private final String host;
     private final int port;
     private final BytesReference query;
     private final String username;
     private final String password;
+    private final Map<String, String> headers;
+    /**
+     * Time to wait for a response from each request.
+     */
+    private final TimeValue socketTimeout;
+    /**
+     * Time to wait for a connecting to the remote cluster.
+     */
+    private final TimeValue connectTimeout;
 
-    public RemoteInfo(String scheme, String host, int port, BytesReference query, String username, String password) {
+    public RemoteInfo(String scheme, String host, int port, BytesReference query, String username, String password,
+            Map<String, String> headers, TimeValue socketTimeout, TimeValue connectTimeout) {
         this.scheme = requireNonNull(scheme, "[scheme] must be specified to reindex from a remote cluster");
         this.host = requireNonNull(host, "[host] must be specified to reindex from a remote cluster");
         this.port = port;
         this.query = requireNonNull(query, "[query] must be specified to reindex from a remote cluster");
         this.username = username;
         this.password = password;
+        this.headers = unmodifiableMap(requireNonNull(headers, "[headers] is required"));
+        this.socketTimeout = requireNonNull(socketTimeout, "[socketTimeout] must be specified");
+        this.connectTimeout = requireNonNull(connectTimeout, "[connectTimeout] must be specified");
     }
 
     /**
@@ -56,6 +84,19 @@ public class RemoteInfo implements Writeable {
         query = in.readBytesReference();
         username = in.readOptionalString();
         password = in.readOptionalString();
+        int headersLength = in.readVInt();
+        Map<String, String> headers = new HashMap<>(headersLength);
+        for (int i = 0; i < headersLength; i++) {
+            headers.put(in.readString(), in.readString());
+        }
+        this.headers = unmodifiableMap(headers);
+        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            socketTimeout = new TimeValue(in);
+            connectTimeout = new TimeValue(in);
+        } else {
+            socketTimeout = DEFAULT_SOCKET_TIMEOUT;
+            connectTimeout = DEFAULT_CONNECT_TIMEOUT;
+        }
     }
 
     @Override
@@ -66,6 +107,15 @@ public class RemoteInfo implements Writeable {
         out.writeBytesReference(query);
         out.writeOptionalString(username);
         out.writeOptionalString(password);
+        out.writeVInt(headers.size());
+        for (Map.Entry<String, String> header : headers.entrySet()) {
+            out.writeString(header.getKey());
+            out.writeString(header.getValue());
+        }
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            socketTimeout.writeTo(out);
+            connectTimeout.writeTo(out);
+        }
     }
 
     public String getScheme() {
@@ -92,6 +142,24 @@ public class RemoteInfo implements Writeable {
     @Nullable
     public String getPassword() {
         return password;
+    }
+
+    public Map<String, String> getHeaders() {
+        return headers;
+    }
+
+    /**
+     * Time to wait for a response from each request.
+     */
+    public TimeValue getSocketTimeout() {
+        return socketTimeout;
+    }
+
+    /**
+     * Time to wait to connect to the external cluster.
+     */
+    public TimeValue getConnectTimeout() {
+        return connectTimeout;
     }
 
     @Override

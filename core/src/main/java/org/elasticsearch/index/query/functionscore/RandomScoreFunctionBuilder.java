@@ -26,10 +26,12 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -49,12 +51,19 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
      */
     public RandomScoreFunctionBuilder(StreamInput in) throws IOException {
         super(in);
-        seed = in.readInt();
+        if (in.readBoolean()) {
+            seed = in.readInt();
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeInt(seed);
+        if (seed != null) {
+            out.writeBoolean(true);
+            out.writeInt(seed);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     @Override
@@ -119,22 +128,19 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
 
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
-        final MappedFieldType fieldType = context.getMapperService().fullName("_uid");
+        final MappedFieldType fieldType;
+        if (context.getIndexSettings().isSingleType()) {
+            fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
+        } else {
+            fieldType = context.getMapperService().fullName(UidFieldMapper.NAME);
+        }
         if (fieldType == null) {
             // mapper could be null if we are on a shard with no docs yet, so this won't actually be used
             return new RandomScoreFunction();
         }
-        final int salt = (context.index().getName().hashCode() << 10) | getCurrentShardId();
+        final int salt = (context.index().getName().hashCode() << 10) | context.getShardId();
         final IndexFieldData<?> uidFieldData = context.getForField(fieldType);
         return new RandomScoreFunction(this.seed == null ? hash(context.nowInMillis()) : seed, salt, uidFieldData);
-    }
-
-    /**
-     * Get the current shard's id for the seed. Protected because this method doesn't work during certain unit tests and needs to be
-     * replaced.
-     */
-    int getCurrentShardId() {
-        return SearchContext.current().indexShard().shardId().id();
     }
 
     private static int hash(long value) {

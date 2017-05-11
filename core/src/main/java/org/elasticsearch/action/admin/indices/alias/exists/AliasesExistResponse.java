@@ -25,8 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- */
 public class AliasesExistResponse extends ActionResponse {
 
     private boolean exists;

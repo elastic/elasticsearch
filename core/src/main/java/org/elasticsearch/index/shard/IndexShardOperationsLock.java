@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -32,10 +34,11 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public class IndexShardOperationsLock implements Closeable {
     private final ShardId shardId;
-    private final ESLogger logger;
+    private final Logger logger;
     private final ThreadPool threadPool;
 
     private static final int TOTAL_PERMITS = Integer.MAX_VALUE;
@@ -44,7 +47,7 @@ public class IndexShardOperationsLock implements Closeable {
     @Nullable private List<ActionListener<Releasable>> delayedOperations; // operations that are delayed due to relocation hand-off
     private volatile boolean closed;
 
-    public IndexShardOperationsLock(ShardId shardId, ESLogger logger, ThreadPool threadPool) {
+    public IndexShardOperationsLock(ShardId shardId, Logger logger, ThreadPool threadPool) {
         this.shardId = shardId;
         this.logger = logger;
         this.threadPool = threadPool;
@@ -126,11 +129,13 @@ public class IndexShardOperationsLock implements Closeable {
                     if (delayedOperations == null) {
                         delayedOperations = new ArrayList<>();
                     }
+                    final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                     if (executorOnDelay != null) {
                         delayedOperations.add(
-                            new ThreadedActionListener<>(logger, threadPool, executorOnDelay, onAcquired, forceExecution));
+                            new ThreadedActionListener<>(logger, threadPool, executorOnDelay,
+                                new ContextPreservingActionListener<>(contextSupplier, onAcquired), forceExecution));
                     } else {
-                        delayedOperations.add(onAcquired);
+                        delayedOperations.add(new ContextPreservingActionListener<>(contextSupplier, onAcquired));
                     }
                     return;
                 }

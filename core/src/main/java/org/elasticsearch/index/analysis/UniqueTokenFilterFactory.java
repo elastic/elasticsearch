@@ -25,16 +25,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class UniqueTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean onlyOnSamePosition;
 
     public UniqueTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.onlyOnSamePosition = settings.getAsBoolean("only_on_same_position", false);
+        this.onlyOnSamePosition = settings.getAsBooleanLenientForPreEs6Indices(
+            indexSettings.getIndexVersionCreated(), "only_on_same_position", false, deprecationLogger);
     }
 
     @Override

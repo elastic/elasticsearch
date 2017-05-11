@@ -19,14 +19,10 @@
 
 package org.elasticsearch.search.suggest.completion;
 
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
-import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 
@@ -35,9 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import static org.hamcrest.Matchers.containsString;
 
 public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTestCase<CompletionSuggestionBuilder> {
 
@@ -60,25 +54,22 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
 
     private static BuilderAndInfo randomSuggestionBuilderWithContextInfo() {
         final BuilderAndInfo builderAndInfo = new BuilderAndInfo();
-        CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);
         switch (randomIntBetween(0, 3)) {
             case 0:
-                testBuilder.prefix(randomAsciiOfLength(10));
+                testBuilder.prefix(randomAlphaOfLength(10));
                 break;
             case 1:
-                testBuilder.prefix(randomAsciiOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
+                testBuilder.prefix(randomAlphaOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
                 break;
             case 2:
-                testBuilder.prefix(randomAsciiOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
+                testBuilder.prefix(randomAlphaOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
                 break;
             case 3:
-                testBuilder.regex(randomAsciiOfLength(10), RegexOptionsTests.randomRegexOptions());
+                testBuilder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
                 break;
         }
-        List<String> payloads = new ArrayList<>();
-        Collections.addAll(payloads, generateRandomStringArray(5, 10, false, false));
-        maybeSet(testBuilder::payload, payloads);
         Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
         if (randomBoolean()) {
             int numContext = randomIntBetween(1, 5);
@@ -86,7 +77,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
             for (int i = 0; i < numContext; i++) {
                 contexts.add(CategoryQueryContextTests.randomCategoryQueryContext());
             }
-            String name = randomAsciiOfLength(10);
+            String name = randomAlphaOfLength(10);
             contextMap.put(name, contexts);
             builderAndInfo.catContexts.add(name);
         }
@@ -96,7 +87,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
             for (int i = 0; i < numContext; i++) {
                 contexts.add(GeoQueryContextTests.randomGeoQueryContext());
             }
-            String name = randomAsciiOfLength(10);
+            String name = randomAlphaOfLength(10);
             contextMap.put(name, contexts);
             builderAndInfo.geoContexts.add(name);
         }
@@ -116,61 +107,34 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
 
     @Override
     protected void mutateSpecificParameters(CompletionSuggestionBuilder builder) throws IOException {
-        switch (randomIntBetween(0, 5)) {
+        switch (randomIntBetween(0, 4)) {
             case 0:
-                List<String> payloads = new ArrayList<>();
-                Collections.addAll(payloads, generateRandomStringArray(5, 10, false, false));
-                builder.payload(payloads);
-                break;
-            case 1:
                 int nCatContext = randomIntBetween(1, 5);
                 List<CategoryQueryContext> contexts = new ArrayList<>(nCatContext);
                 for (int i = 0; i < nCatContext; i++) {
                     contexts.add(CategoryQueryContextTests.randomCategoryQueryContext());
                 }
-                builder.contexts(Collections.singletonMap(randomAsciiOfLength(10), contexts));
+                builder.contexts(Collections.singletonMap(randomAlphaOfLength(10), contexts));
                 break;
-            case 2:
+            case 1:
                 int nGeoContext = randomIntBetween(1, 5);
                 List<GeoQueryContext> geoContexts = new ArrayList<>(nGeoContext);
                 for (int i = 0; i < nGeoContext; i++) {
                     geoContexts.add(GeoQueryContextTests.randomGeoQueryContext());
                 }
-                builder.contexts(Collections.singletonMap(randomAsciiOfLength(10), geoContexts));
+                builder.contexts(Collections.singletonMap(randomAlphaOfLength(10), geoContexts));
+                break;
+            case 2:
+                builder.prefix(randomAlphaOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
                 break;
             case 3:
-                builder.prefix(randomAsciiOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
+                builder.prefix(randomAlphaOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
                 break;
             case 4:
-                builder.prefix(randomAsciiOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
-                break;
-            case 5:
-                builder.regex(randomAsciiOfLength(10), RegexOptionsTests.randomRegexOptions());
+                builder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
                 break;
             default:
                 throw new IllegalStateException("should not through");
-        }
-    }
-
-    /**
-     * Test that a malformed JSON suggestion request fails.
-     */
-    public void testMalformedJsonRequestPayload() throws Exception {
-        final String field = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-        final String payload = "{\n" +
-                               "  \"bad-payload\" : { \n" +
-                               "    \"prefix\" : \"sug\",\n" +
-                               "    \"completion\" : { \n" +
-                               "      \"field\" : \"" + field + "\",\n " +
-                               "      \"payload\" : [ {\"payload\":\"field\"} ]\n" +
-                               "    }\n" +
-                               "  }\n" +
-                               "}\n";
-        try {
-            final SuggestBuilder suggestBuilder = SuggestBuilder.fromXContent(newParseContext(payload), suggesters);
-            fail("Should not have been able to create SuggestBuilder from malformed JSON: " + suggestBuilder);
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("failed to parse field [payload]"));
         }
     }
 }

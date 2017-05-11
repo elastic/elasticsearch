@@ -26,9 +26,6 @@ import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
-/**
- *
- */
 public abstract class BroadcastShardResponse extends TransportResponse {
 
     ShardId shardId;

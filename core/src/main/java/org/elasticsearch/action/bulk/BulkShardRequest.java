@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -28,9 +29,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- *
- */
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     private BulkItemRequest[] items;
@@ -38,13 +36,13 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     public BulkShardRequest() {
     }
 
-    BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
         super(shardId);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
     }
 
-    BulkItemRequest[] items() {
+    public BulkItemRequest[] items() {
         return items;
     }
 
@@ -87,8 +85,14 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     @Override
     public String toString() {
         // This is included in error messages so we'll try to make it somewhat user friendly.
-        StringBuilder b = new StringBuilder("BulkShardRequest to [");
-        b.append(index).append("] containing [").append(items.length).append("] requests");
+        StringBuilder b = new StringBuilder("BulkShardRequest [");
+        b.append(shardId).append("] containing [");
+        if (items.length > 1) {
+          b.append(items.length).append("] requests");
+        } else {
+            b.append(items[0].request()).append("]");
+        }
+
         switch (getRefreshPolicy()) {
         case IMMEDIATE:
             b.append(" and a refresh");
@@ -100,5 +104,21 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
             break;
         }
         return b.toString();
+    }
+
+    @Override
+    public String getDescription() {
+        return "requests[" + items.length + "], index[" + index + "]";
+    }
+
+    @Override
+    public void onRetry() {
+        for (BulkItemRequest item : items) {
+            if (item.request() instanceof ReplicationRequest) {
+                // all replication requests need to be notified here as well to ie. make sure that internal optimizations are
+                // disabled see IndexRequest#canHaveDuplicates()
+                ((ReplicationRequest) item.request()).onRetry();
+            }
+        }
     }
 }

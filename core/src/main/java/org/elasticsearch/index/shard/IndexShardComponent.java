@@ -21,9 +21,6 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public interface IndexShardComponent {
 
     ShardId shardId();

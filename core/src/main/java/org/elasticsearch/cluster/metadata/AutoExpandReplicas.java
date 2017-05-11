@@ -33,7 +33,7 @@ final class AutoExpandReplicas {
     public static final Setting<AutoExpandReplicas> SETTING = new Setting<>(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "false", (value) -> {
         final int min;
         final int max;
-        if (Booleans.parseBoolean(value, true) == false) {
+        if (Booleans.isFalse(value)) {
             return new AutoExpandReplicas(0, 0, false);
         }
         final int dash = value.indexOf('-');

@@ -70,7 +70,7 @@ import static org.elasticsearch.test.ESTestCase.awaitBusy;
 public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
     @Override
-    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class),
                 new ActionHandler<>(UnblockTestTasksAction.INSTANCE, TransportUnblockTestTasksAction.class));
     }
@@ -79,8 +79,13 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
         private volatile boolean blocked = true;
 
-        public TestTask(long id, String type, String action, String description, TaskId parentTaskId) {
+        TestTask(long id, String type, String action, String description, TaskId parentTaskId) {
             super(id, type, action, description, parentTaskId);
+        }
+
+        @Override
+        public boolean shouldCancelChildrenOnCancellation() {
+            return false;
         }
 
         public boolean isBlocked() {
@@ -179,7 +184,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
         private String requestName;
-        private boolean shouldPersistResult = false;
+        private boolean shouldStoreResult = false;
         private boolean shouldBlock = true;
         private boolean shouldFail = false;
 
@@ -192,13 +197,13 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
             this.requestName = requestName;
         }
 
-        public void setShouldPersistResult(boolean shouldPersistResult) {
-            this.shouldPersistResult = shouldPersistResult;
+        public void setShouldStoreResult(boolean shouldStoreResult) {
+            this.shouldStoreResult = shouldStoreResult;
         }
 
         @Override
-        public boolean getShouldPersistResult() {
-            return shouldPersistResult;
+        public boolean getShouldStoreResult() {
+            return shouldStoreResult;
         }
 
         public void setShouldBlock(boolean shouldBlock) {
@@ -221,7 +226,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             requestName = in.readString();
-            shouldPersistResult = in.readBoolean();
+            shouldStoreResult = in.readBoolean();
             shouldBlock = in.readBoolean();
             shouldFail = in.readBoolean();
         }
@@ -230,7 +235,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(requestName);
-            out.writeBoolean(shouldPersistResult);
+            out.writeBoolean(shouldStoreResult);
             out.writeBoolean(shouldBlock);
             out.writeBoolean(shouldFail);
         }
@@ -242,7 +247,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId);
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId) {
+                @Override
+                public boolean shouldCancelChildrenOnCancellation() {
+                    return true;
+                }
+            };
         }
     }
 
@@ -336,8 +346,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         }
 
 
-        public NodesRequestBuilder setShouldPersistResult(boolean shouldPersistResult) {
-            request().setShouldPersistResult(shouldPersistResult);
+        public NodesRequestBuilder setShouldStoreResult(boolean shouldStoreResult) {
+            request().setShouldStoreResult(shouldStoreResult);
             return this;
         }
 
@@ -438,9 +448,9 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        protected UnblockTestTaskResponse taskOperation(UnblockTestTasksRequest request, Task task) {
+        protected void taskOperation(UnblockTestTasksRequest request, Task task, ActionListener<UnblockTestTaskResponse> listener) {
             ((TestTask) task).unblock();
-            return new UnblockTestTaskResponse();
+            listener.onResponse(new UnblockTestTaskResponse());
         }
 
         @Override

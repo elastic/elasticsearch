@@ -22,11 +22,13 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugin.mapper.MapperSizePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
@@ -41,7 +43,7 @@ public class SizeMappingIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MapperSizePlugin.class);
+        return Arrays.asList(MapperSizePlugin.class);
     }
 
     // issue 5053
@@ -106,8 +108,8 @@ public class SizeMappingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type", "_size", "enabled=true"));
         final String source = "{\"f\":10}";
         indexRandom(true,
-                client().prepareIndex("test", "type", "1").setSource(source));
-        GetResponse getResponse = client().prepareGet("test", "type", "1").setFields("_size").get();
+                client().prepareIndex("test", "type", "1").setSource(source, XContentType.JSON));
+        GetResponse getResponse = client().prepareGet("test", "type", "1").setStoredFields("_size").get();
         assertNotNull(getResponse.getField("_size"));
         assertEquals(source.length(), getResponse.getField("_size").getValue());
     }

@@ -26,8 +26,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.search.MultiValueMode;
 
-/**
- */
 public class LongNestedSortingTests extends AbstractNumberNestedSortingTestCase {
 
     @Override

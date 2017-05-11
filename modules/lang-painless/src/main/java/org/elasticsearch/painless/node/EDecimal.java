@@ -33,19 +33,23 @@ import java.util.Set;
  */
 public final class EDecimal extends AExpression {
 
-    final String value;
+    private final String value;
 
     public EDecimal(Location location, String value) {
         super(location);
 
         this.value = Objects.requireNonNull(value);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {}
 
     @Override
     void analyze(Locals locals) {
+        if (!read) {
+            throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
+        }
+
         if (value.endsWith("f") || value.endsWith("F")) {
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
@@ -54,8 +58,12 @@ public final class EDecimal extends AExpression {
                 throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
             }
         } else {
+            String toParse = value;
+            if (toParse.endsWith("d") || value.endsWith("D")) {
+                toParse = toParse.substring(0, value.length() - 1);
+            }
             try {
-                constant = Double.parseDouble(value);
+                constant = Double.parseDouble(toParse);
                 actual = Definition.DOUBLE_TYPE;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
@@ -66,5 +74,10 @@ public final class EDecimal extends AExpression {
     @Override
     void write(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(value);
     }
 }

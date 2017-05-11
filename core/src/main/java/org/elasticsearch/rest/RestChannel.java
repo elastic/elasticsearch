@@ -20,9 +20,9 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -30,11 +30,12 @@ import java.io.IOException;
  * A channel used to construct bytes / builder based outputs, and send responses.
  */
 public interface RestChannel {
+
     XContentBuilder newBuilder() throws IOException;
 
     XContentBuilder newErrorBuilder() throws IOException;
 
-    XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException;
+    XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException;
 
     BytesStreamOutput bytesOutput();
 

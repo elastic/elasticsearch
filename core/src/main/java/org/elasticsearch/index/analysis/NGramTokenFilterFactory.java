@@ -26,9 +26,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 
-/**
- *
- */
 public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final int minGram;

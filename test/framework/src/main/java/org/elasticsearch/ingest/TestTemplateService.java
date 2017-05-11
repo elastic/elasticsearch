@@ -22,17 +22,27 @@ package org.elasticsearch.ingest;
 import java.util.Map;
 
 public class TestTemplateService implements TemplateService {
+    private boolean compilationException;
 
     public static TemplateService instance() {
-        return new TestTemplateService();
+        return new TestTemplateService(false);
     }
 
-    private TestTemplateService() {
+    public static TemplateService instance(boolean compilationException) {
+        return new TestTemplateService(compilationException);
+    }
+
+    private TestTemplateService(boolean compilationException) {
+        this.compilationException = compilationException;
     }
 
     @Override
     public Template compile(String template) {
-        return new MockTemplate(template);
+        if (this.compilationException) {
+            throw new RuntimeException("could not compile script");
+        } else {
+            return new MockTemplate(template);
+        }
     }
 
     public static class MockTemplate implements TemplateService.Template {

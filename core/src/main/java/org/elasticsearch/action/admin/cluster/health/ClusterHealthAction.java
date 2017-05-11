@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.cluster.health;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class ClusterHealthAction extends Action<ClusterHealthRequest, ClusterHealthResponse, ClusterHealthRequestBuilder> {
 
     public static final ClusterHealthAction INSTANCE = new ClusterHealthAction();

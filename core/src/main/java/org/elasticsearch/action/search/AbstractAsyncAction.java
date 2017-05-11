@@ -26,8 +26,10 @@ abstract class AbstractAsyncAction {
 
     private final long startTime;
 
-    protected AbstractAsyncAction() {
-        this.startTime = System.currentTimeMillis();
+    protected AbstractAsyncAction() { this(System.currentTimeMillis());}
+
+    protected AbstractAsyncAction(long startTime) {
+        this.startTime = startTime;
     }
 
     /**

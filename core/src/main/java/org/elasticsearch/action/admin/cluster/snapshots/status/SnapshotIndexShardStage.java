@@ -20,8 +20,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 
-/**
- */
 public enum SnapshotIndexShardStage {
 
     /**
@@ -49,7 +47,7 @@ public enum SnapshotIndexShardStage {
 
     private boolean completed;
 
-    private SnapshotIndexShardStage(byte value, boolean completed) {
+    SnapshotIndexShardStage(byte value, boolean completed) {
         this.value = value;
         this.completed = completed;
     }

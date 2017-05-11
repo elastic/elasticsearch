@@ -31,27 +31,27 @@ public class TryCatchTests extends ScriptTestCase {
         });
         assertEquals("test", exception.getMessage());
     }
-    
+
     /** catches the exact exception */
     public void testCatch() {
-        assertEquals(1, exec("try { if (params.param == 'true') throw new RuntimeException('test'); } " + 
-                             "catch (RuntimeException e) { return 1; } return 2;", 
-                              Collections.singletonMap("param", "true")));
+        assertEquals(1, exec("try { if (params.param == 'true') throw new RuntimeException('test'); } " +
+                             "catch (RuntimeException e) { return 1; } return 2;",
+                              Collections.singletonMap("param", "true"), true));
     }
-    
+
     /** catches superclass of the exception */
     public void testCatchSuperclass() {
-        assertEquals(1, exec("try { if (params.param == 'true') throw new RuntimeException('test'); } " + 
-                             "catch (Exception e) { return 1; } return 2;", 
-                              Collections.singletonMap("param", "true")));
+        assertEquals(1, exec("try { if (params.param == 'true') throw new RuntimeException('test'); } " +
+                             "catch (Exception e) { return 1; } return 2;",
+                              Collections.singletonMap("param", "true"), true));
     }
-    
+
     /** tries to catch a different type of exception */
     public void testNoCatch() {
         RuntimeException exception = expectScriptThrows(RuntimeException.class, () -> {
-           exec("try { if (params.param == 'true') throw new RuntimeException('test'); } " + 
-                "catch (ArithmeticException e) { return 1; } return 2;", 
-                Collections.singletonMap("param", "true"));
+           exec("try { if (params.param == 'true') throw new RuntimeException('test'); } " +
+                "catch (ArithmeticException e) { return 1; } return 2;",
+                Collections.singletonMap("param", "true"), true);
         });
         assertEquals("test", exception.getMessage());
     }

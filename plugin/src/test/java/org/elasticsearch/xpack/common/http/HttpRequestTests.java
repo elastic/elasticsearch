@@ -105,10 +105,16 @@ public class HttpRequestTests extends ESTestCase {
             builder.body(randomAlphaOfLength(200));
         }
         if (randomBoolean()) {
-            builder.connectionTimeout(TimeValue.parseTimeValue(randomTimeValue(), "my.setting"));
+            // micros and nanos don't round trip will full precision so exclude them from the test
+            String safeConnectionTimeout = randomValueOtherThanMany(s -> (s.endsWith("micros") || s.endsWith("nanos")),
+                    () -> randomTimeValue());
+            builder.connectionTimeout(TimeValue.parseTimeValue(safeConnectionTimeout, "my.setting"));
         }
         if (randomBoolean()) {
-            builder.readTimeout(TimeValue.parseTimeValue(randomTimeValue(), "my.setting"));
+            // micros and nanos don't round trip will full precision so exclude them from the test
+            String safeReadTimeout = randomValueOtherThanMany(s -> (s.endsWith("micros") || s.endsWith("nanos")),
+                    () -> randomTimeValue());
+            builder.readTimeout(TimeValue.parseTimeValue(safeReadTimeout, "my.setting"));
         }
         if (randomBoolean()) {
             builder.proxy(new HttpProxy(randomAlphaOfLength(10), randomIntBetween(1024, 65000)));

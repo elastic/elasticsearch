@@ -19,32 +19,45 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class InternalSingleBucketAggregationTestCase<T extends InternalSingleBucketAggregation>
         extends InternalAggregationTestCase<T> {
 
-    private final boolean hasInternalMax = randomBoolean();
-    private final boolean hasInternalMin = randomBoolean();
+    private boolean hasInternalMax;
+    private boolean hasInternalMin;
 
     public Supplier<InternalAggregations> subAggregationsSupplier;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        hasInternalMax = randomBoolean();
+        hasInternalMin = randomBoolean();
         subAggregationsSupplier = () -> {
             List<InternalAggregation> aggs = new ArrayList<>();
             if (hasInternalMax) {
@@ -89,4 +102,38 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         }
         extraAssertReduced(reduced, inputs);
     }
+
+    @Override
+    protected void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException {
+        assertTrue(parsedAggregation instanceof ParsedSingleBucketAggregation);
+        ParsedSingleBucketAggregation parsed = (ParsedSingleBucketAggregation) parsedAggregation;
+
+        assertEquals(aggregation.getDocCount(), parsed.getDocCount());
+        InternalAggregations aggregations = aggregation.getAggregations();
+        Map<String, Aggregation> expectedAggregations = new HashMap<>();
+        int expectedNumberOfAggregations = 0;
+        for (Aggregation expectedAggregation : aggregations) {
+            // since we shuffle xContent, we cannot rely on the order of the original inner aggregations for comparison
+            assertTrue(expectedAggregation instanceof InternalAggregation);
+            expectedAggregations.put(expectedAggregation.getName(), expectedAggregation);
+            expectedNumberOfAggregations++;
+        }
+        int parsedNumberOfAggregations = 0;
+        for (Aggregation parsedAgg : parsed.getAggregations()) {
+            assertTrue(parsedAgg instanceof ParsedAggregation);
+            assertTrue(expectedAggregations.keySet().contains(parsedAgg.getName()));
+            Aggregation expectedInternalAggregation = expectedAggregations.get(parsedAgg.getName());
+            final XContentType xContentType = randomFrom(XContentType.values());
+            final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+            BytesReference expectedBytes = toXContent(expectedInternalAggregation, xContentType, params, false);
+            BytesReference actualBytes = toXContent(parsedAgg, xContentType, params, false);
+            assertToXContentEquivalent(expectedBytes, actualBytes, xContentType);
+            parsedNumberOfAggregations++;
+        }
+        assertEquals(expectedNumberOfAggregations, parsedNumberOfAggregations);
+        Class<? extends ParsedSingleBucketAggregation> parsedClass = implementationClass();
+        assertTrue(parsedClass != null && parsedClass.isInstance(parsedAggregation));
+    }
+
+    protected abstract Class<? extends ParsedSingleBucketAggregation> implementationClass();
 }

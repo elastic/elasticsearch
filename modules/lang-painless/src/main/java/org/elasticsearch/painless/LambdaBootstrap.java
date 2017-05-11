@@ -337,7 +337,8 @@ public final class LambdaBootstrap {
     /**
      * Generates a factory method to delegate to constructors.
      */
-    private static void generateStaticCtorDelegator(ClassWriter cw, int access, String delegatorMethodName, Type delegateClassType, MethodType delegateMethodType) {
+    private static void generateStaticCtorDelegator(ClassWriter cw, int access, String delegatorMethodName, 
+            Type delegateClassType, MethodType delegateMethodType) {
         Method wrapperMethod = new Method(delegatorMethodName, delegateMethodType.toMethodDescriptorString());
         Method constructorMethod = 
             new Method(CTOR_METHOD_NAME, delegateMethodType.changeReturnType(void.class).toMethodDescriptorString());

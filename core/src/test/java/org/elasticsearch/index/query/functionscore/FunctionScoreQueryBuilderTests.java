@@ -83,6 +83,9 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<FunctionScoreQueryBuilder> {
 
+    private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[] {Script.PARAMS_PARSE_FIELD.getPreferredName(),
+        ExponentialDecayFunctionBuilder.NAME, LinearDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder.NAME};
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singleton(TestPlugin.class);
@@ -104,6 +107,12 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             functionScoreQueryBuilder.setMinScore(randomFloat());
         }
         return functionScoreQueryBuilder;
+    }
+
+    @Override
+    protected String[] shuffleProtectedFields() {
+        // do not shuffle fields that may contain arbitrary content
+        return SHUFFLE_PROTECTED_FIELDS;
     }
 
     @Override

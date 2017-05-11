@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
@@ -30,13 +32,16 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsMockPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
+import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
@@ -57,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
@@ -72,6 +78,8 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class DateHistogramIT extends ESIntegTestCase {
+
+    static Map<DateTime, Map<String, Object>> expectedMultiSortBuckets;
 
     private DateTime date(int month, int day) {
         return new DateTime(2012, month, day, 0, 0, DateTimeZone.UTC);
@@ -98,6 +106,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         return client().prepareIndex("idx", "type").setSource(jsonBuilder()
                 .startObject()
                 .field("value", value)
+                .field("constant", 1)
                 .field("date", date(month, day))
                 .startArray("dates").value(date(month, day)).value(date(month + 1, day + 1)).endArray()
                 .endObject());
@@ -115,6 +124,9 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .field("value", i * 2)
                     .endObject()));
         }
+
+        getMultiSortDocs(builders);
+
         builders.addAll(Arrays.asList(
                 indexDoc(1, 2, 1),  // date: Jan 2, dates: Jan 2, Feb 3
                 indexDoc(2, 2, 2),  // date: Feb 2, dates: Feb 2, Mar 3
@@ -124,6 +136,50 @@ public class DateHistogramIT extends ESIntegTestCase {
                 indexDoc(3, 23, 6))); // date: Mar 23, dates: Mar 23, Apr 24
         indexRandom(true, builders);
         ensureSearchable();
+    }
+
+    private void addExpectedBucket(DateTime key, long docCount, double avg, double sum) {
+        Map<String, Object> bucketProps = new HashMap<>();
+        bucketProps.put("_count", docCount);
+        bucketProps.put("avg_l", avg);
+        bucketProps.put("sum_d", sum);
+        expectedMultiSortBuckets.put(key, bucketProps);
+    }
+
+    private void getMultiSortDocs(List<IndexRequestBuilder> builders) throws IOException {
+        expectedMultiSortBuckets = new HashMap<>();
+        addExpectedBucket(date(1, 1), 3, 1, 6);
+        addExpectedBucket(date(1, 2), 3, 2, 6);
+        addExpectedBucket(date(1, 3), 2, 3, 3);
+        addExpectedBucket(date(1, 4), 2, 3, 4);
+        addExpectedBucket(date(1, 5), 2, 5, 3);
+        addExpectedBucket(date(1, 6), 1, 5, 1);
+        addExpectedBucket(date(1, 7), 1, 5, 1);
+
+        assertAcked(client().admin().indices().prepareCreate("sort_idx")
+            .addMapping("type", "date", "type=date").get());
+        for (int i = 1; i <= 3; i++) {
+            builders.add(client().prepareIndex("sort_idx", "type").setSource(
+                jsonBuilder().startObject().field("date", date(1, 1)).field("l", 1).field("d", i).endObject()));
+            builders.add(client().prepareIndex("sort_idx", "type").setSource(
+                jsonBuilder().startObject().field("date", date(1, 2)).field("l", 2).field("d", i).endObject()));
+        }
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            jsonBuilder().startObject().field("date", date(1, 3)).field("l", 3).field("d", 1).endObject()));
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            jsonBuilder().startObject().field("date", date(1, 3).plusHours(1)).field("l", 3).field("d", 2).endObject()));
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            jsonBuilder().startObject().field("date", date(1, 4)).field("l", 3).field("d", 1).endObject()));
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            jsonBuilder().startObject().field("date", date(1, 4).plusHours(2)).field("l", 3).field("d", 3).endObject()));
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            jsonBuilder().startObject().field("date", date(1, 5)).field("l", 5).field("d", 1).endObject()));
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            jsonBuilder().startObject().field("date", date(1, 5).plusHours(12)).field("l", 5).field("d", 2).endObject()));
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            jsonBuilder().startObject().field("date", date(1, 6)).field("l", 5).field("d", 1).endObject()));
+        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            jsonBuilder().startObject().field("date", date(1, 7)).field("l", 5).field("d", 1).endObject()));
     }
 
     @Override
@@ -281,7 +337,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("histo")
                         .field("date")
                         .dateHistogramInterval(DateHistogramInterval.MONTH)
-                        .order(Histogram.Order.KEY_ASC))
+                        .order(BucketOrder.key(true)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -304,7 +360,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("histo")
                         .field("date")
                         .dateHistogramInterval(DateHistogramInterval.MONTH)
-                        .order(Histogram.Order.KEY_DESC))
+                        .order(BucketOrder.key(false)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -326,7 +382,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("histo")
                         .field("date")
                         .dateHistogramInterval(DateHistogramInterval.MONTH)
-                        .order(Histogram.Order.COUNT_ASC))
+                        .order(BucketOrder.count(true)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -348,7 +404,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("histo")
                         .field("date")
                         .dateHistogramInterval(DateHistogramInterval.MONTH)
-                        .order(Histogram.Order.COUNT_DESC))
+                        .order(BucketOrder.count(false)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -428,7 +484,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("histo")
                         .field("date")
                         .dateHistogramInterval(DateHistogramInterval.MONTH)
-                        .order(Histogram.Order.aggregation("sum", true))
+                        .order(BucketOrder.aggregation("sum", true))
                         .subAggregation(max("sum").field("value")))
                 .execute().actionGet();
 
@@ -451,7 +507,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("histo")
                         .field("date")
                         .dateHistogramInterval(DateHistogramInterval.MONTH)
-                        .order(Histogram.Order.aggregation("sum", false))
+                        .order(BucketOrder.aggregation("sum", false))
                         .subAggregation(max("sum").field("value")))
                 .execute().actionGet();
 
@@ -474,7 +530,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("histo")
                         .field("date")
                         .dateHistogramInterval(DateHistogramInterval.MONTH)
-                        .order(Histogram.Order.aggregation("stats", "sum", false))
+                        .order(BucketOrder.aggregation("stats", "sum", false))
                         .subAggregation(stats("stats").field("value")))
                 .execute().actionGet();
 
@@ -489,6 +545,60 @@ public class DateHistogramIT extends ESIntegTestCase {
         for (Histogram.Bucket bucket : histo.getBuckets()) {
             assertThat(((DateTime) bucket.getKey()), equalTo(new DateTime(2012, i + 1, 1, 0, 0, DateTimeZone.UTC)));
             i--;
+        }
+    }
+
+    public void testSingleValuedFieldOrderedByTieBreaker() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(dateHistogram("histo")
+                .field("date")
+                .dateHistogramInterval(DateHistogramInterval.MONTH)
+                .order(BucketOrder.aggregation("max_constant", randomBoolean()))
+                .subAggregation(max("max_constant").field("constant")))
+            .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        assertThat(histo.getBuckets().size(), equalTo(3));
+
+        int i = 1;
+        for (Histogram.Bucket bucket : histo.getBuckets()) {
+            assertThat(bucket.getKey(), equalTo(date(i, 1)));
+            i++;
+        }
+    }
+
+    public void testSingleValuedFieldOrderedByIllegalAgg() throws Exception {
+        boolean asc = true;
+        try {
+            client()
+                .prepareSearch("idx")
+                .addAggregation(
+                    dateHistogram("histo").field("date")
+                        .dateHistogramInterval(DateHistogramInterval.MONTH)
+                        .order(BucketOrder.aggregation("inner_histo>avg", asc))
+                        .subAggregation(dateHistogram("inner_histo")
+                            .dateHistogramInterval(DateHistogramInterval.MONTH)
+                            .field("dates")
+                            .subAggregation(avg("avg").field("value"))))
+                .execute().actionGet();
+            fail("Expected an exception");
+        } catch (SearchPhaseExecutionException e) {
+            ElasticsearchException[] rootCauses = e.guessRootCauses();
+            if (rootCauses.length == 1) {
+                ElasticsearchException rootCause = rootCauses[0];
+                if (rootCause instanceof AggregationExecutionException) {
+                    AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
+                    assertThat(aggException.getMessage(), Matchers.startsWith("Invalid aggregation order path"));
+                } else {
+                    throw e;
+                }
+            } else {
+                throw e;
+            }
         }
     }
 
@@ -583,12 +693,12 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(3L));
     }
 
-    public void testMultiValuedFieldOrderedByKeyDesc() throws Exception {
+    public void testMultiValuedFieldOrderedByCountDesc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("dates")
                         .dateHistogramInterval(DateHistogramInterval.MONTH)
-                        .order(Histogram.Order.COUNT_DESC))
+                        .order(BucketOrder.count(false)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -598,23 +708,26 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(4));
 
-        // TODO: use diamond once JI-9019884 is fixed
         List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
 
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo(date(3, 1)));
         assertThat(bucket.getDocCount(), equalTo(5L));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo(date(2, 1)));
         assertThat(bucket.getDocCount(), equalTo(3L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo(date(4, 1)));
         assertThat(bucket.getDocCount(), equalTo(3L));
 
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo(date(1, 1)));
         assertThat(bucket.getDocCount(), equalTo(1L));
     }
 
@@ -1235,5 +1348,76 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
+    }
+
+    public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAndKeyDesc() throws Exception {
+        int[] expectedDays = new int[] { 1, 2, 4, 3, 7, 6, 5 };
+        assertMultiSortResponse(expectedDays, BucketOrder.aggregation("avg_l", true), BucketOrder.key(false));
+    }
+
+    public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAndKeyAsc() throws Exception {
+        int[] expectedDays = new int[]  { 1, 2, 3, 4, 5, 6, 7 };
+        assertMultiSortResponse(expectedDays, BucketOrder.aggregation("avg_l", true), BucketOrder.key(true));
+    }
+
+    public void testSingleValuedFieldOrderedBySingleValueSubAggregationDescAndKeyAsc() throws Exception {
+        int[] expectedDays = new int[]  { 5, 6, 7, 3, 4, 2, 1 };
+        assertMultiSortResponse(expectedDays, BucketOrder.aggregation("avg_l", false), BucketOrder.key(true));
+    }
+
+    public void testSingleValuedFieldOrderedByCountAscAndSingleValueSubAggregationAsc() throws Exception {
+        int[] expectedDays = new int[]  { 6, 7, 3, 4, 5, 1, 2 };
+        assertMultiSortResponse(expectedDays, BucketOrder.count(true), BucketOrder.aggregation("avg_l", true));
+    }
+
+    public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscSingleValueSubAggregationAsc() throws Exception {
+        int[] expectedDays = new int[]  { 6, 7, 3, 5, 4, 1, 2 };
+        assertMultiSortResponse(expectedDays, BucketOrder.aggregation("sum_d", true), BucketOrder.aggregation("avg_l", true));
+    }
+
+    public void testSingleValuedFieldOrderedByThreeCriteria() throws Exception {
+        int[] expectedDays = new int[]  { 2, 1, 4, 5, 3, 6, 7 };
+        assertMultiSortResponse(expectedDays, BucketOrder.count(false), BucketOrder.aggregation("sum_d", false),
+            BucketOrder.aggregation("avg_l", false));
+    }
+
+    public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAsCompound() throws Exception {
+        int[] expectedDays = new int[]  { 1, 2, 3, 4, 5, 6, 7 };
+        assertMultiSortResponse(expectedDays, BucketOrder.aggregation("avg_l", true));
+    }
+
+    private void assertMultiSortResponse(int[] expectedDays, BucketOrder... order) {
+        DateTime[] expectedKeys = Arrays.stream(expectedDays).mapToObj(d -> date(1, d)).toArray(DateTime[]::new);
+        SearchResponse response = client()
+            .prepareSearch("sort_idx")
+            .setTypes("type")
+            .addAggregation(
+                dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).order(BucketOrder.compound(order))
+                    .subAggregation(avg("avg_l").field("l")).subAggregation(sum("sum_d").field("d"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Histogram histogram = response.getAggregations().get("histo");
+        assertThat(histogram, notNullValue());
+        assertThat(histogram.getName(), equalTo("histo"));
+        assertThat(histogram.getBuckets().size(), equalTo(expectedKeys.length));
+
+        int i = 0;
+        for (Histogram.Bucket bucket : histogram.getBuckets()) {
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo(expectedKeys[i]));
+            assertThat(bucket.getDocCount(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("_count")));
+            Avg avg = bucket.getAggregations().get("avg_l");
+            assertThat(avg, notNullValue());
+            assertThat(avg.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("avg_l")));
+            Sum sum = bucket.getAggregations().get("sum_d");
+            assertThat(sum, notNullValue());
+            assertThat(sum.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("sum_d")));
+            i++;
+        }
+    }
+
+    private DateTime key(Histogram.Bucket bucket) {
+        return (DateTime) bucket.getKey();
     }
 }

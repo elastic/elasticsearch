@@ -32,6 +32,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
@@ -63,6 +64,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLikeThisQueryBuilder> {
+
+    private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[]{Item.Field.DOC.getPreferredName()};
 
     private static String[] randomFields;
     private static Item[] randomLikeItems;
@@ -202,6 +205,16 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             queryBuilder.failOnUnsupportedField(randomBoolean());
         }
         return queryBuilder;
+    }
+
+    /**
+     * we don't want to shuffle the "doc" field internally in {@link #testFromXContent()} because even though the
+     * documents would be functionally the same, their {@link BytesReference} representation isn't and thats what we
+     * compare when check for equality of the original and the shuffled builder
+     */
+    @Override
+    protected String[] shuffleProtectedFields() {
+        return SHUFFLE_PROTECTED_FIELDS;
     }
 
     @Override

@@ -21,14 +21,14 @@ package org.elasticsearch.repositories.s3;
 
 import java.io.IOException;
 
-import com.amazonaws.ClientConfiguration;
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -52,6 +52,12 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 class S3Repository extends BlobStoreRepository {
 
     static final String TYPE = "s3";
+
+    /** The access key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    static final Setting<SecureString> ACCESS_KEY_SETTING = SecureSetting.insecureString("access_key");
+
+    /** The secret key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    static final Setting<SecureString> SECRET_KEY_SETTING = SecureSetting.insecureString("secret_key");
 
     /**
      * Default is to use 100MB (S3 defaults) for heaps above 2GB and 5% of

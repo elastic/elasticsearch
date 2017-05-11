@@ -45,6 +45,13 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
+/**
+ * Builds requests for remote version of Elasticsearch. Note that unlike most of the
+ * rest of Elasticsearch this file needs to be compatible with very old versions of
+ * Elasticsearch. Thus is often uses identifiers for versions like {@code 2000099}
+ * for {@code 2.0.0-alpha1}. Do not drop support for features from this file just
+ * because the version constants have been removed.
+ */
 final class RemoteRequestBuilders {
     private RemoteRequestBuilders() {}
 
@@ -103,7 +110,9 @@ final class RemoteRequestBuilders {
             searchRequest.source().storedField("_parent").storedField("_routing").storedField("_ttl");
             if (remoteVersion.before(Version.fromId(1000099))) {
                 // Versions before 1.0.0 don't support `"_source": true` so we have to ask for the _source in a funny way.
-                searchRequest.source().storedField("_source");
+                if (false == searchRequest.source().storedFields().fieldNames().contains("_source")) {
+                    searchRequest.source().storedField("_source");
+                }
             }
         }
         if (searchRequest.source().storedFields() != null && false == searchRequest.source().storedFields().fieldNames().isEmpty()) {

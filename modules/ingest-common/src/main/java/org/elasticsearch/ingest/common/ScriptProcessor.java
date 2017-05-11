@@ -104,13 +104,12 @@ public final class ScriptProcessor extends AbstractProcessor {
 
             boolean containsNoScript = !hasLength(id) && !hasLength(inline);
             if (containsNoScript) {
-                throw newConfigurationException(TYPE, processorTag, null, "Need [file], [id], or [inline] parameter to refer to scripts");
+                throw newConfigurationException(TYPE, processorTag, null, "Need [id] or [inline] parameter to refer to scripts");
             }
 
-            boolean moreThanOneConfigured = Strings.hasLength(id) ||
-                Strings.hasLength(inline) || (Strings.hasLength(id) && Strings.hasLength(inline));
+            boolean moreThanOneConfigured = Strings.hasLength(id) && Strings.hasLength(inline);
             if (moreThanOneConfigured) {
-                throw newConfigurationException(TYPE, processorTag, null, "Only one of [file], [id], or [inline] may be configured");
+                throw newConfigurationException(TYPE, processorTag, null, "Only one of [id] or [inline] may be configured");
             }
 
             if (lang == null) {

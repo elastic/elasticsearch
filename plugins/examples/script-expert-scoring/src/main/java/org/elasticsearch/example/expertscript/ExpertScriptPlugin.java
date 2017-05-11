@@ -66,13 +66,13 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                     String term = p.get("term").toString();
 
                     @Override
-                    public LeafScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+                    public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
                         PostingsEnum postings = context.reader().postings(new Term(field, term));
                         if (postings == null) {
                             // the field and/or term don't exist in this segment, so always return 0
                             return () -> 0.0d;
                         }
-                        return new LeafScript() {
+                        return new LeafSearchScript() {
                             int currentDocid = -1;
                             @Override
                             public void setDocument(int docid) {
@@ -131,28 +131,4 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         public void close() {}
     }
     // end::expert_engine
-
-    private interface LeafScript extends LeafSearchScript {
-        @Override
-        default void setDocument(int doc) {}
-
-        @Override
-        default void setSource(Map<String, Object> source) {}
-
-        @Override
-        default void setScorer(Scorer scorer) {}
-
-        @Override
-        default void setNextVar(String name, Object value) {}
-
-        @Override
-        default long runAsLong() {
-          return (long) runAsDouble();
-        }
-
-        @Override
-        default Object run() {
-            return runAsDouble();
-        }
-    }
 }

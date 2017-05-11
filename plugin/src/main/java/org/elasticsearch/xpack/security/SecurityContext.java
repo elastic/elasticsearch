@@ -102,7 +102,7 @@ public class SecurityContext {
         final StoredContext original = threadContext.newStoredContext(true);
         final Authentication authentication = Objects.requireNonNull(getAuthentication());
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-            setAuthentication(new Authentication(authentication.getUser().authenticatedUser(), authentication.getAuthenticatedBy(),
+            setAuthentication(new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
                                                  authentication.getLookedUpBy(), version));
             consumer.accept(original);
         }

@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.user.SystemUser;
@@ -83,5 +84,29 @@ public class SecurityContextTests extends ESTestCase {
         assertNotNull(originalContext);
         originalContext.restore();
         assertEquals(original, securityContext.getUser());
+    }
+
+    public void testExecuteAfterRewritingAuthentication() throws IOException {
+        User user = new User("test", null, new User("authUser"));
+        RealmRef authBy = new RealmRef("ldap", "foo", "node1");
+        final Authentication original = new Authentication(user, authBy, authBy);
+        original.writeToContext(threadContext);
+
+        final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
+        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
+            Authentication authentication = securityContext.getAuthentication();
+            assertEquals(original.getUser(), authentication.getUser());
+            assertEquals(original.getAuthenticatedBy(), authentication.getAuthenticatedBy());
+            assertEquals(original.getLookedUpBy(), authentication.getLookedUpBy());
+            assertEquals(VersionUtils.getPreviousVersion(), authentication.getVersion());
+            contextAtomicReference.set(originalCtx);
+        }, VersionUtils.getPreviousVersion());
+
+        final Authentication authAfterExecution = securityContext.getAuthentication();
+        assertEquals(original, authAfterExecution);
+        StoredContext originalContext = contextAtomicReference.get();
+        assertNotNull(originalContext);
+        originalContext.restore();
+        assertEquals(original, securityContext.getAuthentication());
     }
 }

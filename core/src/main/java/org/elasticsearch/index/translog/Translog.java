@@ -541,6 +541,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     *  Returns <code>true</code> if an fsync is required to ensure durability of the translogs operations or it's metadata.
+     */
     public boolean syncNeeded() {
         try (ReleasableLock lock = readLock.acquire()) {
             return current.syncNeeded();

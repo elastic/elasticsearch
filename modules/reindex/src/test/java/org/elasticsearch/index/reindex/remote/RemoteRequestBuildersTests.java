@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex.remote;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -112,6 +113,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("sort", "foo:asc"));
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/24628")
     public void testInitialSearchParamsFields() {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
 

@@ -1,0 +1,24 @@
+---
+setup:
+  - do:
+      indices.create:
+          index: test1
+
+  - do:
+      indices.create:
+          index: test2
+
+---
+"Index - all":
+  - do:
+      xpack.upgrade.info: { index: _all }
+
+  - length: { indices: 0 }
+
+---
+"Index - treat test2 as kibana":
+  - do:
+      xpack.upgrade.info: { index: _all, kibana_indices: test2 }
+
+  - length: { indices: 1 }
+  - match: { indices.test2.action_required: "upgrade" }

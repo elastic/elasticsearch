@@ -100,6 +100,8 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.upgrade.Upgrade;
+import org.elasticsearch.xpack.upgrade.InternalIndexUpgradeCheck;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
 
@@ -108,11 +110,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -203,6 +201,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected MachineLearning machineLearning;
     protected Logstash logstash;
     protected Deprecation deprecation;
+    protected Upgrade upgrade;
 
     public XPackPlugin(
             final Settings settings,
@@ -221,6 +220,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.machineLearning = new MachineLearning(settings, env, licenseState);
         this.logstash = new Logstash(settings);
         this.deprecation = new Deprecation();
+        this.upgrade = new Upgrade(settings, Collections.singletonList(new InternalIndexUpgradeCheck()));
         // Check if the node is a transport client.
         if (transportClientMode == false) {
             this.extensionsService = new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
@@ -300,6 +300,9 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.addAll(machineLearning.createComponents(internalClient, clusterService, threadPool, xContentRegistry));
 
         components.addAll(logstash.createComponents(internalClient, clusterService));
+
+        components.addAll(upgrade.createComponents(internalClient, clusterService, threadPool, resourceWatcherService,
+                scriptService, xContentRegistry));
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);
@@ -425,6 +428,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         actions.addAll(graph.getActions());
         actions.addAll(machineLearning.getActions());
         actions.addAll(deprecation.getActions());
+        actions.addAll(upgrade.getActions());
         return actions;
     }
 
@@ -436,6 +440,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         filters.addAll(security.getActionFilters());
         filters.addAll(watcher.getActionFilters());
         filters.addAll(machineLearning.getActionFilters());
+        filters.addAll(upgrade.getActionFilters());
         return filters;
     }
 
@@ -460,6 +465,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
                 indexNameExpressionResolver, nodesInCluster));
         handlers.addAll(deprecation.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
             indexNameExpressionResolver, nodesInCluster));
+        handlers.addAll(upgrade.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
+                indexNameExpressionResolver, nodesInCluster));
         return handlers;
     }
 

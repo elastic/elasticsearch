@@ -10,6 +10,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
+import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
+
 import static org.hamcrest.Matchers.is;
 
 public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingConfig> {
@@ -30,15 +33,15 @@ public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingCon
     }
 
     public void testConstructorGivenAutoAndTimeSpan() {
-        expectThrows(IllegalArgumentException.class, () ->new ChunkingConfig(ChunkingConfig.Mode.AUTO, TimeValue.timeValueMillis(1000)));
+        expectThrows(IllegalArgumentException.class, () -> new ChunkingConfig(ChunkingConfig.Mode.AUTO, TimeValue.timeValueMillis(1000)));
     }
 
     public void testConstructorGivenOffAndTimeSpan() {
-        expectThrows(IllegalArgumentException.class, () ->new ChunkingConfig(ChunkingConfig.Mode.OFF, TimeValue.timeValueMillis(1000)));
+        expectThrows(IllegalArgumentException.class, () -> new ChunkingConfig(ChunkingConfig.Mode.OFF, TimeValue.timeValueMillis(1000)));
     }
 
     public void testConstructorGivenManualAndNoTimeSpan() {
-        expectThrows(IllegalArgumentException.class, () ->new ChunkingConfig(ChunkingConfig.Mode.MANUAL, null));
+        expectThrows(IllegalArgumentException.class, () -> new ChunkingConfig(ChunkingConfig.Mode.MANUAL, null));
     }
 
     public void testIsEnabled() {
@@ -51,8 +54,12 @@ public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingCon
         ChunkingConfig.Mode mode = randomFrom(ChunkingConfig.Mode.values());
         TimeValue timeSpan = null;
         if (mode == ChunkingConfig.Mode.MANUAL) {
-            timeSpan = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
+            timeSpan = randomPositiveSecondsMinutesHours();
         }
         return new ChunkingConfig(mode, timeSpan);
      }
+
+    private static TimeValue randomPositiveSecondsMinutesHours() {
+        return new TimeValue(randomIntBetween(1, 1000), randomFrom(Arrays.asList(TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS)));
+    }
 }

@@ -32,7 +32,12 @@ public interface ScriptEngineService extends Closeable {
 
     String getType();
 
-    String getExtension();
+    /**
+     * The extension for file scripts in this language.
+     */
+    default String getExtension() {
+        return getType();
+    }
 
     /**
      * Compiles a script.

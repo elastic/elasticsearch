@@ -28,8 +28,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -74,9 +76,8 @@ public final class AzureStorageSettings {
     private final Proxy.Type proxyType;
     private final Proxy proxy;
 
-    @SuppressForbidden(reason = "we know we pass a IP address or a host name")
     public AzureStorageSettings(String name, String account, String key, TimeValue timeout, boolean activeByDefault, int maxRetries,
-                                String proxyHost, Integer proxyPort, Proxy.Type proxyType) {
+                                String proxyHost, Integer proxyPort, Proxy.Type proxyType) throws UnknownHostException {
         this.name = name;
         this.account = account;
         this.key = key;
@@ -86,7 +87,7 @@ public final class AzureStorageSettings {
         if (proxyType.equals(Proxy.Type.DIRECT)) {
             proxy = null;
         } else {
-            proxy = new Proxy(proxyType, new InetSocketAddress(proxyHost, proxyPort));
+            proxy = new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort));
         }
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
@@ -139,12 +140,12 @@ public final class AzureStorageSettings {
      * @param settings settings to parse
      * @return A tuple with v1 = primary storage and v2 = secondary storage
      */
-    public static Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> parse(Settings settings) {
+    public static Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> parse(Settings settings) throws UnknownHostException {
         List<AzureStorageSettings> storageSettings = createStorageSettings(settings);
         return Tuple.tuple(getPrimary(storageSettings), getSecondaries(storageSettings));
     }
 
-    private static List<AzureStorageSettings> createStorageSettings(Settings settings) {
+    private static List<AzureStorageSettings> createStorageSettings(Settings settings) throws UnknownHostException {
         // ignore global timeout which has the same prefix but does not belong to any group
         Settings groups = Storage.STORAGE_ACCOUNTS.get(settings.filter((k) -> k.equals(Storage.TIMEOUT_SETTING.getKey()) == false));
         List<AzureStorageSettings> storageSettings = new ArrayList<>();
@@ -171,7 +172,7 @@ public final class AzureStorageSettings {
         return setting.getConcreteSetting(fullKey).get(settings);
     }
 
-    private static AzureStorageSettings getPrimary(List<AzureStorageSettings> settings) {
+    private static AzureStorageSettings getPrimary(List<AzureStorageSettings> settings) throws UnknownHostException {
         if (settings.isEmpty()) {
             return null;
         } else if (settings.size() == 1) {

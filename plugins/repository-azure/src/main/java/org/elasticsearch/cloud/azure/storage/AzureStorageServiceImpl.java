@@ -46,6 +46,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -56,7 +57,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
     final Map<String, CloudBlobClient> clients;
 
-    public AzureStorageServiceImpl(Settings settings) {
+    public AzureStorageServiceImpl(Settings settings) throws UnknownHostException {
         super(settings);
 
         Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> storageSettings = AzureStorageSettings.parse(settings);

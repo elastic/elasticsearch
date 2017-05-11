@@ -1,0 +1,312 @@
+[[release-notes-6.0.0-alpha1]]
+== 6.0.0-alpha1 Release Notes
+
+The changes listed below have been released for the first time in Elasticsearch 6.0.0-alpha1. Changes in this release which were first released in the 5.x series are listed in <<release-notes-6.0.0-alpha1-5x>>.
+
+
+Also see <<breaking-changes-6.0>>.
+
+[[breaking-6.0.0-alpha1]]
+[float]
+=== Breaking changes
+
+Allocation::
+* Remove `cluster.routing.allocation.snapshot.relocation_enabled` setting {pull}20994[#20994]
+
+Analysis::
+* Removing query-string parameters in `_analyze` API {pull}20704[#20704] (issue: {issue}20246[#20246])
+
+CAT API::
+* Write -1 on unbounded queue in cat thread pool {pull}21342[#21342] (issue: {issue}21187[#21187])
+
+CRUD::
+* Disallow `VersionType.FORCE` for GetRequest {pull}21079[#21079] (issue: {issue}20995[#20995])
+* Disallow `VersionType.FORCE` versioning for 6.x indices {pull}20995[#20995] (issue: {issue}20377[#20377])
+
+Cluster::
+* No longer allow cluster name in data path {pull}20433[#20433] (issue: {issue}20391[#20391])
+
+Core::
+* Simplify file store {pull}24402[#24402] (issue: {issue}24390[#24390])
+* Make boolean conversion strict {pull}22200[#22200]
+* Remove the `default` store type. {pull}21616[#21616]
+* Remove store throttling. {pull}21573[#21573]
+
+Geo::
+* Remove deprecated geo search features {pull}22876[#22876]
+* Reduce GeoDistance Insanity {pull}19846[#19846]
+
+Index APIs::
+* Open/Close index api to allow_no_indices by default {pull}24401[#24401] (issues: {issue}24031[#24031], {issue}24341[#24341])
+* Remove support for controversial `ignore_unavailable` and `allow_no_indices` from indices exists api {pull}20712[#20712]
+
+Index Templates::
+* Allows multiple patterns to be specified for index templates {pull}21009[#21009] (issue: {issue}20690[#20690])
+
+Java API::
+* Enforce Content-Type requirement on the rest layer and remove deprecated methods {pull}23146[#23146] (issue: {issue}19388[#19388])
+
+Mapping::
+* Enforce at most one type. {pull}24428[#24428] (issue: {issue}24317[#24317])
+* Disallow `include_in_all` for 6.0+ indices {pull}22970[#22970] (issue: {issue}22923[#22923])
+* Disable _all by default, disallow configuring _all on 6.0+ indices {pull}22144[#22144] (issues: {issue}19784[#19784], {issue}20925[#20925], {issue}21341[#21341])
+* Throw an exception on unrecognized "match_mapping_type" {pull}22090[#22090] (issue: {issue}17285[#17285])
+
+Network::
+* Remove blocking TCP clients and servers {pull}22639[#22639]
+* Remove `modules/transport_netty_3` in favor of `netty_4` {pull}21590[#21590]
+* Remove LocalTransport in favor of MockTcpTransport {pull}20695[#20695]
+
+Packaging::
+* Remove customization of ES_USER and ES_GROUP {pull}23989[#23989] (issue: {issue}23848[#23848])
+
+Percolator::
+* Remove deprecated percolate and mpercolate apis {pull}22331[#22331]
+
+Plugin Delete By Query::
+* Require explicit query in _delete_by_query API {pull}23632[#23632] (issue: {issue}23629[#23629])
+
+Plugin Discovery EC2::
+* Ec2 Discovery: Cleanup deprecated settings {pull}24150[#24150]
+* Discovery EC2: Remove region setting {pull}23991[#23991] (issue: {issue}22758[#22758])
+* AWS Plugins: Remove signer type setting {pull}23984[#23984] (issue: {issue}22599[#22599])
+
+Plugin Lang JS::
+* Remove lang-python and lang-javascript {pull}20734[#20734] (issue: {issue}20698[#20698])
+
+Plugin Mapper Attachment::
+* Remove mapper attachments plugin {pull}20416[#20416] (issue: {issue}18837[#18837])
+
+Plugin Repository Azure::
+* Remove global `repositories.azure` settings {pull}23262[#23262] (issues: {issue}22800[#22800], {issue}22856[#22856])
+* Remove auto creation of container for azure repository {pull}22858[#22858] (issue: {issue}22857[#22857])
+
+Plugin Repository S3::
+* S3 Repository: Cleanup deprecated settings {pull}24097[#24097]
+* S3 Repository: Remove region setting {pull}22853[#22853] (issue: {issue}22758[#22758])
+* S3 Repository: Remove bucket auto create {pull}22846[#22846] (issue: {issue}22761[#22761])
+* S3 Repository: Remove env var and sysprop credentials support {pull}22842[#22842]
+
+Query DSL::
+* Remove deprecated `minimum_number_should_match` in BoolQueryBuilder {pull}22416[#22416]
+* Remove support for empty queries {pull}22092[#22092] (issue: {issue}17624[#17624])
+* Remove deprecated query names: in, geo_bbox, mlt, fuzzy_match and match_fuzzy {pull}21852[#21852]
+* The `terms` query should always map to a Lucene `TermsQuery`. {pull}21786[#21786]
+* Be strict when parsing values searching for booleans {pull}21555[#21555] (issue: {issue}21545[#21545])
+* Remove collect payloads parameter {pull}20385[#20385]
+
+REST::
+* Remove ldjson support and document ndjson for bulk/msearch {pull}23049[#23049] (issue: {issue}23025[#23025])
+* Enable strict duplicate checks for all XContent types {pull}22225[#22225] (issues: {issue}19614[#19614], {issue}22073[#22073])
+* Enable strict duplicate checks for JSON content {pull}22073[#22073] (issue: {issue}19614[#19614])
+* Remove lenient stats parsing {pull}21417[#21417] (issues: {issue}20722[#20722], {issue}21410[#21410])
+* Remove allow unquoted JSON {pull}20388[#20388] (issues: {issue}17674[#17674], {issue}17801[#17801])
+* Remove FORCE version_type {pull}20377[#20377] (issue: {issue}19769[#19769])
+
+Scripting::
+* Make dates be ReadableDateTimes in scripts {pull}22948[#22948] (issue: {issue}22875[#22875])
+* Remove groovy scripting language {pull}21607[#21607]
+
+Search::
+* ProfileResult and CollectorResult should print machine readable timing information {pull}22561[#22561]
+* Remove indices query {pull}21837[#21837] (issue: {issue}17710[#17710])
+* Remove ignored type parameter in search_shards api {pull}21688[#21688]
+
+Sequence IDs::
+* Change certain replica failures not to fail the replica shard {pull}22874[#22874] (issue: {issue}10708[#10708])
+
+Shadow Replicas::
+* Remove shadow replicas {pull}23906[#23906] (issue: {issue}22024[#22024])
+
+
+
+[[breaking-java-6.0.0-alpha1]]
+[float]
+=== Breaking Java changes
+
+Java API::
+* Java api: ActionRequestBuilder#execute to return a PlainActionFuture {pull}24415[#24415] (issues: {issue}24412[#24412], {issue}9201[#9201])
+
+Network::
+* Simplify TransportAddress {pull}20798[#20798]
+
+
+
+[[deprecation-6.0.0-alpha1]]
+[float]
+=== Deprecations
+
+Index Templates::
+* Restore deprecation warning for invalid match_mapping_type values {pull}22304[#22304]
+
+Internal::
+* Deprecate XContentType auto detection methods in XContentFactory {pull}22181[#22181] (issue: {issue}19388[#19388])
+
+
+
+[[feature-6.0.0-alpha1]]
+[float]
+=== New features
+
+Core::
+* Enable index-time sorting {pull}24055[#24055] (issue: {issue}6720[#6720])
+
+
+
+[[enhancement-6.0.0-alpha1]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Agg builder accessibility fixes {pull}24323[#24323]
+* Remove support for the include/pattern syntax. {pull}23141[#23141] (issue: {issue}22933[#22933])
+* Promote longs to doubles when a terms agg mixes decimal and non-decimal numbers {pull}22449[#22449] (issue: {issue}22232[#22232])
+
+Analysis::
+* Match- and MultiMatchQueryBuilder should only allow setting analyzer on string values {pull}23684[#23684] (issue: {issue}21665[#21665])
+
+Bulk::
+* Simplify bulk request execution  {pull}20109[#20109]
+
+CRUD::
+* Added validation for upsert request {pull}24282[#24282] (issue: {issue}16671[#16671])
+
+Cluster::
+* Separate publishing from applying cluster states {pull}24236[#24236]
+* Adds cluster state size to /_cluster/state response {pull}23440[#23440] (issue: {issue}3415[#3415])
+
+Core::
+* Remove connect SocketPermissions from core {pull}22797[#22797]
+* Add repository-url module and move URLRepository {pull}22752[#22752] (issue: {issue}22116[#22116])
+* Remove accept SocketPermissions from core {pull}22622[#22622] (issue: {issue}22116[#22116])
+* Move IfConfig.logIfNecessary call into bootstrap {pull}22455[#22455] (issue: {issue}22116[#22116])
+* Remove artificial default processors limit {pull}20874[#20874] (issue: {issue}20828[#20828])
+* Simplify write failure handling {pull}19105[#19105] (issue: {issue}20109[#20109])
+
+Engine::
+* Fill missing sequence IDs up to max sequence ID when recovering from store {pull}24238[#24238] (issue: {issue}10708[#10708])
+* Use sequence numbers to identify out of order delivery in replicas & recovery {pull}24060[#24060] (issue: {issue}10708[#10708])
+* Add replica ops with version conflict to translog {pull}22626[#22626]
+* Clarify global checkpoint recovery {pull}21934[#21934] (issue: {issue}21254[#21254])
+
+Internal::
+* Try to convince the JVM not to lose stacktraces {pull}24426[#24426] (issue: {issue}24376[#24376])
+* Make document write requests immutable {pull}23038[#23038]
+
+Java High Level REST Client::
+* Add info method to High Level Rest client {pull}23350[#23350]
+* Add support for named xcontent parsers to high level REST client {pull}23328[#23328]
+* Add BulkRequest support to High Level Rest client {pull}23312[#23312]
+* Add UpdateRequest support to High Level Rest client {pull}23266[#23266]
+* Add delete API to the High Level Rest Client {pull}23187[#23187]
+* Add Index API to High Level Rest Client {pull}23040[#23040]
+* Add get/exists method to RestHighLevelClient {pull}22706[#22706]
+* Add fromxcontent methods to delete response {pull}22680[#22680] (issue: {issue}22229[#22229])
+* Add REST high level client gradle submodule and first simple method {pull}22371[#22371]
+
+Java REST Client::
+* Wrap rest httpclient with doPrivileged blocks {pull}22603[#22603] (issue: {issue}22116[#22116])
+
+Mapping::
+* Date detection should not rely on a hardcoded set of characters. {pull}22171[#22171] (issue: {issue}1694[#1694])
+
+Network::
+* Isolate SocketPermissions to Netty {pull}23057[#23057]
+* Wrap netty accept/connect ops with doPrivileged {pull}22572[#22572] (issue: {issue}22116[#22116])
+* Replace Socket, ServerSocket, and HttpServer usages in tests with mocksocket versions {pull}22287[#22287] (issue: {issue}22116[#22116])
+
+Plugin Discovery EC2::
+* Read ec2 discovery address from aws instance tags {pull}22743[#22743] (issue: {issue}22566[#22566])
+
+Plugin Repository HDFS::
+* Add doPrivilege blocks for socket connect ops in repository-hdfs {pull}22793[#22793] (issue: {issue}22116[#22116])
+
+Plugins::
+* Add doPrivilege blocks for socket connect operations in plugins {pull}22534[#22534] (issue: {issue}22116[#22116])
+
+Recovery::
+* Peer Recovery: remove maxUnsafeAutoIdTimestamp hand off {pull}24243[#24243] (issue: {issue}24149[#24149])
+* Introduce sequence-number-based recovery {pull}22484[#22484] (issue: {issue}10708[#10708])
+
+Search::
+*  Add parsing from xContent to Suggest {pull}22903[#22903]
+* Add parsing from xContent to ShardSearchFailure {pull}22699[#22699]
+
+Sequence IDs::
+* Block global checkpoint advances when recovering {pull}24404[#24404] (issue: {issue}10708[#10708])
+* Add primary term to doc write response {pull}24171[#24171] (issue: {issue}10708[#10708])
+* Preserve multiple translog generations {pull}24015[#24015] (issue: {issue}10708[#10708])
+* Introduce translog generation rolling {pull}23606[#23606] (issue: {issue}10708[#10708])
+* Replicate write failures {pull}23314[#23314]
+* Introduce sequence-number-aware translog {pull}22822[#22822] (issue: {issue}10708[#10708])
+* Introduce translog no-op {pull}22291[#22291] (issue: {issue}10708[#10708])
+* Tighten sequence numbers recovery {pull}22212[#22212] (issue: {issue}10708[#10708])
+* Add BWC layer to seq no infra and enable BWC tests {pull}22185[#22185] (issue: {issue}21670[#21670])
+* Add internal _primary_term doc values field, fix _seq_no indexing {pull}21637[#21637] (issues: {issue}10708[#10708], {issue}21480[#21480])
+* Add global checkpoint to translog checkpoints {pull}21254[#21254]
+* Sequence numbers commit data for Lucene uses Iterable interface {pull}20793[#20793] (issue: {issue}10708[#10708])
+* Simplify GlobalCheckpointService and properly hook it for cluster state updates {pull}20720[#20720]
+
+Stats::
+* Expose disk usage estimates in nodes stats {pull}22081[#22081] (issue: {issue}8686[#8686])
+
+Store::
+* Remote support for lucene versions without checksums {pull}24021[#24021]
+
+Suggesters::
+* Remove deprecated _suggest endpoint {pull}22203[#22203] (issue: {issue}20305[#20305])
+
+Task Manager::
+* Add descriptions to bulk tasks {pull}22059[#22059] (issue: {issue}21768[#21768])
+
+
+
+[[bug-6.0.0-alpha1]]
+[float]
+=== Bug fixes
+
+Ingest::
+* Remove support for Visio and potm files {pull}22079[#22079] (issue: {issue}22077[#22077])
+
+Inner Hits::
+* If size / offset are out of bounds just do a plain count {pull}20556[#20556] (issue: {issue}20501[#20501])
+
+Internal::
+* Fix handling of document failure exception in InternalEngine {pull}22718[#22718]
+
+Plugin Ingest Attachment::
+* Add missing mime4j library {pull}22764[#22764] (issue: {issue}22077[#22077])
+
+Plugin Repository S3::
+* Wrap getCredentials() in a doPrivileged() block {pull}23297[#23297] (issues: {issue}22534[#22534], {issue}23271[#23271])
+
+Sequence IDs::
+* Avoid losing ops in file-based recovery {pull}22945[#22945] (issue: {issue}22484[#22484])
+
+Snapshot/Restore::
+* Keep snapshot restore state and routing table in sync {pull}20836[#20836] (issue: {issue}19774[#19774])
+
+Translog::
+* Fix Translog.Delete serialization for sequence numbers {pull}22543[#22543]
+
+
+
+[[regression-6.0.0-alpha1]]
+[float]
+=== Regressions
+
+Bulk::
+* Only re-parse operation if a mapping update was needed {pull}23832[#23832] (issue: {issue}23665[#23665])
+
+
+
+[[upgrade-6.0.0-alpha1]]
+[float]
+=== Upgrades
+
+Core::
+* Upgrade to a Lucene 7 snapshot {pull}24089[#24089] (issues: {issue}23966[#23966], {issue}24086[#24086], {issue}24087[#24087], {issue}24088[#24088])
+
+Plugin Ingest Attachment::
+* Update to Tika 1.14 {pull}21591[#21591] (issue: {issue}20390[#20390])
+

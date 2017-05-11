@@ -30,8 +30,8 @@ import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -69,8 +69,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     protected ScriptService mockScriptService() {
         Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                // no file watching, so we don't need a ResourceWatcherService
-                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), "false")
                 .build();
         // mock script always retuns the size of the input aggs list as result
         @SuppressWarnings("unchecked")

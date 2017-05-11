@@ -21,11 +21,10 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
@@ -62,11 +61,11 @@ public class CustomMustacheFactoryTests extends ESTestCase {
     }
 
     public void testJsonEscapeEncoder() {
-        final ScriptEngineService engine = new MustacheScriptEngineService();
+        final ScriptEngine engine = new MustacheScriptEngine();
         final Map<String, String> params = randomBoolean() ? singletonMap(Script.CONTENT_TYPE_OPTION, JSON_MIME_TYPE) : emptyMap();
 
         Mustache script = (Mustache) engine.compile(null, "{\"field\": \"{{value}}\"}", params);
-        CompiledScript compiled = new CompiledScript(INLINE, null, MustacheScriptEngineService.NAME, script);
+        CompiledScript compiled = new CompiledScript(INLINE, null, MustacheScriptEngine.NAME, script);
 
         ExecutableScript executable = engine.executable(compiled, singletonMap("value", "a \"value\""));
         BytesReference result = (BytesReference) executable.run();
@@ -74,11 +73,11 @@ public class CustomMustacheFactoryTests extends ESTestCase {
     }
 
     public void testDefaultEncoder() {
-        final ScriptEngineService engine = new MustacheScriptEngineService();
+        final ScriptEngine engine = new MustacheScriptEngine();
         final Map<String, String> params = singletonMap(Script.CONTENT_TYPE_OPTION, PLAIN_TEXT_MIME_TYPE);
 
         Mustache script = (Mustache) engine.compile(null, "{\"field\": \"{{value}}\"}", params);
-        CompiledScript compiled = new CompiledScript(INLINE, null, MustacheScriptEngineService.NAME, script);
+        CompiledScript compiled = new CompiledScript(INLINE, null, MustacheScriptEngine.NAME, script);
 
         ExecutableScript executable = engine.executable(compiled, singletonMap("value", "a \"value\""));
         BytesReference result = (BytesReference) executable.run();
@@ -86,11 +85,11 @@ public class CustomMustacheFactoryTests extends ESTestCase {
     }
 
     public void testUrlEncoder() {
-        final ScriptEngineService engine = new MustacheScriptEngineService();
+        final ScriptEngine engine = new MustacheScriptEngine();
         final Map<String, String> params = singletonMap(Script.CONTENT_TYPE_OPTION, X_WWW_FORM_URLENCODED_MIME_TYPE);
 
         Mustache script = (Mustache) engine.compile(null, "{\"field\": \"{{value}}\"}", params);
-        CompiledScript compiled = new CompiledScript(INLINE, null, MustacheScriptEngineService.NAME, script);
+        CompiledScript compiled = new CompiledScript(INLINE, null, MustacheScriptEngine.NAME, script);
 
         ExecutableScript executable = engine.executable(compiled, singletonMap("value", "tilde~ AND date:[2016 FROM*]"));
         BytesReference result = (BytesReference) executable.run();

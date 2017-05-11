@@ -34,17 +34,14 @@ import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -76,12 +73,12 @@ public class UpdateIT extends ESIntegTestCase {
 
     public static class PutFieldValuesScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new PutFieldValuesScriptEngine();
         }
     }
 
-    public static class PutFieldValuesScriptEngine implements ScriptEngineService {
+    public static class PutFieldValuesScriptEngine implements ScriptEngine {
 
         public static final String NAME = "put_values";
 
@@ -149,12 +146,12 @@ public class UpdateIT extends ESIntegTestCase {
 
     public static class FieldIncrementScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new FieldIncrementScriptEngine();
         }
     }
 
-    public static class FieldIncrementScriptEngine implements ScriptEngineService {
+    public static class FieldIncrementScriptEngine implements ScriptEngine {
 
         public static final String NAME = "field_inc";
 
@@ -215,12 +212,12 @@ public class UpdateIT extends ESIntegTestCase {
 
     public static class ScriptedUpsertScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new ScriptedUpsertScriptEngine();
         }
     }
 
-    public static class ScriptedUpsertScriptEngine implements ScriptEngineService {
+    public static class ScriptedUpsertScriptEngine implements ScriptEngine {
 
         public static final String NAME = "scripted_upsert";
 
@@ -282,12 +279,12 @@ public class UpdateIT extends ESIntegTestCase {
 
     public static class ExtractContextInSourceScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new ExtractContextInSourceScriptEngine();
         }
     }
 
-    public static class ExtractContextInSourceScriptEngine implements ScriptEngineService {
+    public static class ExtractContextInSourceScriptEngine implements ScriptEngine {
 
         public static final String NAME = "extract_ctx";
 

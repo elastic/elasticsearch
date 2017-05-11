@@ -38,11 +38,14 @@ import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -50,6 +53,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -77,7 +81,6 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     public void testAppendWhileRecovering() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
-            IndexShard replica = shards.addReplica();
             CountDownLatch latch = new CountDownLatch(2);
             int numDocs = randomIntBetween(100, 200);
             shards.appendDocs(1);// just append one to the translog so we can assert below
@@ -94,6 +97,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 }
             };
             thread.start();
+            IndexShard replica = shards.addReplica();
             Future<Void> future = shards.asyncRecoverReplica(replica, (indexShard, node)
                     -> new RecoveryTarget(indexShard, node, recoveryListener, version -> {
             }) {
@@ -148,18 +152,41 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 startedShards = shards.startReplicas(randomIntBetween(1, 2));
             } while (startedShards > 0);
 
-            if (numDocs == 0 || randomBoolean()) {
-                // in the case we have no indexing, we simulate the background global checkpoint sync
-                shards.getPrimary().updateGlobalCheckpointOnPrimary();
-            }
+            final long unassignedSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
             for (IndexShard shard : shards) {
                 final SeqNoStats shardStats = shard.seqNoStats();
                 final ShardRouting shardRouting = shard.routingEntry();
-                logger.debug("seq_no stats for {}: {}", shardRouting, XContentHelper.toString(shardStats,
-                        new ToXContent.MapParams(Collections.singletonMap("pretty", "false"))));
                 assertThat(shardRouting + " local checkpoint mismatch", shardStats.getLocalCheckpoint(), equalTo(numDocs - 1L));
+                /*
+                 * After the last indexing operation completes, the primary will advance its global checkpoint. Without another indexing
+                 * operation, or a background sync, the primary will not have broadcast this global checkpoint to its replicas. However, a
+                 * shard could have recovered from the primary in which case its global checkpoint will be in-sync with the primary.
+                 * Therefore, we can only assert that the global checkpoint is number of docs minus one (matching the primary, in case of a
+                 * recovery), or number of docs minus two (received indexing operations but has not received a global checkpoint sync after
+                 * the last operation completed).
+                 */
+                final Matcher<Long> globalCheckpointMatcher;
+                if (shardRouting.primary()) {
+                    globalCheckpointMatcher = numDocs == 0 ? equalTo(unassignedSeqNo) : equalTo(numDocs - 1L);
+                } else {
+                    globalCheckpointMatcher = numDocs == 0 ? equalTo(unassignedSeqNo) : anyOf(equalTo(numDocs - 1L), equalTo(numDocs - 2L));
+                }
+                assertThat(shardRouting + " global checkpoint mismatch", shardStats.getGlobalCheckpoint(), globalCheckpointMatcher);
+                assertThat(shardRouting + " max seq no mismatch", shardStats.getMaxSeqNo(), equalTo(numDocs - 1L));
+            }
 
-                assertThat(shardRouting + " global checkpoint mismatch", shardStats.getGlobalCheckpoint(), equalTo(numDocs - 1L));
+            // simulate a background global checkpoint sync at which point we expect the global checkpoint to advance on the replicas
+            shards.syncGlobalCheckpoint();
+
+            final long noOpsPerformed = SequenceNumbersService.NO_OPS_PERFORMED;
+            for (IndexShard shard : shards) {
+                final SeqNoStats shardStats = shard.seqNoStats();
+                final ShardRouting shardRouting = shard.routingEntry();
+                assertThat(shardRouting + " local checkpoint mismatch", shardStats.getLocalCheckpoint(), equalTo(numDocs - 1L));
+                assertThat(
+                        shardRouting + " global checkpoint mismatch",
+                        shardStats.getGlobalCheckpoint(),
+                        numDocs == 0 ? equalTo(noOpsPerformed) : equalTo(numDocs - 1L));
                 assertThat(shardRouting + " max seq no mismatch", shardStats.getMaxSeqNo(), equalTo(numDocs - 1L));
             }
         }

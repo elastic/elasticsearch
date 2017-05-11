@@ -166,9 +166,8 @@ public class TranslogRecoveryPerformer {
                     break;
                 case DELETE:
                     Translog.Delete delete = (Translog.Delete) operation;
-                    Uid uid = Uid.createUid(delete.uid().text());
-                    logger.trace("[translog] recover [delete] op [({}, {})] of [{}][{}]", delete.seqNo(), delete.primaryTerm(), uid.type(), uid.id());
-                    final Engine.Delete engineDelete = new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.seqNo(),
+                    logger.trace("[translog] recover [delete] op [({}, {})] of [{}][{}]", delete.seqNo(), delete.primaryTerm(), delete.type(), delete.id());
+                    final Engine.Delete engineDelete = new Engine.Delete(delete.type(), delete.id(), delete.uid(), delete.seqNo(),
                             delete.primaryTerm(), delete.version(), delete.versionType().versionTypeForReplicationAndRecovery(),
                             origin, System.nanoTime());
                     delete(engine, engineDelete);

@@ -22,9 +22,9 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.List;

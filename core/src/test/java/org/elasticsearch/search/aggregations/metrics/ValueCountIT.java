@@ -28,7 +28,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -251,7 +251,7 @@ public class ValueCountIT extends ESIntegTestCase {
      */
     public static class FieldValueScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new FieldValueScriptEngine();
         }
     }
@@ -259,7 +259,7 @@ public class ValueCountIT extends ESIntegTestCase {
     /**
      * This mock script returns the field value. If the parameter map contains a parameter "s", the corresponding is used as field name.
      */
-    public static class FieldValueScriptEngine implements ScriptEngineService {
+    public static class FieldValueScriptEngine implements ScriptEngine {
 
         public static final String NAME = "field_value";
 

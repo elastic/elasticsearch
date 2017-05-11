@@ -218,7 +218,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        int compareTerm(Terms.Bucket other) {
+        public int compareTerm(Terms.Bucket other) {
             return Long.compare(globalOrd, ((OrdBucket) other).globalOrd);
         }
 

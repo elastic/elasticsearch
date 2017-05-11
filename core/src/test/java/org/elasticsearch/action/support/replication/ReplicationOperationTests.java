@@ -345,12 +345,14 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardRouting routing;
         final long term;
         final long localCheckpoint;
+        final long globalCheckpoint;
         final Map<String, Long> knownLocalCheckpoints = new HashMap<>();
 
         TestPrimary(ShardRouting routing, long term) {
             this.routing = routing;
             this.term = term;
             this.localCheckpoint = random().nextLong();
+            this.globalCheckpoint = randomNonNegativeLong();
         }
 
         @Override
@@ -404,6 +406,12 @@ public class ReplicationOperationTests extends ESTestCase {
         public long localCheckpoint() {
             return localCheckpoint;
         }
+
+        @Override
+        public long globalCheckpoint() {
+            return globalCheckpoint;
+        }
+
     }
 
     static class ReplicaResponse implements ReplicationOperation.ReplicaResponse {
@@ -445,7 +453,11 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
-        public void performOn(ShardRouting replica, Request request, ActionListener<ReplicationOperation.ReplicaResponse> listener) {
+        public void performOn(
+                final ShardRouting replica,
+                final Request request,
+                final long globalCheckpoint,
+                final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
             assertTrue("replica request processed twice on [" + replica + "]", request.processedOnReplicas.add(replica));
             if (opFailures.containsKey(replica)) {
                 listener.onFailure(opFailures.get(replica));

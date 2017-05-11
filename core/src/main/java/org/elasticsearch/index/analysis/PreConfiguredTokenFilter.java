@@ -27,6 +27,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
@@ -36,29 +37,44 @@ import java.util.function.Function;
  * Provides pre-configured, shared {@link TokenFilter}s.
  */
 public final class PreConfiguredTokenFilter implements AnalysisModule.AnalysisProvider<TokenFilterFactory> {
+    /**
+     * Create a pre-configured token filter that may not vary at all.
+     */
+    public static PreConfiguredTokenFilter singleton(String name, boolean useFilterForMultitermQueries,
+            Function<TokenStream, TokenStream> create) {
+        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, CachingStrategy.ONE,
+                (tokenStream, version) -> create.apply(tokenStream));
+    }
+
+    /**
+     * Create a pre-configured token filter that may vary based on the Lucene version.
+     */
+    public static PreConfiguredTokenFilter luceneVersion(String name, boolean useFilterForMultitermQueries,
+            BiFunction<TokenStream, org.apache.lucene.util.Version, TokenStream> create) {
+        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, CachingStrategy.LUCENE,
+                (tokenStream, version) -> create.apply(tokenStream, version.luceneVersion));
+    }
+
+    /**
+     * Create a pre-configured token filter that may vary based on the Elasticsearch version.
+     */
+    public static PreConfiguredTokenFilter elasticsearchVersion(String name, boolean useFilterForMultitermQueries,
+            BiFunction<TokenStream, org.elasticsearch.Version, TokenStream> create) {
+        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, CachingStrategy.ELASTICSEARCH,
+                (tokenStream, version) -> create.apply(tokenStream, version));
+    }
+
     private final String name;
     private final boolean useFilterForMultitermQueries;
     private final PreBuiltCacheFactory.PreBuiltCache<TokenFilterFactory> cache;
     private final BiFunction<TokenStream, Version, TokenStream> create;
 
-    /**
-     * Standard ctor with all the power.
-     */
-    public PreConfiguredTokenFilter(String name, boolean useFilterForMultitermQueries,
-            PreBuiltCacheFactory.CachingStrategy cachingStrategy, BiFunction<TokenStream, Version, TokenStream> create) {
+    private PreConfiguredTokenFilter(String name, boolean useFilterForMultitermQueries,
+            PreBuiltCacheFactory.CachingStrategy cache, BiFunction<TokenStream, Version, TokenStream> create) {
         this.name = name;
         this.useFilterForMultitermQueries = useFilterForMultitermQueries;
-        cache = PreBuiltCacheFactory.getCache(cachingStrategy);
+        this.cache = PreBuiltCacheFactory.getCache(cache);
         this.create = create;
-    }
-
-    /**
-     * Convenience ctor for token streams that don't vary based on version.
-     */
-    public PreConfiguredTokenFilter(String name, boolean useFilterForMultitermQueries,
-            PreBuiltCacheFactory.CachingStrategy cachingStrategy, Function<TokenStream, TokenStream> create) {
-        this(name, useFilterForMultitermQueries, cachingStrategy, (input, version) -> create.apply(input));
-        // TODO why oh why aren't these all CachingStrategy.ONE? They *can't* vary based on version because they don't get it, right?!
     }
 
     @Override

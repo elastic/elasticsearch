@@ -33,6 +33,29 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptSettingsTests extends ESTestCase {
 
+    public static Setting<?>[] buildDeprecatedSettingsArray(ScriptSettings scriptSettings, String... keys) {
+        return buildDeprecatedSettingsArray(null, scriptSettings, keys);
+    }
+
+    public static Setting<?>[] buildDeprecatedSettingsArray(Setting<?>[] deprecated, ScriptSettings scriptSettings, String... keys) {
+        Setting<?>[] settings = new Setting[keys.length + (deprecated == null ? 0 : deprecated.length)];
+        int count = 0;
+
+        for (Setting<?> setting : scriptSettings.getSettings()) {
+            for (String key : keys) {
+                if (setting.getKey().equals(key)) {
+                    settings[count++] = setting;
+                }
+            }
+        }
+
+        if (deprecated != null) {
+            System.arraycopy(deprecated, 0, settings, keys.length, deprecated.length);
+        }
+
+        return settings;
+    }
+
     public void testSettingsAreProperlyPropogated() {
         ScriptEngineRegistry scriptEngineRegistry =
             new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngine()));
@@ -47,6 +70,7 @@ public class ScriptSettingsTests extends ESTestCase {
                 assertThat(setting.getDefaultRaw(s), equalTo(Boolean.toString(enabled)));
             }
         }
+        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
     }
 
     private static class CustomScriptEngine implements ScriptEngine {

@@ -154,14 +154,16 @@ if (fixtureSupported) {
 }
 
 boolean secureFixtureSupported = false;
+boolean vagrantSupported = false;
+boolean virtualBoxInstalled = false;
 if (fixtureSupported) {
   // Only do secure fixture support if the regular fixture is supported,
   // and if vagrant is installed. The ignoreExitValue on exec only matters
   // in cases where the command can be found and successfully started. In
   // situations where the vagrant command isn't able to be started at all
   // (it's not installed) then Gradle still throws ExecException.
-  ByteArrayOutputStream pipe = new ByteArrayOutputStream()
   try {
+    ByteArrayOutputStream pipe = new ByteArrayOutputStream()
     ExecResult runResult = exec {
       commandLine 'vagrant', '--version'
       standardOutput pipe
@@ -169,7 +171,7 @@ if (fixtureSupported) {
     }
     String output = pipe.toString().trim()
     if (runResult.exitValue == 0) {
-      secureFixtureSupported = (output ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/)
+      vagrantSupported = (output ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/)
     } else {
       logger.warn("Could not read installed vagrant version:\n" + output)
     }
@@ -177,6 +179,45 @@ if (fixtureSupported) {
     logger.warn("Could not find vagrant: " + e.message)
     // Swallow error. Vagrant isn't installed. Leave secure fixture support off.
   }
+
+  // Finding that HOME needs to be set when performing vagrant updates
+  String homeLocation = System.getenv("HOME")
+  if (homeLocation == null) {
+    vagrantSupported = false
+  }
+
+  // Also check to see if virtualbox is installed. We need both vagrant
+  // and virtualbox to be installed for the secure environment to be
+  // enabled.
+  try {
+    ByteArrayOutputStream pipe = new ByteArrayOutputStream()
+    ExecResult runResult = exec {
+      commandLine 'vboxmanage', '--version'
+      standardOutput = pipe
+      ignoreExitValue true
+    }
+    if (runResult.exitValue == 0) {
+      String version = pipe.toString().trim()
+      try {
+        String[] versions = version.split('\\.')
+        int major = Integer.parseInt(versions[0])
+        int minor = Integer.parseInt(versions[1])
+        if ((major < 5) || (major == 5 && minor < 1)) {
+          throw new InvalidUserDataException("Illegal version of virtualbox [${version}]. Need [5.1+]")
+        }
+        virtualBoxInstalled = true
+      } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+        logger.warn("Unable to parse version of virtualbox [${version}]. Required [5.1+]")
+      }
+    } else {
+      logger.warn("Could not read installed virtualbox version:\n" + output)
+    }
+  } catch (org.gradle.process.internal.ExecException e) {
+    logger.warn("Could not find virtualbox: " + e.message)
+    // Swallow error. VirtualBox isn't installed. Leave secure fixture support off.
+  }
+
+  secureFixtureSupported = vagrantSupported && virtualBoxInstalled
 }
 
 // Create a Integration Test suite just for security based tests
@@ -206,7 +247,7 @@ if (secureFixtureSupported && false) { // This fails due to a vagrant configurat
   integTestSecureCluster.dependsOn secureHdfsFixture, krb5kdcFixture
   integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
 } else {
-  logger.warn("secured hdfsFixture is unsupported, please install Vagrant 1.8.6+ to enable")
+  logger.warn("secured hdfsFixture is unsupported, please install Vagrant 1.8.6+, Virtualbox 5.1+, and set \$HOME environment variable to enable")
 }
 
 thirdPartyAudit.excludes = [

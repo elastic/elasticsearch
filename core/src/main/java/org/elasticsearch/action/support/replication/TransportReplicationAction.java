@@ -542,7 +542,7 @@ public abstract class TransportReplicationAction<
                             new TransportChannelResponseHandler<>(logger, channel, extraMessage,
                                 () -> TransportResponse.Empty.INSTANCE);
                         transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
-                            new ConcreteShardRequest<>(request, targetAllocationID),
+                            new ConcreteReplicaRequest<>(request, targetAllocationID, globalCheckpoint),
                             handler);
                     }
 

@@ -64,7 +64,6 @@ public class ScriptServiceTests extends ESTestCase {
     private ScriptSettings scriptSettings;
     private ScriptContext[] scriptContexts;
     private ScriptService scriptService;
-    private Path scriptsFilePath;
     private Settings baseSettings;
 
     private static final Map<ScriptType, Boolean> DEFAULT_SCRIPT_ENABLED = new HashMap<>();
@@ -109,8 +108,6 @@ public class ScriptServiceTests extends ESTestCase {
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
         logger.info("--> setup script service");
-        scriptsFilePath = genericConfigFolder.resolve("scripts");
-        Files.createDirectories(scriptsFilePath);
     }
 
     private void buildScriptService(Settings additionalSettings) throws IOException {
@@ -169,16 +166,9 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testDefaultBehaviourFineGrainedSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        //rarely inject the default settings, which have no effect
-        boolean deprecate = false;
-        if (rarely()) {
-            builder.put("script.file", "true");
-            deprecate = true;
-        }
         buildScriptService(builder.build());
 
         for (ScriptContext scriptContext : scriptContexts) {
-            // only file scripts are accepted by default
             assertCompileRejected("dtest", "script", ScriptType.INLINE, scriptContext);
             assertCompileRejected("dtest", "script", ScriptType.STORED, scriptContext);
         }
@@ -251,8 +241,6 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(builder.build());
 
         for (ScriptType scriptType : ScriptType.values()) {
-            //make sure file scripts have a different name than inline ones.
-            //Otherwise they are always considered file ones as they can be found in the static cache.
             String script = "script";
             for (ScriptContext scriptContext : this.scriptContexts) {
                 //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
@@ -276,8 +264,7 @@ public class ScriptServiceTests extends ESTestCase {
             }
         }
         assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})),
-            "File scripts are deprecated. Use stored or inline scripts instead.");
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})));
     }
 
     public void testCompileNonRegisteredContext() throws IOException {

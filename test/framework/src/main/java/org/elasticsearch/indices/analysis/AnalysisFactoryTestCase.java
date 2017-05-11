@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.analysis;
 
-import org.apache.lucene.analysis.en.PorterStemFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
@@ -350,11 +349,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
             case LOWERCASE:
                 // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
                 continue;
-            case DUTCH_STEM:
-            case FRENCH_STEM:
-            case RUSSIAN_STEM:
-                luceneFactoryClass = SnowballPorterFilterFactory.class;
-                break;
             case DELIMITED_PAYLOAD_FILTER:
                 luceneFactoryClass = org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class;
                 break;

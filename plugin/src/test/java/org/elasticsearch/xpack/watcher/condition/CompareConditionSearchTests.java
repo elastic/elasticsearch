@@ -11,6 +11,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.SearchHit;
@@ -45,7 +46,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
         SearchResponse response = client().prepareSearch("my-index")
                 .addAggregation(AggregationBuilders.dateHistogram("rate").field("@timestamp")
-                        .dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
+                        .dateHistogramInterval(DateHistogramInterval.HOUR).order(BucketOrder.count(false)))
                 .get();
 
         CompareCondition condition = new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5,
@@ -63,7 +64,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
         response = client().prepareSearch("my-index")
                 .addAggregation(AggregationBuilders.dateHistogram("rate")
-                        .field("@timestamp").dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
+                        .field("@timestamp").dateHistogramInterval(DateHistogramInterval.HOUR).order(BucketOrder.count(false)))
                 .get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response));

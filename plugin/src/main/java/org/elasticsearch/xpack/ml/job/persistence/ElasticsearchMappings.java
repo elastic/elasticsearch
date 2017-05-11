@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
@@ -88,6 +89,33 @@ public class ElasticsearchMappings {
     static final String RAW = "raw";
 
     private ElasticsearchMappings() {
+    }
+
+    /**
+     * Creates a default mapping which has a dynamic template that
+     * treats all dynamically added fields as keywords. This is needed
+     * so that the per-job term fields will not be automatically added
+     * as fields of type 'text' to the index mappings of newly rolled indices.
+     *
+     * @return The default mapping
+     * @throws IOException On write error
+     */
+    public static XContentBuilder defaultMapping() throws IOException {
+        return jsonBuilder()
+                .startObject()
+                    .startObject(MapperService.DEFAULT_MAPPING)
+                        .startArray("dynamic_templates")
+                            .startObject()
+                                .startObject("strings_as_keywords")
+                                    .field("match", "*")
+                                    .startObject("mapping")
+                                        .field(TYPE, KEYWORD)
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endArray()
+                    .endObject()
+                .endObject();
     }
 
     /**

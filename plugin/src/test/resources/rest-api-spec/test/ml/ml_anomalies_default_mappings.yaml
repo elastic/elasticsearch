@@ -1,0 +1,38 @@
+---
+"Test new fields are mapped as keyword":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: ml-anomalies-default-mappings-job
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count","by_field_name":"foo"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+  - match: { job_id: "ml-anomalies-default-mappings-job" }
+
+  - do:
+      index:
+        index:  .ml-anomalies-shared
+        type:   result
+        id:     "new_doc"
+        body: >
+          {
+            "new_field": "bar"
+          }
+
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-shared
+
+  - do:
+      indices.get_field_mapping:
+        index: .ml-anomalies-shared
+        type: result
+        fields: new_field
+  - match: {\.ml-anomalies-shared.mappings.result.new_field.mapping.new_field.type: keyword}

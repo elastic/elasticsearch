@@ -262,11 +262,12 @@ public class MachineLearningTemplateRegistryTests extends ESTestCase {
             PutIndexTemplateRequest request = captor.getValue();
             assertNotNull(request);
             assertEquals(templateRegistry.mlResultsIndexSettings().build(), request.settings());
+            assertTrue(request.mappings().containsKey("_default_"));
             assertTrue(request.mappings().containsKey(Result.TYPE.getPreferredName()));
             assertTrue(request.mappings().containsKey(CategoryDefinition.TYPE.getPreferredName()));
             assertTrue(request.mappings().containsKey(DataCounts.TYPE.getPreferredName()));
             assertTrue(request.mappings().containsKey(ModelSnapshot.TYPE.getPreferredName()));
-            assertEquals(4, request.mappings().size());
+            assertEquals(5, request.mappings().size());
             assertEquals(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"), request.patterns());
             assertEquals(new Integer(Version.CURRENT.id), request.version());
         });

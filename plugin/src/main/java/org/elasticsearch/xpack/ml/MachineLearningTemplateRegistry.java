@@ -249,7 +249,8 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
     }
 
     void putJobResultsIndexTemplate(BiConsumer<Boolean, Exception> listener) {
-        try (XContentBuilder resultsMapping = ElasticsearchMappings.resultsMapping();
+        try (XContentBuilder defaultMapping = ElasticsearchMappings.defaultMapping();
+             XContentBuilder resultsMapping = ElasticsearchMappings.resultsMapping();
              XContentBuilder categoryDefinitionMapping = ElasticsearchMappings.categoryDefinitionMapping();
              XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
              XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping()) {
@@ -257,6 +258,7 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
             PutIndexTemplateRequest templateRequest = new PutIndexTemplateRequest(AnomalyDetectorsIndex.jobResultsIndexPrefix());
             templateRequest.patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"));
             templateRequest.settings(mlResultsIndexSettings());
+            templateRequest.mapping(MapperService.DEFAULT_MAPPING, defaultMapping);
             templateRequest.mapping(Result.TYPE.getPreferredName(), resultsMapping);
             templateRequest.mapping(CategoryDefinition.TYPE.getPreferredName(), categoryDefinitionMapping);
             templateRequest.mapping(DataCounts.TYPE.getPreferredName(), dataCountsMapping);

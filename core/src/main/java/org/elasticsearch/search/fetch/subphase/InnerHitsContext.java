@@ -43,8 +43,8 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
-import org.elasticsearch.ExceptionsHelper;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -83,7 +83,7 @@ public final class InnerHitsContext {
     public void addInnerHitDefinition(BaseInnerHits innerHit) {
         if (innerHits.containsKey(innerHit.getName())) {
             throw new IllegalArgumentException("inner_hit definition with the name [" + innerHit.getName() +
-                    "] already exists. Use a different inner_hit name or define one explicitly");
+                "] already exists. Use a different inner_hit name or define one explicitly");
         }
 
         innerHits.put(innerHit.getName(), innerHit);
@@ -139,38 +139,43 @@ public final class InnerHitsContext {
             Weight innerHitQueryWeight = createInnerHitQueryWeight();
             TopDocs[] result = new TopDocs[hits.length];
             for (int i = 0; i < hits.length; i++) {
-                SearchHit hit = hits[i];Query rawParentFilter;
-            if (parentObjectMapper == null) {
-                rawParentFilter = Queries.newNonNestedFilter();
-            } else {
-                rawParentFilter = parentObjectMapper.nestedTypeFilter();
-            }
-            int parentDocId = hit.docId();
-            final int readerIndex = ReaderUtil.subIndex(parentDocId, searcher().getIndexReader().leaves());
-            // With nested inner hits the nested docs are always in the same segement, so need to use the other segments
-            LeafReaderContext ctx = searcher().getIndexReader().leaves().get(readerIndex);
+                SearchHit hit = hits[i];
+                Query rawParentFilter;
+                if (parentObjectMapper == null) {
+                    rawParentFilter = Queries.newNonNestedFilter();
+                } else {
+                    rawParentFilter = parentObjectMapper.nestedTypeFilter();
+                }
+                int parentDocId = hit.docId();
+                final int readerIndex = ReaderUtil.subIndex(parentDocId, searcher().getIndexReader().leaves());
+                // With nested inner hits the nested docs are always in the same segement, so need to use the other segments
+                LeafReaderContext ctx = searcher().getIndexReader().leaves().get(readerIndex);
 
-            Query childFilter = childObjectMapper.nestedTypeFilter();            BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
-            Query  q =  new ParentChildrenBlockJoinQuery(parentFilter, childFilter, parentDocId);
-            Weight weight = context.searcher().createNormalizedWeight(q, false);
-            if (size() == 0) {
-                TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
+                Query childFilter = childObjectMapper.nestedTypeFilter();
+                BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
+                Query q = new ParentChildrenBlockJoinQuery(parentFilter, childFilter, parentDocId);
+                Weight weight = context.searcher().createNormalizedWeight(q, false);
+                if (size() == 0) {
+                    TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                     intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
                     result[i] = new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
-            } else {
-                int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
-                TopDocsCollector topDocsCollector;
-                if (sort() != null) {
-                    try {topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());} catch (IOException e) {
-                        throw ExceptionsHelper.convertToElastic(e);
-                    }
                 } else {
-                    topDocsCollector = TopScoreDocCollector.create(topN);
-                }
-                try {
-                    intersect(weight, innerHitQueryWeight, topDocsCollector, ctx);
-                } finally {
-                    clearReleasables(Lifetime.COLLECTION);}
+                    int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
+                    TopDocsCollector topDocsCollector;
+                    if (sort() != null) {
+                        try {
+                            topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
+                        } catch (IOException e) {
+                            throw ExceptionsHelper.convertToElastic(e);
+                        }
+                    } else {
+                        topDocsCollector = TopScoreDocCollector.create(topN);
+                    }
+                    try {
+                        intersect(weight, innerHitQueryWeight, topDocsCollector, ctx);
+                    } finally {
+                        clearReleasables(Lifetime.COLLECTION);
+                    }
                     result[i] = topDocsCollector.topDocs(from(), size());
                 }
             }

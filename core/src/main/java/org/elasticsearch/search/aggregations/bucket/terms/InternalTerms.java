@@ -31,6 +31,9 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.KeyComparable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,8 +49,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected static final ParseField DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = new ParseField("doc_count_error_upper_bound");
     protected static final ParseField SUM_OF_OTHER_DOC_COUNTS = new ParseField("sum_other_doc_count");
 
-    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket implements Terms.Bucket {
-
+    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
+        implements Terms.Bucket, KeyComparable<B> {
         /**
          * Reads a bucket. Should be a constructor reference.
          */
@@ -177,11 +180,11 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
     }
 
-    protected final Terms.Order order;
+    protected final BucketOrder order;
     protected final int requiredSize;
     protected final long minDocCount;
 
-    protected InternalTerms(String name, Terms.Order order, int requiredSize, long minDocCount,
+    protected InternalTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.order = order;
@@ -201,7 +204,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        InternalOrder.Streams.writeOrder(order, out);
+        order.writeTo(out);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
         writeTermTypeInfoTo(out);
@@ -238,9 +241,9 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             }
             otherDocCount += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError;
-            if (terms.getBuckets().size() < getShardSize() || InternalOrder.isTermOrder(order)) {
+            if (terms.getBuckets().size() < getShardSize() || InternalOrder.isKeyOrder(order)) {
                 thisAggDocCountError = 0;
-            } else if (InternalOrder.isCountDesc(this.order)) {
+            } else if (InternalOrder.isCountDesc(order)) {
                 if (terms.getDocCountError() > 0) {
                     // If there is an existing docCountError for this agg then
                     // use this as the error for this aggregation

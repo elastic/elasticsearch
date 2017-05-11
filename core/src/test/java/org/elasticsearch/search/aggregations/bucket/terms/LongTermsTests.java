@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -37,7 +38,7 @@ public class LongTermsTests extends InternalTermsTestCase {
             String name,
             List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
-        Terms.Order order = Terms.Order.count(false);
+        BucketOrder order = BucketOrder.count(false);
         long minDocCount = 1;
         int requiredSize = 3;
         int shardSize = requiredSize + 2;

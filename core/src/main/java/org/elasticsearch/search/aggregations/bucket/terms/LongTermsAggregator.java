@@ -32,6 +32,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriority
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude.LongFilter;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -50,7 +52,7 @@ public class LongTermsAggregator extends TermsAggregator {
     private LongFilter longFilter;
 
     public LongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
-            Terms.Order order, BucketCountThresholds bucketCountThresholds, SearchContext aggregationContext, Aggregator parent,
+            BucketOrder order, BucketCountThresholds bucketCountThresholds, SearchContext aggregationContext, Aggregator parent,
             SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, pipelineAggregators, metaData);
@@ -106,7 +108,7 @@ public class LongTermsAggregator extends TermsAggregator {
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
 
-        if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
+        if (bucketCountThresholds.getMinDocCount() == 0 && (InternalOrder.isCountDesc(order) == false || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
                 final SortedNumericDocValues values = getValues(valuesSource, ctx);

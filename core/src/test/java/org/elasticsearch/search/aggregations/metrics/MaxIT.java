@@ -29,8 +29,8 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -328,7 +328,7 @@ public class MaxIT extends AbstractNumericTestCase {
     @Override
     public void testOrderByEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(terms("terms").field("value").order(Order.compound(Order.aggregation("filter>max", true)))
+                .addAggregation(terms("terms").field("value").order(BucketOrder.compound(BucketOrder.aggregation("filter>max", true)))
                         .subAggregation(filter("filter", termQuery("value", 100)).subAggregation(max("max").field("value"))))
                 .get();
 

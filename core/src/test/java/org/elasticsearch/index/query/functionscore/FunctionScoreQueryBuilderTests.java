@@ -218,7 +218,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             break;
         case DATE_FIELD_NAME:
             origin = new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString();
-            scale = randomPositiveTimeValue();
+            scale = randomTimeValue(1, 1000, new String[]{"d", "h", "ms", "s", "m"});
             offset = randomPositiveTimeValue();
             break;
         default:

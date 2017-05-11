@@ -87,7 +87,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         lookupRemoteVersion(version -> {
             remoteVersion = version;
             execute("POST", initialSearchPath(searchRequest), initialSearchParams(searchRequest, version),
-                    initialSearchEntity(searchRequest, query), RESPONSE_PARSER, r -> onStartResponse(onResponse, r));
+                    initialSearchEntity(searchRequest, query, remoteVersion), RESPONSE_PARSER, r -> onStartResponse(onResponse, r));
         });
     }
 
@@ -106,8 +106,10 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     @Override
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse) {
-        execute("POST", scrollPath(), scrollParams(timeValueNanos(searchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos())),
-                scrollEntity(scrollId, remoteVersion), RESPONSE_PARSER, onResponse);
+        Map<String, String> scrollParams = scrollParams(
+                timeValueNanos(searchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos()),
+                remoteVersion);
+        execute("POST", scrollPath(), scrollParams, scrollEntity(scrollId, remoteVersion), RESPONSE_PARSER, onResponse);
     }
 
     @Override

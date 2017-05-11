@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
@@ -113,7 +112,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
     private static class MockAnalysisPlugin implements AnalysisPlugin {
         @Override
         public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
-            return singletonList(new PreConfiguredTokenFilter("mock_forbidden", false, CachingStrategy.ONE, MockLowerCaseFilter::new));
+            return singletonList(PreConfiguredTokenFilter.singleton("mock_forbidden", false, MockLowerCaseFilter::new));
         }
 
         @Override

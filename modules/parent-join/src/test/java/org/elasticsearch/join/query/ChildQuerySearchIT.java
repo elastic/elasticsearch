@@ -105,6 +105,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.SUITE)
 public class ChildQuerySearchIT extends ESIntegTestCase {
+    
     @Override
     protected boolean ignoreExternalCluster() {
         return true;

@@ -1,0 +1,33 @@
+[[ml-troubleshooting]]
+== {xpackml} Troubleshooting
+
+Use the information in this section to troubleshoot common problems and find
+answers for frequently asked questions.
+
+To get help, see <<xpack-help>>.
+
+[float]
+[[ml-rollingupgrade]]
+=== Machine learning features unavailable after rolling upgrade
+
+This problem occurs after you upgrade all of the nodes in your cluster to
+{version} by using rolling upgrades. When you try to use {xpackml} features for
+the first time, all attempts fail, though `GET _xpack` and `GET _xpack/usage`
+indicate that {xpack} is enabled.
+
+*Symptoms:*
+
+* Errors when you click *Machine Learning* in {kib}.
+For example: `Jobs list could not be created` and `An internal server error occurred`.
+* Null pointer and remote transport exceptions when you run {ml} APIs such as
+`GET _xpack/ml/anomaly_detectors` and `GET _xpack/ml/datafeeds`.
+* Errors in the log files on the master nodes.
+For example: `unable to install ml metadata upon startup`
+
+*Resolution:*
+
+After you upgrade all master-eligible nodes to {es} {version} and {xpack}
+{version}, restart the current master node, which triggers the {xpackml}
+features to re-initialize.
+
+For more information, see {ref}/rolling-upgrades.html[Rolling upgrades].

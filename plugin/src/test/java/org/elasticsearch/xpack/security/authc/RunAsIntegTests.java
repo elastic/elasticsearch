@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.TestXPackTransportClient;
+import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,11 +35,20 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class RunAsIntegTests extends SecurityIntegTestCase {
-    static final String RUN_AS_USER = "run_as_user";
-    static final String TRANSPORT_CLIENT_USER = "transport_user";
-    static final String ROLES =
+
+    private static final String RUN_AS_USER = "run_as_user";
+    private static final String TRANSPORT_CLIENT_USER = "transport_user";
+    private static final String ROLES =
             "run_as_role:\n" +
             "  run_as: [ '" + SecuritySettingsSource.DEFAULT_USER_NAME + "', 'idontexist' ]\n";
+
+    // indicates whether the RUN_AS_USER that is being authenticated is also a superuser
+    private static boolean runAsHasSuperUserRole;
+
+    @BeforeClass
+    public static void configureRunAsHasSuperUserRole() {
+        runAsHasSuperUserRole = randomBoolean();
+    }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
@@ -62,9 +72,14 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
     @Override
     public String configUsersRoles() {
-        return super.configUsersRoles()
+        String roles = super.configUsersRoles()
                 + "run_as_role:" + RUN_AS_USER + "\n"
                 + "transport_client:" + TRANSPORT_CLIENT_USER;
+        if (runAsHasSuperUserRole) {
+            roles = roles + "\n"
+                    + "superuser:" + RUN_AS_USER;
+        }
+        return roles;
     }
 
     @Override
@@ -121,15 +136,17 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
         }
 
-        try {
-            //the run as user shouldn't have access to the nodes api
-            getRestClient().performRequest("GET", "/_nodes",
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                                    DEFAULT_PASSWORD_SECURE_STRING)));
-            fail("request should have failed");
-        } catch(ResponseException e) {
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
+        if (runAsHasSuperUserRole == false) {
+            try {
+                //the run as user shouldn't have access to the nodes api
+                getRestClient().performRequest("GET", "/_nodes",
+                        new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                                UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
+                                        DEFAULT_PASSWORD_SECURE_STRING)));
+                fail("request should have failed");
+            } catch (ResponseException e) {
+                assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
+            }
         }
 
         // but when running as a different user it should work

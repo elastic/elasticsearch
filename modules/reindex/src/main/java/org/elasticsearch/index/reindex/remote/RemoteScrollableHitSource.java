@@ -30,7 +30,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource;
+import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;

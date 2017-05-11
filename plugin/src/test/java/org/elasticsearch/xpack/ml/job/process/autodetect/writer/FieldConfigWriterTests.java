@@ -74,6 +74,11 @@ public class FieldConfigWriterTests extends ESTestCase {
         Detector.Builder d6 = new Detector.Builder("max", "field");
         d6.setOverFieldName("tshash");
         detectors.add(d6.build());
+        Detector.Builder d7 = new Detector.Builder("max", "Level 1 (Urgent)");
+        d7.setByFieldName("10%");
+        d7.setOverFieldName("%10");
+        d7.setPartitionFieldName("Percentage (%)");
+        detectors.add(d7.build());
 
         analysisConfig = new AnalysisConfig.Builder(detectors).build();
 
@@ -109,6 +114,9 @@ public class FieldConfigWriterTests extends ESTestCase {
         value = fieldConfig.get(iniConfig.getGlobalSectionName(), "detector.4.clause");
         assertEquals("rare by \"weird field\"", value);
         value = fieldConfig.get(iniConfig.getGlobalSectionName(), "detector.5.clause");
+        assertEquals("max(field) over tshash", value);
+        value = fieldConfig.get(iniConfig.getGlobalSectionName(), "detector.6.clause");
+        assertEquals("max(\"Level 1 (Urgent)\") by \"10%\" over \"%10\" partitionfield=\"Percentage (%)\"", value);
         // Ini4j meddles with escape characters itself, so the assertion below
         // fails even though the raw file is fine.  The file is never read by
         // Ini4j in the production system.

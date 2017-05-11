@@ -1,6 +1,8 @@
 [[search-aggregations-bucket-significanttext-aggregation]]
 === Significant Text Aggregation
 
+experimental[]
+
 An aggregation that returns interesting or unusual occurrences of free-text terms in a set.
 It is like the <<search-aggregations-bucket-significantterms-aggregation,significant terms>> aggregation but differs in that:
 

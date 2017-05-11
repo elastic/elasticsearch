@@ -82,16 +82,16 @@ public class DeDuplicatingTokenFilter extends FilteringTokenFilter {
 
         TermToBytesRefAttribute termBytesAtt = addAttribute(TermToBytesRefAttribute.class);
         private DuplicateByteSequenceSpotter byteStreamDuplicateSpotter;
+        private ArrayList<State> allTokens;
+        int pos = 0;
+        private final int windowSize;
 
         protected DuplicateTaggingFilter(DuplicateByteSequenceSpotter byteStreamDuplicateSpotter, TokenStream input) {
             super(input);
             this.byteStreamDuplicateSpotter = byteStreamDuplicateSpotter;
-            this.windowSize = byteStreamDuplicateSpotter.TREE_DEPTH;
+            this.windowSize = DuplicateByteSequenceSpotter.TREE_DEPTH;
         }
 
-        private ArrayList<State> allTokens;
-        int pos = 0;
-        private final int windowSize;
 
         @Override
         public final boolean incrementToken() throws IOException {

@@ -205,6 +205,7 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
                 for (InnerHitBuilder innerHit : innerHits) {
                     innerHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 }
+                builder.endArray();
             }
         }
     }

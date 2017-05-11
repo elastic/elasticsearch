@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex.remote;
 
-import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 

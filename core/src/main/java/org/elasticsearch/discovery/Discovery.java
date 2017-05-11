@@ -77,9 +77,4 @@ public interface Discovery extends LifecycleComponent {
      */
     void startInitialJoin();
 
-    /***
-     * @return the current value of minimum master nodes, or -1 for not set
-     */
-    int getMinimumMasterNodes();
-
 }

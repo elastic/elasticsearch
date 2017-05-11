@@ -219,11 +219,13 @@ public class ScriptServiceTests extends ESTestCase {
     public void testDefaultBehaviourFineGrainedSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
         //rarely inject the default settings, which have no effect
+        boolean deprecate = false;
         if (rarely()) {
             builder.put("script.file", "true");
+            deprecate = true;
         }
         buildScriptService(builder.build());
-        createFileScripts("mustache", "dtest");
+        createFileScripts("dtest");
 
         for (ScriptContext scriptContext : scriptContexts) {
             // only file scripts are accepted by default
@@ -231,7 +233,12 @@ public class ScriptServiceTests extends ESTestCase {
             assertCompileRejected("dtest", "script", ScriptType.STORED, scriptContext);
             assertCompileAccepted("dtest", "file_script", ScriptType.FILE, scriptContext);
         }
-        assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
+        if (deprecate) {
+            assertSettingDeprecationsAndWarnings(ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.file"),
+                "File scripts are deprecated. Use stored or inline scripts instead.");
+        } else {
+            assertWarnings("File scripts are deprecated. Use stored or inline scripts instead.");
+        }
     }
 
     public void testFineGrainedSettings() throws IOException {

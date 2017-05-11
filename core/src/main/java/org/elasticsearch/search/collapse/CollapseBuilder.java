@@ -19,6 +19,7 @@
 package org.elasticsearch.search.collapse;
 
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -63,7 +64,6 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
         PARSER.declareField((parser, builder, context) -> {
             XContentParser.Token currentToken = parser.currentToken();
             if (currentToken == XContentParser.Token.START_OBJECT) {
-                // backwards compatibility for when only a single inner hit was allowed
                 builder.setInnerHits(InnerHitBuilder.fromXContent(context));
             } else if (currentToken == XContentParser.Token.START_ARRAY) {
                 List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
@@ -98,11 +98,14 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
     public CollapseBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
         this.maxConcurrentGroupRequests = in.readVInt();
-        if (in.readBoolean()) {
-            int numInnerHits = in.readVInt();
-            this.innerHits = new ArrayList<>(numInnerHits);
-            for (int i = 0; i < numInnerHits; i++) {
-                innerHits.add(new InnerHitBuilder(in));
+        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            if (in.readBoolean()) {
+                this.innerHits = in.readList(InnerHitBuilder::new);
+            }
+        } else {
+            InnerHitBuilder innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
+            if (innerHitBuilder != null) {
+                this.innerHits = Collections.singletonList(innerHitBuilder);
             }
         }
     }
@@ -111,17 +114,21 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeVInt(maxConcurrentGroupRequests);
-        if (innerHits != null) {
-            out.writeBoolean(true);
-            out.writeVInt(innerHits.size());
-            for (InnerHitBuilder innerHit : innerHits) {
-                innerHit.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            if (innerHits != null) {
+                out.writeBoolean(true);
+                out.writeList(innerHits);
+            } else {
+                out.writeBoolean(false);
+            }
+        } else {
+            InnerHitBuilder innerHit = null;
+            if (innerHits != null && !innerHits.isEmpty()) {
+                innerHit = innerHits.get(0);
             }
 
-            return;
+            out.writeOptionalWriteable(innerHit);
         }
-
-        out.writeBoolean(false);
     }
 
     public static CollapseBuilder fromXContent(QueryParseContext context) throws IOException {

@@ -49,34 +49,41 @@ dependencies {
   es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
 }
 
-/* Set up tasks to unzip and run the old versions of ES before running the
- * integration tests. */
-for (String version : ['2', '1', '090']) {
-  Task unzip = task("unzipEs${version}", type: Sync) {
-    Configuration oldEsDependency = configurations['es' + version]
-    dependsOn oldEsDependency
-    // Use a closure here to delay resolution of the dependency until we need it
-    from {
-      oldEsDependency.collect { zipTree(it) }
+if (project.javaVersion == JavaVersion.VERSION_1_9) {
+  /* We can't run the dependencies with Java 9 so for now we'll skip the whole
+   * thing. */
+  integTest.enabled = false
+} else {
+  /* Set up tasks to unzip and run the old versions of ES before running the
+   * integration tests. */
+  for (String version : ['2', '1', '090']) {
+    Task unzip = task("unzipEs${version}", type: Sync) {
+      Configuration oldEsDependency = configurations['es' + version]
+      dependsOn oldEsDependency
+      /* Use a closure here to delay resolution of the dependency until we need
+       * it */
+      from {
+        oldEsDependency.collect { zipTree(it) }
+      }
+      into temporaryDir
     }
-    into temporaryDir
-  }
-  Task fixture = task("oldEs${version}Fixture",
-        type: org.elasticsearch.gradle.test.AntFixture) {
-    dependsOn project.configurations.oldesFixture
-    dependsOn unzip
-    executable = new File(project.javaHome, 'bin/java')
-    env 'CLASSPATH', "${ -> project.configurations.oldesFixture.asPath }"
-    args 'oldes.OldElasticsearch',
-         baseDir,
-         unzip.temporaryDir,
-         version == '090'
-  }
-  integTest.dependsOn fixture
-  integTestRunner {
-    /* Use a closure on the string to delay evaluation until right before we
-     * run the integration tests so that we can be sure that the file is ready.
-     */
-    systemProperty "es${version}.port", "${ -> fixture.addressAndPort }"
+    Task fixture = task("oldEs${version}Fixture",
+          type: org.elasticsearch.gradle.test.AntFixture) {
+      dependsOn project.configurations.oldesFixture
+      dependsOn unzip
+      executable = new File(project.javaHome, 'bin/java')
+      env 'CLASSPATH', "${ -> project.configurations.oldesFixture.asPath }"
+      args 'oldes.OldElasticsearch',
+           baseDir,
+           unzip.temporaryDir,
+           version == '090'
+    }
+    integTest.dependsOn fixture
+    integTestRunner {
+      /* Use a closure on the string to delay evaluation until right before we
+       * run the integration tests so that we can be sure that the file is
+       * ready. */
+      systemProperty "es${version}.port", "${ -> fixture.addressAndPort }"
+    }
   }
 }

@@ -470,11 +470,6 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                         Transport.Connection connectionToClose = null;
 
                         @Override
-                        public void onAfter() {
-                            IOUtils.closeWhileHandlingException(connectionToClose);
-                        }
-
-                        @Override
                         public void onFailure(Exception e) {
                             latch.countDown();
                             if (e instanceof ConnectTransportException) {
@@ -523,6 +518,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                                     public void handleResponse(ClusterStateResponse response) {
                                         clusterStateResponses.put(nodeToPing, response);
                                         latch.countDown();
+                                        closeConnection();
                                     }
 
                                     @Override
@@ -535,7 +531,12 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                                         }
                                         finally {
                                             latch.countDown();
+                                            closeConnection();
                                         }
+                                    }
+
+                                    void closeConnection() {
+                                        IOUtils.closeWhileHandlingException(connectionToClose);
                                     }
                                 });
                         }

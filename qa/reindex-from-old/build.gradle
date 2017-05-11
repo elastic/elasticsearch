@@ -72,7 +72,7 @@ for (String version : ['2', '1', '090']) {
          unzip.temporaryDir,
          version == '090'
   }
-  integTestCluster.dependsOn fixture
+  integTest.dependsOn fixture
   integTestRunner {
     /* Use a closure on the string to delay evaluation until right before we
      * run the integration tests so that we can be sure that the file is ready.

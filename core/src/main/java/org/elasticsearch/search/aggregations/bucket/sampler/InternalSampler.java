@@ -49,7 +49,7 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
 
     @Override
     public String getType() {
-        return "sampler";
+        return NAME;
     }
 
     @Override

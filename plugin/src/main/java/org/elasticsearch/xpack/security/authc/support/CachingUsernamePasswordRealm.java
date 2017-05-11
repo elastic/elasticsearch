@@ -41,7 +41,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         TimeValue ttl = CACHE_TTL_SETTING.get(config.settings());
         if (ttl.getNanos() > 0) {
             cache = CacheBuilder.<String, UserWithHash>builder()
-                    .setExpireAfterAccess(ttl)
+                    .setExpireAfterWrite(ttl)
                     .setMaximumWeight(CACHE_MAX_USERS_SETTING.get(config.settings()))
                     .build();
         } else {

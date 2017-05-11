@@ -24,10 +24,8 @@ import java.security.GeneralSecurityException;
 import java.util.EnumSet;
 import java.util.Set;
 
-import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.util.ArrayUtils;
-
 
 /**
  * A secure setting.
@@ -139,7 +137,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
      * A setting which contains a sensitive string, but which for legacy reasons must be found outside secure settings.
      * @see #secureString(String, Setting, Property...)
      */
-    public static Setting<SecureString> inecureString(String name) {
+    public static Setting<SecureString> insecureString(String name) {
         return new Setting<SecureString>(name, "", SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope) {
             @Override
             public SecureString get(Settings settings) {

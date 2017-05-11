@@ -26,9 +26,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -123,9 +125,11 @@ public class ScriptModesTests extends ESTestCase {
             randomScriptModes[i] = randomBoolean();
         }
         ScriptType[] randomScriptTypes = randomScriptTypesSet.toArray(new ScriptType[randomScriptTypesSet.size()]);
+        List<String> deprecated = new ArrayList<>();
         Settings.Builder builder = Settings.builder();
         for (int i = 0; i < randomInt; i++) {
             builder.put("script" + "." + randomScriptTypes[i].getName(), randomScriptModes[i]);
+            deprecated.add("script" + "." + randomScriptTypes[i].getName());
         }
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
 
@@ -141,6 +145,8 @@ public class ScriptModesTests extends ESTestCase {
         if (randomScriptTypesSet.contains(ScriptType.INLINE) == false) {
             assertScriptModesAllOps(false, ScriptType.INLINE);
         }
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})));
     }
 
     public void testScriptContextGenericSettings() {
@@ -155,9 +161,11 @@ public class ScriptModesTests extends ESTestCase {
             randomScriptModes[i] = randomBoolean();
         }
         ScriptContext[] randomScriptContexts = randomScriptContextsSet.toArray(new ScriptContext[randomScriptContextsSet.size()]);
+        List<String> deprecated = new ArrayList<>();
         Settings.Builder builder = Settings.builder();
         for (int i = 0; i < randomInt; i++) {
             builder.put("script" + "." + randomScriptContexts[i].getKey(), randomScriptModes[i]);
+            deprecated.add("script" + "." + randomScriptContexts[i].getKey());
         }
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
 
@@ -168,6 +176,8 @@ public class ScriptModesTests extends ESTestCase {
         ScriptContext[] complementOf = complementOf(randomScriptContexts);
         assertScriptModes(true, new ScriptType[]{ScriptType.FILE}, complementOf);
         assertScriptModes(false, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})));
     }
 
     public void testConflictingScriptTypeAndOpGenericSettings() {
@@ -182,6 +192,9 @@ public class ScriptModesTests extends ESTestCase {
         ScriptContext[] complementOf = complementOf(scriptContext);
         assertScriptModes(true, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);
         assertScriptModes(true, new ScriptType[]{ScriptType.INLINE}, complementOf);
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(
+                scriptSettings, "script." + scriptContext.getKey(), "script.stored", "script.inline"));
     }
 
     private void assertScriptModesAllOps(boolean expectedScriptEnabled, ScriptType... scriptTypes) {

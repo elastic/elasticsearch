@@ -473,10 +473,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                               shardFailures);
             snapshotFormat.write(blobStoreSnapshot, snapshotsBlobContainer, snapshotId.getUUID());
             final RepositoryData repositoryData = getRepositoryData();
-            List<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-            if (!snapshotIds.contains(snapshotId)) {
-                writeIndexGen(repositoryData.addSnapshot(snapshotId, indices), repositoryStateId);
-            }
+            writeIndexGen(repositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), indices), repositoryStateId);
             return blobStoreSnapshot;
         } catch (IOException ex) {
             throw new RepositoryException(metadata.name(), "failed to update snapshot in repository", ex);

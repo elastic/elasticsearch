@@ -120,20 +120,30 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(initialSearchParams(searchRequest, remoteVersion),
                 not(either(hasKey("stored_fields")).or(hasKey("fields"))));
 
-        // Setup some fields for the next two tests
-        searchRequest.source().storedField("_source").storedField("_id");
-
         // Test stored_fields for versions that support it
+        searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        searchRequest.source().storedField("_source").storedField("_id");
         remoteVersion = Version.fromId(between(Version.V_5_0_0_alpha4_ID, Version.CURRENT.id));
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("stored_fields", "_source,_id"));
 
         // Test fields for versions that support it
+        searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        searchRequest.source().storedField("_source").storedField("_id");
         remoteVersion = Version.fromId(between(Version.V_2_0_0_beta1_ID, Version.V_5_0_0_alpha4_ID - 1));
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("fields", "_source,_id"));
 
         // Test extra fields for versions that need it
+        searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        searchRequest.source().storedField("_source").storedField("_id");
         remoteVersion = Version.fromId(between(0, Version.V_2_0_0_beta1_ID - 1));
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("fields", "_source,_id,_parent,_routing,_ttl"));
+
+        // But only versions before 1.0 force _source to be in the list
+        searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        searchRequest.source().storedField("_id");
+        remoteVersion = Version.fromId(between(1000099, Version.V_2_0_0_beta1_ID - 1));
+        assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("fields", "_id,_parent,_routing,_ttl"));
+
     }
 
     public void testInitialSearchParamsMisc() {

@@ -44,6 +44,7 @@ import java.util.TreeMap;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.object.HasToString.hasToString;
 
 public class OperationRoutingTests extends ESTestCase{
@@ -367,6 +368,50 @@ public class OperationRoutingTests extends ESTestCase{
             terminate(threadPool);
         }
     }
+    
+    public void testFairSessionIdPreferences() throws InterruptedException, IOException {
+        // Ensure that a user session is re-routed back to same nodes for
+        // subsequent searches and that the nodes are selected fairly i.e.
+        // given identically sorted lists of nodes across all shard IDs
+        // each shard ID doesn't pick the same node.
+        TestThreadPool threadPool = null;
+        ClusterService clusterService = null;
+        try {
+            threadPool = new TestThreadPool("testFairSessionIdPreferences");
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+            final String indexName = "test";
+            final int numShards = 4;
+            ClusterServiceUtils.setState(clusterService,
+                    ClusterStateCreationUtils.stateWithAssignedPrimariesAndOneReplica(indexName, numShards));
+
+            final int numRepeatedSearches = 4;
+            List<ShardRouting> firstSearch = null;
+            OperationRouting opRouting = new OperationRouting(Settings.EMPTY,
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+
+            for (int i = 0; i < numRepeatedSearches; i++) {
+                List<ShardRouting> searchedShards = new ArrayList<>(numShards);
+                Set<String> selectedNodes = new HashSet<>(numShards);
+                for (int shardNum = 0; shardNum < numShards; shardNum++) {
+                    final ShardIterator it = opRouting.getShards(clusterService.state(), indexName, shardNum, "my_session_id");
+                    ShardRouting firstChoice = it.nextOrNull();
+                    assertNotNull(firstChoice);
+                    searchedShards.add(firstChoice);
+                    selectedNodes.add(firstChoice.currentNodeId());
+                }
+                if (firstSearch == null) {
+                    firstSearch = searchedShards;
+                } else {
+                    assertEquals(firstSearch, searchedShards);
+                }
+                assertThat("More than one node should be selected", selectedNodes.size(), greaterThan(1));
+            }
+
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+        }
+    }  
 
     public void testThatOnlyNodesSupportNodeIds() throws InterruptedException, IOException {
         TestThreadPool threadPool = null;

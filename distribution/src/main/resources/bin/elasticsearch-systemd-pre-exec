@@ -2,6 +2,6 @@
 
 # CONF_FILE setting was removed
 if [ ! -z "$CONF_FILE" ]; then
-    echo "CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed."
+    echo "CONF_FILE setting is no longer supported. elasticsearch.yaml must be placed in the config directory and cannot be renamed."
     exit 1
 fi

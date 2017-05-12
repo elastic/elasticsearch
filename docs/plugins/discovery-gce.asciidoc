@@ -95,7 +95,7 @@ network.host: _gce:hostname_
 * Create Google Compute Engine instance (with compute rw permissions)
 * Install Elasticsearch
 * Install Google Compute Engine Cloud plugin
-* Modify `elasticsearch.yml` file
+* Modify `elasticsearch.yaml` file
 * Start Elasticsearch
 
 [[discovery-gce-usage-long]]
@@ -211,11 +211,11 @@ Install the plugin:
 sudo bin/elasticsearch-plugin install discovery-gce
 --------------------------------------------------
 
-Open the `elasticsearch.yml` file:
+Open the `elasticsearch.yaml` file:
 
 [source,sh]
 --------------------------------------------------
-sudo vi /etc/elasticsearch/elasticsearch.yml
+sudo vi /etc/elasticsearch/elasticsearch.yaml
 --------------------------------------------------
 
 And add the following lines:
@@ -368,7 +368,7 @@ gcloud compute instances create myesnode1 --project=es-cloud \
        --tags=elasticsearch,dev
 --------------------------------------------------
 
-Then, define it in `elasticsearch.yml`:
+Then, define it in `elasticsearch.yaml`:
 
 [source,yaml]
 --------------------------------------------------
@@ -483,7 +483,7 @@ Or, you may use the alias:
 
 Integrations tests in this plugin require working GCE configuration and
 therefore disabled by default. To enable tests prepare a config file
-elasticsearch.yml with the following content:
+elasticsearch.yaml with the following content:
 
 [source,yaml]
 --------------------------------------------------
@@ -501,5 +501,5 @@ To run test:
 
 [source,sh]
 --------------------------------------------------
-mvn -Dtests.gce=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
+mvn -Dtests.gce=true -Dtests.config=/path/to/config/file/elasticsearch.yaml clean test
 --------------------------------------------------

@@ -19,7 +19,7 @@ The first option is to use
 http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] on Linux/Unix systems, or https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx[VirtualLock] on Windows, to
 try to lock the process address space into RAM, preventing any Elasticsearch
 memory from being swapped out.  This can be done, by adding this line
-to the `config/elasticsearch.yml` file:
+to the `config/elasticsearch.yaml` file:
 
 [source,yaml]
 --------------

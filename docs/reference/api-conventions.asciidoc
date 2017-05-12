@@ -697,7 +697,7 @@ the choice of specifying an index in the URL and on each individual request
 within the request body. This can make URL-based access control challenging.
 
 To prevent the user from overriding the index which has been specified in the
-URL, add this setting to the `elasticsearch.yml` file:
+URL, add this setting to the `elasticsearch.yaml` file:
 
     rest.action.multi.allow_explicit_index: false
 

@@ -8,7 +8,7 @@ This pre-processing happens by an ingest node that intercepts bulk and index req
 transformations, and then passes the documents back to the index or bulk APIs.
 
 You can enable ingest on any node or even have dedicated ingest nodes. Ingest is enabled by default
-on all nodes. To disable ingest on a node, configure the following setting in the `elasticsearch.yml` file:
+on all nodes. To disable ingest on a node, configure the following setting in the `elasticsearch.yaml` file:
 
 [source,yaml]
 --------------------------------------------------

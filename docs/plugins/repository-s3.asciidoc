@@ -244,9 +244,9 @@ The following settings are supported:
     The default behaviour is to detect which access style to use based on the configured endpoint (an IP will result
     in path-style access) and the bucket being accessed (some buckets are not valid DNS names).
 
-Note that you can define S3 repository settings for all S3 repositories in `elasticsearch.yml` configuration file.
+Note that you can define S3 repository settings for all S3 repositories in `elasticsearch.yaml` configuration file.
 They are all prefixed with `repositories.s3.`. For example, you can define compression for all S3 repositories
-by setting `repositories.s3.compress: true` in `elasticsearch.yml`.
+by setting `repositories.s3.compress: true` in `elasticsearch.yaml`.
 
 The S3 repositories use the same credentials as the rest of the AWS services
 provided by this plugin (`discovery`). See <<repository-s3-usage>> for details.
@@ -381,7 +381,7 @@ Instances residing in a public subnet in an AWS VPC will connect to S3 via the V
 
 Integrations tests in this plugin require working AWS configuration and therefore disabled by default. Three buckets
 and two iam users have to be created. The first iam user needs access to two buckets in different regions and the final
-bucket is exclusive for the other iam user. To enable tests prepare a config file elasticsearch.yml with the following
+bucket is exclusive for the other iam user. To enable tests prepare a config file elasticsearch.yaml with the following
 content:
 
 [source,yaml]
@@ -418,5 +418,5 @@ To run test:
 
 [source,sh]
 ----
-mvn -Dtests.aws=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
+mvn -Dtests.aws=true -Dtests.config=/path/to/config/file/elasticsearch.yaml clean test
 ----

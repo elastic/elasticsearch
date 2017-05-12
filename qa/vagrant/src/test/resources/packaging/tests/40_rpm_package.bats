@@ -159,7 +159,7 @@ setup() {
 }
 
 @test "[RPM] reremove package" {
-    echo "# ping" >> "/etc/elasticsearch/elasticsearch.yml"
+    echo "# ping" >> "/etc/elasticsearch/elasticsearch.yaml"
     echo "# ping" >> "/etc/elasticsearch/jvm.options"
     echo "# ping" >> "/etc/elasticsearch/log4j2.properties"
     echo "# ping" >> "/etc/elasticsearch/scripts/script"
@@ -186,8 +186,8 @@ setup() {
     assert_file_not_exist "/usr/share/elasticsearch/modules"
     assert_file_not_exist "/usr/share/elasticsearch/modules/lang-painless"
 
-    assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
-    assert_file_exist "/etc/elasticsearch/elasticsearch.yml.rpmsave"
+    assert_file_not_exist "/etc/elasticsearch/elasticsearch.yaml"
+    assert_file_exist "/etc/elasticsearch/elasticsearch.yaml.rpmsave"
     assert_file_not_exist "/etc/elasticsearch/jvm.options"
     assert_file_exist "/etc/elasticsearch/jvm.options.rpmsave"
     assert_file_not_exist "/etc/elasticsearch/log4j2.properties"

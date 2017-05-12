@@ -23,7 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.junit.Before;
 
 /**
- * This will only run if you define in your `elasticsearch.yml` file a s3 specific proxy
+ * This will only run if you define in your `elasticsearch.yaml` file a s3 specific proxy
  * cloud.aws.s3.proxy_host: mys3proxy.company.com
  * cloud.aws.s3.proxy_port: 8080
  */
@@ -41,7 +41,7 @@ public class S3ProxiedSnapshotRestoreOverHttpsTests extends AbstractS3SnapshotRe
 
     @Before
     public void checkProxySettings() {
-        assumeTrue("we are expecting proxy settings in elasticsearch.yml file", proxySet);
+        assumeTrue("we are expecting proxy settings in elasticsearch.yaml file", proxySet);
     }
 
 }

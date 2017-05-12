@@ -117,7 +117,7 @@ packages take care of starting and stopping the Elasticsearch process for you.
 [[zip-targz-configuring]]
 ==== Configuring Elasticsearch on the command line
 
-Elasticsearch loads its configuration from the `$ES_HOME/config/elasticsearch.yml`
+Elasticsearch loads its configuration from the `$ES_HOME/config/elasticsearch.yaml`
 file by default.  The format of this config file is explained in
 <<settings>>.
 
@@ -130,7 +130,7 @@ the command line, using the `-E` syntax as follows:
 --------------------------------------------
 
 TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
-added to the `elasticsearch.yml` config file, while any node-specific settings
+added to the `elasticsearch.yaml` config file, while any node-specific settings
 such as `node.name` could be specified on the command line.
 
 [[zip-targz-layout]]
@@ -162,7 +162,7 @@ directory so that you do not delete important data later on.
  d|
 
 | conf
-  | Configuration files including `elasticsearch.yml`
+  | Configuration files including `elasticsearch.yaml`
   | $ES_HOME/config
   | path.conf
 

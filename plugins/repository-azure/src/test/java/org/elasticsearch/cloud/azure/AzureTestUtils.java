@@ -29,8 +29,8 @@ import java.io.IOException;
 public class AzureTestUtils {
     /**
      * Read settings from file when running integration tests with ThirdParty annotation.
-     * elasticsearch.yml file path has to be set with -Dtests.config=/path/to/elasticsearch.yml.
-     * @return Settings from elasticsearch.yml integration test file (for 3rd party tests)
+     * elasticsearch.yaml file path has to be set with -Dtests.config=/path/to/elasticsearch.yaml.
+     * @return Settings from elasticsearch.yaml integration test file (for 3rd party tests)
      */
     public static Settings readSettingsFromFile() {
         Settings.Builder settings = Settings.builder();
@@ -45,7 +45,7 @@ public class AzureTestUtils {
                 }
             } else {
                 throw new IllegalStateException("to run integration tests, you need to set -Dtests.thirdparty=true and " +
-                    "-Dtests.config=/path/to/elasticsearch.yml");
+                    "-Dtests.config=/path/to/elasticsearch.yaml");
             }
         } catch (SettingsException exception) {
             throw new IllegalStateException("your test configuration file is incorrect: " + System.getProperty("tests.config"), exception);

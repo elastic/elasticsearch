@@ -151,7 +151,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Files.createDirectories(home.resolve("bin"));
         Files.createFile(home.resolve("bin").resolve("elasticsearch"));
         Files.createDirectories(home.resolve("config"));
-        Files.createFile(home.resolve("config").resolve("elasticsearch.yml"));
+        Files.createFile(home.resolve("config").resolve("elasticsearch.yaml"));
         Path plugins = Files.createDirectories(home.resolve("plugins"));
         assertTrue(Files.exists(plugins));
         Settings settings = Settings.builder()
@@ -589,9 +589,9 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path configDir = pluginDir.resolve("config");
         Files.createDirectory(configDir);
         Files.createFile(configDir.resolve("myconfig.yml"));
-        String pluginZip = createPluginUrl("elasticsearch.yml", pluginDir);
+        String pluginZip = createPluginUrl("elasticsearch.yaml", pluginDir);
         FileAlreadyExistsException e = expectThrows(FileAlreadyExistsException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains(env.v2().configFile().resolve("elasticsearch.yml").toString()));
+        assertTrue(e.getMessage(), e.getMessage().contains(env.v2().configFile().resolve("elasticsearch.yaml").toString()));
         assertInstallCleaned(env.v2());
     }
 

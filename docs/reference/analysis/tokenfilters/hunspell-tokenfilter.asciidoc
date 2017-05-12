@@ -25,7 +25,7 @@ Each dictionary can be configured with one setting:
     If true, dictionary matching will be case insensitive
     (defaults to `false`)
 
-This setting can be configured globally in `elasticsearch.yml` using
+This setting can be configured globally in `elasticsearch.yaml` using
 
 * `indices.analysis.hunspell.dictionary.ignore_case`
 
@@ -35,7 +35,7 @@ or for specific dictionaries:
 
 It is also possible to add `settings.yml` file under the dictionary
 directory which holds these settings (this will override any other
-settings defined in the `elasticsearch.yml`).
+settings defined in the `elasticsearch.yaml`).
 
 One can use the hunspell stem filter by configuring it the analysis
 settings:

@@ -212,20 +212,20 @@ Log messages go to the console and are handled by the configured Docker logging 
 
 Elasticsearch loads its configuration from files under `/usr/share/elasticsearch/config/`. These configuration files are documented in <<settings>> and <<jvm-options>>.
 
-The image offers several methods for configuring Elasticsearch settings with the conventional approach being to provide customized files, i.e. `elasticsearch.yml`, but it's also possible to use environment variables to set options:
+The image offers several methods for configuring Elasticsearch settings with the conventional approach being to provide customized files, i.e. `elasticsearch.yaml`, but it's also possible to use environment variables to set options:
 
 ===== A. Present the parameters via Docker environment variables
 For example, to define the cluster name with `docker run` you can pass `-e "cluster.name=mynewclustername"`. Double quotes are required.
 
 ===== B. Bind-mounted configuration
 Create your custom config file and mount this over the image's corresponding file.
-For example, bind-mounting a `custom_elasticsearch.yml` with `docker run` can be accomplished with the parameter:
+For example, bind-mounting a `custom_elasticsearch.yaml` with `docker run` can be accomplished with the parameter:
 
 ["source","sh"]
 --------------------------------------------
--v full_path_to/custom_elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+-v full_path_to/custom_elasticsearch.yaml:/usr/share/elasticsearch/config/elasticsearch.yaml
 --------------------------------------------
-IMPORTANT: The container **runs Elasticsearch as user `elasticsearch` using uid:gid `1000:1000`**. Bind mounted host directories and files, such as `custom_elasticsearch.yml` above, **need to be accessible by this user**. For the https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#path-settings[data and log dirs], such as `/usr/share/elasticsearch/data`, write access is required as well.
+IMPORTANT: The container **runs Elasticsearch as user `elasticsearch` using uid:gid `1000:1000`**. Bind mounted host directories and files, such as `custom_elasticsearch.yaml` above, **need to be accessible by this user**. For the https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#path-settings[data and log dirs], such as `/usr/share/elasticsearch/data`, write access is required as well.
 
 ===== C. Customized image
 In some environments, it may make more sense to prepare a custom image containing your configuration. A `Dockerfile` to achieve this may be as simple as:
@@ -233,9 +233,9 @@ In some environments, it may make more sense to prepare a custom image containin
 ["source","sh",subs="attributes"]
 --------------------------------------------
 FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
-ADD elasticsearch.yml /usr/share/elasticsearch/config/
+ADD elasticsearch.yaml /usr/share/elasticsearch/config/
 USER root
-RUN chown elasticsearch:elasticsearch config/elasticsearch.yml
+RUN chown elasticsearch:elasticsearch config/elasticsearch.yaml
 USER elasticsearch
 --------------------------------------------
 

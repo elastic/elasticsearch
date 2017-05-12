@@ -96,7 +96,7 @@ verify_package_installation() {
     assert_file "$ESHOME/bin/elasticsearch-translog" f root root 755
     assert_file "$ESHOME/lib" d root root 755
     assert_file "$ESCONFIG" d root elasticsearch 750
-    assert_file "$ESCONFIG/elasticsearch.yml" f root elasticsearch 660
+    assert_file "$ESCONFIG/elasticsearch.yaml" f root elasticsearch 660
     assert_file "$ESCONFIG/jvm.options" f root elasticsearch 660
     assert_file "$ESCONFIG/log4j2.properties" f root elasticsearch 660
     assert_file "$ESSCRIPTS" d root elasticsearch 750
@@ -139,7 +139,7 @@ verify_package_installation() {
         assert_file "/etc/init.d/elasticsearch" f root root 750
     fi
 
-    run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/elasticsearch.yml"
+    run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/elasticsearch.yaml"
     [ $status = 1 ]
     [[ "$output" == *"Permission denied"* ]] || {
         echo "Expected permission denied but found $output:"

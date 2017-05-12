@@ -114,7 +114,7 @@ On each Elasticsearch node, place the appropriate keytab file in the node's conf
 ----
 $> cd elasticsearch/config
 $> ls
-elasticsearch.yml  jvm.options        log4j2.properties  repository-hdfs/   scripts/
+elasticsearch.yaml  jvm.options        log4j2.properties  repository-hdfs/   scripts/
 $> cd repository-hdfs
 $> ls
 krb5.keytab

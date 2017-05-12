@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
@@ -86,27 +87,23 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, properties);
         Environment environment = new Environment(output.build());
 
-        output = Settings.builder(); // start with a fresh output
-        boolean settingsFileFound = false;
-        Set<String> foundSuffixes = new HashSet<>();
-        for (String allowedSuffix : ALLOWED_SUFFIXES) {
-            Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
-            if (Files.exists(path)) {
-                if (!settingsFileFound) {
-                    try {
-                        output.loadFromPath(path);
-                    } catch (IOException e) {
-                        throw new SettingsException("Failed to load settings from " + path.toString(), e);
-                    }
-                }
-                settingsFileFound = true;
-                foundSuffixes.add(allowedSuffix);
+        if (Files.exists(environment.configFile().resolve("elasticsearch.yml"))) {
+            throw new SettingsException("elasticsearch.yml was deprecated in 5.5.0 and must be renamed to elasticsearch.yaml");
+        }
+        if (Files.exists(environment.configFile().resolve("elasticsearch.json"))) {
+            throw new SettingsException("elasticsearch.json was deprecated in 5.5.0 and must be converted to elasticsearch.yaml");
+        }
+
+        Path path = environment.configFile().resolve("elasticsearch.yaml");
+        if (Files.exists(path)) {
+            try {
+                output.loadFromPath(path);
+            } catch (IOException e) {
+                throw new SettingsException("Failed to load settings from " + path.toString(), e);
             }
         }
-        if (foundSuffixes.size() > 1) {
-            throw new SettingsException("multiple settings files found with suffixes: "
-                + Strings.collectionToDelimitedString(foundSuffixes, ","));
-        }
+
+        output = Settings.builder(); // start with a fresh output
 
         // re-initialize settings now that the config file has been loaded
         initializeSettings(output, input, properties);
@@ -116,8 +113,7 @@ public class InternalSettingsPreparer {
 
         // we put back the path.logs so we can use it in the logging configuration file
         output.put(Environment.PATH_LOGS_SETTING.getKey(), cleanPath(environment.logsFile().toAbsolutePath().toString()));
-        String configExtension = foundSuffixes.isEmpty() ? null : foundSuffixes.iterator().next();
-        return new Environment(output.build(), configExtension);
+        return new Environment(output.build());
     }
 
     /**

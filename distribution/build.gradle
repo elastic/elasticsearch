@@ -327,7 +327,7 @@ configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
     /* Explicitly declare the output files so this task doesn't consider itself
       up to date when the directory is created, which it would by default. And
       that'll happen when createEtc runs. */
-    outputs.file "${packagingFiles}/etc/elasticsearch/elasticsearch.yml"
+    outputs.file "${packagingFiles}/etc/elasticsearch/elasticsearch.yaml"
     outputs.file "${packagingFiles}/etc/elasticsearch/jvm.options"
     outputs.file "${packagingFiles}/etc/elasticsearch/log4j2.properties"
   }
@@ -408,7 +408,7 @@ configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
     }
     with noticeFile
 
-    configurationFile '/etc/elasticsearch/elasticsearch.yml'
+    configurationFile '/etc/elasticsearch/elasticsearch.yaml'
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/log4j2.properties'
     into('/etc/elasticsearch') {

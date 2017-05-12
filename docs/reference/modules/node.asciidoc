@@ -260,7 +260,7 @@ search.remote.connect: false <4>
 
 Every data and master-eligible node requires access to a data directory where
 shards and index and cluster metadata will be stored. The `path.data` defaults
-to `$ES_HOME/data` but can be configured in the `elasticsearch.yml` config
+to `$ES_HOME/data` but can be configured in the `elasticsearch.yaml` config
 file an absolute path or a path relative to `$ES_HOME` as follows:
 
 [source,yaml]

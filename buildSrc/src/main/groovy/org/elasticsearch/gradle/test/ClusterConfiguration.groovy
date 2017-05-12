@@ -176,8 +176,8 @@ class ClusterConfiguration {
      */
     @Input
     void extraConfigFile(String path, Object sourceFile) {
-        if (path == 'elasticsearch.yml') {
-            throw new GradleException('Overwriting elasticsearch.yml is not allowed, add additional settings using cluster { setting "foo", "bar" }')
+        if (path == 'elasticsearch.yaml') {
+            throw new GradleException('Overwriting elasticsearch.yaml is not allowed, add additional settings using cluster { setting "foo", "bar" }')
         }
         extraConfigFiles.put(path, sourceFile)
     }

@@ -91,16 +91,16 @@ fi
 
 @test "[$GROUP] install jvm-example plugin with a custom CONFIG_FILE and check failure" {
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    CONF_FILE="$ESCONFIG/elasticsearch.yml" run sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath"
+    CONF_FILE="$ESCONFIG/elasticsearch.yaml" run sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath"
     # this should fail because CONF_FILE is no longer supported
     [ $status = 1 ]
-    CONF_FILE="$ESCONFIG/elasticsearch.yml" run sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" remove jvm-example
+    CONF_FILE="$ESCONFIG/elasticsearch.yaml" run sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" remove jvm-example
     echo "status is $status"
     [ $status = 1 ]
 }
 
 @test "[$GROUP] start elasticsearch with a custom CONFIG_FILE and check failure" {
-    local CONF_FILE="$ESCONFIG/elasticsearch.yml"
+    local CONF_FILE="$ESCONFIG/elasticsearch.yaml"
 
     if is_dpkg; then
         echo "CONF_FILE=$CONF_FILE" >> /etc/default/elasticsearch;

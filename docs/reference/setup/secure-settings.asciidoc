@@ -19,7 +19,7 @@ To create the `elasticsearch.keystore`, use the `create` command:
 bin/elasticsearch-keystore create
 ----------------------------------------------------------------
 
-The file `elasticsearch.keystore` will be created alongside `elasticsearch.yml`.
+The file `elasticsearch.keystore` will be created alongside `elasticsearch.yaml`.
 
 [float]
 [[list-settings]]

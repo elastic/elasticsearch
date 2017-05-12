@@ -51,7 +51,7 @@ You can use {ref}/modules-network.html[core network host settings]. For example 
 * Create Azure instances
 * Install Elasticsearch
 * Install Azure plugin
-* Modify `elasticsearch.yml` file
+* Modify `elasticsearch.yaml` file
 * Start Elasticsearch
 
 [[discovery-azure-classic-settings]]
@@ -400,7 +400,7 @@ sudo service elasticsearch stop
 sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install discovery-azure-classic
 
 # Configure it
-sudo vi /etc/elasticsearch/elasticsearch.yml
+sudo vi /etc/elasticsearch/elasticsearch.yaml
 ----
 
 And add the following lines:

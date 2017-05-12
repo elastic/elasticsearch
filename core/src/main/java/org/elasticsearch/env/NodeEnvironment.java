@@ -698,7 +698,7 @@ public final class NodeEnvironment  implements Closeable {
      **/
     public String nodeId() {
         // we currently only return the ID and hide the underlying nodeMetaData implementation in order to avoid
-        // confusion with other "metadata" like node settings found in elasticsearch.yml. In future
+        // confusion with other "metadata" like node settings found in elasticsearch.yaml. In future
         // we can encapsulate both (and more) in one NodeMetaData (or NodeSettings) object ala IndexSettings
         return nodeMetaData.nodeId();
     }

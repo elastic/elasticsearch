@@ -298,7 +298,6 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
         checkForCustomConfFile();
-        checkConfigExtension(environment.configExtension());
 
         if (environment.pidFile() != null) {
             try {
@@ -409,16 +408,8 @@ final class Bootstrap {
     private static void checkUnsetAndMaybeExit(String confFileSetting, String settingName) {
         if (confFileSetting != null && confFileSetting.isEmpty() == false) {
             Logger logger = Loggers.getLogger(Bootstrap.class);
-            logger.info("{} is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed.", settingName);
+            logger.info("{} is no longer supported. elasticsearch.yaml must be placed in the config directory and cannot be renamed.", settingName);
             exit(1);
-        }
-    }
-
-    // pkg private for tests
-    static void checkConfigExtension(String extension) {
-        if (".yml".equals(extension) || ".json".equals(extension)) {
-            final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Bootstrap.class));
-            deprecationLogger.deprecated("elasticsearch{} is deprecated; rename your configuration file to elasticsearch.yaml", extension);
         }
     }
 

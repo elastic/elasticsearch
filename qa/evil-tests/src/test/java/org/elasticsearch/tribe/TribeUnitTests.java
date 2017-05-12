@@ -93,7 +93,7 @@ public class TribeUnitTests extends ESTestCase {
     }
 
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
-        Path pathConf = getDataPath("elasticsearch.yml").getParent();
+        Path pathConf = getDataPath("elasticsearch.yaml").getParent();
         Settings settings = Settings
             .builder()
             .put(Environment.PATH_CONF_SETTING.getKey(), pathConf)

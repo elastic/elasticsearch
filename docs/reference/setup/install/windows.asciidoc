@@ -54,7 +54,7 @@ and can be stopped by pressing `Ctrl-C`.
 [[windows-configuring]]
 ==== Configuring Elasticsearch on the command line
 
-Elasticsearch loads its configuration from the `%ES_HOME%/config/elasticsearch.yml`
+Elasticsearch loads its configuration from the `%ES_HOME%/config/elasticsearch.yaml`
 file by default.  The format of this config file is explained in
 <<settings>>.
 
@@ -69,7 +69,7 @@ the command line, using the `-E` syntax as follows:
 NOTE: Values that contain spaces must be surrounded with quotes.  For instance `-Epath.logs="C:\My Logs\logs"`.
 
 TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
-added to the `elasticsearch.yml` config file, while any node-specific settings
+added to the `elasticsearch.yaml` config file, while any node-specific settings
 such as `node.name` could be specified on the command line.
 
 include::check-running.asciidoc[]
@@ -169,7 +169,7 @@ The Elasticsearch service can be configured prior to installation by setting the
 
 `CONF_DIR`::
 
-    Configuration file directory (which needs to include `elasticsearch.yml`
+    Configuration file directory (which needs to include `elasticsearch.yaml`
     and `log4j2.properties` files), defaults to `%ES_HOME%\conf`.
 
 `ES_JAVA_OPTS`::
@@ -230,7 +230,7 @@ directory so that you do not delete important data later on.
  d|
 
 | conf
-  | Configuration files including `elasticsearch.yml`
+  | Configuration files including `elasticsearch.yaml`
   | %ES_HOME%\config
   | path.conf
 

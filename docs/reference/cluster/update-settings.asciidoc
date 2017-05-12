@@ -100,10 +100,10 @@ GET /_cluster/settings
 === Precedence of settings
 
 Transient cluster settings take precedence over persistent cluster settings,
-which take precedence over settings configured in the `elasticsearch.yml`
+which take precedence over settings configured in the `elasticsearch.yaml`
 config file.
 
-For this reason it is preferrable to  use the `elasticsearch.yml` file only
+For this reason it is preferrable to  use the `elasticsearch.yaml` file only
 for local configurations, and set all cluster-wider settings with the
 `settings` API.
 

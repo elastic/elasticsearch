@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.analysis;
 
-import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
@@ -96,7 +95,6 @@ import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -342,24 +340,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         Map<String, Class<?>> filters = new HashMap<>();
         filters.put("standard", null);
         filters.put("lowercase", null);
-        // TODO remove the loop below once all the tokenizers are migrated out of PreBuiltTokenFilters
-        for (PreBuiltTokenFilters tokenizer : PreBuiltTokenFilters.values()) {
-            Class<?> luceneFactoryClass;
-            switch (tokenizer) {
-            case LOWERCASE:
-                // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
-                continue;
-            case DELIMITED_PAYLOAD_FILTER:
-                luceneFactoryClass = org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class;
-                break;
-            case LIMIT:
-                luceneFactoryClass = org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory.class;
-                break;
-            default:
-                luceneFactoryClass = null;
-            }
-            filters.put(tokenizer.name().toLowerCase(Locale.ROOT), luceneFactoryClass);
-        }
         return filters;
     }
 

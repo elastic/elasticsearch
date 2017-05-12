@@ -107,8 +107,8 @@ setup:
           - {query: {match_all: {} }, size: 0, aggs: {test_sterms: {terms: {field: name}, aggs: {test_umsignificant_terms: {significant_terms: {field:  surname} } } } } }
 
   - match:    { responses.0.hits.total: 5 }
-  - match:    { responses.0.aggregations.sampler#test_sampler.doc_count : 5 }
-  - match:    { responses.0.aggregations.sampler#test_sampler.sigsterms#test_significant_terms.doc_count : 5 }
+  - match:    { responses.0.aggregations.mapped_sampler#test_sampler.doc_count : 5 }
+  - match:    { responses.0.aggregations.mapped_sampler#test_sampler.sigsterms#test_significant_terms.doc_count : 5 }
   - match:    { responses.1.hits.total: 5 }
   - match:    { responses.1.aggregations.sterms#test_umterms.doc_count_error_upper_bound : 0 }
   - match:    { responses.2.hits.total: 5 }

@@ -604,8 +604,8 @@ public class UnicastZenPingTests extends ESTestCase {
         // install a listener to check that no new connections are made
         handleA.transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
-            public void onConnectionOpened(DiscoveryNode node) {
-                fail("should not open any connections. got [" + node + "]");
+            public void onConnectionOpened(Transport.Connection connection) {
+                fail("should not open any connections. got [" + connection.getNode() + "]");
             }
         });
 

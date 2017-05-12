@@ -54,6 +54,7 @@
     "logstash_stats": {
       "properties": {
         "logstash_stats": {
+          "type": "object",
           "properties": {
             "logstash": {
               "properties": {
@@ -244,10 +245,86 @@
                 "events_count": {
                   "type": "long"
                 },
-                "type": {
+                "type": {"type": "keyword"}
+              }
+            },
+            "pipelines": {
+              "type": "nested",
+              "properties": {
+                "name": {
                   "type": "keyword"
+                },
+                "hash": {
+                  "type": "keyword"
+                },
+                "events": {
+                  "properties": {
+                    "input": {
+                      "type": "long"
+                    },
+                    "filter": {
+                      "type": "long"
+                    },
+                    "output": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "queue": {
+                  "properties": {
+                    "events_count": {
+                      "type": "long"
+                    },
+                    "type": {"type": "keyword"}
+                  }
+                },
+                "components": {
+                  "type": "nested",
+                  "properties": {
+                    "id": {"type": "keyword"},
+                    "long_stat": {
+                      "type": "nested",
+                      "properties": {
+                        "name": {"type": "keyword"},
+                        "value": {"type": "long"},
+                        "metric_type": { "type": "keyword" }
+                      }
+                    },
+                    "double_stat": {
+                      "type": "nested",
+                      "properties": {
+                        "name": {"type": "keyword"},
+                        "value": {"type": "double"},
+                        "metric_type": { "type": "keyword" }
+                      }
+                    },
+                    "string_stat": {
+                      "type": "nested",
+                      "properties": {
+                        "name": {"type": "keyword"},
+                        "value": {"type": "keyword"},
+                        "metric_type": { "type": "keyword" }
+                      }
+                    }
+                  }
+                },
+                "reloads": {
+                  "properties": {
+                    "failures": {
+                      "type": "long"
+                    },
+                    "successes": {
+                      "type": "long"
+                    }
+                  }
                 }
               }
+            },
+            "workers": {
+              "type": "short"
+            },
+            "batch_size": {
+              "type": "integer"
             }
           }
         }

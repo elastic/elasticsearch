@@ -49,6 +49,7 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
         // register resolvers for monitored systems
         registerMonitoredSystem(MonitoredSystem.KIBANA, settings);
         registerMonitoredSystem(MonitoredSystem.LOGSTASH, settings);
+        registerMonitoredSystem(MonitoredSystem.LOGSTASH_STATES, settings);
         registerMonitoredSystem(MonitoredSystem.BEATS, settings);
     }
 

@@ -54,7 +54,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
      * kibana, logstash, beats
      */
     private final int EXPECTED_TYPES = MonitoringTemplateUtils.NEW_DATA_TYPES.length;
-    private final int EXPECTED_TEMPLATES = 6;
+    private final int EXPECTED_TEMPLATES = 7;
     private final int EXPECTED_WATCHES = 4;
 
     private final RestClient client = mock(RestClient.class);

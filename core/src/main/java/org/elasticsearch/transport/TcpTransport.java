@@ -411,8 +411,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         @Override
         public synchronized void close() throws IOException {
             if (closed.compareAndSet(false, true)) {
-                closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()));
-                onClose.accept(this);
+                try {
+                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()));
+                } finally {
+                    onClose.accept(this);
+                }
             }
         }
 

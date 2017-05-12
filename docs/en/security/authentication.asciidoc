@@ -28,6 +28,21 @@ Please read <<reset-built-in-user-passwords,Reset Built-in User Passwords>> and
 |========
 
 [float]
+[[built-in-user-explanation]]
+==== How the Built-in Users Work
+These built-in users are stored within a special `.security` index managed by
+{security}.
+This means that, if the password is changed, or a user is disabled, then that
+change is automatically reflected on each node in the cluster. It also means
+that if your `.security` index is deleted, or restored from a snapshot, then
+any changes you have applied will be lost.
+
+Although they share the same API, the built-in users are separate and distinct
+from users managed by the <<native-realm, native realm>>. Disabling the native
+realm will not have any effect on the built-in users. The built-in users can
+be disabled individually, using the <<security-api-users, user management api>>.
+
+[float]
 [[reset-built-in-user-passwords]]
 ==== Reset Built-in User Passwords
 [IMPORTANT]
@@ -111,6 +126,20 @@ A {ref}/bootstrap-checks.html[bootstrap check] will prevent your cluster from op
 mode until you make this configuration change.
 
 =============================================================================
+
+[float]
+[[internal-users]]
+=== Internal Users
+
+{security} has two _internal_ users (`_system` and `_xpack`) that are
+responsible for the operations that take place inside an Elasticsearch cluster.
+
+These users are only used by requests that originate from within the cluster.
+For this reason, they cannot be used to authenticate against the API, and there
+is no password to manage or reset.
+
+From time-to-time you may find a reference to one of these users inside your
+logs, including <<auditing, audit logs>>.
 
 === How Authentication Works
 

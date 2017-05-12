@@ -78,6 +78,15 @@ List projects = [
   'qa:wildfly'
 ]
 
+File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
+List<String> examplePlugins = []
+for (File example : examplePluginsDir.listFiles()) {
+  if (example.isDirectory() == false) continue;
+  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
+  projects.add("example-plugins:${example.name}".toString())
+  examplePlugins.add(example.name)
+}
+
 boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
 if (isEclipse) {
   // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
@@ -88,6 +97,11 @@ if (isEclipse) {
 include projects.toArray(new String[0])
 
 project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
+project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
+
+for (String example : examplePlugins) {
+  project(":example-plugins:${example}").projectDir = new File(rootProject.projectDir, "plugins/examples/${example}")
+}
 
 if (isEclipse) {
   project(":core").projectDir = new File(rootProject.projectDir, 'core/src/main')

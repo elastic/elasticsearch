@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucket;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -133,7 +134,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Terms.Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
@@ -248,7 +249,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Terms.Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue)
@@ -301,7 +302,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Terms.Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue)
@@ -435,7 +436,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Terms.Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
@@ -466,7 +467,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Terms.Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
@@ -525,7 +526,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Terms.Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))

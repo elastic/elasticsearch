@@ -24,11 +24,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucket;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -136,7 +136,7 @@ public class StatsBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
@@ -230,7 +230,7 @@ public class StatsBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue)
@@ -289,7 +289,7 @@ public class StatsBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue)
@@ -368,7 +368,7 @@ public class StatsBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))

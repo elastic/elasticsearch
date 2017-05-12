@@ -77,6 +77,8 @@ import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
+import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
+import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 
 /**
  * Examples of using the transport client that are imported into the transport client documentation.
@@ -212,6 +214,24 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 .indexedShapePath("location");                           // <6>
             // end::indexed_geo_shape
         }
+    }
+
+    public void testHasChild() {
+        // tag::has_child
+        hasChildQuery(
+                "blog_tag",                                          // <1>
+                termQuery("tag","something"),                        // <2>
+                ScoreMode.None);                                     // <3>
+        // end::has_child
+    }
+
+    public void testHasParent() {
+        // tag::has_parent
+        hasParentQuery(
+            "blog",                                                  // <1>
+            termQuery("tag","something"),                            // <2>
+            false);                                                  // <3>
+        // end::has_parent
     }
 
     public void testIds() {

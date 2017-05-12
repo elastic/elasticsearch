@@ -18,6 +18,7 @@ A `sum_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 .`sum_bucket` Parameters
 |===

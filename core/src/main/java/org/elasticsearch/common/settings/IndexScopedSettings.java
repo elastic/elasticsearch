@@ -115,7 +115,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.QUERY_STRING_LENIENT_SETTING,
         IndexSettings.ALLOW_UNMAPPED,
         IndexSettings.INDEX_CHECK_ON_STARTUP,
-        IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL,
         LocalCheckpointTracker.SETTINGS_BIT_ARRAYS_SIZE,
         IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
         IndexSettings.MAX_SLICES_PER_SCROLL,

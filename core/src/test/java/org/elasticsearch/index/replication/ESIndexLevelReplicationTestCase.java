@@ -51,7 +51,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -60,6 +59,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -124,7 +124,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            primary = newShard(primaryRouting, indexMetaData, null, this::syncGlobalCheckpoint, getEngineFactory(primaryRouting));
+            primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting));
             replicas = new ArrayList<>();
             this.indexMetaData = indexMetaData;
             updateAllocationIDsOnPrimary();
@@ -153,7 +153,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
                 }
             }
-            primary.updateGlobalCheckpointOnPrimary();
             return numOfDoc;
         }
 
@@ -167,7 +166,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
                 }
             }
-            primary.updateGlobalCheckpointOnPrimary();
             return numOfDoc;
         }
 
@@ -210,12 +208,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             primary.recoverFromStore();
             primary.updateRoutingEntry(ShardRoutingHelper.moveToStarted(primary.routingEntry()));
             updateAllocationIDsOnPrimary();
+            for (final IndexShard replica : replicas) {
+                recoverReplica(replica);
+            }
         }
 
         public IndexShard addReplica() throws IOException {
             final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
             final IndexShard replica =
-                newShard(replicaRouting, indexMetaData, null, this::syncGlobalCheckpoint, getEngineFactory(replicaRouting));
+                newShard(replicaRouting, indexMetaData, null, getEngineFactory(replicaRouting));
             addReplica(replica);
             return replica;
         }
@@ -238,7 +239,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 RecoverySource.PeerRecoverySource.INSTANCE);
 
             final IndexShard newReplica = newShard(shardRouting, shardPath, indexMetaData, null,
-                this::syncGlobalCheckpoint, getEngineFactory(shardRouting));
+                    getEngineFactory(shardRouting));
             replicas.add(newReplica);
             updateAllocationIDsOnPrimary();
             return newReplica;
@@ -296,9 +297,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return getDiscoveryNode(primary.routingEntry().currentNodeId());
         }
 
-        public Future<Void> asyncRecoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier)
-            throws IOException {
-            FutureTask<Void> task = new FutureTask<>(() -> {
+        public Future<Void> asyncRecoverReplica(
+                final IndexShard replica, final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier) throws IOException {
+            final FutureTask<Void> task = new FutureTask<>(() -> {
                 recoverReplica(replica, targetSupplier);
                 return null;
             });
@@ -307,11 +308,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public synchronized void assertAllEqual(int expectedCount) throws IOException {
-            Set<Uid> primaryIds = getShardDocUIDs(primary);
+            Set<String> primaryIds = getShardDocUIDs(primary);
             assertThat(primaryIds.size(), equalTo(expectedCount));
             for (IndexShard replica : replicas) {
-                Set<Uid> replicaIds = getShardDocUIDs(replica);
-                Set<Uid> temp = new HashSet<>(primaryIds);
+                Set<String> replicaIds = getShardDocUIDs(replica);
+                Set<String> temp = new HashSet<>(primaryIds);
                 temp.removeAll(replicaIds);
                 assertThat(replica.routingEntry() + " is missing docs", temp, empty());
                 temp = new HashSet<>(replicaIds);
@@ -356,7 +357,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return primary;
         }
 
-        private void syncGlobalCheckpoint() {
+        public void syncGlobalCheckpoint() {
             PlainActionFuture<ReplicationResponse> listener = new PlainActionFuture<>();
             try {
                 new GlobalCheckpointSync(listener, this).execute();
@@ -388,8 +389,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         private final ReplicationGroup replicationGroup;
         private final String opType;
 
-        ReplicationAction(Request request, ActionListener<Response> listener,
-                                 ReplicationGroup group, String opType) {
+        ReplicationAction(Request request, ActionListener<Response> listener, ReplicationGroup group, String opType) {
             this.request = request;
             this.listener = listener;
             this.replicationGroup = group;
@@ -460,18 +460,26 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             public long localCheckpoint() {
                 return replicationGroup.getPrimary().getLocalCheckpoint();
             }
+
+            @Override
+            public long globalCheckpoint() {
+                return replicationGroup.getPrimary().getGlobalCheckpoint();
+            }
+
         }
 
         class ReplicasRef implements ReplicationOperation.Replicas<ReplicaRequest> {
 
             @Override
             public void performOn(
-                ShardRouting replicaRouting,
-                ReplicaRequest request,
-                ActionListener<ReplicationOperation.ReplicaResponse> listener) {
+                final ShardRouting replicaRouting,
+                final ReplicaRequest request,
+                final long globalCheckpoint,
+                final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
                 try {
                     IndexShard replica = replicationGroup.replicas.stream()
                         .filter(s -> replicaRouting.isSameAllocation(s.routingEntry())).findFirst().get();
+                    replica.updateGlobalCheckpointOnReplica(globalCheckpoint);
                     performOnReplica(request, replica);
                     listener.onResponse(new ReplicaResponse(replica.routingEntry().allocationId().getId(), replica.getLocalCheckpoint()));
                 } catch (Exception e) {
@@ -576,26 +584,30 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         executeShardBulkOnReplica(replica, request);
     }
 
-    class GlobalCheckpointSync extends ReplicationAction<GlobalCheckpointSyncAction.PrimaryRequest,
-        GlobalCheckpointSyncAction.ReplicaRequest, ReplicationResponse> {
+    class GlobalCheckpointSync extends ReplicationAction<
+            GlobalCheckpointSyncAction.Request,
+            GlobalCheckpointSyncAction.Request,
+            ReplicationResponse> {
 
-        GlobalCheckpointSync(ActionListener<ReplicationResponse> listener, ReplicationGroup replicationGroup) {
-            super(new GlobalCheckpointSyncAction.PrimaryRequest(replicationGroup.getPrimary().shardId()), listener,
-                replicationGroup, "global_ckp");
+        GlobalCheckpointSync(final ActionListener<ReplicationResponse> listener, final ReplicationGroup replicationGroup) {
+            super(
+                    new GlobalCheckpointSyncAction.Request(replicationGroup.getPrimary().shardId()),
+                    listener,
+                    replicationGroup,
+                    "global_checkpoint_sync");
         }
 
         @Override
-        protected PrimaryResult performOnPrimary(IndexShard primary,
-                                                 GlobalCheckpointSyncAction.PrimaryRequest request) throws Exception {
+        protected PrimaryResult performOnPrimary(
+                final IndexShard primary, final GlobalCheckpointSyncAction.Request request) throws Exception {
             primary.getTranslog().sync();
-            return new PrimaryResult(new GlobalCheckpointSyncAction.ReplicaRequest(request, primary.getGlobalCheckpoint()),
-                new ReplicationResponse());
+            return new PrimaryResult(request, new ReplicationResponse());
         }
 
         @Override
-        protected void performOnReplica(GlobalCheckpointSyncAction.ReplicaRequest request, IndexShard replica) throws IOException {
-            replica.updateGlobalCheckpointOnReplica(request.getCheckpoint());
+        protected void performOnReplica(final GlobalCheckpointSyncAction.Request request, final IndexShard replica) throws IOException {
             replica.getTranslog().sync();
         }
     }
+
 }

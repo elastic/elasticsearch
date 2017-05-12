@@ -22,9 +22,10 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +47,7 @@ public class InternalHistogramTests extends InternalAggregationTestCase<Internal
             final int docCount = TestUtil.nextInt(random(), 1, 50);
             buckets.add(new InternalHistogram.Bucket(base + i * interval, docCount, keyed, format, InternalAggregations.EMPTY));
         }
-        return new InternalHistogram(name, buckets, (InternalOrder) InternalHistogram.Order.KEY_ASC,
+        return new InternalHistogram(name, buckets, BucketOrder.key(true),
                 1, null, format, keyed, pipelineAggregators, metaData);
     }
 

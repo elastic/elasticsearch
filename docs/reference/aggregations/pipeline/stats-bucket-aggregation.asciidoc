@@ -18,6 +18,7 @@ A `stats_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 .`stats_bucket` Parameters
 |===
@@ -29,7 +30,7 @@ A `stats_bucket` aggregation looks like this in isolation:
 |`format` |format to apply to the output value of this aggregation |Optional | `null`
 |===
 
-The following snippet calculates the sum of all the total monthly `sales` buckets:
+The following snippet calculates the stats for monthly `sales`:
 
 [source,js]
 --------------------------------------------------

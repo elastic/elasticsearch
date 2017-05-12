@@ -46,7 +46,7 @@ import static java.util.Collections.emptyMap;
  *
  * The function is used to provide the result of the script execution and can return anything.
  */
-public class MockScriptEngine implements ScriptEngineService {
+public class MockScriptEngine implements ScriptEngine {
 
     public static final String NAME = "mockscript";
 
@@ -184,8 +184,7 @@ public class MockScriptEngine implements ScriptEngineService {
         public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
             LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
 
-            Map<String, Object> ctx = new HashMap<>();
-            ctx.putAll(leafLookup.asMap());
+            Map<String, Object> ctx = new HashMap<>(leafLookup.asMap());
             if (vars != null) {
                 ctx.putAll(vars);
             }

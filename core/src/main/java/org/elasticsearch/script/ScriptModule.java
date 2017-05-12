@@ -27,8 +27,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,23 +48,23 @@ public class ScriptModule {
                                       ResourceWatcherService resourceWatcherService, List<ScriptPlugin> scriptPlugins) {
         Map<String, NativeScriptFactory> factoryMap = scriptPlugins.stream().flatMap(x -> x.getNativeScripts().stream())
             .collect(Collectors.toMap(NativeScriptFactory::getName, Function.identity()));
-        NativeScriptEngineService nativeScriptEngineService = new NativeScriptEngineService(settings, factoryMap);
-        List<ScriptEngineService> scriptEngineServices = scriptPlugins.stream().map(x -> x.getScriptEngineService(settings))
+        NativeScriptEngine nativeScriptEngineService = new NativeScriptEngine(settings, factoryMap);
+        List<ScriptEngine> scriptEngines = scriptPlugins.stream().map(x -> x.getScriptEngine(settings))
             .filter(Objects::nonNull).collect(Collectors.toList());
-        scriptEngineServices.add(nativeScriptEngineService);
+        scriptEngines.add(nativeScriptEngineService);
         List<ScriptContext.Plugin> plugins = scriptPlugins.stream().map(x -> x.getCustomScriptContexts()).filter(Objects::nonNull)
                 .collect(Collectors.toList());
-        return new ScriptModule(settings, environment, resourceWatcherService, scriptEngineServices, plugins);
+        return new ScriptModule(settings, environment, resourceWatcherService, scriptEngines, plugins);
     }
 
     /**
-     * Build {@linkplain ScriptEngineService} and {@linkplain ScriptContext.Plugin}.
+     * Build {@linkplain ScriptEngine} and {@linkplain ScriptContext.Plugin}.
      */
     public ScriptModule(Settings settings, Environment environment,
-                        ResourceWatcherService resourceWatcherService, List<ScriptEngineService> scriptEngineServices,
+                        ResourceWatcherService resourceWatcherService, List<ScriptEngine> scriptEngines,
                         List<ScriptContext.Plugin> customScriptContexts) {
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineServices);
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngines);
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         try {
             scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry,

@@ -481,7 +481,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
         @Override
         protected AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
-            return new AsyncShardFetch.FetchResult<>(shardId, data, Collections.<String>emptySet(), Collections.<String>emptySet());
+            return new AsyncShardFetch.FetchResult<>(shardId, data, Collections.<String>emptySet());
         }
     }
 }

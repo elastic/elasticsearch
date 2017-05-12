@@ -27,7 +27,6 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
 import java.lang.invoke.CallSite;
-import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -54,8 +53,10 @@ public final class WriterConstants {
 
     public static final String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
     public static final Type CLASS_TYPE        = Type.getObjectType(CLASS_NAME.replace('.', '/'));
+    
+    public static final String CTOR_METHOD_NAME = "<init>";
 
-    public static final Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class, BitSet.class);
+    public static final Method CONSTRUCTOR = getAsmMethod(void.class, CTOR_METHOD_NAME, String.class, String.class, BitSet.class);
     public static final Method CLINIT      = getAsmMethod(void.class, "<clinit>");
 
     // All of these types are caught by the main method and rethrown as ScriptException
@@ -163,7 +164,7 @@ public final class WriterConstants {
     public static final Type STRING_TYPE = Type.getType(String.class);
     public static final Type STRINGBUILDER_TYPE = Type.getType(StringBuilder.class);
 
-    public static final Method STRINGBUILDER_CONSTRUCTOR    = getAsmMethod(void.class, "<init>");
+    public static final Method STRINGBUILDER_CONSTRUCTOR    = getAsmMethod(void.class, CTOR_METHOD_NAME);
     public static final Method STRINGBUILDER_APPEND_BOOLEAN = getAsmMethod(StringBuilder.class, "append", boolean.class);
     public static final Method STRINGBUILDER_APPEND_CHAR    = getAsmMethod(StringBuilder.class, "append", char.class);
     public static final Method STRINGBUILDER_APPEND_INT     = getAsmMethod(StringBuilder.class, "append", int.class);

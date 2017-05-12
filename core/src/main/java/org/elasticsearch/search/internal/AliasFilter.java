@@ -44,6 +44,8 @@ public final class AliasFilter implements Writeable {
     private final QueryBuilder filter;
     private final boolean reparseAliases;
 
+    public static final AliasFilter EMPTY = new AliasFilter(null, Strings.EMPTY_ARRAY);
+
     public AliasFilter(QueryBuilder filter, String... aliases) {
         this.aliases = aliases == null ? Strings.EMPTY_ARRAY : aliases;
         this.filter = filter;

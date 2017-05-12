@@ -19,18 +19,16 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
-import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestBuilder;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.allOf;
@@ -87,7 +85,7 @@ public class RethrottleTests extends ReindexTestCase {
         // Start a request that will never finish unless we rethrottle it
         request.setRequestsPerSecond(.000001f);  // Throttle "forever"
         request.source().setSize(1);             // Make sure we use multiple batches
-        ListenableActionFuture<? extends BulkByScrollResponse> responseListener = request.execute();
+        ActionFuture<? extends BulkByScrollResponse> responseListener = request.execute();
 
         TaskGroup taskGroupToRethrottle = findTaskToRethrottle(actionName, request.request().getSlices());
         TaskId taskToRethrottle = taskGroupToRethrottle.getTaskInfo().getTaskId();
@@ -102,7 +100,7 @@ public class RethrottleTests extends ReindexTestCase {
             assertBusy(() -> {
                 BulkByScrollTask.Status parent = (BulkByScrollTask.Status) client().admin().cluster().prepareGetTask(taskToRethrottle).get()
                         .getTask().getTask().getStatus();
-                long finishedSubTasks = parent.getSliceStatuses().stream().filter(s -> s != null).count();
+                long finishedSubTasks = parent.getSliceStatuses().stream().filter(Objects::nonNull).count();
                 ListTasksResponse list = client().admin().cluster().prepareListTasks().setParentTaskId(taskToRethrottle).get();
                 list.rethrowFailures("subtasks");
                 assertThat(finishedSubTasks + list.getTasks().size(), greaterThanOrEqualTo((long) request.request().getSlices()));
@@ -124,7 +122,7 @@ public class RethrottleTests extends ReindexTestCase {
             /* Check that at least one slice was rethrottled. We won't always rethrottle all of them because they might have completed.
              * With multiple slices these numbers might not add up perfectly, thus the 1.01F. */
             long unfinished = status.getSliceStatuses().stream()
-                    .filter(slice -> slice != null)
+                    .filter(Objects::nonNull)
                     .filter(slice -> slice.getStatus().getTotal() > slice.getStatus().getSuccessfullyProcessed())
                     .count();
             float maxExpectedSliceRequestsPerSecond = newRequestsPerSecond == Float.POSITIVE_INFINITY ?

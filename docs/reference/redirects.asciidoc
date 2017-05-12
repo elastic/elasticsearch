@@ -463,3 +463,13 @@ index that make warmers not necessary anymore.
 === Index time boosting
 
 The index time boost mapping has been replaced with query time boost (see <<mapping-boost>>).
+
+[role="exclude",id="modules-scripting-native"]
+=== Native scripting 
+
+Native scripts have been replaced with writing custom `ScriptEngine` backends (see <<modules-scripting-engine>>).
+
+[role="exclude",id="modules-advanced-scripting"]
+=== Advanced scripting
+
+Using `_index` in scripts has been replaced with writing `ScriptEngine` backends (see <<modules-scripting-engine>>).

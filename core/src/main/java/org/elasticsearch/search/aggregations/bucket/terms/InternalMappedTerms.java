@@ -24,8 +24,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,7 +47,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     protected long docCountError;
 
-    protected InternalMappedTerms(String name, Terms.Order order, int requiredSize, long minDocCount,
+    protected InternalMappedTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData, DocValueFormat format, int shardSize,
             boolean showTermDocCountError, long otherDocCount, List<B> buckets, long docCountError) {
         super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData);
@@ -82,7 +84,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     @Override
     protected void setDocCountError(long docCountError) {
-        this.docCountError = docCountError; 
+        this.docCountError = docCountError;
     }
 
     @Override
@@ -101,7 +103,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     }
 
     @Override
-    public List<B> getBucketsInternal() {
+    public List<B> getBuckets() {
         return buckets;
     }
 

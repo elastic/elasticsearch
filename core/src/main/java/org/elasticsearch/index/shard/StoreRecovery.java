@@ -365,7 +365,7 @@ final class StoreRecovery {
                 }
                 indexShard.performTranslogRecovery(indexShouldExists);
                 assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
-                indexShard.getEngine().fillSequenceNumberHistory(indexShard.getPrimaryTerm());
+                indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
             }
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");

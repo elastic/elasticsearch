@@ -190,7 +190,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1", "test2", "test3");
     }
-
+    
     public void testCloseNoIndex() {
         Client client = client();
         Exception e = expectThrows(ActionRequestValidationException.class, () ->

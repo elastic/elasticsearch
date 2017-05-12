@@ -28,17 +28,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
@@ -155,22 +152,36 @@ public class InternalSettingsPreparerTests extends ESTestCase {
 
     public void testMultipleSettingsFileNotAllowed() throws IOException {
         InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.yaml");
-        InputStream properties = getClass().getResourceAsStream("/config/elasticsearch.properties");
-        Path home = createTempDir();
-        Path config = home.resolve("config");
+        InputStream json = getClass().getResourceAsStream("/config/elasticsearch.json");
+        Path config = homeDir.resolve("config");
         Files.createDirectory(config);
         Files.copy(yaml, config.resolve("elasticsearch.yaml"));
-        Files.copy(properties, config.resolve("elasticsearch.properties"));
+        Files.copy(json, config.resolve("elasticsearch.json"));
 
-        try {
-            InternalSettingsPreparer.prepareEnvironment(Settings.builder()
-                .put(baseEnvSettings)
-                .build(), null);
-        } catch (SettingsException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("multiple settings files found with suffixes"));
-            assertTrue(e.getMessage(), e.getMessage().contains(".yaml"));
-            assertTrue(e.getMessage(), e.getMessage().contains(".properties"));
-        }
+        SettingsException e = expectThrows(SettingsException.class, () ->
+            InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null)
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("multiple settings files found with suffixes"));
+        assertTrue(e.getMessage(), e.getMessage().contains(".yaml"));
+        assertTrue(e.getMessage(), e.getMessage().contains(".json"));
+    }
+
+    public void testYmlExtension() throws IOException {
+        InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.yaml");
+        Path config = homeDir.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(yaml, config.resolve("elasticsearch.yml"));
+        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null);
+        assertEquals(".yml", env.configExtension());
+    }
+
+    public void testJsonExtension() throws IOException {
+        InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.json");
+        Path config = homeDir.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(yaml, config.resolve("elasticsearch.json"));
+        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null);
+        assertEquals(".json", env.configExtension());
     }
 
     public void testSecureSettings() {

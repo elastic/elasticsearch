@@ -812,4 +812,34 @@ public class BytesStreamsTests extends ESTestCase {
         StreamInput in = new BytesArray(Base64.getDecoder().decode("////////////AQAAAAAAAA==")).streamInput();
         assertEquals(-1, in.readVLong());
     }
+
+    public enum TestEnum {
+        ONE,
+        TWO,
+        THREE
+    }
+
+    public void testEnum() throws IOException {
+        TestEnum value = randomFrom(TestEnum.values());
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.writeEnum(value);
+        StreamInput input = output.bytes().streamInput();
+        assertEquals(value, input.readEnum(TestEnum.class));
+        assertEquals(0, input.available());
+    }
+
+    public void testInvalidEnum() throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        int randomNumber = randomInt();
+        boolean validEnum = randomNumber >= 0 && randomNumber < TestEnum.values().length;
+        output.writeVInt(randomNumber);
+        StreamInput input = output.bytes().streamInput();
+        if (validEnum) {
+            assertEquals(TestEnum.values()[randomNumber], input.readEnum(TestEnum.class));
+        } else {
+            IOException ex = expectThrows(IOException.class, () -> input.readEnum(TestEnum.class));
+            assertEquals("Unknown TestEnum ordinal [" + randomNumber + "]", ex.getMessage());
+        }
+        assertEquals(0, input.available());
+    }
 }

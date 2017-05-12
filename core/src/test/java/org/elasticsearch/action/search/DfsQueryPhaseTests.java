@@ -23,7 +23,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -59,7 +58,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
 
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null,  null) {
+            Settings.builder().put("search.remote.connect", false).build(), null) {
 
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
@@ -114,7 +113,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
 
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null,  null) {
+            Settings.builder().put("search.remote.connect", false).build(), null) {
 
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
@@ -169,7 +168,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
 
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null,  null) {
+            Settings.builder().put("search.remote.connect", false).build(), null) {
 
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,

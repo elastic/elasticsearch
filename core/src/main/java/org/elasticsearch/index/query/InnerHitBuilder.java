@@ -195,7 +195,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
     }
 
-    InnerHitBuilder(InnerHitBuilder other, QueryBuilder query, String parentChildType, boolean ignoreUnmapped) {
+    // NORELEASE Do not use this ctr, it is public for hasChild and hasParent query but this is temporary
+    public InnerHitBuilder(InnerHitBuilder other, QueryBuilder query, String parentChildType, boolean ignoreUnmapped) {
         this(other);
         this.query = query;
         this.parentChildType = parentChildType;
@@ -751,7 +752,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
     }
 
-    static InnerHitBuilder rewrite(InnerHitBuilder original, QueryBuilder rewrittenQuery) {
+    // TODO public for hasParent and hasChild query
+    public static InnerHitBuilder rewrite(InnerHitBuilder original, QueryBuilder rewrittenQuery) {
         if (original == null) {
             return null;
         }

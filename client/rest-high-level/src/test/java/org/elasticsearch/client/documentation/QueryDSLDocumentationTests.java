@@ -51,8 +51,6 @@ import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -214,24 +212,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 .indexedShapePath("location");                           // <6>
             // end::indexed_geo_shape
         }
-    }
-
-    public void testHasChild() {
-        // tag::has_child
-        hasChildQuery(
-                "blog_tag",                                          // <1>
-                termQuery("tag","something"),                        // <2>
-                ScoreMode.None);                                     // <3>
-        // end::has_child
-    }
-
-    public void testHasParent() {
-        // tag::has_parent
-        hasParentQuery(
-            "blog",                                                  // <1>
-            termQuery("tag","something"),                            // <2>
-            false);                                                  // <3>
-        // end::has_parent
     }
 
     public void testIds() {

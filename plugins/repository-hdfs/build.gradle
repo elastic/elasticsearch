@@ -161,10 +161,10 @@ if (fixtureSupported) {
   // and if vagrant is supported.
   if (project.vagrantSupported == false) {
     // Log the reason
-    if (project.vagrantInstallation.error != null) {
+    if (project.vagrantInstallation.supported == false) {
       logger.warn(project.vagrantInstallation.error.message)
     }
-    if (project.virtualBoxInstallation.error != null) {
+    if (project.virtualBoxInstallation.supported == false) {
       logger.warn(project.virtualBoxInstallation.error.message)
     }
   }

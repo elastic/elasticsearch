@@ -222,7 +222,7 @@ public class TribeService extends AbstractLifecycleComponent {
                         NamedWriteableRegistry namedWriteableRegistry, Function<Settings, Node> clientNodeBuilder) {
         super(settings);
 
-        DEPRECATION_LOGGER.deprecated("The [tribe] node is deprecated in favour of cross cluster search and will be removed in Elasticsearch 7.0.");
+        DEPRECATION_LOGGER.deprecated("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
 
         this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;

@@ -20,15 +20,17 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public abstract class InternalRangeTestCase<T extends InternalAggregation & Range> extends InternalAggregationTestCase<T> {
+public abstract class InternalRangeTestCase<T extends InternalAggregation & Range> extends InternalMultiBucketAggregationTestCase<T> {
 
     private boolean keyed;
 
@@ -40,13 +42,17 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
     }
 
     @Override
-    protected T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return createTestInstance(name, pipelineAggregators, metaData, keyed);
+    protected T createTestInstance(String name,
+                                   List<PipelineAggregator> pipelineAggregators,
+                                   Map<String, Object> metaData,
+                                   InternalAggregations aggregations) {
+        return createTestInstance(name, pipelineAggregators, metaData, aggregations, keyed);
     }
 
     protected abstract T createTestInstance(String name,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData,
+                                            InternalAggregations aggregations,
                                             boolean keyed);
     @Override
     protected void assertReduced(T reduced, List<T> inputs) {
@@ -64,5 +70,21 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
                     (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
+    }
+
+    @Override
+    protected void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
+        super.assertBucket(expected, actual, checkOrder);
+
+        assertTrue(expected instanceof InternalRange.Bucket);
+        assertTrue(actual instanceof ParsedRange.ParsedBucket);
+
+        Range.Bucket expectedRange = (Range.Bucket) expected;
+        Range.Bucket actualRange = (Range.Bucket) actual;
+
+        assertEquals(expectedRange.getFrom(), actualRange.getFrom());
+        assertEquals(expectedRange.getFromAsString(), actualRange.getFromAsString());
+        assertEquals(expectedRange.getTo(), actualRange.getTo());
+        assertEquals(expectedRange.getToAsString(), actualRange.getToAsString());
     }
 }

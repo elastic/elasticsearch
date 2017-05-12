@@ -59,6 +59,12 @@ import org.elasticsearch.search.aggregations.bucket.nested.ParsedReverseNested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.date.ParsedDateRange;
+import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.geodistance.ParsedGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
@@ -164,6 +170,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         namedXContents.put(FilterAggregationBuilder.NAME, (p, c) -> ParsedFilter.fromXContent(p, (String) c));
         namedXContents.put(InternalSampler.NAME, (p, c) -> ParsedSampler.fromXContent(p, (String) c));
         namedXContents.put(GeoGridAggregationBuilder.NAME, (p, c) -> ParsedGeoHashGrid.fromXContent(p, (String) c));
+        namedXContents.put(RangeAggregationBuilder.NAME, (p, c) -> ParsedRange.fromXContent(p, (String) c));
+        namedXContents.put(DateRangeAggregationBuilder.NAME, (p, c) -> ParsedDateRange.fromXContent(p, (String) c));
+        namedXContents.put(GeoDistanceAggregationBuilder.NAME, (p, c) -> ParsedGeoDistance.fromXContent(p, (String) c));
 
         return namedXContents.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))

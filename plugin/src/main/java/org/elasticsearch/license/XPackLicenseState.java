@@ -54,6 +54,9 @@ public class XPackLicenseState {
         messages.put(XPackPlugin.DEPRECATION, new String[] {
             "Deprecation APIs are disabled"
         });
+        messages.put(XPackPlugin.UPGRADE, new String[] {
+            "Upgrade API is disabled"
+        });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -457,4 +460,25 @@ public class XPackLicenseState {
     public boolean isDeprecationAllowed() {
         return status.active;
     }
+
+    /**
+     * Determine if Upgrade API should be enabled.
+     * <p>
+     *  Upgrade API is not available in for all license types except {@link OperationMode#TRIAL}
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isUpgradeAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        OperationMode operationMode = localStatus.mode;
+
+        boolean licensed = operationMode == OperationMode.BASIC || operationMode == OperationMode.STANDARD ||
+                operationMode == OperationMode.GOLD || operationMode == OperationMode.PLATINUM;
+
+        return licensed && localStatus.active;
+
+    }
+
 }

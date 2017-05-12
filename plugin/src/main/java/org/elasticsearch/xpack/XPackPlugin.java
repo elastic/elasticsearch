@@ -150,6 +150,9 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     /** Name constant for the Deprecation API feature. */
     public static final String DEPRECATION = "deprecation";
 
+    /** Name constant for the upgrade feature. */
+    public static final String UPGRADE = "upgrade";
+
     // inside of YAML settings we still use xpack do not having handle issues with dashes
     private static final String SETTINGS_NAME = "xpack";
 

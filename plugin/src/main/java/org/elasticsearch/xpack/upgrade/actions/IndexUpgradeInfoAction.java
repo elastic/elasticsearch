@@ -27,8 +27,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.upgrade.IndexUpgradeService;
 import org.elasticsearch.xpack.upgrade.UpgradeActionRequired;
 
@@ -234,15 +237,19 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
     public static class TransportAction extends TransportMasterNodeReadAction<Request, Response> {
 
         private final IndexUpgradeService indexUpgradeService;
+        private final XPackLicenseState licenseState;
+
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
                                IndexUpgradeService indexUpgradeService,
-                               IndexNameExpressionResolver indexNameExpressionResolver) {
+                               IndexNameExpressionResolver indexNameExpressionResolver,
+                               XPackLicenseState licenseState) {
             super(settings, IndexUpgradeInfoAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.indexUpgradeService = indexUpgradeService;
+            this.licenseState = licenseState;
         }
 
         @Override
@@ -263,9 +270,13 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
 
         @Override
         protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
-            Map<String, UpgradeActionRequired> results =
-                    indexUpgradeService.upgradeInfo(request.indices(), request.indicesOptions(), request.extraParams(), state);
-            listener.onResponse(new Response(results));
+            if (licenseState.isUpgradeAllowed()) {
+                Map<String, UpgradeActionRequired> results =
+                        indexUpgradeService.upgradeInfo(request.indices(), request.indicesOptions(), request.extraParams(), state);
+                listener.onResponse(new Response(results));
+            } else {
+                listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.UPGRADE));
+            }
         }
     }
 }

@@ -6,17 +6,16 @@
 package org.elasticsearch.xpack.ml.client;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,6 +37,8 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
 
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         job.setAnalysisConfig(analysisConfig);
+
+        job.setDataDescription(new DataDescription.Builder());
 
         PutJobAction.Response putJobResponse = mlClient
                 .putJob(new PutJobAction.Request(job))

@@ -195,7 +195,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
     }
 
-    // TODO public for hasChild and hasParent query.
+    // NORELEASE Do not use this ctr, it is public for hasChild and hasParent query but this is temporary
     public InnerHitBuilder(InnerHitBuilder other, QueryBuilder query, String parentChildType, boolean ignoreUnmapped) {
         this(other);
         this.query = query;

@@ -32,11 +32,7 @@ import java.util.Collections;
 import java.util.List;
 
 public class ParentJoinPlugin extends Plugin implements SearchPlugin {
-    private final Settings settings;
-
-    public ParentJoinPlugin(Settings settings) {
-        this.settings = settings;
-    }
+    public ParentJoinPlugin(Settings settings) {}
 
     @Override
     public List<QuerySpec<?>> getQueries() {

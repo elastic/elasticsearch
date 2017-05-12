@@ -24,8 +24,8 @@ import java.security.GeneralSecurityException;
 import java.util.EnumSet;
 import java.util.Set;
 
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.util.ArrayUtils;
-
 
 /**
  * A secure setting.
@@ -33,14 +33,14 @@ import org.elasticsearch.common.util.ArrayUtils;
  * This class allows access to settings from the Elasticsearch keystore.
  */
 public abstract class SecureSetting<T> extends Setting<T> {
+
+    /** Determines whether legacy settings with sensitive values should be allowed. */
+    private static final boolean ALLOW_INSECURE_SETTINGS = Booleans.parseBoolean(System.getProperty("es.allow_insecure_settings", "false"));
+
     private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(Property.Deprecated, Property.Shared);
 
     private static final Property[] FIXED_PROPERTIES = {
         Property.NodeScope
-    };
-
-    private static final Property[] LEGACY_PROPERTIES = {
-        Property.NodeScope, Property.Deprecated, Property.Filtered
     };
 
     private SecureSetting(String key, Property... properties) {
@@ -129,6 +129,23 @@ public abstract class SecureSetting<T> extends Setting<T> {
                     return fallback.get(settings);
                 }
                 return new SecureString(new char[0]); // this means "setting does not exist"
+            }
+        };
+    }
+
+    /**
+     * A setting which contains a sensitive string, but which for legacy reasons must be found outside secure settings.
+     * @see #secureString(String, Setting, Property...)
+     */
+    public static Setting<SecureString> insecureString(String name) {
+        return new Setting<SecureString>(name, "", SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope) {
+            @Override
+            public SecureString get(Settings settings) {
+                if (ALLOW_INSECURE_SETTINGS == false && exists(settings)) {
+                    throw new IllegalArgumentException("Setting [" + name + "] is insecure, " +
+                        "but property [allow_insecure_settings] is not set");
+                }
+                return super.get(settings);
             }
         };
     }

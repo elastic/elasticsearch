@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -311,13 +312,16 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
         innerHits.setScriptFields(new HashSet<>(scriptFields.values()));
         FetchSourceContext randomFetchSourceContext;
-        if (randomBoolean()) {
-            randomFetchSourceContext = new FetchSourceContext(randomBoolean());
-        } else {
+        int randomInt = randomIntBetween(0, 2);
+        if (randomInt == 0) {
+            randomFetchSourceContext = new FetchSourceContext(true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+        } else if (randomInt == 1) {
             randomFetchSourceContext = new FetchSourceContext(true,
                     generateRandomStringArray(12, 16, false),
                     generateRandomStringArray(12, 16, false)
             );
+        } else {
+            randomFetchSourceContext = new FetchSourceContext(randomBoolean());
         }
         innerHits.setFetchSourceContext(randomFetchSourceContext);
         if (randomBoolean()) {

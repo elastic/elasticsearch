@@ -158,7 +158,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 final ShardRouting shardRouting = shard.routingEntry();
                 assertThat(shardRouting + " local checkpoint mismatch", shardStats.getLocalCheckpoint(), equalTo(numDocs - 1L));
                 /*
-                 * After the last indexing operation completes, the primary will advance its global checkpoint. Without an other indexing
+                 * After the last indexing operation completes, the primary will advance its global checkpoint. Without another indexing
                  * operation, or a background sync, the primary will not have broadcast this global checkpoint to its replicas. However, a
                  * shard could have recovered from the primary in which case its global checkpoint will be in-sync with the primary.
                  * Therefore, we can only assert that the global checkpoint is number of docs minus one (matching the primary, in case of a
@@ -178,6 +178,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             // simulate a background global checkpoint sync at which point we expect the global checkpoint to advance on the replicas
             shards.syncGlobalCheckpoint();
 
+            final long noOpsPerformed = SequenceNumbersService.NO_OPS_PERFORMED;
             for (IndexShard shard : shards) {
                 final SeqNoStats shardStats = shard.seqNoStats();
                 final ShardRouting shardRouting = shard.routingEntry();
@@ -185,7 +186,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertThat(
                         shardRouting + " global checkpoint mismatch",
                         shardStats.getGlobalCheckpoint(),
-                        numDocs == 0 ? equalTo(unassignedSeqNo) : equalTo(numDocs - 1L));
+                        numDocs == 0 ? equalTo(noOpsPerformed) : equalTo(numDocs - 1L));
                 assertThat(shardRouting + " max seq no mismatch", shardStats.getMaxSeqNo(), equalTo(numDocs - 1L));
             }
         }

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -40,7 +41,7 @@ public class LongTermsTests extends InternalTermsTestCase {
                                                      InternalAggregations aggregations,
                                                      boolean showTermDocCountError,
                                                      long docCountError) {
-        Terms.Order order = Terms.Order.count(false);
+        BucketOrder order = BucketOrder.count(false);
         long minDocCount = 1;
         int requiredSize = 3;
         int shardSize = requiredSize + 2;

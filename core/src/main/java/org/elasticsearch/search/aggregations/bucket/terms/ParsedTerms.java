@@ -94,11 +94,6 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
         protected long docCountError;
 
         @Override
-        public int compareTerm(Terms.Bucket other) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public long getDocCountError() {
             return docCountError;
         }

@@ -192,7 +192,7 @@ public class AuthorizationService extends AbstractComponent {
                 throw new IllegalStateException("Bulk translated actions must implement " + CompositeIndicesRequest.class.getSimpleName()
                         + ", " + request.getClass().getSimpleName() + " doesn't");
             }
-            // we check if the user can execute the action, without looking at indices, whici will be authorized at the shard level
+            // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
             if (permission.indices().check(action)) {
                 grant(authentication, action, request);
                 return;

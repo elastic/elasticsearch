@@ -109,6 +109,14 @@ public final class MockTransportService extends TransportService {
         return createNewService(settings, transport, version, threadPool, clusterSettings);
     }
 
+    public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool,
+                                                        @Nullable ClusterSettings clusterSettings) {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        final Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+                new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version);
+        return createNewService(settings, transport, version, threadPool, clusterSettings);
+    }
+
     public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,
                                                         @Nullable ClusterSettings clusterSettings) {
         return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,

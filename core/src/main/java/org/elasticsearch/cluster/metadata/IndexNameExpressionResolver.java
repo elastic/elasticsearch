@@ -57,6 +57,8 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
     private final List<ExpressionResolver> expressionResolvers;
     private final DateMathExpressionResolver dateMathExpressionResolver;
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(IndexNameExpressionResolver.class));
 
     public IndexNameExpressionResolver(Settings settings) {
         super(settings);
@@ -653,8 +655,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 }
             }
             if(isDeprecated) {
-              new DeprecationLogger(Loggers.getLogger(IndexNameExpressionResolver.class))
-                  .deprecated("use of + is deprecated in index names as it is implicit");
+              DEPRECATION_LOGGER.deprecated("use of + is deprecated in index names as it is implicit");
             }
             return result;
         }

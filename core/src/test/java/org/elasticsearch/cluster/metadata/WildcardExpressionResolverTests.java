@@ -49,11 +49,10 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "kuku"))), equalTo(newHashSet("testXXX", "testXYY", "kuku")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY", "kuku")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*", "-kuku"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "+testYYY"))), equalTo(newHashSet("testXXX", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "testYYY"))), equalTo(newHashSet("testXXX", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "-testXXX"))), equalTo(newHashSet("testXXX", "-testXXX")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "+testY*"))), equalTo(newHashSet("testXXX", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "testY*"))), equalTo(newHashSet("testXXX", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "-testX*"))), equalTo(newHashSet("testXXX")));
-        assertWarnings("use of + is deprecated in index names as it is implicit");
     }
 
     public void testConvertWildcardsTests() {
@@ -68,10 +67,9 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYY*", "alias*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("-kuku"))), equalTo(newHashSet("-kuku")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+test*", "-testYYY"))), equalTo(newHashSet("testXXX", "testXYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+testX*", "+testYYY"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+testYYY", "+testX*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertWarnings("use of + is deprecated in index names as it is implicit");
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("test*", "-testYYY"))), equalTo(newHashSet("testXXX", "testXYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "testYYY"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYYY", "testX*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
     }
 
     public void testConvertWildcardsOpenClosedIndicesTests() {
@@ -129,6 +127,18 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
     private IndexMetaData.Builder indexBuilder(String index) {
         return IndexMetaData.builder(index).settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+    }
+    
+    public void testForDeprecatedWildCard() {
+      MetaData.Builder mdBuilder = MetaData.builder()
+          .put(indexBuilder("test").state(IndexMetaData.State.OPEN))
+          .put(indexBuilder("test1").state(IndexMetaData.State.OPEN));
+      ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+      IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
+
+      IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, true, true));
+      assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+test*"))), equalTo(newHashSet("test", "test1")));
+      assertWarnings("use of + is deprecated in index names as it is implicit");
     }
 
 }

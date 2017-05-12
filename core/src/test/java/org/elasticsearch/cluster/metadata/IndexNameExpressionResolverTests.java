@@ -33,7 +33,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -621,7 +620,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "test*", "-testXXX")),
                 equalTo(newHashSet("testYYX", "testXYY", "testYYY", "testXXY")));
 
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testXXX", "+testXXY", "+testYYY", "-testYYY")),
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testXXX", "testXXY", "testYYY", "-testYYY")),
                 equalTo(newHashSet("testXXX", "testXXY", "testYYY", "-testYYY")));
 
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testYYY", "testYYX", "testX*", "-testXXX")),
@@ -637,12 +636,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 equalTo(newHashSet("-testXYZ", "-testXZZ", "-testYYY")));
 
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(),
-                                "+testXXX", "+testXXY", "+testXYY", "-testXXY")),
+                                "testXXX", "testXXY", "testXYY", "-testXXY")),
                 equalTo(newHashSet("testXXX", "testXYY", "testXXY")));
 
         indexNames = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), "*", "-*");
         assertEquals(0, indexNames.length);
-        assertWarnings("use of + is deprecated in index names as it is implicit");
     }
 
     /**
@@ -818,7 +816,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testIsPatternMatchingAllIndicesMatchingSingleExclusion() throws Exception {
-        String[] indicesOrAliases = new String[]{"-index1", "+index1"};
+        String[] indicesOrAliases = new String[]{"-index1", "index1"};
         String[] concreteIndices = new String[]{"index1", "index2", "index3"};
         MetaData metaData = metaDataBuilder(concreteIndices);
         assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metaData, indicesOrAliases, concreteIndices), equalTo(true));
@@ -833,7 +831,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testIsPatternMatchingAllIndicesMatchingTrailingWildcardAndExclusion() throws Exception {
-        String[] indicesOrAliases = new String[]{"index*", "-index1", "+index1"};
+        String[] indicesOrAliases = new String[]{"index*", "-index1", "index1"};
         String[] concreteIndices = new String[]{"index1", "index2", "index3"};
         MetaData metaData = metaDataBuilder(concreteIndices);
         assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metaData, indicesOrAliases, concreteIndices), equalTo(true));

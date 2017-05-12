@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,6 +39,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -67,7 +70,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -195,7 +198,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             ZenDiscovery masterZen = buildZenDiscovery(
                 settingsWithClusterName,
                 masterTransport, masterMasterService, threadPool);
-            masterZen.setState(state);
+            masterZen.setCommittedState(state);
             toClose.addFirst(masterZen);
             masterTransport.acceptIncomingRequests();
 
@@ -209,7 +212,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             MasterService otherMasterService = ClusterServiceUtils.createMasterService(threadPool, otherNode);
             toClose.addFirst(otherMasterService);
             ZenDiscovery otherZen = buildZenDiscovery(settingsWithClusterName, otherTransport, otherMasterService, threadPool);
-            otherZen.setState(otherState);
+            otherZen.setCommittedState(otherState);
             toClose.addFirst(otherZen);
             otherTransport.acceptIncomingRequests();
 
@@ -262,7 +265,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             toClose.addFirst(masterMasterService);
             state = ClusterState.builder(discoveryState(masterMasterService).getClusterName()).nodes(state.nodes()).build();
             ZenDiscovery masterZen = buildZenDiscovery(settings, masterTransport, masterMasterService, threadPool);
-            masterZen.setState(state);
+            masterZen.setCommittedState(state);
             toClose.addFirst(masterZen);
             masterTransport.acceptIncomingRequests();
 
@@ -297,9 +300,19 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
     private ZenDiscovery buildZenDiscovery(Settings settings, TransportService service, MasterService masterService,
                                            ThreadPool threadPool) {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterApplier clusterApplier = new ClusterApplier() {
+            @Override
+            public void setInitialState(ClusterState initialState) {
+
+            }
+
+            @Override
+            public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterStateTaskListener listener) {
+                listener.clusterStateProcessed(source, clusterStateSupplier.get(), clusterStateSupplier.get());
+            }
+        };
         ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-            masterService, (source, clusterStateSupplier, listener) -> listener.clusterStateProcessed(source, clusterStateSupplier.get(), clusterStateSupplier.get()),
-            clusterSettings, Collections::emptyList, null);
+            masterService, clusterApplier, clusterSettings, Collections::emptyList, ESAllocationTestCase.createAllocationService());
         zenDiscovery.start();
         return zenDiscovery;
     }

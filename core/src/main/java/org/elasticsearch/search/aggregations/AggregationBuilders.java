@@ -23,8 +23,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.children.Children;
-import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.Filters;
@@ -163,20 +161,20 @@ public class AggregationBuilders {
     public static FiltersAggregationBuilder filters(String name, QueryBuilder... filters) {
         return new FiltersAggregationBuilder(name, filters);
     }
-    
+
     /**
      * Create a new {@link AdjacencyMatrix} aggregation with the given name.
      */
     public static AdjacencyMatrixAggregationBuilder adjacencyMatrix(String name, Map<String, QueryBuilder> filters) {
         return new AdjacencyMatrixAggregationBuilder(name, filters);
-    }    
-    
+    }
+
     /**
      * Create a new {@link AdjacencyMatrix} aggregation with the given name and separator
      */
     public static AdjacencyMatrixAggregationBuilder adjacencyMatrix(String name, String separator,  Map<String, QueryBuilder> filters) {
         return new AdjacencyMatrixAggregationBuilder(name, separator, filters);
-    }     
+    }
 
     /**
      * Create a new {@link Sampler} aggregation with the given name.
@@ -218,13 +216,6 @@ public class AggregationBuilders {
      */
     public static ReverseNestedAggregationBuilder reverseNested(String name) {
         return new ReverseNestedAggregationBuilder(name);
-    }
-
-    /**
-     * Create a new {@link Children} aggregation with the given name.
-     */
-    public static ChildrenAggregationBuilder children(String name, String childType) {
-        return new ChildrenAggregationBuilder(name, childType);
     }
 
     /**

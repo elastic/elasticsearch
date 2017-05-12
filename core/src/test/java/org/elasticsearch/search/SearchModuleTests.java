@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search;
 
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -272,8 +275,6 @@ public class SearchModuleTests extends ModuleTestCase {
             "geo_polygon",
             "geo_shape",
             "geohash_cell",
-            "has_child",
-            "has_parent",
             "ids",
             "indices",
             "match",

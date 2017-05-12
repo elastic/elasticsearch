@@ -36,6 +36,7 @@ List projects = [
   'modules:transport-netty4',
   'modules:reindex',
   'modules:percolator',
+  'modules:parent-join',
   'plugins:analysis-icu',
   'plugins:analysis-kuromoji',
   'plugins:analysis-phonetic',
@@ -73,7 +74,7 @@ List projects = [
   'qa:smoke-test-ingest-disabled',
   'qa:smoke-test-multinode',
   'qa:smoke-test-plugins',
-  'qa:smoke-test-reindex-with-painless',
+  'qa:smoke-test-reindex-with-all-modules',
   'qa:smoke-test-tribe-node',
   'qa:vagrant',
   'qa:wildfly'

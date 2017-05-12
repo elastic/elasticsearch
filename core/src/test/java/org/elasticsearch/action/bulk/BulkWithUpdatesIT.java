@@ -34,7 +34,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -56,7 +55,6 @@ import org.elasticsearch.script.ScriptType;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -451,155 +449,6 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
-    }
-
-    /*
-    Test for https://github.com/elastic/elasticsearch/issues/3444
-     */
-    public void testBulkUpdateDocAsUpsertWithParent() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .addMapping("parent", "{\"parent\":{}}")
-                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}")
-                .execute().actionGet();
-        ensureGreen();
-
-        BulkRequestBuilder builder = client().prepareBulk();
-
-        // It's important to use JSON parsing here and request objects: issue 3444 is related to incomplete option parsing
-        byte[] addParent = new BytesArray(
-                "{" +
-                "  \"index\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"parent\"," +
-                "    \"_id\"    : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"field1\" : \"value1\"" +
-                "}" +
-                "\n").array();
-
-        byte[] addChild = new BytesArray(
-                "{" +
-                "  \"update\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"child\"," +
-                "    \"_id\"    : \"child1\"," +
-                "    \"parent\" : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"doc\" : {" +
-                "    \"field1\" : \"value1\"" +
-                "  }," +
-                "  \"doc_as_upsert\" : \"true\"" +
-                "}" +
-                "\n").array();
-
-        builder.add(addParent, 0, addParent.length, XContentType.JSON);
-        builder.add(addChild, 0, addChild.length, XContentType.JSON);
-
-        BulkResponse bulkResponse = builder.get();
-        assertThat(bulkResponse.getItems().length, equalTo(2));
-        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
-
-        client().admin().indices().prepareRefresh("test").get();
-
-        //we check that the _parent field was set on the child document by using the has parent query
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery(), false))
-                .get();
-
-        assertNoFailures(searchResponse);
-        assertSearchHits(searchResponse, "child1");
-    }
-
-    /*
-    Test for https://github.com/elastic/elasticsearch/issues/3444
-     */
-    public void testBulkUpdateUpsertWithParent() throws Exception {
-        assertAcked(prepareCreate("test")
-                .addMapping("parent", "{\"parent\":{}}")
-                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}"));
-        ensureGreen();
-
-        BulkRequestBuilder builder = client().prepareBulk();
-
-        byte[] addParent = new BytesArray(
-                "{" +
-                "  \"index\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"parent\"," +
-                "    \"_id\"    : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"field1\" : \"value1\"" +
-                "}" +
-                "\n").array();
-
-        byte[] addChild1 = new BytesArray(
-                "{" +
-                "  \"update\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"child\"," +
-                "    \"_id\"    : \"child1\"," +
-                "    \"parent\" : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"script\" : {" +
-                "    \"inline\" : \"ctx._source.field2 = 'value2'\"" +
-                "  }," +
-                "  \"lang\" : \"" + CustomScriptPlugin.NAME + "\"," +
-                "  \"upsert\" : {" +
-                "    \"field1\" : \"value1'\"" +
-                "  }" +
-                "}" +
-                "\n").array();
-
-        byte[] addChild2 = new BytesArray(
-                "{" +
-                "  \"update\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"child\"," +
-                "    \"_id\"    : \"child1\"," +
-                "    \"parent\" : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"script\" : \"ctx._source.field2 = 'value2'\"," +
-                "  \"upsert\" : {" +
-                "    \"field1\" : \"value1'\"" +
-                "  }" +
-                "}" +
-                "\n").array();
-
-        builder.add(addParent, 0, addParent.length, XContentType.JSON);
-        builder.add(addChild1, 0, addChild1.length, XContentType.JSON);
-        builder.add(addChild2, 0, addChild2.length, XContentType.JSON);
-
-        BulkResponse bulkResponse = builder.get();
-        assertThat(bulkResponse.getItems().length, equalTo(3));
-        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[2].getFailure().getCause().getCause().getMessage(),
-                equalTo("script_lang not supported [painless]"));
-
-        client().admin().indices().prepareRefresh("test").get();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery(), false))
-                .get();
-
-        assertSearchHits(searchResponse, "child1");
     }
 
     /*

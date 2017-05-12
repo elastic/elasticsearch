@@ -38,6 +38,7 @@ import java.security.PrivilegedAction;
 import static java.lang.invoke.MethodHandles.Lookup;
 import static org.elasticsearch.painless.Compiler.Loader;
 import static org.elasticsearch.painless.WriterConstants.CLASS_VERSION;
+import static org.elasticsearch.painless.WriterConstants.CTOR_METHOD_NAME;
 import static org.elasticsearch.painless.WriterConstants.DELEGATE_BOOTSTRAP_HANDLE;
 import static org.objectweb.asm.Opcodes.ACC_FINAL;
 import static org.objectweb.asm.Opcodes.ACC_PRIVATE;
@@ -89,8 +90,12 @@ import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
  *     public static final class $$Lambda0 implements Consumer {
  *         private List arg$0;
  *
- *         public $$Lambda0(List arg$0) {
+ *         private $$Lambda0(List arg$0) {
  *             this.arg$0 = arg$0;
+ *         }
+ *         
+ *         public static Consumer create$lambda(List arg$0) {
+ *             return new $$Lambda0(arg$0);
  *         }
  *
  *         public void accept(Object val$0) {
@@ -120,10 +125,17 @@ import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
  * on whether or not there are captures.  If there are no captures
  * the same instance of the generated lambda class will be
  * returned each time by the factory method as there are no
- * changing values other than the arguments.  If there are
- * captures a new instance of the generated lambda class will
- * be returned each time with the captures passed into the
+ * changing values other than the arguments, the lambda is a singleton.
+ * If there are captures, a new instance of the generated lambda class
+ * will be returned each time with the captures passed into the
  * factory method to be stored in the member fields.
+ * Instead of calling the ctor, a static factory method is created
+ * in the lambda class, because a method handle to the ctor directly
+ * is (currently) preventing Hotspot optimizer from correctly doing
+ * escape analysis. Escape analysis is important to optimize the
+ * code in a way, that a new instance is not created on each lambda
+ * invocation with captures, stressing garbage collector (thanks
+ * to Rémi Forax for the explanation about this on Jaxcon 2017!).
  */
 public final class LambdaBootstrap {
 
@@ -152,6 +164,11 @@ public final class LambdaBootstrap {
      * This method name is used to generate a static wrapper method to handle delegation of ctors.
      */
     private static final String DELEGATED_CTOR_WRAPPER_NAME = "delegate$ctor";
+
+    /**
+     * This method name is used to generate the static factory for capturing lambdas.
+     */
+    private static final String LAMBDA_FACTORY_METHOD_NAME = "create$lambda";
 
     /**
      * Generates a lambda class for a lambda function/method reference
@@ -198,7 +215,8 @@ public final class LambdaBootstrap {
         
         // Handles the special case where a method reference refers to a ctor (we need a static wrapper method):
         if (delegateInvokeType == H_NEWINVOKESPECIAL) {
-            generateStaticCtorDelegator(cw, delegateClassType, delegateMethodName, delegateMethodType);
+            assert CTOR_METHOD_NAME.equals(delegateMethodName);
+            generateStaticCtorDelegator(cw, ACC_PRIVATE, DELEGATED_CTOR_WRAPPER_NAME, delegateClassType, delegateMethodType);
             // replace the delegate with our static wrapper:
             delegateMethodName = DELEGATED_CTOR_WRAPPER_NAME;
             delegateClassType = lambdaClassType;
@@ -281,16 +299,15 @@ public final class LambdaBootstrap {
             MethodType factoryMethodType,
             Capture[] captures) {
 
-        String conName = "<init>";
         String conDesc = factoryMethodType.changeReturnType(void.class).toMethodDescriptorString();
-        Method conMeth = new Method(conName, conDesc);
+        Method conMeth = new Method(CTOR_METHOD_NAME, conDesc);
         Type baseConType = Type.getType(Object.class);
-        Method baseConMeth = new Method(conName,
+        Method baseConMeth = new Method(CTOR_METHOD_NAME,
             MethodType.methodType(void.class).toMethodDescriptorString());
-        int modifiers = ACC_PUBLIC;
+        int modifiers = (captures.length > 0) ? ACC_PRIVATE : ACC_PUBLIC;
 
         GeneratorAdapter constructor = new GeneratorAdapter(modifiers, conMeth,
-            cw.visitMethod(modifiers, conName, conDesc, null, null));
+            cw.visitMethod(modifiers, CTOR_METHOD_NAME, conDesc, null, null));
         constructor.visitCode();
         constructor.loadThis();
         constructor.invokeConstructor(baseConType, baseConMeth);
@@ -304,21 +321,31 @@ public final class LambdaBootstrap {
 
         constructor.returnValue();
         constructor.endMethod();
+        
+        // Add a factory method, if lambda takes captures.
+        // @uschindler says: I talked with Rémi Forax about this. Technically, a plain ctor
+        // and a MethodHandle to the ctor would be enough - BUT: Hotspot is unable to
+        // do escape analysis through a MethodHandles.findConstructor generated handle.
+        // Because of this we create a factory method. With this factory method, the
+        // escape analysis can figure out that everything is final and we don't need
+        // an instance, so it can omit object creation on heap!
+        if (captures.length > 0) {
+            generateStaticCtorDelegator(cw, ACC_PUBLIC, LAMBDA_FACTORY_METHOD_NAME, lambdaClassType, factoryMethodType);
+        }
     }
 
     /**
-     * Generates a factory method to delegate to constructors using
-     * {@code INVOKEDYNAMIC} using the {@link #delegateBootstrap} type converter.
+     * Generates a factory method to delegate to constructors.
      */
-    private static void generateStaticCtorDelegator(ClassWriter cw, Type delegateClassType, String delegateMethodName,
-            MethodType delegateMethodType) {
-        Method wrapperMethod = new Method(DELEGATED_CTOR_WRAPPER_NAME, delegateMethodType.toMethodDescriptorString());
+    private static void generateStaticCtorDelegator(ClassWriter cw, int access, String delegatorMethodName, 
+            Type delegateClassType, MethodType delegateMethodType) {
+        Method wrapperMethod = new Method(delegatorMethodName, delegateMethodType.toMethodDescriptorString());
         Method constructorMethod = 
-            new Method(delegateMethodName, delegateMethodType.changeReturnType(void.class).toMethodDescriptorString());
-        int modifiers = ACC_PRIVATE | ACC_STATIC;
+            new Method(CTOR_METHOD_NAME, delegateMethodType.changeReturnType(void.class).toMethodDescriptorString());
+        int modifiers = access | ACC_STATIC;
 
         GeneratorAdapter factory = new GeneratorAdapter(modifiers, wrapperMethod,
-            cw.visitMethod(modifiers, DELEGATED_CTOR_WRAPPER_NAME, delegateMethodType.toMethodDescriptorString(), null, null));
+            cw.visitMethod(modifiers, delegatorMethodName, delegateMethodType.toMethodDescriptorString(), null, null));
         factory.visitCode();
         factory.newInstance(delegateClassType);
         factory.dup();
@@ -329,7 +356,8 @@ public final class LambdaBootstrap {
     }
 
     /**
-     * Generates the interface method that will delegate (call) to the delegate method.
+     * Generates the interface method that will delegate (call) to the delegate method
+     * with {@code INVOKEDYNAMIC} using the {@link #delegateBootstrap} type converter.
      */
     private static void generateInterfaceMethod(
             ClassWriter cw,
@@ -464,8 +492,7 @@ public final class LambdaBootstrap {
 
         try {
             return new ConstantCallSite(
-                lookup.findConstructor(lambdaClass, factoryMethodType.changeReturnType(void.class))
-                .asType(factoryMethodType));
+                lookup.findStatic(lambdaClass, LAMBDA_FACTORY_METHOD_NAME, factoryMethodType));
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("unable to create lambda class", exception);
         }

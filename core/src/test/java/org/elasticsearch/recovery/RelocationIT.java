@@ -367,10 +367,11 @@ public class RelocationIT extends ESIntegTestCase {
                 }
             }
 
-            // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
-            client().admin().indices().prepareRefresh("test").get();
-
         }
+
+        // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
+        client().admin().indices().prepareRefresh("test").get();
+
     }
 
     public void testCancellationCleansTempFiles() throws Exception {
@@ -506,6 +507,10 @@ public class RelocationIT extends ESIntegTestCase {
             assertNoFailures(afterRelocation);
             assertSearchHits(afterRelocation, ids.toArray(new String[ids.size()]));
         }
+
+        // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
+        client().admin().indices().prepareRefresh("test").get();
+
     }
 
     class RecoveryCorruption extends MockTransportService.DelegateTransport {

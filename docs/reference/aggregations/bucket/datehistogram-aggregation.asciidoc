@@ -390,3 +390,10 @@ POST /sales/_search?size=0
 // TEST[setup:sales]
 
 <1> Documents without a value in the `publish_date` field will fall into the same bucket as documents that have the value `2000-01-01`.
+
+==== Order
+
+By default the returned buckets are sorted by their `key` ascending, though the order behaviour can be controlled using
+the `order` setting. Supports the same `order` functionality as the <<search-aggregations-bucket-terms-aggregation-order,`Terms Aggregation`>>.
+
+deprecated[6.0.0, Use `_key` instead of `_time` to order buckets by their dates/keys]

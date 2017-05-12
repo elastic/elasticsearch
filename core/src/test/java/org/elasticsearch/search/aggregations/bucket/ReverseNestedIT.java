@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -349,13 +350,13 @@ public class ReverseNestedIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx2")
                 .addAggregation(nested("nested1", "nested1.nested2")
                                 .subAggregation(
-                                        terms("field2").field("nested1.nested2.field2").order(Terms.Order.term(true))
+                                        terms("field2").field("nested1.nested2.field2").order(BucketOrder.key(true))
                                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
                                                 .size(10000)
                                                 .subAggregation(
                                                         reverseNested("nested1_to_field1").path("nested1")
                                                                 .subAggregation(
-                                                                        terms("field1").field("nested1.field1").order(Terms.Order.term(true))
+                                                                        terms("field1").field("nested1.field1").order(BucketOrder.key(true))
                                                                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
                                                                 )
                                                 )

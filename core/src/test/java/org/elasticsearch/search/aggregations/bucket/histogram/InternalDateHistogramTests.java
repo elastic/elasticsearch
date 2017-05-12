@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.joda.time.DateTime;
 
@@ -55,7 +56,7 @@ public class InternalDateHistogramTests extends InternalAggregationTestCase<Inte
             buckets.add(i, new InternalDateHistogram.Bucket(key, randomIntBetween(1, 100), keyed, format, InternalAggregations.EMPTY));
         }
 
-        InternalOrder order = (InternalOrder) randomFrom(InternalHistogram.Order.KEY_ASC, InternalHistogram.Order.KEY_DESC);
+        BucketOrder order = randomFrom(BucketOrder.key(true), BucketOrder.key(false));
         return new InternalDateHistogram(name, buckets, order, 1, 0L, null, format, keyed, pipelineAggregators, metaData);
     }
 

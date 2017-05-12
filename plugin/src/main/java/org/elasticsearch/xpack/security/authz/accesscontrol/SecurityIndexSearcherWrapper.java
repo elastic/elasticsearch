@@ -46,8 +46,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.HasChildQueryBuilder;
-import org.elasticsearch.index.query.HasParentQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -319,9 +317,9 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             // another module. So we don't allow the entire percolate query. I don't think users would ever use
             // a percolate query as role query, so this restriction shouldn't prohibit anyone from using dls.
             throw new IllegalArgumentException("percolate query isn't support as part of a role query");
-        } else if (queryBuilder instanceof HasChildQueryBuilder) {
+        } else if (queryBuilder.getName().equals("has_child")) {
             throw new IllegalArgumentException("has_child query isn't support as part of a role query");
-        } else if (queryBuilder instanceof HasParentQueryBuilder) {
+        } else if (queryBuilder.getName().equals("has_parent")) {
             throw new IllegalArgumentException("has_parent query isn't support as part of a role query");
         } else if (queryBuilder instanceof BoolQueryBuilder) {
             BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;

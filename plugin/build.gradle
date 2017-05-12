@@ -51,7 +51,7 @@ Closure setAwsCreds = {
   def matcher = javaVersion =~ /1\.8\.0(?:_(\d+))?/
   boolean matches = matcher.matches()
   assert matches
-  
+
   final int update
   if (matcher.group(1) == null) {
     update = 0
@@ -240,6 +240,7 @@ dependencies {
   testCompile 'org.slf4j:slf4j-log4j12:1.6.2'
   testCompile 'org.slf4j:slf4j-api:1.6.2'
   testCompile project(path: ':modules:reindex', configuration: 'runtime')
+  testCompile project(path: ':modules:parent-join', configuration: 'runtime')
 }
 
 // make LicenseSigner available for testing signed licenses

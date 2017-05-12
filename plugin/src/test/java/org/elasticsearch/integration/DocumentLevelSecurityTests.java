@@ -26,23 +26,29 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.children.Children;
+import org.elasticsearch.join.aggregations.JoinAggregationBuilders;
+import org.elasticsearch.join.aggregations.Children;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.join.ParentJoinPlugin;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Collection;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
+import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -57,6 +63,16 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(USERS_PASSWD));
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(XPackPlugin.class, ParentJoinPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
+    }
 
     @Override
     protected String configUsers() {
@@ -577,7 +593,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
                 .setTypes("type1")
-                .addAggregation(AggregationBuilders.children("children", "type2")
+                .addAggregation(JoinAggregationBuilders.children("children", "type2")
                         .subAggregation(AggregationBuilders.terms("field3").field("field3")))
                 .get();
         assertHitCount(response, 1);
@@ -592,7 +608,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setTypes("type1")
-                .addAggregation(AggregationBuilders.children("children", "type2")
+                .addAggregation(JoinAggregationBuilders.children("children", "type2")
                         .subAggregation(AggregationBuilders.terms("field3").field("field3")))
                 .get();
         assertHitCount(response, 1);
@@ -606,7 +622,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setTypes("type1")
-                .addAggregation(AggregationBuilders.children("children", "type2")
+                .addAggregation(JoinAggregationBuilders.children("children", "type2")
                         .subAggregation(AggregationBuilders.terms("field3").field("field3")))
                 .get();
         assertHitCount(response, 1);

@@ -105,6 +105,14 @@ public interface SearchOperationListener {
     default void onFreeScrollContext(SearchContext context) {};
 
     /**
+     * Executed prior to using a {@link SearchContext} that has been retrieved
+     * from the active contexts. If the context is deemed invalid an exception
+     * can be thrown, which will prevent the context from being used.
+     * @param context the context retrieved from the active contexts
+     */
+    default void validateSearchContext(SearchContext context) throws Exception {}
+
+    /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
      */
     final class CompositeListener implements SearchOperationListener {
@@ -223,6 +231,26 @@ public interface SearchOperationListener {
                 } catch (Exception e) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("onFreeScrollContext listener [{}] failed", listener), e);
                 }
+            }
+        }
+
+        @Override
+        public void validateSearchContext(SearchContext context) throws Exception {
+            Exception exception = null;
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.validateSearchContext(context);
+                } catch (Exception e) {
+                    if (exception == null) {
+                        exception = e;
+                    } else {
+                        exception.addSuppressed(e);
+                    }
+                }
+            }
+
+            if (exception != null) {
+                throw exception;
             }
         }
     }

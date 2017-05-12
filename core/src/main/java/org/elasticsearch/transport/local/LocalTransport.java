@@ -193,6 +193,8 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
             LocalTransport removed = connectedNodes.remove(node);
             if (removed != null) {
                 transportServiceAdapter.onNodeDisconnected(node);
+                // here we notify that the connection to the node is closed -- use the remove transport as cache key
+                transportServiceAdapter.onConnectionClosed(getConnectionForTransport(removed, node, true));
             }
         }
     }
@@ -208,7 +210,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         if (targetTransport == null) {
             throw new NodeNotConnectedException(node, "Node not connected");
         }
-        return getConnectionForTransport(targetTransport, node);
+        return getConnectionForTransport(targetTransport, node, true);
     }
 
     @Override
@@ -217,10 +219,10 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         if (targetTransport == null) {
             throw new ConnectTransportException(node, "Failed to connect");
         }
-        return getConnectionForTransport(targetTransport, node);
+        return getConnectionForTransport(targetTransport, node, false);
     }
 
-    private Connection getConnectionForTransport(LocalTransport targetTransport, DiscoveryNode node) {
+    private Connection getConnectionForTransport(LocalTransport targetTransport, DiscoveryNode node, boolean registered) {
         return new Connection() {
             @Override
             public DiscoveryNode getNode() {
@@ -242,7 +244,16 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
             }
 
             @Override
-            public void close() throws IOException {}
+            public Object getCacheKey() {
+                // the cache key depends if it's registered connection or a single connection (not shared)
+                // we use the actual LocalTransport if it's a regsitered connection otherwise we use the identity
+                return registered ? targetTransport : this;
+            }
+
+            @Override
+            public void close() throws IOException {
+                transportServiceAdapter.onConnectionClosed(this);
+            }
         };
     }
 

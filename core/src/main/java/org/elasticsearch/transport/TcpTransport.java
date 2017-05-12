@@ -100,6 +100,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -368,8 +369,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         private final DiscoveryNode node;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final Version version;
+        private final Consumer<Connection> onClose;
 
-        public NodeChannels(DiscoveryNode node, Channel[] channels, ConnectionProfile connectionProfile) {
+        public NodeChannels(DiscoveryNode node, Channel[] channels, ConnectionProfile connectionProfile, Consumer<Connection> onClose) {
             this.node = node;
             this.channels = channels;
             assert channels.length == connectionProfile.getNumConnections() : "expected channels size to be == "
@@ -380,6 +382,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 typeMapping.put(type, handle);
             }
             version = node.getVersion();
+            this.onClose = onClose;
         }
 
         NodeChannels(NodeChannels channels, Version handshakeVersion) {
@@ -388,6 +391,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             this.typeMapping = channels.typeMapping;
             this.version = handshakeVersion;
             assert handshakeVersion != null : "handshakeVersion must not be null";
+            this.onClose = channels.onClose;
         }
 
         @Override
@@ -419,7 +423,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         @Override
         public synchronized void close() throws IOException {
             if (closed.compareAndSet(false, true)) {
-                closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()));
+                try {
+                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()));
+                } finally {
+                    onClose.accept(this);
+                }
             }
         }
 
@@ -531,7 +539,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
                     connectTimeout : connectionProfile.getHandshakeTimeout();
                 final Version version = executeHandshake(node, channel, handshakeTimeout);
-                transportServiceAdapter.onConnectionOpened(node);
+                transportServiceAdapter.onConnectionOpened(nodeChannels);
                 if (version == null) {
                     // if we are talking to a pre 5.2 node we won't be able to retrieve the version since it doesn't implement the handshake
                     // we do since 5.2 - in this case we just go with the version provided by the node.
@@ -541,6 +549,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     nodeChannels = new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
                     success = true;
                 }
+                success = true;
                 return nodeChannels;
             } catch (ConnectTransportException e) {
                 throw e;

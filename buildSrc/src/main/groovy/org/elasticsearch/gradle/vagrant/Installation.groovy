@@ -35,9 +35,13 @@ class Installation {
      * Checks to make sure that the Installation is correct, and if not,
      * throws an exception with the reason why.
      */
-    private void verify() {
+    void verify() {
         if ((installed && versionSupported) == false) {
             throw error
         }
+    }
+
+    boolean getSupported() {
+        return installed && versionSupported
     }
 }

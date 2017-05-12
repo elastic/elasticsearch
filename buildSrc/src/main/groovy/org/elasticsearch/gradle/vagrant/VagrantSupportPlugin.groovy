@@ -4,7 +4,6 @@ import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.tasks.Exec
 import org.gradle.process.ExecResult
 
 /**
@@ -21,7 +20,7 @@ class VagrantSupportPlugin implements Plugin<Project> {
 
             project.rootProject.ext.vagrantInstallation = vagrantInstallation
             project.rootProject.ext.virtualBoxInstallation = virtualBoxInstallation
-            project.rootProject.ext.vagrantSupported = vagrantInstallation.installed && virtualBoxInstallation.installed
+            project.rootProject.ext.vagrantSupported = vagrantInstallation.supported && virtualBoxInstallation.supported
             project.rootProject.ext.vagrantEnvChecksDone = true
         }
 

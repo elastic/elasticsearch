@@ -59,6 +59,15 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
             listOfRanges.add(Tuple.tuple(0.0, max / 2));
             listOfRanges.add(Tuple.tuple(max / 3, max / 3 * 2));
         }
+        if (rarely()) {
+            listOfRanges.add(Tuple.tuple(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY));
+        }
+        if (rarely()) {
+            listOfRanges.add(Tuple.tuple(Double.NEGATIVE_INFINITY, randomDouble()));
+        }
+        if (rarely()) {
+            listOfRanges.add(Tuple.tuple(randomDouble(), Double.POSITIVE_INFINITY));
+        }
         ranges = Collections.unmodifiableList(listOfRanges);
     }
 

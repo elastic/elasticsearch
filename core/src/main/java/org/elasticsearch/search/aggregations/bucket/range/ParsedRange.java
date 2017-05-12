@@ -70,9 +70,9 @@ public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.Parsed
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Range.Bucket {
 
         protected String key;
-        protected double from;
+        protected double from = Double.NEGATIVE_INFINITY;
         protected String fromAsString;
-        protected double to;
+        protected double to = Double.POSITIVE_INFINITY;
         protected String toAsString;
 
         @Override
@@ -123,13 +123,13 @@ public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.Parsed
                 builder.startObject();
                 builder.field(CommonFields.KEY.getPreferredName(), key);
             }
-            if (!Double.isInfinite(from)) {
+            if (Double.isInfinite(from) == false) {
                 builder.field(CommonFields.FROM.getPreferredName(), from);
                 if (fromAsString != null) {
                     builder.field(CommonFields.FROM_AS_STRING.getPreferredName(), fromAsString);
                 }
             }
-            if (!Double.isInfinite(to)) {
+            if (Double.isInfinite(to) == false) {
                 builder.field(CommonFields.TO.getPreferredName(), to);
                 if (toAsString != null) {
                     builder.field(CommonFields.TO_AS_STRING.getPreferredName(), toAsString);

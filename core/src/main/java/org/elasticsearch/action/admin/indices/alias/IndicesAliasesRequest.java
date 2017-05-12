@@ -59,8 +59,9 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> {
     private List<AliasActions> allAliasActions = new ArrayList<>();
 
-    //indices options that require every specified index to exist, expand wildcards only to open indices and
-    //don't allow that no indices are resolved from wildcard expressions
+    // indices options that require every specified index to exist, expand wildcards only to open
+    // indices, don't allow that no indices are resolved from wildcard expressions and resolve the
+    // expressions only against indices
     private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
 
     public IndicesAliasesRequest() {

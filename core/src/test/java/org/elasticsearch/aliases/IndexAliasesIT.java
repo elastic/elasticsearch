@@ -36,6 +36,7 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
@@ -425,6 +426,23 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         AliasesExistResponse response = admin().indices().prepareAliasesExist(aliases).get();
         assertThat(response.exists(), equalTo(false));
+
+        logger.info("--> creating index [foo_foo] and [bar_bar]");
+        assertAcked(prepareCreate("foo_foo"));
+        assertAcked(prepareCreate("bar_bar"));
+        ensureGreen();
+
+        logger.info("--> adding [foo] alias to [foo_foo] and [bar_bar]");
+        assertAcked(admin().indices().prepareAliases().addAlias("foo_foo", "foo"));
+        assertAcked(admin().indices().prepareAliases().addAlias("bar_bar", "foo"));
+
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.remove().index("foo*").alias("foo")).execute().get());
+
+        assertThat(admin().indices().prepareAliasesExist("foo").get().exists(), equalTo(true));
+        assertThat(admin().indices().prepareAliasesExist("foo").setIndices("foo_foo").get().exists(), equalTo(false));
+        assertThat(admin().indices().prepareAliasesExist("foo").setIndices("bar_bar").get().exists(), equalTo(true));
+        expectThrows(IndexNotFoundException.class, () -> admin().indices().prepareAliases()
+                .addAliasAction(AliasActions.remove().index("foo").alias("foo")).execute().actionGet());
     }
 
     public void testWaitForAliasCreationMultipleShards() throws Exception {

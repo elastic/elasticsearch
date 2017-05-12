@@ -19,6 +19,7 @@
 package org.elasticsearch.action.support;
 
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestRequest;
@@ -120,12 +121,16 @@ public class IndicesOptions {
     }
     
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        out.write(id);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.write(id);
+        } else {
+            out.write(id & 0x3f);
+        }
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
-        //if we read from a node that doesn't support the newly added flag (allowAliasesToMultipleIndices)
-        //we just receive the old corresponding value with the new flag set to true (default)
+        //if we read from a node that doesn't support the newly added flag (ignoreAliases)
+        //we just receive the old corresponding value with the new flag set to false (default)
         byte id = in.readByte();
         if (id >= VALUES.length) {
             throw new IllegalArgumentException("No valid missing index type id: " + id);

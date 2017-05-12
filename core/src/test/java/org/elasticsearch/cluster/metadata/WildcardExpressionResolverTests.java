@@ -126,18 +126,19 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("_all"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
     }
 
-    // WildcardExpressionResolver must be able to resolve the provided wildcard only against the
-    // defined indices when ignoreAliases option is set or against the defined indices and aliases
-    // otherwise
     public void testConcreteIndicesWildcardAndAliases() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo_foo").state(State.OPEN).putAlias(AliasMetaData.builder("foo")))
                 .put(indexBuilder("bar_bar").state(State.OPEN).putAlias(AliasMetaData.builder("foo")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
+        // when ignoreAliases option is not set, WildcardExpressionResolver resolves the provided
+        // expressions against the defined indices and aliases
         IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false);
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
 
+        // ignoreAliases option is set, WildcardExpressionResolver resolves the provided expressions
+        // only against the defined indices
         IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
         IndexNameExpressionResolver.Context contextIndices = new IndexNameExpressionResolver.Context(state, ignoreAliasesOptions);
 
@@ -168,6 +169,14 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                         .matches(contextIndices, state.getMetaData(), "f*o").keySet(),
                 equalTo(newHashSet("foo_foo")));
 
+        assertThat(
+                IndexNameExpressionResolver.WildcardExpressionResolver
+                        .matches(context, state.getMetaData(), "foo").keySet(),
+                equalTo(newHashSet("foo")));
+        assertThat(
+                IndexNameExpressionResolver.WildcardExpressionResolver
+                        .matches(contextIndices, state.getMetaData(), "foo").keySet(),
+                equalTo(newHashSet()));
     }
 
     private IndexMetaData.Builder indexBuilder(String index) {

@@ -644,14 +644,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(0, indexNames.length);
     }
 
-    // concreteIndexNames must be able to resolve the provided wildcard only against the defined
-    // indices when ignoreAliases option is set or against the defined indices and aliases otherwise
     public void testConcreteIndicesWildcardAndAliases() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo_foo").state(State.OPEN).putAlias(AliasMetaData.builder("foo")))
                 .put(indexBuilder("bar_bar").state(State.OPEN).putAlias(AliasMetaData.builder("foo")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
+        // when ignoreAliases option is set, concreteIndexNames resolves the provided expressions
+        // only against the defined indices
         IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
         
         String[] indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "foo*");
@@ -669,6 +669,15 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(1, indexNamesIndexWildcard.length);
         assertEquals("foo_foo", indexNamesIndexWildcard[0]);
 
+        try {
+            indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "foo");
+            fail();
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getIndex().getName(), equalTo("foo"));
+        }
+
+        // when ignoreAliases option is not set, concreteIndexNames resolves the provided
+        // expressions against the defined indices and aliases
         IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false);
         List<String> indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state, indicesAndAliasesOptions, "foo*"));
 
@@ -683,6 +692,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertTrue(indexNames.contains("bar_bar"));
 
         indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state, indicesAndAliasesOptions, "f*o"));
+
+        assertEquals(2, indexNames.size());
+        assertTrue(indexNames.contains("foo_foo"));
+        assertTrue(indexNames.contains("bar_bar"));
+
+        indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state, indicesAndAliasesOptions, "foo"));
 
         assertEquals(2, indexNames.size());
         assertTrue(indexNames.contains("foo_foo"));

@@ -35,12 +35,6 @@ import java.util.List;
 
 public class MockNodeTests extends ESTestCase {
 
-    @Override
-    protected boolean enableWarningsCheck() {
-        // As Tribe service as been deprecated, we need to skip deprecation checks
-        return false;
-    }
-
     /**
      * Test that we add the appropriate mock services when their plugins are added. This is a very heavy test for a testing component but
      * we've broken it in the past so it is important.
@@ -74,6 +68,7 @@ public class MockNodeTests extends ESTestCase {
             } else {
                 assertSame(searchService.getClass(), SearchService.class);
             }
+            assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
         }
     }
 }

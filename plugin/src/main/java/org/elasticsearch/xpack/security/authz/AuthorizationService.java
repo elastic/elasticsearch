@@ -34,7 +34,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.common.action.XPackDeleteByQueryAction;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordAction;
@@ -198,12 +197,6 @@ public class AuthorizationService extends AbstractComponent {
                 grant(authentication, action, request);
                 return;
             }
-            throw denial(authentication, action, request);
-        }
-
-        // we only want the xpack user to use the xpack delete by query action
-        if (XPackDeleteByQueryAction.NAME.equals(action)
-                && XPackUser.is(authentication.getUser()) == false) {
             throw denial(authentication, action, request);
         }
 

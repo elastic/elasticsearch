@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.action.XPackUsageAction;
-import org.elasticsearch.xpack.common.action.XPackDeleteByQueryAction;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.HttpSettings;
@@ -399,7 +398,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, TransportXPackInfoAction.class));
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, TransportXPackUsageAction.class));
-        actions.add(new ActionHandler<>(XPackDeleteByQueryAction.INSTANCE, XPackDeleteByQueryAction.TransportAction.class));
         actions.addAll(licensing.getActions());
         actions.addAll(monitoring.getActions());
         actions.addAll(security.getActions());

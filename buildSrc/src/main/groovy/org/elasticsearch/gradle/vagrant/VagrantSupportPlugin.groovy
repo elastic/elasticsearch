@@ -116,7 +116,7 @@ class VagrantSupportPlugin implements Plugin<Project> {
             description 'Check the Vagrant version'
             group 'Verification'
             doLast {
-                project.vagrantInstallation.verify
+                project.vagrantInstallation.verify()
             }
         }
     }
@@ -126,7 +126,7 @@ class VagrantSupportPlugin implements Plugin<Project> {
             description 'Check the Virtualbox version'
             group 'Verification'
             doLast {
-                project.virtualBoxInstallation.verify
+                project.virtualBoxInstallation.verify()
             }
         }
     }

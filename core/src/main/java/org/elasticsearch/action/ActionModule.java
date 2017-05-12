@@ -212,7 +212,6 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.UsageRestHandlerWrapper;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.RestFieldStatsAction;
 import org.elasticsearch.rest.action.RestMainAction;
@@ -375,11 +374,10 @@ public class ActionModule extends AbstractModule {
                 restWrapper = newRestWrapper;
             }
         }
-        restWrapper = UsageRestHandlerWrapper.wrapRestHandlerOperator(restWrapper, usageService);
         if (transportClient) {
             restController = null;
         } else {
-            restController = new RestController(settings, headers, restWrapper, nodeClient, circuitBreakerService);
+            restController = new RestController(settings, headers, restWrapper, nodeClient, circuitBreakerService, usageService);
         }
     }
 

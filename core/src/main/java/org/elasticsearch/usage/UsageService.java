@@ -43,43 +43,36 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.BaseRestHandler;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.LongAdder;
 
 /**
  * A service to monitor usage of Elasticsearch features.
  */
 public class UsageService extends AbstractComponent {
 
-    private final Map<String, LongAdder> restUsage;
+    private final List<BaseRestHandler> handlers;
     private long sinceTime;
 
     @Inject
     public UsageService(Settings settings) {
         super(settings);
-        this.restUsage = new ConcurrentHashMap<>();
+        this.handlers = new ArrayList<>();
         this.sinceTime = System.currentTimeMillis();
     }
 
     /**
-     * record a call to a REST endpoint.
+     * Add a REST handler to this service.
      *
-     * @param actionName
-     *            the class name of the {@link RestHandler} called for this
-     *            endpoint.
+     * @param handler
+     *            the {@link BaseRestHandler} to add to the usage service.
      */
-    public void addRestCall(String actionName) {
-        LongAdder counter = restUsage.computeIfAbsent(actionName, key -> new LongAdder());
-        counter.increment();
-    }
-
-    public void clear() {
-        this.sinceTime = System.currentTimeMillis();
-        this.restUsage.clear();
+    public void addRestHandler(BaseRestHandler handler) {
+        handlers.add(handler);
     }
 
     /**
@@ -97,8 +90,8 @@ public class UsageService extends AbstractComponent {
         Map<String, Long> restUsageMap;
         if (restActions) {
             restUsageMap = new HashMap<>();
-            restUsage.forEach((key, value) -> {
-                restUsageMap.put(key, value.longValue());
+            handlers.forEach(handler -> {
+                restUsageMap.put(handler.getName(), handler.getUsageCount());
             });
         } else {
             restUsageMap = null;

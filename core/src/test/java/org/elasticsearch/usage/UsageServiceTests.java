@@ -21,11 +21,16 @@ package org.elasticsearch.usage;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsage;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Map;
 
@@ -39,21 +44,35 @@ public class UsageServiceTests extends ESTestCase {
     public void testRestUsage() throws Exception {
         DiscoveryNode discoveryNode = new DiscoveryNode("foo", new TransportAddress(InetAddress.getByName("localhost"), 12345),
                 Version.CURRENT);
-        UsageService usageService = new UsageService(Settings.EMPTY);
-        usageService.addRestCall("a");
-        usageService.addRestCall("b");
-        usageService.addRestCall("a");
-        usageService.addRestCall("a");
-        usageService.addRestCall("b");
-        usageService.addRestCall("c");
-        usageService.addRestCall("c");
-        usageService.addRestCall("d");
-        usageService.addRestCall("a");
-        usageService.addRestCall("b");
-        usageService.addRestCall("e");
-        usageService.addRestCall("f");
-        usageService.addRestCall("c");
-        usageService.addRestCall("d");
+        Settings settings = Settings.EMPTY;
+        RestRequest restRequest = new FakeRestRequest();
+        BaseRestHandler handlerA = new MockRestHandler("a", settings);
+        BaseRestHandler handlerB = new MockRestHandler("b", settings);
+        BaseRestHandler handlerC = new MockRestHandler("c", settings);
+        BaseRestHandler handlerD = new MockRestHandler("d", settings);
+        BaseRestHandler handlerE = new MockRestHandler("e", settings);
+        BaseRestHandler handlerF = new MockRestHandler("f", settings);
+        UsageService usageService = new UsageService(settings);
+        usageService.addRestHandler(handlerA);
+        usageService.addRestHandler(handlerB);
+        usageService.addRestHandler(handlerC);
+        usageService.addRestHandler(handlerD);
+        usageService.addRestHandler(handlerE);
+        usageService.addRestHandler(handlerF);
+        handlerA.handleRequest(restRequest, null, null);
+        handlerB.handleRequest(restRequest, null, null);
+        handlerA.handleRequest(restRequest, null, null);
+        handlerA.handleRequest(restRequest, null, null);
+        handlerB.handleRequest(restRequest, null, null);
+        handlerC.handleRequest(restRequest, null, null);
+        handlerC.handleRequest(restRequest, null, null);
+        handlerD.handleRequest(restRequest, null, null);
+        handlerA.handleRequest(restRequest, null, null);
+        handlerB.handleRequest(restRequest, null, null);
+        handlerE.handleRequest(restRequest, null, null);
+        handlerF.handleRequest(restRequest, null, null);
+        handlerC.handleRequest(restRequest, null, null);
+        handlerD.handleRequest(restRequest, null, null);
         NodeUsage usage = usageService.getUsageStats(discoveryNode, true);
         assertThat(usage.getNode(), sameInstance(discoveryNode));
         Map<String, Long> restUsage = usage.getRestUsage();
@@ -71,33 +90,26 @@ public class UsageServiceTests extends ESTestCase {
         assertThat(usage.getRestUsage(), nullValue());
     }
 
-    public void testClearUsage() throws Exception {
-        DiscoveryNode discoveryNode = new DiscoveryNode("foo", new TransportAddress(InetAddress.getByName("localhost"), 12345),
-                Version.CURRENT);
-        UsageService usageService = new UsageService(Settings.EMPTY);
-        usageService.addRestCall("a");
-        usageService.addRestCall("b");
-        usageService.addRestCall("c");
-        usageService.addRestCall("d");
-        usageService.addRestCall("e");
-        usageService.addRestCall("f");
-        NodeUsage usage = usageService.getUsageStats(discoveryNode, true);
-        assertThat(usage.getNode(), sameInstance(discoveryNode));
-        Map<String, Long> restUsage = usage.getRestUsage();
-        assertThat(restUsage, notNullValue());
-        assertThat(restUsage.size(), equalTo(6));
-        assertThat(restUsage.get("a"), equalTo(1L));
-        assertThat(restUsage.get("b"), equalTo(1L));
-        assertThat(restUsage.get("c"), equalTo(1L));
-        assertThat(restUsage.get("d"), equalTo(1L));
-        assertThat(restUsage.get("e"), equalTo(1L));
-        assertThat(restUsage.get("f"), equalTo(1L));
+    private class MockRestHandler extends BaseRestHandler {
 
-        usageService.clear();
-        usage = usageService.getUsageStats(discoveryNode, true);
-        assertThat(usage.getNode(), sameInstance(discoveryNode));
-        assertThat(usage.getRestUsage(), notNullValue());
-        assertThat(usage.getRestUsage().size(), equalTo(0));
+        private String name;
+
+        protected MockRestHandler(String name, Settings settings) {
+            super(settings);
+            this.name = name;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+            return channel -> {
+            };
+        }
+
     }
 
 }

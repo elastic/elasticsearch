@@ -39,6 +39,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 /**
@@ -54,8 +55,18 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
 
+    private final LongAdder usageCount = new LongAdder();
+
     protected BaseRestHandler(Settings settings) {
         super(settings);
+    }
+
+    public long getUsageCount() {
+        return usageCount.sum();
+    }
+
+    public String getName() {
+        return this.getClass().getName();
     }
 
     @Override
@@ -76,6 +87,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
         }
 
+        usageCount.increment();
         // execute the action
         action.accept(channel);
     }

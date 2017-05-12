@@ -101,7 +101,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner _source definition", e);
             }
-        }, SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
+        }, SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
         PARSER.declareObject(InnerHitBuilder::setHighlightBuilder, (p, c) -> HighlightBuilder.fromXContent(c),
                 SearchSourceBuilder.HIGHLIGHT_FIELD);
         PARSER.declareObject(InnerHitBuilder::setChildInnerHits, (p, c) -> {

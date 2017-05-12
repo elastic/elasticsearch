@@ -35,10 +35,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
+import org.elasticsearch.test.AggregatorTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 

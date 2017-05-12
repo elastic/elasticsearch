@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations;
+package org.elasticsearch.test;
 
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
@@ -56,6 +56,10 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
@@ -88,8 +92,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     /** Create a factory for the given aggregation builder. */
     protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
-            IndexSearcher indexSearcher,
-            MappedFieldType... fieldTypes) throws IOException {
+                                                           IndexSearcher indexSearcher,
+                                                           MappedFieldType... fieldTypes) throws IOException {
         IndexSettings indexSettings = createIndexSettings();
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings);
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();

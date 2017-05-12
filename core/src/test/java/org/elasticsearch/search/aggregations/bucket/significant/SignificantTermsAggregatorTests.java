@@ -30,7 +30,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.test.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.hamcrest.Matchers;
 import org.junit.Before;

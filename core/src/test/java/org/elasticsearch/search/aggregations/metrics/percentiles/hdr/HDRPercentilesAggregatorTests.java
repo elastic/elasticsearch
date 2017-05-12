@@ -33,7 +33,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.test.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesMethod;
 

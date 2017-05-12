@@ -30,7 +30,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.test.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;

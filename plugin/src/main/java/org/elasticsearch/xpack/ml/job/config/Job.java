@@ -826,6 +826,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
             }
 
+            if (dataDescription == null) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_DATA_DESCRIPTION));
+            }
+
             checkValidBackgroundPersistInterval();
             checkValueNotLessThan(0, RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
             checkValueNotLessThan(0, MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);

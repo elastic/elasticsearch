@@ -11,6 +11,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
@@ -125,6 +126,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job.Builder builder = new Job.Builder(id);
         AnalysisConfig.Builder ac = createAnalysisConfig();
         builder.setAnalysisConfig(ac);
+        builder.setDataDescription(new DataDescription.Builder());
         return builder;
     }
 

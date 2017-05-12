@@ -103,6 +103,7 @@ public final class Messages {
             "Invalid field name ''{0}''. Field names including over, by and partition fields cannot contain any of these characters: {1}";
     public static final String JOB_CONFIG_INVALID_TIMEFORMAT = "Invalid Time format string ''{0}''";
     public static final String JOB_CONFIG_MISSING_ANALYSISCONFIG = "An analysis_config must be set";
+    public static final String JOB_CONFIG_MISSING_DATA_DESCRIPTION = "A data_description must be set";
     public static final String JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE =
             "Multiple bucket_span ''{0}'' must be a multiple of the main bucket_span ''{1}''";
     public static final String JOB_CONFIG_NO_ANALYSIS_FIELD_NOT_COUNT =

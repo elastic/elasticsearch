@@ -16,6 +16,7 @@ import java.util.List;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedDocumentsIterator;
@@ -76,6 +77,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(detectors);
         configBuilder.setBucketSpan(TimeValue.timeValueSeconds(DEFAULT_BUCKET_SPAN));
         jobBuilder.setAnalysisConfig(configBuilder);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
 
         job = jobBuilder.build(new Date());
 

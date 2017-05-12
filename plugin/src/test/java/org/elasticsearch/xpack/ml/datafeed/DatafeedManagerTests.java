@@ -368,6 +368,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         Job.Builder builder = new Job.Builder("job_id");
         builder.setAnalysisConfig(acBuilder);
+        builder.setDataDescription(new DataDescription.Builder());
         return builder;
     }
 

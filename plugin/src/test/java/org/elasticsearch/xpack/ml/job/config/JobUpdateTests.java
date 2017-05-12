@@ -128,6 +128,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
         ac.setCategorizationFieldName("cat_field");
         jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
         jobBuilder.setCreateTime(new Date());
 
         Job updatedJob = update.mergeWithJob(jobBuilder.build());

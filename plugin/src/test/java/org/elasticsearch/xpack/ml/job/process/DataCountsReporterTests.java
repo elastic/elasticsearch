@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -51,6 +52,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
         Job.Builder builder = new Job.Builder("sr");
         builder.setAnalysisConfig(acBuilder);
+        builder.setDataDescription(new DataDescription.Builder());
         job = builder.build(new Date());
 
         jobDataCountsPersister = Mockito.mock(JobDataCountsPersister.class);

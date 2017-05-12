@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
@@ -263,6 +264,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         return new Job.Builder(jobId)
                 .setAnalysisConfig(analysisConfig)
+                .setDataDescription(new DataDescription.Builder())
                 .build(new Date(randomNonNegativeLong()));
     }
 

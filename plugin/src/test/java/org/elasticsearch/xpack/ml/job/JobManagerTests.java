@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -161,6 +162,7 @@ public class JobManagerTests extends ESTestCase {
         Job.Builder builder = new Job.Builder();
         builder.setId("foo");
         builder.setAnalysisConfig(ac);
+        builder.setDataDescription(new DataDescription.Builder());
         return builder;
     }
 

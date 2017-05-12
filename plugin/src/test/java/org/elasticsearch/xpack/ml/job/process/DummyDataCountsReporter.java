@@ -9,6 +9,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -61,6 +62,7 @@ class DummyDataCountsReporter extends DataCountsReporter {
         acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
 
         Job.Builder builder = new Job.Builder("dummy_job_id");
+        builder.setDataDescription(new DataDescription.Builder());
         builder.setAnalysisConfig(acBuilder);
         return builder.build(new Date());
     }

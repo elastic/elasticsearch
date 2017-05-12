@@ -14,7 +14,7 @@ GET _xpack/security/_authenticate
 // CONSOLE
 
 A successful call returns a JSON structure that shows what roles are assigned
-to the user.
+to the user as well as any assigned metadata.
 
 [source,js]
 --------------------------------------------------
@@ -23,6 +23,9 @@ to the user.
   "roles": [
     "admin",
     "kibana4"
-  ]
+  ],
+  "metadata" : {
+    "employee_id": "8675309"
+  }
 }
 --------------------------------------------------

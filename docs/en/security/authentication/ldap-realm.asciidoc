@@ -353,6 +353,21 @@ user:
 
 For more information, see <<mapping-roles, Mapping Users and Groups to Roles>>.
 
+[[ldap-user-metadata]]
+==== User Metadata in LDAP Realms
+When a user is authenticated via an LDAP realm, the following properties are
+populated in user's _metadata_. This metadata is returned in the
+<<security-api-authenticate,authenticate API>>, and can be used with
+<<templating-role-query, templated queries>> in roles.
+
+|=======================
+| Field               | Description
+| `ldap_dn`           | The distinguished name of the user.
+| `ldap_groups`       | The distinguished name of each of the groups that were
+                        resolved for the user (regardless of whether those
+                        groups were mapped to a role).
+|=======================
+
 [[ldap-ssl]]
 ==== Setting up SSL Between Elasticsearch and LDAP
 

@@ -152,7 +152,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         this.scriptEnginesByLang = unmodifiableMap(enginesByLangBuilder);
         this.scriptEnginesByExt = unmodifiableMap(enginesByExtBuilder);
 
-        this.scriptModes = new ScriptModes(scriptSettings, settings);
+        this.scriptModes = new ScriptModes(scriptContextRegistry, scriptSettings, settings);
 
         // add file watcher for static scripts
         scriptsDirectory = env.scriptsFile();

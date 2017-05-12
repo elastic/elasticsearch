@@ -66,3 +66,8 @@ and `http.tcp.blocking_server` settings are not recognized anymore.
 The `base` similarity is now ignored as coords and query normalization have
 been removed. If provided, this setting will be ignored and issue a
 deprecation warning.
+
+==== Script Settings
+
+All of the existing scripting security settings have been deprecated.  Instead
+they are replaced with `script.allowed_types` and `script.allowed_contexts`.

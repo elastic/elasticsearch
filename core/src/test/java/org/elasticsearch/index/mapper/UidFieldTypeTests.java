@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -92,7 +92,7 @@ public class UidFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = UidFieldMapper.defaultFieldType(mockSettings);
         ft.setName(UidFieldMapper.NAME);
         Query query = ft.termQuery("type#id", context);
-        assertEquals(new MatchNoDocsQuery(), query);
+        assertEquals(new MatchNoDocsQuery(""), query);
 
         types = Collections.singleton("type");
         Mockito.when(mapperService.types()).thenReturn(types);

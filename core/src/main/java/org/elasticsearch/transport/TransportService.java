@@ -937,7 +937,8 @@ public class TransportService extends AbstractLifecycleComponent {
             if (holder != null) {
                 // add it to the timeout information holder, in case we are going to get a response later
                 long timeoutTime = System.currentTimeMillis();
-                timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(holder.connection().getNode(), holder.action(), sentTime, timeoutTime));
+                timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(holder.connection().getNode(), holder.action(), sentTime,
+                    timeoutTime));
                 // now that we have the information visible via timeoutInfoHandlers, we try to remove the request id
                 final RequestHolder removedHolder = clientHandlers.remove(requestId);
                 if (removedHolder != null) {

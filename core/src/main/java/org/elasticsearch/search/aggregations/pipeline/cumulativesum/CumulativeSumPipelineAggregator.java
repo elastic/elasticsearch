@@ -75,7 +75,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
                 InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
-        List<Bucket> newBuckets = new ArrayList<>();
+        List<Bucket> newBuckets = new ArrayList<>(buckets.size());
         double sum = 0;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.INSERT_ZEROS);

@@ -25,6 +25,8 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantTextA
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 
+import java.util.Arrays;
+
 public class SignificantTextTests extends BaseAggregationTestCase<SignificantTextAggregationBuilder> {
 
     @Override
@@ -34,8 +36,11 @@ public class SignificantTextTests extends BaseAggregationTestCase<SignificantTex
         SignificantTextAggregationBuilder factory = new SignificantTextAggregationBuilder(name, field);
         if (randomBoolean()) {
             factory.bucketCountThresholds().setRequiredSize(randomIntBetween(1, Integer.MAX_VALUE));
-
         }
+        if (randomBoolean()) {
+            factory.sourceFieldNames(Arrays.asList(new String []{"foo", "bar"}));
+        }
+        
         if (randomBoolean()) {
             factory.bucketCountThresholds().setShardSize(randomIntBetween(1, Integer.MAX_VALUE));
         }

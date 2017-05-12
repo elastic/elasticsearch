@@ -42,12 +42,15 @@ import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public class SignificantTextAggregationBuilder extends AbstractAggregationBuilder<SignificantTextAggregationBuilder> {
     public static final String NAME = "significant_text";
 
     static final ParseField FIELD_NAME = new ParseField("field");
+    static final ParseField SOURCE_FIELDS_NAME = new ParseField("source_fields");
     static final ParseField FILTER_DUPLICATE_TEXT_FIELD_NAME = new ParseField(
             "filter_duplicate_text");
 
@@ -56,6 +59,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = SignificantTermsAggregationBuilder.DEFAULT_SIGNIFICANCE_HEURISTIC;
 
     private String fieldName = null;
+    private String [] sourceFieldNames = null;
     private boolean filterDuplicateText = false;
     private IncludeExclude includeExclude = null;
     private QueryBuilder filterBuilder = null;
@@ -81,6 +85,9 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
                 TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME);
 
         parser.declareString(SignificantTextAggregationBuilder::fieldName, FIELD_NAME);
+        
+        parser.declareStringArray(SignificantTextAggregationBuilder::sourceFieldNames, SOURCE_FIELDS_NAME);
+        
 
         parser.declareBoolean(SignificantTextAggregationBuilder::filterDuplicateText,
                 FILTER_DUPLICATE_TEXT_FIELD_NAME);
@@ -183,6 +190,18 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         return this;
     }
 
+    
+    /**
+     * Selects the fields to load from _source JSON and analyze.
+     * If none are specified, the indexed "fieldName" value is assumed 
+     * to also be the name of the JSON field holding the value
+     */
+    public SignificantTextAggregationBuilder sourceFieldNames(List<String> names) {
+        this.sourceFieldNames = names.toArray(new String [names.size()]);
+        return this;
+    }
+    
+    
     /**
      * Control if duplicate paragraphs of text should try be filtered from the
      * statistical text analysis. Can improve results but slows down analysis.
@@ -287,6 +306,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         filterBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
+        sourceFieldNames = in.readOptionalStringArray();
     }
 
     @Override
@@ -297,6 +317,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         out.writeOptionalNamedWriteable(filterBuilder);
         out.writeOptionalWriteable(includeExclude);
         out.writeNamedWriteable(significanceHeuristic);
+        out.writeOptionalStringArray(sourceFieldNames);
     }
 
     @Override
@@ -305,7 +326,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(context);
         return new SignificantTextAggregatorFactory(name, includeExclude, filterBuilder,
                 bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder,
-                fieldName, filterDuplicateText, metaData);
+                fieldName, sourceFieldNames, filterDuplicateText, metaData);
     }
 
     @Override
@@ -316,6 +337,10 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         if (fieldName != null) {
             builder.field(FIELD_NAME.getPreferredName(), fieldName);
         }
+        if (sourceFieldNames != null) {
+            builder.array(SOURCE_FIELDS_NAME.getPreferredName(), sourceFieldNames);
+        }
+        
         if (filterDuplicateText) {
             builder.field(FILTER_DUPLICATE_TEXT_FIELD_NAME.getPreferredName(), filterDuplicateText);
         }
@@ -335,7 +360,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     @Override
     protected int doHashCode() {
         return Objects.hash(bucketCountThresholds, fieldName, filterDuplicateText, filterBuilder,
-                includeExclude, significanceHeuristic);
+                includeExclude, significanceHeuristic, Arrays.hashCode(sourceFieldNames));
     }
 
     @Override
@@ -343,6 +368,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         SignificantTextAggregationBuilder other = (SignificantTextAggregationBuilder) obj;
         return Objects.equals(bucketCountThresholds, other.bucketCountThresholds)
                 && Objects.equals(fieldName, other.fieldName)
+                && Arrays.equals(sourceFieldNames, other.sourceFieldNames)
                 && filterDuplicateText == other.filterDuplicateText
                 && Objects.equals(filterBuilder, other.filterBuilder)
                 && Objects.equals(includeExclude, other.includeExclude)

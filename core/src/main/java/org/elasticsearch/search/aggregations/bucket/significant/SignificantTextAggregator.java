@@ -34,6 +34,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -67,6 +68,7 @@ public class SignificantTextAggregator extends BucketsAggregator {
     private SignificantTextAggregatorFactory termsAggFactory;
     private final DocValueFormat format = DocValueFormat.RAW;
     private final String fieldName;
+    private final String[] sourceFieldNames;
     private DuplicateByteSequenceSpotter dupSequenceSpotter = null ;
     private long lastTrieSize;
     private static final int MEMORY_GROWTH_REPORTING_INTERVAL_BYTES = 5000;
@@ -77,7 +79,7 @@ public class SignificantTextAggregator extends BucketsAggregator {
             SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             BucketCountThresholds bucketCountThresholds, IncludeExclude.StringFilter includeExclude,
             SignificanceHeuristic significanceHeuristic, SignificantTextAggregatorFactory termsAggFactory,
-            String fieldName, boolean filterDuplicateText,
+            String fieldName, String [] sourceFieldNames, boolean filterDuplicateText,
             Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.bucketCountThresholds = bucketCountThresholds;
@@ -85,6 +87,7 @@ public class SignificantTextAggregator extends BucketsAggregator {
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
         this.fieldName = fieldName;
+        this.sourceFieldNames = sourceFieldNames;
         bucketOrds = new BytesRefHash(1, context.bigArrays());
         if(filterDuplicateText){
             dupSequenceSpotter = new DuplicateByteSequenceSpotter();        
@@ -103,7 +106,7 @@ public class SignificantTextAggregator extends BucketsAggregator {
             
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                loadFromSource(doc, bucket, fieldName);
+                collectFromSource(doc, bucket, fieldName, sourceFieldNames);
                 numCollectedDocs++;
                 if (dupSequenceSpotter != null) {
                     dupSequenceSpotter.startNewSequence();
@@ -156,30 +159,36 @@ public class SignificantTextAggregator extends BucketsAggregator {
                 }
             }
             
-            private void loadFromSource(int doc, long bucket, String fieldName) throws IOException {
-                MapperService mapperService = context.indexShard().mapperService();
-                MappedFieldType fieldType = mapperService.fullName(fieldName);
+            private void collectFromSource(int doc, long bucket, String indexedFieldName, String[] sourceFieldNames) throws IOException {
+                MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(indexedFieldName);
                 if(fieldType == null){
-                    throw new IllegalArgumentException("Aggregation [" + name + "] cannot process field ["+fieldName
+                    throw new IllegalArgumentException("Aggregation [" + name + "] cannot process field ["+indexedFieldName
                             +"] since it is not present");                    
+                }
+                
+                if (sourceFieldNames == null){
+                    sourceFieldNames = new String [] { fieldType.name() }; 
                 }
                 
                 SourceLookup sourceLookup = context.lookup().source();
                 sourceLookup.setSegmentAndDocument(ctx, doc);
-                List<Object> textsToHighlight = sourceLookup.extractRawValues(fieldType.name());    
-                textsToHighlight = textsToHighlight.stream().map(obj -> {
-                    if (obj instanceof BytesRef) {
-                        return fieldType.valueForDisplay(obj).toString();
-                    } else {
-                        return obj;
-                    }
-                }).collect(Collectors.toList());                
                 
-                Analyzer analyzer = fieldType.indexAnalyzer();                
-                for (Object fieldValue : textsToHighlight) {
-                    String fieldText = fieldValue.toString();
-                    TokenStream ts = analyzer.tokenStream(fieldName, fieldText);
-                    processTokenStream(doc, bucket, ts, fieldText);                     
+                for (String sourceField : sourceFieldNames) {
+                    List<Object> textsToHighlight = sourceLookup.extractRawValues(sourceField);    
+                    textsToHighlight = textsToHighlight.stream().map(obj -> {
+                        if (obj instanceof BytesRef) {
+                            return fieldType.valueForDisplay(obj).toString();
+                        } else {
+                            return obj;
+                        }
+                    }).collect(Collectors.toList());                
+                    
+                    Analyzer analyzer = fieldType.indexAnalyzer();                
+                    for (Object fieldValue : textsToHighlight) {
+                        String fieldText = fieldValue.toString();
+                        TokenStream ts = analyzer.tokenStream(indexedFieldName, fieldText);
+                        processTokenStream(doc, bucket, ts, fieldText);                     
+                    }                    
                 }
             }
         };

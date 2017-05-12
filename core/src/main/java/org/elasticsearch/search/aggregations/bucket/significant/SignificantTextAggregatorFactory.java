@@ -55,6 +55,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
     private final IncludeExclude includeExclude;
     private String indexedFieldName;
     private MappedFieldType fieldType;
+    private final String[] sourceFieldNames;
     private FilterableTermsEnum termsEnum;
     private int numberOfAggregatorsCreated;
     private final Query filter;
@@ -67,14 +68,15 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
     public SignificantTextAggregatorFactory(String name, IncludeExclude includeExclude,
             QueryBuilder filterBuilder, TermsAggregator.BucketCountThresholds bucketCountThresholds,
             SignificanceHeuristic significanceHeuristic, SearchContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactoriesBuilder, String fieldName, boolean filterDuplicateText,
-            Map<String, Object> metaData) throws IOException {
+            AggregatorFactories.Builder subFactoriesBuilder, String fieldName, String [] sourceFieldNames,
+            boolean filterDuplicateText, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);
         this.includeExclude = includeExclude;
         this.filter = filterBuilder == null
                 ? null
                 : filterBuilder.toQuery(context.getQueryShardContext());
         this.indexedFieldName = fieldName;
+        this.sourceFieldNames = sourceFieldNames;
         this.filterDuplicateText = filterDuplicateText;
         IndexSearcher searcher = context.searcher();
         // Important - need to use the doc count that includes deleted docs
@@ -84,7 +86,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
                 : searcher.count(filter);
         this.bucketCountThresholds = bucketCountThresholds;
         this.significanceHeuristic = significanceHeuristic;
-        fieldType = context.smartNameFieldType(indexedFieldName);
+        fieldType = context.getQueryShardContext().fieldMapper(indexedFieldName);
 
     }
 
@@ -179,7 +181,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
             includeExclude.convertToStringFilter(DocValueFormat.RAW);
         
         return new SignificantTextAggregator(name, factories, context, parent, pipelineAggregators, bucketCountThresholds,
-                incExcFilter, significanceHeuristic, this, indexedFieldName, filterDuplicateText, metaData);
+                incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metaData);
 
     }
 }

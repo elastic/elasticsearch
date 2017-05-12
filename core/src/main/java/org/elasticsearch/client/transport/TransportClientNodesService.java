@@ -470,8 +470,8 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                         Transport.Connection connectionToClose = null;
 
                         void onDone() {
-                            latch.countDown();
                             IOUtils.closeWhileHandlingException(connectionToClose);
+                            latch.countDown();
                         }
 
                         @Override

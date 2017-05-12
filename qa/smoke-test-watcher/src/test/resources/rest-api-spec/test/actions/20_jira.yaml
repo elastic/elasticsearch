@@ -75,7 +75,7 @@
         index: ".watcher-history-*"
   - match: { hits.total: 1 }
 
-  - match: { hits.hits.0._type: "watch_record" }
+  - match: { hits.hits.0._type: "doc" }
   - match: { hits.hits.0._source.watch_id: "jira_watch" }
   - match: { hits.hits.0._source.state: "executed" }
 
@@ -195,7 +195,7 @@
 
   - match: { hits.total: 1 }
 
-  - match: { hits.hits.0._type: "watch_record" }
+  - match: { hits.hits.0._type: "doc" }
   - match: { hits.hits.0._source.watch_id: "wrong_jira_watch" }
   - match: { hits.hits.0._source.state: "executed" }
 

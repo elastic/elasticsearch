@@ -116,12 +116,12 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
             GetFieldMappingsResponse response = client().admin().indices()
                                                                 .prepareGetFieldMappings(".watcher-history*")
                                                                 .setFields("result.actions.transform.payload")
-                                                                .setTypes("watch_record")
+                                                                .setTypes("doc")
                                                                 .includeDefaults(true)
                                                                 .get();
 
             for (Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> map : response.mappings().values()) {
-                Map<String, GetFieldMappingsResponse.FieldMappingMetaData> watchRecord = map.get("watch_record");
+                Map<String, GetFieldMappingsResponse.FieldMappingMetaData> watchRecord = map.get("doc");
                 assertThat(watchRecord, hasKey("result.actions.transform.payload"));
                 GetFieldMappingsResponse.FieldMappingMetaData fieldMappingMetaData = watchRecord.get("result.actions.transform.payload");
                 assertThat(fieldMappingMetaData.isNull(), is(true));

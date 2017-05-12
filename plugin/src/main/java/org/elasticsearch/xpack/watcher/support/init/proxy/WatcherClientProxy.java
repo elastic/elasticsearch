@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.watcher.support.init.proxy;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -128,8 +130,11 @@ public class WatcherClientProxy extends ClientProxy {
     }
 
     public void putTemplate(PutIndexTemplateRequest request, ActionListener<PutIndexTemplateResponse> listener) {
-        preProcess(request);
-        client.admin().indices().putTemplate(request, listener);
+        client.admin().indices().putTemplate(preProcess(request), listener);
+    }
+
+    public void deleteTemplate(DeleteIndexTemplateRequest request, ActionListener<DeleteIndexTemplateResponse> listener) {
+        client.admin().indices().deleteTemplate(preProcess(request), listener);
     }
 
     public GetResponse getWatch(String id) {

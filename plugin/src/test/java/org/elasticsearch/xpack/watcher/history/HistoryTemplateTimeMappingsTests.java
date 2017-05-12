@@ -60,7 +60,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
                 if (!metadatas.key.startsWith(HistoryStore.INDEX_PREFIX)) {
                     continue;
                 }
-                MappingMetaData metadata = metadatas.value.get("watch_record");
+                MappingMetaData metadata = metadatas.value.get("doc");
                 assertThat(metadata, notNullValue());
                 try {
                     Map<String, Object> source = metadata.getSourceAsMap();

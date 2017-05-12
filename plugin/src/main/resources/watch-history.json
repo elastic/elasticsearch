@@ -7,7 +7,7 @@
     "index.mapper.dynamic": false
   },
   "mappings": {
-    "watch_record": {
+    "doc": {
       "dynamic_templates": [
         {
           "disabled_payload_fields": {

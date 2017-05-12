@@ -9,7 +9,7 @@
   - do:
       indices.create:
         index: .watches
-      ignore: 400
+        ignore: 400
 
   - do:
       catch: missing

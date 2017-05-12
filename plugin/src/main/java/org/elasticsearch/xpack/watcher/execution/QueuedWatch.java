@@ -36,18 +36,6 @@ public class QueuedWatch implements Streamable, ToXContent {
         return watchId;
     }
 
-    public void WatchId(String watchId) {
-        this.watchId = watchId;
-    }
-
-    public String watchRecordId() {
-        return watchRecordId;
-    }
-
-    public void watchRecordId(String watchRecordId) {
-        this.watchRecordId = watchRecordId;
-    }
-
     public DateTime triggeredTime() {
         return triggeredTime;
     }

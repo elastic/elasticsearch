@@ -334,7 +334,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             // alias for .triggered-watches, ensuring the index template is set appropriately
             if (rarely()) {
                 String newIndex = ".triggered-watches-alias-index";
-                BytesReference bytesReference = TemplateUtils.load("/triggered_watches.json");
+                BytesReference bytesReference = TemplateUtils.load("/triggered-watches.json");
                 try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytesReference.toBytesRef().bytes)) {
                     Map<String, Object> parserMap = parser.map();
                     Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
@@ -482,16 +482,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").setTypes(HistoryStore.DOC_TYPE);
         requestBuilderCallback.handle(builder);
         return builder.get();
-    }
-
-    protected long historyRecordsCount(String watchName) {
-        refresh();
-        SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*")
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSize(0)
-                .setQuery(matchQuery("watch_id", watchName))
-                .get();
-        return searchResponse.getHits().getTotalHits();
     }
 
     protected long findNumberOfPerformedActions(String watchName) {

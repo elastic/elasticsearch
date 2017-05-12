@@ -41,15 +41,12 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCas
         );
 
         // use assertBusy(...) because we update the index template in an async manner
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                GetIndexTemplatesResponse response = client().admin().indices()
-                        .prepareGetTemplates(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME).get();
-                assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("2"));
-                assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_replicas"), equalTo("2"));
-                assertThat(response.getIndexTemplates().get(0).getSettings().get("index.refresh_interval"), equalTo("5m"));
-            }
+        assertBusy(() -> {
+            GetIndexTemplatesResponse response1 = client().admin().indices()
+                    .prepareGetTemplates(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME).get();
+            assertThat(response1.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("2"));
+            assertThat(response1.getIndexTemplates().get(0).getSettings().get("index.number_of_replicas"), equalTo("2"));
+            assertThat(response1.getIndexTemplates().get(0).getSettings().get("index.refresh_interval"), equalTo("5m"));
         });
     }
 
@@ -68,15 +65,11 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCas
         );
 
         // use assertBusy(...) because we update the index template in an async manner
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                GetIndexTemplatesResponse response = client().admin().indices()
-                        .prepareGetTemplates(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME).get();
-                assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("2"));
-                assertThat(response.getIndexTemplates().get(0).getSettings().getAsBoolean("index.mapper.dynamic", null), is(false));
-            }
+        assertBusy(() -> {
+            GetIndexTemplatesResponse response1 = client().admin().indices()
+                    .prepareGetTemplates(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME).get();
+            assertThat(response1.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("2"));
+            assertThat(response1.getIndexTemplates().get(0).getSettings().getAsBoolean("index.mapper.dynamic", null), is(false));
         });
     }
-
 }

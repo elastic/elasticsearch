@@ -38,7 +38,7 @@ public class HistoryStore extends AbstractComponent {
 
     public static final String INDEX_PREFIX = ".watcher-history-";
     public static final String INDEX_PREFIX_WITH_TEMPLATE = INDEX_PREFIX + WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION + "-";
-    public static final String DOC_TYPE = "watch_record";
+    public static final String DOC_TYPE = "doc";
 
     static final DateTimeFormatter indexTimeFormat = DateTimeFormat.forPattern("YYYY.MM.dd");
 

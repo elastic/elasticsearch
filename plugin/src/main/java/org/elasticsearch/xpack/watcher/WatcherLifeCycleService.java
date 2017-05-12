@@ -166,5 +166,4 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     public WatcherMetaData watcherMetaData() {
         return watcherMetaData;
     }
-
 }

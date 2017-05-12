@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -37,11 +39,11 @@ import static java.util.Collections.unmodifiableMap;
 public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener {
 
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
-    public static final String INDEX_TEMPLATE_VERSION = "5";
+    public static final String INDEX_TEMPLATE_VERSION = "6";
 
-    public static final String HISTORY_TEMPLATE_NAME = "watch_history_" + INDEX_TEMPLATE_VERSION;
-    public static final String TRIGGERED_TEMPLATE_NAME = "triggered_watches";
-    public static final String WATCHES_TEMPLATE_NAME = "watches";
+    public static final String HISTORY_TEMPLATE_NAME = ".watch-history-" + INDEX_TEMPLATE_VERSION;
+    public static final String TRIGGERED_TEMPLATE_NAME = ".triggered_watches";
+    public static final String WATCHES_TEMPLATE_NAME = ".watches";
 
     public static final Setting<Settings> HISTORY_TEMPLATE_SETTING = Setting.groupSetting("xpack.watcher.history.index.",
             Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -50,9 +52,9 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
     public static final Setting<Settings> WATCHES_TEMPLATE_SETTING = Setting.groupSetting("xpack.watcher.watches.index.",
             Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final TemplateConfig[] TEMPLATE_CONFIGS = new TemplateConfig[]{
-            new TemplateConfig(TRIGGERED_TEMPLATE_NAME, TRIGGERED_TEMPLATE_SETTING),
-            new TemplateConfig(HISTORY_TEMPLATE_NAME, "watch_history", HISTORY_TEMPLATE_SETTING),
-            new TemplateConfig(WATCHES_TEMPLATE_NAME, WATCHES_TEMPLATE_SETTING)
+            new TemplateConfig(TRIGGERED_TEMPLATE_NAME, "triggered-watches", TRIGGERED_TEMPLATE_SETTING),
+            new TemplateConfig(HISTORY_TEMPLATE_NAME, "watch-history", HISTORY_TEMPLATE_SETTING),
+            new TemplateConfig(WATCHES_TEMPLATE_NAME, "watches", WATCHES_TEMPLATE_SETTING)
     };
 
     private final WatcherClientProxy client;
@@ -96,6 +98,22 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         }
 
         addTemplatesIfMissing(state);
+        deleteDeprecatedTemplates(state);
+    }
+
+    /**
+     * This methods deletes the 5.x watcher index templates
+     * @param state The current cluster state
+     */
+    private void deleteDeprecatedTemplates(ClusterState state) {
+        for (ObjectCursor<String> cursor : state.metaData().getTemplates().keys()) {
+            String name = cursor.value;
+            if ("watches".equals(name) || "triggered_watches".equals(name) || name.startsWith("watcher_history_")) {
+                client.deleteTemplate(new DeleteIndexTemplateRequest(name), ActionListener.wrap(
+                        r -> logger.debug("Deleted old index template [{}]", name),
+                        e -> logger.debug("Could not delete watcher template [{}]: [{}]", name, e.getMessage())));
+            }
+        }
     }
 
     void addTemplatesIfMissing(ClusterState state) {
@@ -188,10 +206,6 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         private final String templateName;
         private String fileName;
         private final Setting<Settings> setting;
-
-        public TemplateConfig(String templateName, Setting<Settings> setting) {
-            this(templateName, templateName, setting);
-        }
 
         public TemplateConfig(String templateName, String fileName, Setting<Settings> setting) {
             this.templateName = templateName;

@@ -138,7 +138,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
       IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, true, true));
       assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+test*"))), equalTo(newHashSet("test", "test1")));
-      assertWarnings("use of + is deprecated in index names as it is implicit");
+      assertWarnings("support for '+' as part of index expressions is deprecated");
     }
 
 }

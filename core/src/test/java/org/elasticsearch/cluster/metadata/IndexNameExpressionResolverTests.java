@@ -969,4 +969,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias-0", "test-alias-1", "test-alias-non-filtering"}, strings);
     }
+
+    public void testConcreteIndicesForDeprecatedPattern() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("testXXX").state(State.OPEN))
+            .put(indexBuilder("testXXY").state(State.OPEN));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
+            IndicesOptions.fromOptions(true, true, true, true));
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testX*")),
+            equalTo(newHashSet("testXXX", "testXXY")));
+        assertWarnings("support for '+' as part of index expressions is deprecated");
+      }
 }

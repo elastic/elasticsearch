@@ -591,7 +591,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         private Set<String> innerResolve(Context context, List<String> expressions, IndicesOptions options, MetaData metaData) {
             Set<String> result = null;
             boolean wildcardSeen = false;
-            boolean isDeprecated = false;
+            boolean plusSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
                 if (aliasOrIndexExists(metaData, expression)) {
@@ -606,7 +606,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 boolean add = true;
                 if (expression.charAt(0) == '+') {
                     // if its the first, add empty result set
-                    isDeprecated = true;
+                    plusSeen = true;
                     if (i == 0) {
                         result = new HashSet<>();
                     }
@@ -654,8 +654,8 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     wildcardSeen = true;
                 }
             }
-            if(isDeprecated) {
-              DEPRECATION_LOGGER.deprecated("use of + is deprecated in index names as it is implicit");
+            if (plusSeen) {
+              DEPRECATION_LOGGER.deprecated("support for '+' as part of index expressions is deprecated");
             }
             return result;
         }

@@ -75,7 +75,7 @@ public class BucketHelpers {
                 }
             }
             if (result == null) {
-                final List<String> validNames = new ArrayList<>();
+                final List<String> validNames = new ArrayList<>(values().length);
                 for (GapPolicy policy : values()) {
                     validNames.add(policy.getName());
                 }

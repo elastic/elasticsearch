@@ -284,7 +284,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         if (nodeDecisions == null || withShardStores == null) {
             return null;
         }
-        List<NodeAllocationResult> augmented = new ArrayList<>();
+        List<NodeAllocationResult> augmented = new ArrayList<>(nodeDecisions.size());
         for (Map.Entry<String, NodeAllocationResult> entry : nodeDecisions.entrySet()) {
             if (withShardStores.containsKey(entry.getKey())) {
                 augmented.add(withShardStores.get(entry.getKey()));

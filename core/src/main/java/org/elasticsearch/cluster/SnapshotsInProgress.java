@@ -404,7 +404,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             boolean partial = in.readBoolean();
             State state = State.fromValue(in.readByte());
             int indices = in.readVInt();
-            List<IndexId> indexBuilder = new ArrayList<>();
+            List<IndexId> indexBuilder = new ArrayList<>(indices);
             for (int j = 0; j < indices; j++) {
                 indexBuilder.add(new IndexId(in.readString(), in.readString()));
             }

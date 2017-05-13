@@ -538,7 +538,7 @@ public class MapperQueryParser extends QueryParser {
         }
 
         // build a boolean query with prefix on the last position only.
-        List<BooleanClause> clauses = new ArrayList<>();
+        List<BooleanClause> clauses = new ArrayList<>(tlist.size());
         for (int pos = 0; pos < tlist.size(); pos++) {
             List<String> plist = tlist.get(pos);
             boolean isLastPos = (pos == tlist.size() - 1);
@@ -557,7 +557,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 posQuery = new SynonymQuery(terms);
             } else {
-                List<BooleanClause> innerClauses = new ArrayList<>();
+                List<BooleanClause> innerClauses = new ArrayList<>(plist.size());
                 for (String token : plist) {
                     innerClauses.add(new BooleanClause(super.getPrefixQuery(field, token),
                         BooleanClause.Occur.SHOULD));

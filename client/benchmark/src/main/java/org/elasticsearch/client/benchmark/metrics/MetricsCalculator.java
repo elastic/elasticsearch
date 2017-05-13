@@ -46,7 +46,7 @@ public final class MetricsCalculator {
     }
 
     private static List<Metrics> calculateMetricsPerOperation(Map<String, List<Sample>> samplesPerOperation) {
-        List<Metrics> metrics = new ArrayList<>();
+        List<Metrics> metrics = new ArrayList<>(samplesPerOperation.size());
         for (Map.Entry<String, List<Sample>> operationAndMetrics : samplesPerOperation.entrySet()) {
             List<Sample> samples = operationAndMetrics.getValue();
             double[] serviceTimes = new double[samples.size()];

@@ -54,9 +54,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     public void testReduceRandom() {
         String name = randomAlphaOfLength(5);
-        List<T> inputs = new ArrayList<>();
-        List<InternalAggregation> toReduce = new ArrayList<>();
         int toReduceSize = between(1, 200);
+        List<T> inputs = new ArrayList<>(toReduceSize);
+        List<InternalAggregation> toReduce = new ArrayList<>(toReduceSize);
         for (int i = 0; i < toReduceSize; i++) {
             T t = randomBoolean() ? createUnmappedInstance(name) : createTestInstance(name);
             inputs.add(t);

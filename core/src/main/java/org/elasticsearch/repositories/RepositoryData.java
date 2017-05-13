@@ -286,7 +286,7 @@ public final class RepositoryData {
      * new indices in the repository.
      */
     public List<IndexId> resolveNewIndices(final List<String> indicesToResolve) {
-        List<IndexId> snapshotIndices = new ArrayList<>();
+        List<IndexId> snapshotIndices = new ArrayList<>(indicesToResolve.size());
         for (String index : indicesToResolve) {
             final IndexId indexId;
             if (indices.containsKey(index)) {

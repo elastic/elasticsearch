@@ -210,8 +210,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @return list of snapshots
      */
     public List<SnapshotInfo> currentSnapshots(final String repositoryName) {
-        List<SnapshotInfo> snapshotList = new ArrayList<>();
         List<SnapshotsInProgress.Entry> entries = currentSnapshots(repositoryName, Collections.emptyList());
+        List<SnapshotInfo> snapshotList = new ArrayList<>(entries.size());
         for (SnapshotsInProgress.Entry entry : entries) {
             snapshotList.add(inProgressSnapshot(entry));
         }

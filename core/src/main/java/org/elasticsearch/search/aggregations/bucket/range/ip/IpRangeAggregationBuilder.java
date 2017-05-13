@@ -368,7 +368,7 @@ public final class IpRangeAggregationBuilder
             SearchContext context, ValuesSourceConfig<ValuesSource.Bytes> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder)
                     throws IOException {
-        List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();
+        List<BinaryRangeAggregator.Range> ranges = new ArrayList<>(this.ranges.size());
         for (Range range : this.ranges) {
             ranges.add(new BinaryRangeAggregator.Range(range.key, toBytesRef(range.from), toBytesRef(range.to)));
         }

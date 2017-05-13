@@ -98,8 +98,8 @@ public final class ProviderMethodsModule implements Module {
 
         // prepare the parameter providers
         Set<Dependency<?>> dependencies = new HashSet<>();
-        List<Provider<?>> parameterProviders = new ArrayList<>();
         List<TypeLiteral<?>> parameterTypes = typeLiteral.getParameterTypes(method);
+        List<Provider<?>> parameterProviders = new ArrayList<>(parameterTypes.size());
         Annotation[][] parameterAnnotations = method.getParameterAnnotations();
         for (int i = 0; i < parameterTypes.size(); i++) {
             Key<?> key = getKey(errors, parameterTypes.get(i), method, parameterAnnotations[i]);

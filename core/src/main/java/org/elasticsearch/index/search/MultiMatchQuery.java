@@ -135,7 +135,7 @@ public class MultiMatchQuery extends MatchQuery {
                 return groupQuery.get(0);
             }
             if (groupDismax) {
-                List<Query> queries = new ArrayList<>();
+                List<Query> queries = new ArrayList<>(groupQuery.size());
                 for (Query query : groupQuery) {
                     queries.add(query);
                 }

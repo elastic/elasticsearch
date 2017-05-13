@@ -251,7 +251,7 @@ public class PendingClusterStatesQueue {
 
     /** returns all pending states, committed or not */
     public synchronized ClusterState[] pendingClusterStates() {
-        ArrayList<ClusterState> states = new ArrayList<>();
+        ArrayList<ClusterState> states = new ArrayList<>(pendingStates.size());
         for (ClusterStateContext context : pendingStates) {
             states.add(context.state);
         }

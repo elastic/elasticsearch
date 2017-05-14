@@ -25,9 +25,9 @@ public class BootstrapTests extends ESTestCase {
 
     public void testConfigDeprecation() {
         Bootstrap.checkConfigExtension(".json");
-        assertWarnings("elasticsearch.json is deprecated; rename your configuration file to elasticsearch.yaml");
-        Bootstrap.checkConfigExtension(".yml");
-        assertWarnings("elasticsearch.yml is deprecated; rename your configuration file to elasticsearch.yaml");
-        Bootstrap.checkConfigExtension(".yaml"); // no warnings, will be checked in @After
+        assertWarnings("elasticsearch.json is deprecated; rename your configuration file to elasticsearch.yml");
+        Bootstrap.checkConfigExtension(".yaml");
+        assertWarnings("elasticsearch.yaml is deprecated; rename your configuration file to elasticsearch.yml");
+        Bootstrap.checkConfigExtension(".yml"); // no warnings, will be checked in @After
     }
 }

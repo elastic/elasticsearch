@@ -60,7 +60,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContent {
         this.timedOut = timedOut;
     }
 
-    public BulkByScrollResponse(Collection<BulkByScrollResponse> toMerge, @Nullable String reasonCancelled) {
+    public BulkByScrollResponse(List<BulkByScrollResponse> toMerge, @Nullable String reasonCancelled) {
         long mergedTook = 0;
         bulkFailures = new ArrayList<>();
         searchFailures = new ArrayList<>();

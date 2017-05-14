@@ -427,7 +427,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         assertAcked(prepareCreate("test"));
 
         final String masterNode1 = internalCluster().getMasterName();
-        NetworkDisruption networkDisruption = new NetworkDisruption(new TwoPartitions(masterNode1, dataNode), new NetworkDisruption.NetworkUnresponsive());
+        NetworkDisruption networkDisruption =
+                new NetworkDisruption(new TwoPartitions(masterNode1, dataNode), new NetworkDisruption.NetworkUnresponsive());
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
         // We know this will time out due to the partition, we check manually below to not proceed until

@@ -61,7 +61,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     /**
-     * @return a {@link HasChildQueryBuilder} with random values all over the place
+     * @return a {@link NestedQueryBuilder} with random values all over the place
      */
     @Override
     protected NestedQueryBuilder doCreateTestQueryBuilder() {
@@ -202,5 +202,47 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         Query query = queryBuilder.rewrite(queryShardContext).toQuery(queryShardContext);
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testMinFromString() {
+        assertThat("fromString(min) != MIN", ScoreMode.Min, equalTo(NestedQueryBuilder.parseScoreMode("min")));
+        assertThat("min", equalTo(NestedQueryBuilder.scoreModeAsString(ScoreMode.Min)));
+    }
+
+    public void testMaxFromString() {
+        assertThat("fromString(max) != MAX", ScoreMode.Max, equalTo(NestedQueryBuilder.parseScoreMode("max")));
+        assertThat("max", equalTo(NestedQueryBuilder.scoreModeAsString(ScoreMode.Max)));
+    }
+
+    public void testAvgFromString() {
+        assertThat("fromString(avg) != AVG", ScoreMode.Avg, equalTo(NestedQueryBuilder.parseScoreMode("avg")));
+        assertThat("avg", equalTo(NestedQueryBuilder.scoreModeAsString(ScoreMode.Avg)));
+    }
+
+    public void testSumFromString() {
+        assertThat("fromString(total) != SUM", ScoreMode.Total, equalTo(NestedQueryBuilder.parseScoreMode("sum")));
+        assertThat("sum", equalTo(NestedQueryBuilder.scoreModeAsString(ScoreMode.Total)));
+    }
+
+    public void testNoneFromString() {
+        assertThat("fromString(none) != NONE", ScoreMode.None, equalTo(NestedQueryBuilder.parseScoreMode("none")));
+        assertThat("none", equalTo(NestedQueryBuilder.scoreModeAsString(ScoreMode.None)));
+    }
+
+    /**
+     * Should throw {@link IllegalArgumentException} instead of NPE.
+     */
+    public void testThatNullFromStringThrowsException() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> NestedQueryBuilder.parseScoreMode(null));
+        assertEquals("No score mode for child query [null] found", e.getMessage());
+    }
+
+    /**
+     * Failure should not change (and the value should never match anything...).
+     */
+    public void testThatUnrecognizedFromStringThrowsException() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> NestedQueryBuilder.parseScoreMode("unrecognized value"));
+        assertEquals("No score mode for child query [unrecognized value] found", e.getMessage());
     }
 }

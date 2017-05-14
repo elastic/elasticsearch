@@ -2099,9 +2099,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public String executor() {
-                if (1 == 1)
-                    return "same";
-
                 return randomFrom(executors);
             }
         };
@@ -2109,6 +2106,61 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.sendRequest(nodeA, "action",  new TestRequest(randomFrom("fail", "pass")), transportResponseHandler);
         serviceA.sendRequest(nodeA, "action",  new TestRequest(randomFrom("fail", "pass")), transportResponseHandler);
         latch.await();
+    }
+
+    public void testHandlerIsInvokedOnConnectionClose() throws IOException, InterruptedException {
+        List<String> executors = new ArrayList<>(ThreadPool.THREAD_POOL_TYPES.keySet());
+        CollectionUtil.timSort(executors); // makes sure it's reproducible
+        TransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
+        serviceC.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
+            (request, channel) -> {
+                // do nothing
+            });
+        serviceC.start();
+        serviceC.acceptIncomingRequests();
+        CountDownLatch latch = new CountDownLatch(1);
+        TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
+            @Override
+            public TransportResponse newInstance() {
+                return TransportResponse.Empty.INSTANCE;
+            }
+
+            @Override
+            public void handleResponse(TransportResponse response) {
+                try {
+                    fail("no response expected");
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                try {
+                    assertTrue(exp.getClass().toString(), exp instanceof NodeDisconnectedException);
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public String executor() {
+                return randomFrom(executors);
+            }
+        };
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1,
+            TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.PING,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG,
+            TransportRequestOptions.Type.STATE);
+        Transport.Connection connection = serviceB.openConnection(serviceC.getLocalNode(), builder.build());
+        serviceB.sendRequest(connection, "action",  new TestRequest(randomFrom("fail", "pass")), TransportRequestOptions.EMPTY,
+            transportResponseHandler);
+        connection.close();
+        latch.await();
+        serviceC.close();
     }
 
 }

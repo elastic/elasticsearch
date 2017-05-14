@@ -318,7 +318,7 @@ public class DynamicTemplate implements ToXContent {
     }
 
     private List processList(List list, String name, String dynamicType) {
-        List processedList = new ArrayList();
+        List processedList = new ArrayList(list.size());
         for (Object value : list) {
             if (value instanceof Map) {
                 value = processMap((Map<String, Object>) value, name, dynamicType);

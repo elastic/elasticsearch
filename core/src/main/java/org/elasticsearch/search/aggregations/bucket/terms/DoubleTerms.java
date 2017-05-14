@@ -164,7 +164,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         if (promoteToDouble == false) {
             return super.doReduce(aggregations, reduceContext);
         }
-        List<InternalAggregation> newAggs = new ArrayList<>();
+        List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof LongTerms) {
                 DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);

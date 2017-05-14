@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -34,7 +34,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class NetworkDisruptionIT extends AbstractDisruptionTestCase {
+public class NetworkDisruptionIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class);
@@ -44,7 +44,7 @@ public class NetworkDisruptionIT extends AbstractDisruptionTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         String[] nodeNames = internalCluster().getNodeNames();
         NetworkDisruption networkDisruption =
-                new NetworkDisruption(new TwoPartitions(nodeNames[0], nodeNames[1]), new NetworkUnresponsive());
+                new NetworkDisruption(new TwoPartitions(nodeNames[0], nodeNames[1]), new NetworkDisruption.NetworkUnresponsive());
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames[0]));

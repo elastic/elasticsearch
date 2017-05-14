@@ -410,6 +410,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         public TimeValue expectedTimeToHeal() {
             return TimeValue.timeValueMillis(0);
         }
+
     }
 
     /**
@@ -425,6 +426,80 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         @Override
         public String toString() {
             return "network disconnects";
+        }
+    }
+
+    /**
+     * Simulates an unresponsive target node by dropping requests sent from source to target node.
+     */
+    public static class NetworkUnresponsive extends NetworkLinkDisruptionType {
+
+        @Override
+        public void applyDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
+            sourceTransportService.addUnresponsiveRule(targetTransportService);
+        }
+
+        @Override
+        public String toString() {
+            return "network unresponsive";
+        }
+    }
+
+    /**
+     * Simulates slow or congested network. Delivery of requests that are sent from source to target node are delayed by a configurable
+     * time amount.
+     */
+    public static class NetworkDelay extends NetworkLinkDisruptionType {
+
+        public static TimeValue DEFAULT_DELAY_MIN = TimeValue.timeValueSeconds(10);
+        public static TimeValue DEFAULT_DELAY_MAX = TimeValue.timeValueSeconds(90);
+
+        private final TimeValue delay;
+
+        /**
+         * Delays requests by a fixed time value.
+         *
+         * @param delay time to delay requests
+         */
+        public NetworkDelay(TimeValue delay) {
+            this.delay = delay;
+        }
+
+        /**
+         * Delays requests by a random but fixed time value between {@link #DEFAULT_DELAY_MIN} and {@link #DEFAULT_DELAY_MAX}.
+         *
+         * @param random instance to use for randomization of delay
+         */
+        public static NetworkDelay random(Random random) {
+            return random(random, DEFAULT_DELAY_MIN, DEFAULT_DELAY_MAX);
+        }
+
+        /**
+         * Delays requests by a random but fixed time value between delayMin and delayMax.
+         *
+         * @param random   instance to use for randomization of delay
+         * @param delayMin minimum delay
+         * @param delayMax maximum delay
+         */
+        public static NetworkDelay random(Random random, TimeValue delayMin, TimeValue delayMax) {
+            return new NetworkDelay(TimeValue.timeValueMillis(delayMin.millis() == delayMax.millis() ?
+                    delayMin.millis() :
+                    delayMin.millis() + random.nextInt((int) (delayMax.millis() - delayMin.millis()))));
+        }
+
+        @Override
+        public void applyDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
+            sourceTransportService.addUnresponsiveRule(targetTransportService, delay);
+        }
+
+        @Override
+        public TimeValue expectedTimeToHeal() {
+            return delay;
+        }
+
+        @Override
+        public String toString() {
+            return "network delays for [" + delay + "]";
         }
     }
 

@@ -121,6 +121,8 @@ docker-compose up
 
 endif::[]
 
+WARNING: This is only an example of how to use `docker-compose`. Production clusters should always be 3 or more nodes.
+
 [NOTE]
 `docker-compose` is not pre-installed with Docker on Linux.
 Instructions for installing it can be found on the https://docs.docker.com/compose/install/#install-using-pip[docker-compose webpage].

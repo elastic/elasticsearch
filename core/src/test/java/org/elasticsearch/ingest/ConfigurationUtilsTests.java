@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.nio.channels.Pipe;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -140,15 +141,18 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(e2.getHeader("property_name"), is(nullValue()));
     }
 
-    public void testInlineProcessorThrowsException() {
-        List configInline = new ArrayList<>();
-        Map<String, Object> inlineScript = new HashMap<>();
-        inlineScript.put("script", "ctx.foo=bar");
-        configInline.add(inlineScript);
-        ElasticsearchParseException parseExceptionOnInlineScript =
-                expectThrows(ElasticsearchParseException.class,
-                        () -> ConfigurationUtils.readProcessorConfigs(configInline, new HashMap<>()));
-        assertThat(parseExceptionOnInlineScript.getMessage(), equalTo("Cannot use an inline processor in processors list"));
-    }
+    public void testParsingInlineScript(){
+        List<Map<String, Object>> inlineScriptProcessor = new ArrayList<Map<String, Object>>();
+        Map<String, Object> inlineScriptMap = new HashMap<String, Object>();
+        inlineScriptMap.put("script", "ctx.foo='bar'");
+        inlineScriptProcessor.add(inlineScriptMap);
+        Map<String, Object> config = new HashMap<>();
+        config.put(Pipeline.PROCESSORS_KEY, inlineScriptProcessor);
+        List<Map<String, Map<String, Object>>> processorConfigs = ConfigurationUtils.readList(null, null, config, Pipeline.PROCESSORS_KEY);
+        assertTrue("Script processor is not a Map instance", processorConfigs.get(0).get("script") instanceof Map);
 
+        assertThat(processorConfigs.get(0).get("script").get("inline"), equalTo("ctx.foo='bar'"));
+        assertThat(processorConfigs.get(0).get("script").get("lang"), equalTo("painless"));
+
+    }
 }

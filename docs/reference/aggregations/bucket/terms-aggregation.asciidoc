@@ -469,7 +469,7 @@ Generating the terms using a script:
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a stored script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -478,7 +478,7 @@ This will interpret the `script` parameter as an `inline` script with the defaul
         "genres" : {
             "terms" : {
                 "script" : {
-                    "id": "my_script",
+                    "stored": "my_script",
                     "params": {
                         "field": "genre"
                     }
@@ -488,7 +488,6 @@ This will interpret the `script` parameter as an `inline` script with the defaul
     }
 }
 --------------------------------------------------
-
 
 ==== Value Script
 

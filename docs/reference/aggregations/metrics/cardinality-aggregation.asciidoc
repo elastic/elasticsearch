@@ -173,7 +173,7 @@ however since hashes need to be computed on the fly.
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a stored script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -182,7 +182,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
         "author_count" : {
             "cardinality" : {
                 "script" : {
-                    "id": "my_script",
+                    "stored": "my_script",
                     "params": {
                         "first_name_field": "author.first_name",
                         "last_name_field": "author.last_name"

@@ -31,11 +31,11 @@ The following properties can be updated after the {dfeed} is created:
   (time units) The interval at which scheduled queries are made while the
   {dfeed} runs in real time. The default value is either the bucket span for short
   bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
-  span. For example: "150s".
+  span. For example: `150s`.
 
 `indices`::
   (array) An array of index names. Wildcards are supported. For example:
-  ["it_ops_metrics", "server*"].
+  `["it_ops_metrics", "server*"]`.
 
 `job_id`::
  (string) A numerical character string that uniquely identifies the job.
@@ -52,13 +52,21 @@ The following properties can be updated after the {dfeed} is created:
   example, if data from 10:04 a.m. might not be searchable in {es} until
   10:06 a.m., set this property to 120 seconds. The default value is `60s`.
 
+`script_fields`::
+  (object) Specifies scripts that evaluate custom expressions and returns
+  script fields to the {dfeed}.
+  The <<ml-detectorconfig,detector configuration objects>> in a job can contain
+  functions that use these script fields.
+  For more information,
+  see {ref}/search-request-script-fields.html[Script Fields].
+
 `scroll_size`::
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
 `types`::
   (array) A list of types to search for within the specified indices.
-  For example: ["network","sql","kpi"].
+  For example: `["network","sql","kpi"]`.
 
 For more information about these properties,
 see <<ml-datafeed-resource>>.

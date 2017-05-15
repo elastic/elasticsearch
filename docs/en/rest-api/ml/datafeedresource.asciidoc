@@ -8,18 +8,38 @@ A {dfeed} resource has the following properties:
   (object) If set, the {dfeed} performs aggregation searches.
   For syntax information, see {ref}/search-aggregations.html[Aggregations].
   Support for aggregations is limited and should only be used with
-  low cardinality data.
-  For example:
-  `{"@timestamp": {"histogram": {"field": "@timestamp",
-  "interval": 30000,"offset": 0,"order": {"_key": "asc"},"keyed": false,
-  "min_doc_count": 0}, "aggregations": {"events_per_min": {"sum": {
-  "field": "events_per_min"}}}}}`.
+  low cardinality data. For example:
++
+--
+[source,js]
+----------------------------------
+{
+  "@timestamp": {
+    "histogram": {
+      "field": "@timestamp",
+      "interval": 30000,
+      "offset": 0,
+      "order": {"_key": "asc"},
+      "keyed": false,
+      "min_doc_count": 0
+    },
+    "aggregations": {
+      "events_per_min": {
+        "sum": {
+          "field": "events_per_min"
+        }
+      }
+    }
+  }
+}
+----------------------------------
+--
 
 //TBD link to a Working with aggregations page
 `chunking_config`::
   (object) Specifies how data searches are split into time chunks.
   See <<ml-datafeed-chunking-config>>.
-  For example: {"mode": "manual", "time_span": "3h"}
+  For example: `{"mode": "manual", "time_span": "3h"}`
 
 `datafeed_id`::
  (string) A numerical character string that uniquely identifies the {dfeed}.
@@ -28,10 +48,10 @@ A {dfeed} resource has the following properties:
   (time units) The interval at which scheduled queries are made while the
   {dfeed} runs in real time. The default value is either the bucket span for short
   bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
-  span. For example: "150s"
+  span. For example: `150s`.
 
 `indices`::
-  (array) An array of index names. For example: ["it_ops_metrics"]
+  (array) An array of index names. For example: `["it_ops_metrics"]`
 
 `job_id`::
  (string) The unique identifier for the job to which the {dfeed} sends data.
@@ -48,13 +68,37 @@ A {dfeed} resource has the following properties:
   example, if data from 10:04 a.m. might not be searchable in {es} until
   10:06 a.m., set this property to 120 seconds. The default value is `60s`.
 
+`script_fields`::
+  (object) Specifies scripts that evaluate custom expressions and returns
+  script fields to the {dfeed}.
+  The <<ml-detectorconfig,detector configuration objects>> in a job can contain
+  functions that use these script fields.
+  For more information, see {ref}/search-request-script-fields.html[Script Fields].
+  For example:
++
+--
+[source,js]
+----------------------------------
+{
+  "script_fields": {
+    "total_error_count": {
+      "script": {
+        "lang": "painless",
+        "inline": "doc['error_count'].value + doc['aborted_count'].value"
+      }
+    }
+  }
+}
+----------------------------------
+--
+
 `scroll_size`::
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
 `types`::
   (array) A list of types to search for within the specified indices.
-  For example: ["network","sql","kpi"].
+  For example: `["network","sql","kpi"]`.
 
 [[ml-datafeed-chunking-config]]
 ===== Chunking Configuration Objects
@@ -76,7 +120,7 @@ A chunking configuration object has the following properties:
 `time_span`::
   (time units) The time span that each search will be querying.
   This setting is only applicable when the mode is set to `manual`.
-  For example: "3h".
+  For example: `3h`.
 
 [float]
 [[ml-datafeed-counts]]
@@ -97,11 +141,11 @@ progress of a {dfeed}. For example:
   be on the same node.
   `id`::: The unique identifier of the node. For example,
   "0-o0tOoRTwKFZifatTWKNw".
-  `name`::: The node name. For example, "0-o0tOo".
+  `name`::: The node name. For example, `0-o0tOo`.
   `ephemeral_id`::: The node ephemeral ID.
   `transport_address`::: The host and port where transport HTTP connections are
-  accepted. For example, "127.0.0.1:9300".
-  `attributes`::: For example, {"max_running_jobs": "10"}.
+  accepted. For example, `127.0.0.1:9300`.
+  `attributes`::: For example, `{"max_running_jobs": "10"}`.
 
 `state`::
   (string) The status of the {dfeed}, which can be one of the following values: +

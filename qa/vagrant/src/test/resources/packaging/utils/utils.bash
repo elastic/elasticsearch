@@ -497,10 +497,6 @@ run_elasticsearch_tests() {
     curl -s -XGET 'http://localhost:9200/_count?pretty' |
       grep \"count\"\ :\ 2
 
-    curl -s -H "Content-Type: application/json" -XGET 'http://localhost:9200/library/book/_search/template?pretty' -d '{
-      "id": "is_guide"
-    }' | grep \"total\"\ :\ 1
-
     curl -s -XDELETE 'http://localhost:9200/_all'
 }
 

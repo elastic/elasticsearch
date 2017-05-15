@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.fielddata.cache;
 
+import java.util.Collections;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -129,9 +130,8 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             //noinspection unchecked
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
                 context.reader().addCoreClosedListener(IndexFieldCache.this);
-                for (Listener listener : this.listeners) {
-                    k.listeners.add(listener);
-                }
+                Collections.addAll(k.listeners, this.listeners);
+                
                 final AtomicFieldData fieldData = indexFieldData.loadDirect(context);
                 for (Listener listener : k.listeners) {
                     try {
@@ -153,9 +153,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             //noinspection unchecked
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
                 ElasticsearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
-                for (Listener listener : this.listeners) {
-                    k.listeners.add(listener);
-                }
+                Collections.addAll(k.listeners, this.listeners);
                 final Accountable ifd = (Accountable) indexFieldData.localGlobalDirect(indexReader);
                 for (Listener listener : k.listeners) {
                     try {

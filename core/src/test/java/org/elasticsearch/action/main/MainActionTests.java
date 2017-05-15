@@ -108,13 +108,13 @@ public class MainActionTests extends ESTestCase {
             } else {
                 blocks = ClusterBlocks.builder()
                     .addGlobalBlock(new ClusterBlock(randomIntBetween(1, 16), "test global block 400", randomBoolean(), randomBoolean(),
-                        RestStatus.BAD_REQUEST, ClusterBlockLevel.ALL))
+                        RestStatus.BAD_REQUEST, ClusterBlockLevel.ALL, false))
                     .build();
             }
         } else {
             blocks = ClusterBlocks.builder()
                 .addGlobalBlock(new ClusterBlock(randomIntBetween(1, 16), "test global block 503", randomBoolean(), randomBoolean(),
-                    RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL))
+                    RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL, false))
                 .build();
         }
         ClusterState state = ClusterState.builder(clusterName).blocks(blocks).build();

@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.discovery.Discovery;
@@ -307,6 +308,22 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         } finally {
             setClusterReadOnly(false);
+        }
+
+        // Cluster settings updates are blocked when the cluster is read only
+        try {
+        // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
+            Settings settings = Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+            assertBlocked(request, MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+
+            // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
+            settings = Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+
+        } finally {
+            Settings s = Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(s).get());
         }
 
         // It should work now

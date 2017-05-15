@@ -111,7 +111,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
         this.engines = scriptEngineRegistry.getRegisteredLanguages();
-        this.scriptModes = new ScriptModes(scriptSettings, settings);
+        this.scriptModes = new ScriptModes(scriptContextRegistry, scriptSettings, settings);
         this.lastInlineCompileTime = System.nanoTime();
         this.setMaxCompilationsPerMinute(SCRIPT_MAX_COMPILATIONS_PER_MINUTE.get(settings));
     }
@@ -433,7 +433,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     private boolean canExecuteScript(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         assert lang != null;
-        if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
+        if (scriptContextRegistry.isSupportedContext(scriptContext.getKey()) == false) {
             throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
         }
         return scriptModes.getScriptEnabled(lang, scriptType, scriptContext);

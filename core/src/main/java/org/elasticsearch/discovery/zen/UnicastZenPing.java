@@ -116,7 +116,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     private final int limitPortCounts;
 
-    private volatile PingContextProvider contextProvider;
+    private final PingContextProvider contextProvider;
 
     private final AtomicInteger pingingRoundIdGenerator = new AtomicInteger();
 
@@ -137,12 +137,13 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     private volatile boolean closed = false;
 
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                          UnicastHostsProvider unicastHostsProvider) {
+                          UnicastHostsProvider unicastHostsProvider, PingContextProvider contextProvider) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.hostsProvider = unicastHostsProvider;
+        this.contextProvider = contextProvider;
 
         final int concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
         if (DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.exists(settings)) {
@@ -260,8 +261,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     }
 
     @Override
-    public void start(PingContextProvider contextProvider) {
-        this.contextProvider = contextProvider;
+    public void start() {
     }
 
     /**

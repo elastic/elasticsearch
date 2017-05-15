@@ -569,7 +569,7 @@ public class TransportService extends AbstractLifecycleComponent {
             }
             Supplier<ThreadContext.StoredContext> storedContextSupplier = threadPool.getThreadContext().newRestorableContext(true);
             TransportResponseHandler<T> responseHandler = new ContextRestoreResponseHandler<>(storedContextSupplier, handler);
-            clientHandlers.put(requestId, new RequestHolder<>(responseHandler, connection.getNode(), action, timeoutHandler));
+            clientHandlers.put(requestId, new RequestHolder<>(responseHandler, connection, action, timeoutHandler));
             if (lifecycle.stoppedOrClosed()) {
                 // if we are not started the exception handling will remove the RequestHolder again and calls the handler to notify
                 // the caller. It will only notify if the toStop code hasn't done the work yet.
@@ -810,7 +810,7 @@ public class TransportService extends AbstractLifecycleComponent {
             }
             holder.cancelTimeout();
             if (traceEnabled() && shouldTraceAction(holder.action())) {
-                traceReceivedResponse(requestId, holder.node(), holder.action());
+                traceReceivedResponse(requestId, holder.connection().getNode(), holder.action());
             }
             return holder.handler();
         }
@@ -855,12 +855,12 @@ public class TransportService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void onConnectionOpened(DiscoveryNode node) {
+        public void onConnectionOpened(Transport.Connection connection) {
             // capture listeners before spawning the background callback so the following pattern won't trigger a call
             // connectToNode(); connection is completed successfully
             // addConnectionListener(); this listener shouldn't be called
             final Stream<TransportConnectionListener> listenersToNotify = TransportService.this.connectionListeners.stream();
-            threadPool.generic().execute(() -> listenersToNotify.forEach(listener -> listener.onConnectionOpened(node)));
+            threadPool.generic().execute(() -> listenersToNotify.forEach(listener -> listener.onConnectionOpened(connection)));
         }
 
         @Override
@@ -871,20 +871,28 @@ public class TransportService extends AbstractLifecycleComponent {
                         connectionListener.onNodeDisconnected(node);
                     }
                 });
+            } catch (EsRejectedExecutionException ex) {
+                logger.debug("Rejected execution on NodeDisconnected", ex);
+            }
+        }
+
+        @Override
+        public void onConnectionClosed(Transport.Connection connection) {
+            try {
                 for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
                     RequestHolder holder = entry.getValue();
-                    if (holder.node().equals(node)) {
+                    if (holder.connection().getCacheKey().equals(connection.getCacheKey())) {
                         final RequestHolder holderToNotify = clientHandlers.remove(entry.getKey());
                         if (holderToNotify != null) {
                             // callback that an exception happened, but on a different thread since we don't
                             // want handlers to worry about stack overflows
-                            threadPool.generic().execute(() -> holderToNotify.handler().handleException(new NodeDisconnectedException(node,
-                                holderToNotify.action())));
+                            threadPool.generic().execute(() -> holderToNotify.handler().handleException(new NodeDisconnectedException(
+                                connection.getNode(), holderToNotify.action())));
                         }
                     }
                 }
             } catch (EsRejectedExecutionException ex) {
-                logger.debug("Rejected execution on NodeDisconnected", ex);
+                logger.debug("Rejected execution on onConnectionClosed", ex);
             }
         }
 
@@ -929,13 +937,14 @@ public class TransportService extends AbstractLifecycleComponent {
             if (holder != null) {
                 // add it to the timeout information holder, in case we are going to get a response later
                 long timeoutTime = System.currentTimeMillis();
-                timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(holder.node(), holder.action(), sentTime, timeoutTime));
+                timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(holder.connection().getNode(), holder.action(), sentTime,
+                    timeoutTime));
                 // now that we have the information visible via timeoutInfoHandlers, we try to remove the request id
                 final RequestHolder removedHolder = clientHandlers.remove(requestId);
                 if (removedHolder != null) {
                     assert removedHolder == holder : "two different holder instances for request [" + requestId + "]";
                     removedHolder.handler().handleException(
-                        new ReceiveTimeoutTransportException(holder.node(), holder.action(),
+                        new ReceiveTimeoutTransportException(holder.connection().getNode(), holder.action(),
                             "request_id [" + requestId + "] timed out after [" + (timeoutTime - sentTime) + "ms]"));
                 } else {
                     // response was processed, remove timeout info.
@@ -990,15 +999,15 @@ public class TransportService extends AbstractLifecycleComponent {
 
         private final TransportResponseHandler<T> handler;
 
-        private final DiscoveryNode node;
+        private final Transport.Connection connection;
 
         private final String action;
 
         private final TimeoutHandler timeoutHandler;
 
-        RequestHolder(TransportResponseHandler<T> handler, DiscoveryNode node, String action, TimeoutHandler timeoutHandler) {
+        RequestHolder(TransportResponseHandler<T> handler, Transport.Connection connection, String action, TimeoutHandler timeoutHandler) {
             this.handler = handler;
-            this.node = node;
+            this.connection = connection;
             this.action = action;
             this.timeoutHandler = timeoutHandler;
         }
@@ -1007,8 +1016,8 @@ public class TransportService extends AbstractLifecycleComponent {
             return handler;
         }
 
-        public DiscoveryNode node() {
-            return this.node;
+        public Transport.Connection connection() {
+            return this.connection;
         }
 
         public String action() {

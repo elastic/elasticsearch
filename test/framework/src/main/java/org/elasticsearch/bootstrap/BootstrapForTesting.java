@@ -201,7 +201,7 @@ public class BootstrapForTesting {
         codebases.removeAll(excluded);
 
         // parse each policy file, with codebase substitution from the classpath
-        final List<Policy> policies = new ArrayList<>();
+        final List<Policy> policies = new ArrayList<>(pluginPolicies.size());
         for (URL policyFile : pluginPolicies) {
             policies.add(Security.readPolicy(policyFile, codebases));
         }

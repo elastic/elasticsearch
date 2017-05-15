@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.single.SingleNodeDiscovery;
@@ -44,26 +45,23 @@ import static org.elasticsearch.tribe.TribeService.TRIBE_WRITE_BLOCK;
 public class TribeDiscovery extends SingleNodeDiscovery implements Discovery {
 
     @Inject
-    public TribeDiscovery(Settings settings, TransportService transportService, ClusterApplier clusterApplier) {
-        super(settings, transportService, clusterApplier);
+    public TribeDiscovery(Settings settings, TransportService transportService,
+                          MasterService masterService, ClusterApplier clusterApplier) {
+        super(settings, transportService, masterService, clusterApplier);
     }
 
     @Override
-    public synchronized ClusterState getInitialClusterState() {
-        if (initialState == null) {
-            ClusterBlocks.Builder clusterBlocks = ClusterBlocks.builder(); // don't add no_master / state recovery block
-            if (BLOCKS_WRITE_SETTING.get(settings)) {
-                clusterBlocks.addGlobalBlock(TRIBE_WRITE_BLOCK);
-            }
-            if (BLOCKS_METADATA_SETTING.get(settings)) {
-                clusterBlocks.addGlobalBlock(TRIBE_METADATA_BLOCK);
-            }
-            DiscoveryNode localNode = transportService.getLocalNode();
-            initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-                .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
-                .blocks(clusterBlocks).build();
+    protected ClusterState createInitialState(DiscoveryNode localNode) {
+        ClusterBlocks.Builder clusterBlocks = ClusterBlocks.builder(); // don't add no_master / state recovery block
+        if (BLOCKS_WRITE_SETTING.get(settings)) {
+            clusterBlocks.addGlobalBlock(TRIBE_WRITE_BLOCK);
         }
-        return initialState;
+        if (BLOCKS_METADATA_SETTING.get(settings)) {
+            clusterBlocks.addGlobalBlock(TRIBE_METADATA_BLOCK);
+        }
+        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
+            .blocks(clusterBlocks).build();
     }
 
     @Override

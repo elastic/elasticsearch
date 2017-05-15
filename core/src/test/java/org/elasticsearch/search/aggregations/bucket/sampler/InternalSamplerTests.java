@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 

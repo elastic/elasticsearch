@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -73,7 +74,12 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
-    protected List<B> getBucketsInternal() {
+    public Iterator<SignificantTerms.Bucket> iterator() {
+        return buckets.stream().map(bucket -> (SignificantTerms.Bucket) bucket).collect(Collectors.toList()).iterator();
+    }
+
+    @Override
+    public List<B> getBuckets() {
         return buckets;
     }
 

@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.List;
@@ -28,54 +26,26 @@ import java.util.List;
  * An aggregation that collects significant terms in comparison to a background set.
  */
 public interface SignificantTerms extends MultiBucketsAggregation, Iterable<SignificantTerms.Bucket> {
-    abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
 
-        long subsetDf;
-        long subsetSize;
-        long supersetDf;
-        long supersetSize;
+    interface Bucket extends MultiBucketsAggregation.Bucket {
 
-        Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize) {
-            this.subsetSize = subsetSize;
-            this.supersetSize = supersetSize;
-            this.subsetDf = subsetDf;
-            this.supersetDf = supersetDf;
-        }
+        double getSignificanceScore();
 
-        /**
-         * Read from a stream.
-         */
-        protected Bucket(StreamInput in, long subsetSize, long supersetSize) {
-            this.subsetSize = subsetSize;
-            this.supersetSize = supersetSize;
-        }
+        Number getKeyAsNumber();
 
-        abstract int compareTerm(SignificantTerms.Bucket other);
+        long getSubsetDf();
 
-        public abstract double getSignificanceScore();
+        long getSupersetDf();
 
-        abstract Number getKeyAsNumber();
+        long getSupersetSize();
 
-        public long getSubsetDf() {
-            return subsetDf;
-        }
+        long getSubsetSize();
 
-        public long getSupersetDf() {
-            return supersetDf;
-        }
-
-        public long getSupersetSize() {
-            return supersetSize;
-        }
-
-        public long getSubsetSize() {
-            return subsetSize;
-        }
-
+        int compareTerm(SignificantTerms.Bucket other);
     }
 
     @Override
-    List<Bucket> getBuckets();
+    List<? extends Bucket> getBuckets();
 
     /**
      * Get the bucket for the given term, or null if there is no such bucket.

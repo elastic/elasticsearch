@@ -91,9 +91,9 @@ security of the Elasticsearch deployment.
 [float]
 === Allowed script types setting
 
-By default all script types are allowed to be executed.  This can modified using the
-setting `script.allowed_types`.  Should this setting be used, only the types specified
-as part of the setting will be allowed to be executed.
+By default all script types are allowed to be executed.  This can be modified using the
+setting `script.allowed_types`.  Only the types specified as part of the setting will be
+allowed to be executed.
 
 [source,yaml]
 ----
@@ -106,9 +106,9 @@ script.allowed_types: inline <1>
 [float]
 === Allowed script contexts setting
 
-By default all script contexts are allowed to be executed.  This can modified using the
-setting `script.allowed_contexts`.  Should this setting be used, only the contexts specified
-as part of the setting will be allowed to be executed.
+By default all script contexts are allowed to be executed.  This can be modified using the
+setting `script.allowed_contexts`.  Only the contexts specified as part of the setting will
+be allowed to be executed.
 
 [source,yaml]
 ----

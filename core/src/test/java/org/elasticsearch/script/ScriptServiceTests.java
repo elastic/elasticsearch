@@ -408,7 +408,7 @@ public class ScriptServiceTests extends ESTestCase {
         do {
             pluginName = randomAlphaOfLength(randomIntBetween(1, 10));
             unknownContext = randomAlphaOfLength(randomIntBetween(1, 30));
-        } while(scriptContextRegistry.isSupportedContext(new ScriptContext.Plugin(pluginName, unknownContext)));
+        } while(scriptContextRegistry.isSupportedContext(new ScriptContext.Plugin(pluginName, unknownContext).getKey()));
 
         String type = scriptEngine.getType();
         try {

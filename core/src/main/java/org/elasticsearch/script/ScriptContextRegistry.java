@@ -68,13 +68,6 @@ public final class ScriptContextRegistry {
         return scriptContexts.containsKey(scriptContext);
     }
 
-    /**
-     * @return <tt>true</tt> if the provided {@link ScriptContext} is supported, <tt>false</tt> otherwise
-     */
-    boolean isSupportedContext(ScriptContext scriptContext) {
-        return scriptContexts.containsKey(scriptContext.getKey());
-    }
-
     //script contexts can be used in fine-grained settings, we need to be careful with what we allow here
     private void validateScriptContext(ScriptContext.Plugin scriptContext) {
         if (RESERVED_SCRIPT_CONTEXTS.contains(scriptContext.getPluginName())) {

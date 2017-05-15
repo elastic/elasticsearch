@@ -511,7 +511,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     private boolean canExecuteScript(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         assert lang != null;
-        if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
+        if (scriptContextRegistry.isSupportedContext(scriptContext.getKey()) == false) {
             throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
         }
         return scriptModes.getScriptEnabled(lang, scriptType, scriptContext);

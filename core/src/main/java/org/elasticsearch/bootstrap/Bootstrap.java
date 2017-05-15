@@ -416,9 +416,9 @@ final class Bootstrap {
 
     // pkg private for tests
     static void checkConfigExtension(String extension) {
-        if (".yml".equals(extension) || ".json".equals(extension)) {
+        if (".yaml".equals(extension) || ".json".equals(extension)) {
             final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Bootstrap.class));
-            deprecationLogger.deprecated("elasticsearch{} is deprecated; rename your configuration file to elasticsearch.yaml", extension);
+            deprecationLogger.deprecated("elasticsearch{} is deprecated; rename your configuration file to elasticsearch.yml", extension);
         }
     }
 

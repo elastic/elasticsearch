@@ -18,9 +18,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xpack.security.InternalClient;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
@@ -52,7 +51,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
         searchRequest.source()
                 .query(QueryBuilders.boolQuery()
                         .filter(QueryBuilders.termQuery("doc_type", TokenService.DOC_TYPE))
-                        .filter(QueryBuilders.rangeQuery("expiration_time").lte(DateTime.now(DateTimeZone.UTC))));
+                        .filter(QueryBuilders.rangeQuery("expiration_time").lte(Instant.now().toEpochMilli())));
         client.execute(DeleteByQueryAction.INSTANCE, dbq, ActionListener.wrap(r -> markComplete(),
                 e -> {
                     if (isShardNotAvailableException(e) == false) {

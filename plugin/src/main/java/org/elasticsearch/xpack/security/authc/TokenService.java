@@ -60,9 +60,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -87,7 +86,6 @@ public final class TokenService extends AbstractComponent {
     private static final int IV_BYTES = 12;
     private static final int VERSION_BYTES = 4;
     private static final String ENCRYPTION_CIPHER = "AES/GCM/NoPadding";
-    private static final DateTimeFormatter DEFAULT_DATE_PRINTER = DateTimeFormatter.ISO_DATE_TIME.withZone(ZoneOffset.UTC);
     private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\"" + XPackPlugin.SECURITY +
             "\", error=\"invalid_token\", error_description=\"The access token expired\"";
     private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\"" + XPackPlugin.SECURITY +
@@ -170,7 +168,7 @@ public final class TokenService extends AbstractComponent {
     public UserToken createUserToken(Authentication authentication)
             throws IOException, GeneralSecurityException {
         ensureEnabled();
-        final ZonedDateTime expiration = getExpirationTime();
+        final Instant expiration = getExpirationTime();
         return new UserToken(authentication, expiration);
     }
 
@@ -186,7 +184,7 @@ public final class TokenService extends AbstractComponent {
                 try {
                     decodeToken(token, ActionListener.wrap(userToken -> {
                         if (userToken != null) {
-                            ZonedDateTime currentTime = clock.instant().atZone(ZoneOffset.UTC);
+                            Instant currentTime = clock.instant();
                             if (currentTime.isAfter(userToken.getExpirationTime())) {
                                 // token expired
                                 listener.onFailure(expiredTokenException());
@@ -208,7 +206,7 @@ public final class TokenService extends AbstractComponent {
         }
     }
 
-    private void decodeToken(String token, ActionListener<UserToken> listener) throws IOException {
+    void decodeToken(String token, ActionListener<UserToken> listener) throws IOException {
         // We intentionally do not use try-with resources since we need to keep the stream open if we need to compute a key!
         StreamInput in = new InputStreamStreamInput(
                 Base64.getDecoder().wrap(new ByteArrayInputStream(token.getBytes(StandardCharsets.UTF_8))));
@@ -267,14 +265,14 @@ public final class TokenService extends AbstractComponent {
                 decodeToken(tokenString, ActionListener.wrap(userToken -> {
                     if (userToken == null) {
                         listener.onFailure(malformedTokenException());
-                    } else if (userToken.getExpirationTime().isBefore(clock.instant().atZone(ZoneOffset.UTC))) {
+                    } else if (userToken.getExpirationTime().isBefore(clock.instant())) {
                         // no need to invalidate - it's already expired
                         listener.onResponse(false);
                     } else {
                         final String id = userToken.getId();
                         internalClient.prepareIndex(INDEX_NAME, TYPE, id)
                                 .setOpType(OpType.CREATE)
-                                .setSource("doc_type", DOC_TYPE, "expiration_time", DEFAULT_DATE_PRINTER.format(getExpirationTime()))
+                                .setSource("doc_type", DOC_TYPE, "expiration_time", getExpirationTime().toEpochMilli())
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                                 .execute(new ActionListener<IndexResponse>() {
                                     @Override
@@ -353,8 +351,8 @@ public final class TokenService extends AbstractComponent {
         return expirationDelay;
     }
 
-    private ZonedDateTime getExpirationTime() {
-        return clock.instant().plusSeconds(expirationDelay.getSeconds()).atZone(ZoneOffset.UTC);
+    private Instant getExpirationTime() {
+        return clock.instant().plusSeconds(expirationDelay.getSeconds());
     }
 
     private void maybeStartTokenRemover() {

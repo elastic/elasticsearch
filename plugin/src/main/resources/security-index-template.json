@@ -138,7 +138,7 @@
         },
         "expiration_time": {
           "type": "date",
-          "format": "date_time"
+          "format": "epoch_millis"
         },
         "roles": {
           "type": "keyword"

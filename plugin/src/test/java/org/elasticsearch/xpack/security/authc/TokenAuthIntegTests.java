@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.security.action.token.InvalidateTokenResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.After;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -83,19 +86,30 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    public void testExpireMultipleTimes() {
+    public void testExpireMultipleTimes() throws Exception {
         CreateTokenResponse response = securityClient().prepareCreateToken()
                 .setGrantType("password")
                 .setUsername(SecuritySettingsSource.DEFAULT_USER_NAME)
                 .setPassword(new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))
                 .get();
-        Instant created = Instant.now();
 
         InvalidateTokenResponse invalidateResponse = securityClient().prepareInvalidateToken(response.getTokenString()).get();
+
         // if the token is expired then the API will return false for created so we need to handle that
-        final boolean correctResponse = invalidateResponse.isCreated() || created.plusSeconds(1L).isBefore(Instant.now());
+        final boolean correctResponse = invalidateResponse.isCreated() || isTokenExpired(response.getTokenString());
         assertTrue(correctResponse);
         assertFalse(securityClient().prepareInvalidateToken(response.getTokenString()).get().isCreated());
+    }
+
+    private static boolean isTokenExpired(String token) {
+        try {
+            TokenService tokenService = internalCluster().getInstance(TokenService.class);
+            PlainActionFuture<UserToken> tokenFuture = new PlainActionFuture<>();
+            tokenService.decodeToken(token, tokenFuture);
+            return tokenFuture.actionGet().getExpirationTime().isBefore(Instant.now());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @After

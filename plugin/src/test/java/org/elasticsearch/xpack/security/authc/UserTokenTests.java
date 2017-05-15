@@ -13,15 +13,14 @@ import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.Instant;
 
 public class UserTokenTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final Authentication authentication = new Authentication(new User("joe", "a role"), new RealmRef("realm", "native", "node1"), null);
         final int seconds = randomIntBetween(0, Math.toIntExact(TimeValue.timeValueMinutes(30L).getSeconds()));
-        final ZonedDateTime expirationTime = Clock.systemUTC().instant().atZone(ZoneOffset.UTC).plusSeconds(seconds);
+        final Instant expirationTime = Clock.systemUTC().instant().plusSeconds(seconds);
         final UserToken userToken = new UserToken(authentication, expirationTime);
 
         BytesStreamOutput output = new BytesStreamOutput();

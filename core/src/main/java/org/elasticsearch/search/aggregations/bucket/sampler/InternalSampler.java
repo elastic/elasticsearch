@@ -29,6 +29,8 @@ import java.util.Map;
 
 public class InternalSampler extends InternalSingleBucketAggregation implements Sampler {
     public static final String NAME = "mapped_sampler";
+    // InternalSampler and UnmappedSampler share the same parser name, so we use this when identifying the aggregation type
+    public static final String PARSER_NAME = "sampler";
 
     InternalSampler(String name, long docCount, InternalAggregations subAggregations, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
@@ -49,7 +51,7 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
 
     @Override
     public String getType() {
-        return NAME;
+        return PARSER_NAME;
     }
 
     @Override

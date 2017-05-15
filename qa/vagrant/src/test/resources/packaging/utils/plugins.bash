@@ -173,8 +173,6 @@ install_and_check_plugin() {
 # $2 description of the source of the plugin list
 compare_plugins_list() {
     cat $1 | sort > /tmp/plugins
-    ls /elasticsearch/plugins/*/build.gradle | cut -d '/' -f 4 |
-        sort > /tmp/expected
     echo "Checking plugins from $2 (<) against expected plugins (>):"
-    diff /tmp/expected /tmp/plugins
+    diff -w /elasticsearch/qa/vagrant/build/plugins/expected /tmp/plugins
 }

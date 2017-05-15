@@ -229,9 +229,8 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
             // Merge new candidates into existing ones,
             // deduping:
             final Set<Candidate> set = new HashSet<>(candidates);
-            for (int i = 0; i < this.candidates.length; i++) {
-                set.add(this.candidates[i]);
-            }
+            Collections.addAll(set, this.candidates);
+
             this.candidates = set.toArray(new Candidate[set.size()]);
             // Sort strongest to weakest:
             Arrays.sort(this.candidates, Collections.reverseOrder());

@@ -43,10 +43,11 @@ a number of clients that have been contributed by the community for various lang
 [[coldfusion]]
 == ColdFusion (CFML)
 
+* https://www.forgebox.io/view/cbelasticsearch[cbElasticSearch]
+  Native ColdFusion (CFML) support for the ColdBox MVC Platform which provides you with a fluent search interface for Elasticsearch, in addition to a CacheBox Cache provider and a Logbox Appender for logging.
+
 The following project appears to be abandoned:
 
-* https://www.forgebox.io/view/cbelasticsearch[cbElasticSearch]
-  Elasticsearch support for the ColdBox MVC Platform which provides you with a fluent search interface for Elasticsearch, in addition to a CacheBox Cache provider and a Logbox Appender for logging.
 * https://github.com/jasonfill/ColdFusion-ElasticSearch-Client[ColdFusion-Elasticsearch-Client]
   ColdFusion client for Elasticsearch
 

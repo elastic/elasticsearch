@@ -27,3 +27,5 @@ dependencies {
     }
   }
 }
+
+tasks."vagrantCentos6#packagingTest".onlyIf { false } // fails, see https://github.com/elastic/elasticsearch/issues/24645

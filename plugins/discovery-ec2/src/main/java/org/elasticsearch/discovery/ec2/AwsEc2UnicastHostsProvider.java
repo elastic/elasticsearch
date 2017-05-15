@@ -125,8 +125,8 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
                 // lets see if we can filter based on groups
                 if (!groups.isEmpty()) {
                     List<GroupIdentifier> instanceSecurityGroups = instance.getSecurityGroups();
-                    ArrayList<String> securityGroupNames = new ArrayList<String>();
-                    ArrayList<String> securityGroupIds = new ArrayList<String>();
+                    List<String> securityGroupNames = new ArrayList<>(instanceSecurityGroups.size());
+                    List<String> securityGroupIds = new ArrayList<>(instanceSecurityGroups.size());
                     for (GroupIdentifier sg : instanceSecurityGroups) {
                         securityGroupNames.add(sg.getGroupName());
                         securityGroupIds.add(sg.getGroupId());

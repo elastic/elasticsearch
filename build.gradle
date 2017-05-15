@@ -138,6 +138,7 @@ subprojects {
     "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
     "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',
     "org.elasticsearch.plugin:lang-mustache-client:${version}": ':modules:lang-mustache',
+    "org.elasticsearch.plugin:parent-join-client:${version}": ':modules:parent-join',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
   ]
   project.afterEvaluate {

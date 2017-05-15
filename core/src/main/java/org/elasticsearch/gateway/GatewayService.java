@@ -42,7 +42,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -93,10 +92,10 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     @Inject
     public GatewayService(Settings settings, AllocationService allocationService, ClusterService clusterService,
                           ThreadPool threadPool, GatewayMetaState metaState,
-                          TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
+                          TransportNodesListGatewayMetaState listGatewayMetaState,
                           IndicesService indicesService) {
         super(settings);
-        this.gateway = new Gateway(settings, clusterService, metaState, listGatewayMetaState, discovery,
+        this.gateway = new Gateway(settings, clusterService, metaState, listGatewayMetaState,
             indicesService);
         this.allocationService = allocationService;
         this.clusterService = clusterService;
@@ -225,10 +224,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 });
             }
         }
-    }
-
-    public Gateway getGateway() {
-        return gateway;
     }
 
     class GatewayRecoveryListener implements Gateway.GatewayStateRecoveredListener {

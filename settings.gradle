@@ -34,6 +34,7 @@ List projects = [
   'modules:lang-expression',
   'modules:lang-mustache',
   'modules:lang-painless',
+  'modules:parent-join',
   'modules:percolator',
   'modules:reindex',
   'modules:repository-url',
@@ -72,7 +73,7 @@ List projects = [
   'qa:smoke-test-ingest-disabled',
   'qa:smoke-test-multinode',
   'qa:smoke-test-plugins',
-  'qa:smoke-test-reindex-with-painless',
+  'qa:smoke-test-reindex-with-all-modules',
   'qa:smoke-test-tribe-node',
   'qa:vagrant',
   'qa:wildfly'

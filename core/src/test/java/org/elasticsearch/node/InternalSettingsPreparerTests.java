@@ -150,38 +150,24 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         }
     }
 
-    public void testMultipleSettingsFileNotAllowed() throws IOException {
-        InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.yaml");
-        InputStream json = getClass().getResourceAsStream("/config/elasticsearch.json");
+    public void testYamlNotAllowed() throws IOException {
+        InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.yml");
         Path config = homeDir.resolve("config");
         Files.createDirectory(config);
         Files.copy(yaml, config.resolve("elasticsearch.yaml"));
-        Files.copy(json, config.resolve("elasticsearch.json"));
-
         SettingsException e = expectThrows(SettingsException.class, () ->
-            InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null)
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("multiple settings files found with suffixes"));
-        assertTrue(e.getMessage(), e.getMessage().contains(".yaml"));
-        assertTrue(e.getMessage(), e.getMessage().contains(".json"));
+            InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null));
+        assertEquals("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml", e.getMessage());
     }
 
-    public void testYmlExtension() throws IOException {
-        InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.yaml");
-        Path config = homeDir.resolve("config");
-        Files.createDirectory(config);
-        Files.copy(yaml, config.resolve("elasticsearch.yml"));
-        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null);
-        assertEquals(".yml", env.configExtension());
-    }
-
-    public void testJsonExtension() throws IOException {
+    public void testJsonNotAllowed() throws IOException {
         InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.json");
         Path config = homeDir.resolve("config");
         Files.createDirectory(config);
         Files.copy(yaml, config.resolve("elasticsearch.json"));
-        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null);
-        assertEquals(".json", env.configExtension());
+        SettingsException e = expectThrows(SettingsException.class, () ->
+            InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null));
+        assertEquals("elasticsearch.json was deprecated in 5.5.0 and must be converted to elasticsearch.yml", e.getMessage());
     }
 
     public void testSecureSettings() {

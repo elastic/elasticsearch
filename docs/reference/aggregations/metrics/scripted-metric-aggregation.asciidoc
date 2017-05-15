@@ -81,8 +81,7 @@ POST ledger/_search?size=0
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:ledger]
-// TEST[setup:stored_scripted_metric_script]
+// TEST[setup:ledger,stored_scripted_metric_script]
 
 <1> script parameters for `init`, `map` and `combine` scripts must be specified
 in a global `params` object so that it can be share between the scripts.

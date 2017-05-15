@@ -482,7 +482,7 @@ because we'll use it later.
 
 //////////////////////////
 
-To use an indexed template at search time use:
+To use a stored template at search time use:
 
 [source,js]
 ------------------------------------------
@@ -496,7 +496,7 @@ GET _search/template
 ------------------------------------------
 // CONSOLE
 // TEST[catch:missing]
-<1> Name of the query template stored in the `.scripts` index.
+<1> Name of the stored template script.
 
 [float]
 ==== Validating templates
@@ -537,22 +537,6 @@ This call will return the rendered template:
 // TESTRESPONSE
 <1> `status` array has been populated with values from the `params` object.
 
-Stored templates can also be used by replacing `inline` with
-`id`. For example, to use a stored template called `my_template`:
-
-[source,js]
-------------------------------------------
-GET _render/template
-{
-  "id": "my_template",
-  "params": {
-    "status": [ "pending", "published" ]
-  }
-}
-------------------------------------------
-// CONSOLE
-// TEST[catch:request]
-
 Pre-registered templates can also be rendered using
 
 [source,js]
@@ -583,7 +567,7 @@ GET _search/template
 }
 ------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[catch:missing]
 
 [float]
 ===== Profiling
@@ -602,7 +586,7 @@ GET _search/template
 }
 ------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[catch:missing]
 
 [[multi-search-template]]
 == Multi Search Template

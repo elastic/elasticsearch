@@ -40,6 +40,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filters.ParsedFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -170,6 +172,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(RangeAggregationBuilder.NAME, (p, c) -> ParsedRange.fromXContent(p, (String) c));
         map.put(DateRangeAggregationBuilder.NAME, (p, c) -> ParsedDateRange.fromXContent(p, (String) c));
         map.put(GeoDistanceAggregationBuilder.NAME, (p, c) -> ParsedGeoDistance.fromXContent(p, (String) c));
+        map.put(FiltersAggregationBuilder.NAME, (p, c) -> ParsedFilters.fromXContent(p, (String) c));
 
         namedXContents = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))

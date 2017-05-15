@@ -22,6 +22,8 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
@@ -36,8 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.search.aggregations.InternalAggregations.EMPTY;
-
 public class SignificantStringTermsTests extends InternalSignificantTermsTestCase {
 
     private SignificanceHeuristic significanceHeuristic;
@@ -50,7 +50,8 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
     @Override
     protected InternalSignificantTerms createTestInstance(String name,
                                                           List<PipelineAggregator> pipelineAggregators,
-                                                          Map<String, Object> metaData) {
+                                                          Map<String, Object> metaData,
+                                                          InternalAggregations aggregations) {
         DocValueFormat format = DocValueFormat.RAW;
         int requiredSize = randomIntBetween(1, 5);
         int shardSize = requiredSize + 2;
@@ -71,7 +72,7 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
             globalSubsetSize += subsetDf;
             globalSupersetSize += supersetSize;
 
-            buckets.add(new SignificantStringTerms.Bucket(term, subsetDf, subsetDf, supersetDf, supersetSize, EMPTY, format));
+            buckets.add(new SignificantStringTerms.Bucket(term, subsetDf, subsetDf, supersetDf, supersetSize, aggregations, format));
         }
         return new SignificantStringTerms(name, requiredSize, 1L, pipelineAggregators, metaData, format, globalSubsetSize,
                 globalSupersetSize, significanceHeuristic, buckets);
@@ -80,6 +81,11 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
     @Override
     protected Writeable.Reader<InternalSignificantTerms<?, ?>> instanceReader() {
         return SignificantStringTerms::new;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedSignificantStringTerms.class;
     }
 
     private static SignificanceHeuristic randomSignificanceHeuristic() {

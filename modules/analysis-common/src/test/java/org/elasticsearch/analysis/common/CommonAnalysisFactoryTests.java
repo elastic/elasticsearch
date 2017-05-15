@@ -20,6 +20,8 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.en.PorterStemFilterFactory;
+import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory;
+import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
@@ -79,7 +81,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("common_grams", null);
         filters.put("czech_stem", null);
         filters.put("decimal_digit", null);
-        filters.put("delimited_payload_filter", null);
+        filters.put("delimited_payload_filter", DelimitedPayloadTokenFilterFactory.class);
         filters.put("dutch_stem", SnowballPorterFilterFactory.class);
         filters.put("edge_ngram", null);
         filters.put("edgeNGram", null);
@@ -91,7 +93,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("keyword_repeat", null);
         filters.put("kstem", null);
         filters.put("length", null);
-        filters.put("limit", null);
+        filters.put("limit", LimitTokenCountFilterFactory.class);
         filters.put("ngram", null);
         filters.put("nGram", null);
         filters.put("persian_normalization", null);

@@ -35,6 +35,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
 
@@ -53,7 +54,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         return Settings.builder()
                 .put(super.indexSettings())
                 .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
-                .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")
+                .putArray("index.analysis.analyzer.tv_test.filter", "lowercase")
                 .build();
     }
 
@@ -195,7 +196,15 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         String utf8 = xBuilder.bytes().utf8ToString().replaceFirst("\"took\":\\d+,", "");;
         String expectedString = "{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\""
                 + i
-                + "\",\"_version\":1,\"found\":true,\"term_vectors\":{\"field\":{\"field_statistics\":{\"sum_doc_freq\":120,\"doc_count\":15,\"sum_ttf\":135},\"terms\":{\"brown\":{\"term_freq\":1,\"tokens\":[{\"position\":2,\"start_offset\":10,\"end_offset\":15,\"payload\":\"d29yZA==\"}]},\"dog\":{\"term_freq\":1,\"tokens\":[{\"position\":8,\"start_offset\":40,\"end_offset\":43,\"payload\":\"d29yZA==\"}]},\"fox\":{\"term_freq\":1,\"tokens\":[{\"position\":3,\"start_offset\":16,\"end_offset\":19,\"payload\":\"d29yZA==\"}]},\"jumps\":{\"term_freq\":1,\"tokens\":[{\"position\":4,\"start_offset\":20,\"end_offset\":25,\"payload\":\"d29yZA==\"}]},\"lazy\":{\"term_freq\":1,\"tokens\":[{\"position\":7,\"start_offset\":35,\"end_offset\":39,\"payload\":\"d29yZA==\"}]},\"over\":{\"term_freq\":1,\"tokens\":[{\"position\":5,\"start_offset\":26,\"end_offset\":30,\"payload\":\"d29yZA==\"}]},\"quick\":{\"term_freq\":1,\"tokens\":[{\"position\":1,\"start_offset\":4,\"end_offset\":9,\"payload\":\"d29yZA==\"}]},\"the\":{\"term_freq\":2,\"tokens\":[{\"position\":0,\"start_offset\":0,\"end_offset\":3,\"payload\":\"d29yZA==\"},{\"position\":6,\"start_offset\":31,\"end_offset\":34,\"payload\":\"d29yZA==\"}]}}}}}";
+                + "\",\"_version\":1,\"found\":true,\"term_vectors\":{\"field\":{\"field_statistics\":{\"sum_doc_freq\":120,\"doc_count\":15,\"sum_ttf\":135},\"terms\":{"
+                + "\"brown\":{\"term_freq\":1,\"tokens\":[{\"position\":2,\"start_offset\":10,\"end_offset\":15}]},"
+                + "\"dog\":{\"term_freq\":1,\"tokens\":[{\"position\":8,\"start_offset\":40,\"end_offset\":43}]},"
+                + "\"fox\":{\"term_freq\":1,\"tokens\":[{\"position\":3,\"start_offset\":16,\"end_offset\":19}]},"
+                + "\"jumps\":{\"term_freq\":1,\"tokens\":[{\"position\":4,\"start_offset\":20,\"end_offset\":25}]},"
+                + "\"lazy\":{\"term_freq\":1,\"tokens\":[{\"position\":7,\"start_offset\":35,\"end_offset\":39}]},"
+                + "\"over\":{\"term_freq\":1,\"tokens\":[{\"position\":5,\"start_offset\":26,\"end_offset\":30}]},"
+                + "\"quick\":{\"term_freq\":1,\"tokens\":[{\"position\":1,\"start_offset\":4,\"end_offset\":9}]},"
+                + "\"the\":{\"term_freq\":2,\"tokens\":[{\"position\":0,\"start_offset\":0,\"end_offset\":3},{\"position\":6,\"start_offset\":31,\"end_offset\":34,}]}}}}}";
         assertThat(utf8, equalTo(expectedString));
 
     }
@@ -242,7 +251,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
                 assertThat("term: " + string, nextPosition, equalTo(termPos[k]));
                 assertThat("term: " + string, docsAndPositions.startOffset(), equalTo(termStartOffset[k]));
                 assertThat("term: " + string, docsAndPositions.endOffset(), equalTo(termEndOffset[k]));
-                assertThat("term: " + string, docsAndPositions.getPayload(), equalTo(new BytesRef("word")));
+                assertThat("term: " + string, docsAndPositions.getPayload(), nullValue());
             }
         }
         assertThat(iterator.next(), Matchers.nullValue());

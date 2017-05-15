@@ -181,6 +181,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             this.index = copy.index;
             this.type = copy.type;
             this.id = copy.id;
+            this.routing = copy.routing;
             this.doc = copy.doc;
             this.xContentType = copy.xContentType;
             this.fields = copy.fields;
@@ -346,7 +347,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         /**
          * Convert this to a {@link TermVectorsRequest} for fetching the terms of the document.
          */
-        public TermVectorsRequest toTermVectorsRequest() {
+        TermVectorsRequest toTermVectorsRequest() {
             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(index, type, id)
                     .selectedFields(fields)
                     .routing(routing)
@@ -1088,14 +1089,14 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         // fetching the items with multi-termvectors API
         MultiTermVectorsResponse likeItemsResponse = fetchResponse(context.getClient(), likeItems);
         // getting the Fields for liked items
-        mltQuery.setLikeText(getFieldsFor(likeItemsResponse));
+        mltQuery.setLikeFields(getFieldsFor(likeItemsResponse));
 
         // getting the Fields for unliked items
         if (unlikeItems.length > 0) {
             MultiTermVectorsResponse unlikeItemsResponse = fetchResponse(context.getClient(), unlikeItems);
             org.apache.lucene.index.Fields[] unlikeFields = getFieldsFor(unlikeItemsResponse);
             if (unlikeFields.length > 0) {
-                mltQuery.setUnlikeText(unlikeFields);
+                mltQuery.setUnlikeFields(unlikeFields);
             }
         }
 

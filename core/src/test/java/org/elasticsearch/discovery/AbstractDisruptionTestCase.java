@@ -143,7 +143,6 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
             // value and the time of disruption and does not recover immediately
             // when disruption is stop. We should make sure we recover faster
             // then the default of 30s, causing ensureGreen and friends to time out
-
             .build();
 
     @Override

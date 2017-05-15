@@ -56,6 +56,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_S
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+/**
+ * Tests for discovery during disruptions.
+ */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {

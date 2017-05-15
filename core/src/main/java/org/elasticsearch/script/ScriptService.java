@@ -152,7 +152,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         this.scriptEnginesByLang = unmodifiableMap(enginesByLangBuilder);
         this.scriptEnginesByExt = unmodifiableMap(enginesByExtBuilder);
 
-        this.scriptModes = new ScriptModes(scriptSettings, settings);
+        this.scriptModes = new ScriptModes(scriptContextRegistry, scriptSettings, settings);
 
         // add file watcher for static scripts
         scriptsDirectory = env.scriptsFile();
@@ -511,7 +511,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     private boolean canExecuteScript(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         assert lang != null;
-        if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
+        if (scriptContextRegistry.isSupportedContext(scriptContext.getKey()) == false) {
             throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
         }
         return scriptModes.getScriptEnabled(lang, scriptType, scriptContext);

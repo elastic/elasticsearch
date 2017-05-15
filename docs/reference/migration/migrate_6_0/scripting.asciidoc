@@ -12,3 +12,8 @@ elasticsearch 5.0 and have now been removed. Use painless instead.
 milliseconds since epoch as a `long`. The same is true for
 `doc.some_date_field[some_number]`. Use `doc.some_date_field.value.millis` to
 fetch the milliseconds since epoch if you need it.
+
+==== Script Settings
+
+All of the existing scripting security settings have been deprecated.  Instead
+they are replaced with `script.allowed_types` and `script.allowed_contexts`.

@@ -23,11 +23,14 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
+import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -47,25 +50,39 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.internal.Join;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
+import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TypeAsPayloadPlugin.class);
+        return plugins;
+    }
 
     protected static class TestFieldSetting {
         public final String name;
@@ -419,5 +436,33 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         ScoreDoc[] scoreDocs = search.scoreDocs;
         assertEquals(1, scoreDocs.length);
         return directoryReader.getTermVectors(scoreDocs[0].doc);
+    }
+
+    public static class TypeAsPayloadPlugin extends Plugin implements AnalysisPlugin {
+        @Override
+        public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
+            return singletonList(PreConfiguredTokenFilter.singleton("type_as_payload", false, TypeAsPayloadFilter::new));
+        }
+    }
+
+    private static class TypeAsPayloadFilter extends TokenFilter {
+        private final PayloadAttribute payloadAtt = addAttribute(PayloadAttribute.class);
+        private final TypeAttribute typeAtt = addAttribute(TypeAttribute.class);
+
+        private TypeAsPayloadFilter(TokenStream input) {
+            super(input);
+        }
+
+        @Override
+        public final boolean incrementToken() throws IOException {
+            if (false == input.incrementToken()) {
+                return false;
+            }
+            String type = typeAtt.type();
+            if (Strings.hasLength(type)) {
+                payloadAtt.setPayload(new BytesRef(type));
+            }
+            return true;
+        }
     }
 }

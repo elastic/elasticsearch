@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class SearchOperationListenerTests extends ESTestCase {
 
     // this test also tests if calls are correct if one or more listeners throw exceptions
-    public void testListenersAreExecuted() throws Exception {
+    public void testListenersAreExecuted() {
         AtomicInteger preQuery = new AtomicInteger();
         AtomicInteger failedQuery = new AtomicInteger();
         AtomicInteger onQuery = new AtomicInteger();

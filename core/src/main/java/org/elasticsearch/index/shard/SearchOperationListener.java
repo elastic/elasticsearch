@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.List;
@@ -106,11 +107,11 @@ public interface SearchOperationListener {
 
     /**
      * Executed prior to using a {@link SearchContext} that has been retrieved
-     * from the active contexts. If the context is deemed invalid an exception
-     * can be thrown, which will prevent the context from being used.
+     * from the active contexts. If the context is deemed invalid a runtime
+     * exception can be thrown, which will prevent the context from being used.
      * @param context the context retrieved from the active contexts
      */
-    default void validateSearchContext(SearchContext context) throws Exception {}
+    default void validateSearchContext(SearchContext context) {}
 
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
@@ -235,23 +236,17 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void validateSearchContext(SearchContext context) throws Exception {
+        public void validateSearchContext(SearchContext context) {
             Exception exception = null;
             for (SearchOperationListener listener : listeners) {
                 try {
                     listener.validateSearchContext(context);
                 } catch (Exception e) {
-                    if (exception == null) {
-                        exception = e;
-                    } else {
-                        exception.addSuppressed(e);
-                    }
+                    exception = ExceptionsHelper.useOrSuppress(exception, e);
                 }
             }
 
-            if (exception != null) {
-                throw exception;
-            }
+            ExceptionsHelper.reThrowIfNotNull(exception);
         }
     }
 }

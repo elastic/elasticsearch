@@ -1,6 +1,11 @@
 [[breaking_60_settings_changes]]
 === Settings changes
 
+==== Remove support for elasticsearch.json and elasticsearch.yaml configuration file
+
+The configuration file found in the Elasticsearch config directory could previously have
+a `.yml`, `.yaml` or `.json` extension. Only `elasticsearch.yml` is now supported.
+
 ==== Duplicate keys in configuration file
 
 In previous versions of Elasticsearch, the configuration file was allowed to

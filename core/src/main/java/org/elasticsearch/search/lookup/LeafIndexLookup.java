@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.lookup;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
@@ -26,6 +27,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.MinimalMap;
 
 import java.io.IOException;
@@ -64,7 +67,19 @@ public class LeafIndexLookup extends MinimalMap<String, IndexField> {
     // computation is expensive
     private int numDeletedDocs = -1;
 
+    private boolean deprecationEmitted = false;
+
+    private void logDeprecation() {
+        if (deprecationEmitted == false) {
+            Logger logger = Loggers.getLogger(getClass());
+            DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+            deprecationLogger.deprecated("Using _index is deprecated. Create a custom ScriptEngine to access index internals.");
+            deprecationEmitted = true;
+        }
+    }
+
     public int numDocs() {
+        logDeprecation();
         if (numDocs == -1) {
             numDocs = parentReader.numDocs();
         }
@@ -72,6 +87,7 @@ public class LeafIndexLookup extends MinimalMap<String, IndexField> {
     }
 
     public int maxDoc() {
+        logDeprecation();
         if (maxDoc == -1) {
             maxDoc = parentReader.maxDoc();
         }
@@ -79,6 +95,7 @@ public class LeafIndexLookup extends MinimalMap<String, IndexField> {
     }
 
     public int numDeletedDocs() {
+        logDeprecation();
         if (numDeletedDocs == -1) {
             numDeletedDocs = parentReader.numDeletedDocs();
         }
@@ -127,6 +144,7 @@ public class LeafIndexLookup extends MinimalMap<String, IndexField> {
      */
     @Override
     public IndexField get(Object key) {
+        logDeprecation();
         String stringField = (String) key;
         IndexField indexField = indexFields.get(key);
         if (indexField == null) {
@@ -146,19 +164,23 @@ public class LeafIndexLookup extends MinimalMap<String, IndexField> {
      * *
      */
     public Fields termVectors() throws IOException {
+        logDeprecation();
         assert reader != null;
         return reader.getTermVectors(docId);
     }
 
     LeafReader getReader() {
+        logDeprecation();
         return reader;
     }
 
     public int getDocId() {
+        logDeprecation();
         return docId;
     }
 
     public IndexReader getParentReader() {
+        logDeprecation();
         if (parentReader == null) {
             return reader;
         }
@@ -166,10 +188,12 @@ public class LeafIndexLookup extends MinimalMap<String, IndexField> {
     }
 
     public IndexSearcher getIndexSearcher() {
+        logDeprecation();
         return indexSearcher;
     }
 
     public IndexReaderContext getReaderContext() {
+        logDeprecation();
         return getParentReader().getContext();
     }
 }

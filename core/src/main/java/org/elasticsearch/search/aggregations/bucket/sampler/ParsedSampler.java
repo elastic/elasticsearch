@@ -27,7 +27,7 @@ public class ParsedSampler extends ParsedSingleBucketAggregation implements Samp
 
     @Override
     public String getType() {
-        return InternalSampler.NAME;
+        return InternalSampler.PARSER_NAME;
     }
 
     public static ParsedSampler fromXContent(XContentParser parser, final String name) throws IOException {

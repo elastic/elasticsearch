@@ -115,8 +115,6 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalMissingTests());
         aggsTests.add(new InternalNestedTests());
         aggsTests.add(new InternalReverseNestedTests());
-        // TODO can we find a way to include the children aggregation in this test?
-        //aggsTests.add(new InternalChildrenTests());
         aggsTests.add(new InternalGlobalTests());
         aggsTests.add(new InternalFilterTests());
         aggsTests.add(new InternalSamplerTests());
@@ -129,7 +127,7 @@ public class AggregationsTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(InternalAggregationTestCase.getNamedXContents());
+        return new NamedXContentRegistry(InternalAggregationTestCase.getDefaultNamedXContents());
     }
 
     @Before
@@ -147,9 +145,9 @@ public class AggregationsTests extends ESTestCase {
     }
 
     public void testAllAggsAreBeingTested() {
-        assertEquals(InternalAggregationTestCase.getNamedXContents().size(), aggsTests.size());
+        assertEquals(InternalAggregationTestCase.getDefaultNamedXContents().size(), aggsTests.size());
         Set<String> aggs = aggsTests.stream().map((testCase) -> testCase.createTestInstance().getType()).collect(Collectors.toSet());
-        for (NamedXContentRegistry.Entry entry : InternalAggregationTestCase.getNamedXContents()) {
+        for (NamedXContentRegistry.Entry entry : InternalAggregationTestCase.getDefaultNamedXContents()) {
             assertTrue(aggs.contains(entry.name.getPreferredName()));
         }
     }

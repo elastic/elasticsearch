@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -122,5 +123,20 @@ public abstract class InternalMappedSignificantTerms<
     @Override
     protected int doHashCode() {
         return Objects.hash(super.doHashCode(), format, subsetSize, supersetSize, significanceHeuristic, buckets, bucketMap);
+    }
+
+    @Override
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field(CommonFields.DOC_COUNT.getPreferredName(), subsetSize);
+        builder.startArray(CommonFields.BUCKETS.getPreferredName());
+        for (Bucket bucket : buckets) {
+            //There is a condition (presumably when only one shard has a bucket?) where reduce is not called
+            // and I end up with buckets that contravene the user's min_doc_count criteria in my reducer
+            if (bucket.subsetDf >= minDocCount) {
+                bucket.toXContent(builder, params);
+            }
+        }
+        builder.endArray();
+        return builder;
     }
 }

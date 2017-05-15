@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -42,6 +43,9 @@ import java.util.Objects;
  */
 public abstract class InternalSignificantTerms<A extends InternalSignificantTerms<A, B>, B extends InternalSignificantTerms.Bucket<B>>
         extends InternalMultiBucketAggregation<A, B> implements SignificantTerms, ToXContent {
+
+    private static final String SCORE = "score";
+    private static final String BG_COUNT = "bg_count";
 
     @SuppressWarnings("PMD.ConstructorCallsOverridableMethod")
     public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
@@ -156,6 +160,20 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         public int hashCode() {
             return Objects.hash(getClass(), bucketOrd, aggregations, score, format);
         }
+
+        @Override
+        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            keyToXContent(builder);
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
+            builder.field(SCORE, score);
+            builder.field(BG_COUNT, supersetDf);
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
+            return builder;
+        }
+
+        protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;
     }
 
     protected final int requiredSize;

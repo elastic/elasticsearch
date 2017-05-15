@@ -410,6 +410,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         public TimeValue expectedTimeToHeal() {
             return TimeValue.timeValueMillis(0);
         }
+
     }
 
     /**
@@ -501,4 +502,5 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
             return "network delays for [" + delay + "]";
         }
     }
+
 }

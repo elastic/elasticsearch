@@ -216,6 +216,69 @@ public class ScriptServiceTests extends ESTestCase {
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
+    public void testAllowAllScriptTypeSettings() throws IOException {
+        buildScriptService(Settings.EMPTY);
+
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
+        assertCompileAccepted("painless", "script", ScriptType.STORED, ScriptContext.Standard.SEARCH);
+    }
+
+    public void testAllowAllScriptContextSettings() throws IOException {
+        buildScriptService(Settings.EMPTY);
+
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.AGGS);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.UPDATE);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.INGEST);
+    }
+
+    public void testAllowSomeScriptTypeSettings() throws IOException {
+        Settings.Builder builder = Settings.builder();
+        builder.put("script.types_allowed", "inline");
+        builder.put("script.engine.painless.stored", false);
+        buildScriptService(builder.build());
+
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
+        assertCompileRejected("painless", "script", ScriptType.STORED, ScriptContext.Standard.SEARCH);
+
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.engine.painless.stored"));
+    }
+
+    public void testAllowSomeScriptContextSettings() throws IOException {
+        Settings.Builder builder = Settings.builder();
+        builder.put("script.contexts_allowed", "search, aggs");
+        builder.put("script.update", false);
+        buildScriptService(builder.build());
+
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.AGGS);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.UPDATE);
+
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, "script.update"));
+    }
+
+    public void testAllowNoScriptTypeSettings() throws IOException {
+        Settings.Builder builder = Settings.builder();
+        builder.put("script.types_allowed", "");
+        buildScriptService(builder.build());
+
+        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
+        assertCompileRejected("painless", "script", ScriptType.STORED, ScriptContext.Standard.SEARCH);
+    }
+
+    public void testAllowNoScriptContextSettings() throws IOException {
+        Settings.Builder builder = Settings.builder();
+        builder.put("script.contexts_allowed", "");
+        buildScriptService(builder.build());
+
+        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.AGGS);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.UPDATE);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.INGEST);
+    }
+
     public void testDefaultBehaviourFineGrainedSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
         //rarely inject the default settings, which have no effect
@@ -345,7 +408,7 @@ public class ScriptServiceTests extends ESTestCase {
         do {
             pluginName = randomAlphaOfLength(randomIntBetween(1, 10));
             unknownContext = randomAlphaOfLength(randomIntBetween(1, 30));
-        } while(scriptContextRegistry.isSupportedContext(new ScriptContext.Plugin(pluginName, unknownContext)));
+        } while(scriptContextRegistry.isSupportedContext(new ScriptContext.Plugin(pluginName, unknownContext).getKey()));
 
         String type = scriptEngine.getType();
         try {
@@ -491,8 +554,8 @@ public class ScriptServiceTests extends ESTestCase {
         try {
             scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext);
             fail("compile should have been rejected for lang [" + lang + "], script_type [" + scriptType + "], scripted_op [" + scriptContext + "]");
-        } catch(IllegalStateException e) {
-            //all good
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            // pass
         }
     }
 

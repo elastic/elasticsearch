@@ -145,17 +145,20 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final Map<String, Long> assigned = new HashMap<>();
         assigned.putAll(active);
         assigned.putAll(initializing);
-        final String maxActiveID = active.entrySet().stream().max(Comparator.comparing(Map.Entry::getValue)).get().getKey();
         tracker.updateAllocationIdsFromMaster(
-                active.entrySet().stream().filter(e -> !e.getKey().equals(maxActiveID)).map(Map.Entry::getKey).collect(Collectors.toSet()),
+                active.keySet(),
                 initializing.keySet());
         randomSubsetOf(initializing.keySet()).forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getGlobalCheckpoint()));
-        assigned.forEach(tracker::updateLocalCheckpoint);
+        final String missingActiveID = randomFrom(active.keySet());
+        assigned
+                .entrySet()
+                .stream()
+                .filter(e -> !e.getKey().equals(missingActiveID))
+                .forEach(e -> tracker.updateLocalCheckpoint(e.getKey(), e.getValue()));
 
-        // now mark all active shards
-        tracker.updateAllocationIdsFromMaster(active.keySet(), initializing.keySet());
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
 
-        // update again
+        // now update all knowledge of all shards
         assigned.forEach(tracker::updateLocalCheckpoint);
         assertThat(tracker.getGlobalCheckpoint(), not(equalTo(UNASSIGNED_SEQ_NO)));
     }

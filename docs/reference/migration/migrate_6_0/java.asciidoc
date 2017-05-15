@@ -27,3 +27,11 @@ be possible to call `addListener` against the returned `ListenableActionFuture`.
 `ActionFuture` is returned instead, which is consistent with what the `Client` methods return, hence
 it is not possible to associate the future with listeners. The `execute` method that accept a listener
 as an argument can be used instead.
+
+==== `Terms.Order` and `Histogram.Order` classes replace by `BucketOrder`
+
+The `terms`, `histogram`, and `date_histogram` aggregation code has been refactored to use common
+code for ordering buckets. The `BucketOrder` class must be used instead of `Terms.Order` and
+`Histogram.Order`. The `static` methods in the `BucketOrder` class must be called instead of directly
+accessing internal order instances, e.g. `BucketOrder.count(boolean)` and `BucketOrder.aggregation(String, boolean)`.
+Use `BucketOrder.key(boolean)` to order the `terms` aggregation buckets by `_term`.

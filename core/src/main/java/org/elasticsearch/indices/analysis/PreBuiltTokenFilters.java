@@ -30,7 +30,6 @@ import org.apache.lucene.analysis.core.DecimalDigitFilter;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
 import org.apache.lucene.analysis.de.GermanNormalizationFilter;
 import org.apache.lucene.analysis.de.GermanStemFilter;
-import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.hi.HindiNormalizationFilter;
@@ -70,20 +69,6 @@ public enum PreBuiltTokenFilters {
     },
 
     // Extended Token Filters
-    SNOWBALL(CachingStrategy.ONE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new SnowballFilter(tokenStream, "English");
-        }
-    },
-
-    STEMMER(CachingStrategy.ONE) {
-        @Override
-        public TokenStream create(TokenStream tokenStream, Version version) {
-            return new PorterStemFilter(tokenStream);
-        }
-    },
-
     ELISION(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {

@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -70,7 +71,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.STRING)
                 .executionHint(executionMode.toString())
                 .field("string")
-                .order(Terms.Order.term(true));
+                .order(BucketOrder.key(true));
             MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
             fieldType.setName("string");
             fieldType.setHasDocValues(true );
@@ -99,7 +100,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.LONG)
                 .executionHint(executionMode.toString())
                 .field("number")
-                .order(Terms.Order.term(true));
+                .order(BucketOrder.key(true));
             List<InternalAggregation> aggs = new ArrayList<> ();
             int numLongs = randomIntBetween(1, 3);
             for (int i = 0; i < numLongs; i++) {

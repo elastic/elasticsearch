@@ -57,8 +57,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
-import org.elasticsearch.index.query.HasChildQueryBuilder;
-import org.elasticsearch.index.query.HasParentQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -372,15 +370,16 @@ public class PercolatorFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
+
     /**
      * Fails if a percolator contains an unsupported query. The following queries are not supported:
      * 1) a has_child query
      * 2) a has_parent query
      */
     static void verifyQuery(QueryBuilder queryBuilder) {
-        if (queryBuilder instanceof HasChildQueryBuilder) {
+        if (queryBuilder.getName().equals("has_child")) {
             throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
-        } else if (queryBuilder instanceof HasParentQueryBuilder) {
+        } else if (queryBuilder.getName().equals("has_parent")) {
             throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
         } else if (queryBuilder instanceof BoolQueryBuilder) {
             BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;

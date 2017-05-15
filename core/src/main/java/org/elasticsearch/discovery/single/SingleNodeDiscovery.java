@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
@@ -48,13 +49,13 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
 
     protected final TransportService transportService;
     private final ClusterApplier clusterApplier;
-    protected volatile ClusterState initialState;
     private volatile ClusterState clusterState;
 
     public SingleNodeDiscovery(final Settings settings, final TransportService transportService,
-                               ClusterApplier clusterApplier) {
+                               final MasterService masterService, final ClusterApplier clusterApplier) {
         super(Objects.requireNonNull(settings));
         this.transportService = Objects.requireNonNull(transportService);
+        masterService.setClusterStateSupplier(() -> clusterState);
         this.clusterApplier = clusterApplier;
     }
 
@@ -82,7 +83,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
                     e);
             }
         };
-        clusterApplier.onNewClusterState("apply-locally-on-node[" + event.source() + "]", this::clusterState, listener);
+        clusterApplier.onNewClusterState("apply-locally-on-node[" + event.source() + "]", () -> clusterState, listener);
 
         try {
             latch.await();
@@ -92,48 +93,38 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     @Override
-    public synchronized ClusterState getInitialClusterState() {
-        if (initialState == null) {
-            DiscoveryNode localNode = transportService.getLocalNode();
-            initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-                .nodes(DiscoveryNodes.builder().add(localNode)
-                    .localNodeId(localNode.getId())
-                    .masterNodeId(localNode.getId())
-                    .build())
-                .blocks(ClusterBlocks.builder()
-                    .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
-                .build();
-        }
-        return initialState;
-    }
-
-    @Override
-    public ClusterState clusterState() {
-        return clusterState;
-    }
-
-    @Override
     public DiscoveryStats stats() {
         return new DiscoveryStats((PendingClusterStateStats) null);
     }
 
     @Override
     public synchronized void startInitialJoin() {
+        if (lifecycle.started() == false) {
+            throw new IllegalStateException("can't start initial join when not started");
+        }
         // apply a fresh cluster state just so that state recovery gets triggered by GatewayService
         // TODO: give discovery module control over GatewayService
-        clusterState = ClusterState.builder(getInitialClusterState()).build();
-        clusterApplier.onNewClusterState("single-node-start-initial-join", this::clusterState, (source, e) -> {});
-    }
-
-    @Override
-    public int getMinimumMasterNodes() {
-        return 1;
+        clusterState = ClusterState.builder(clusterState).build();
+        clusterApplier.onNewClusterState("single-node-start-initial-join", () -> clusterState, (source, e) -> {});
     }
 
     @Override
     protected synchronized void doStart() {
-        initialState = getInitialClusterState();
-        clusterState = initialState;
+        // set initial state
+        DiscoveryNode localNode = transportService.getLocalNode();
+        clusterState = createInitialState(localNode);
+        clusterApplier.setInitialState(clusterState);
+    }
+
+    protected ClusterState createInitialState(DiscoveryNode localNode) {
+        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+            .nodes(DiscoveryNodes.builder().add(localNode)
+                .localNodeId(localNode.getId())
+                .masterNodeId(localNode.getId())
+                .build())
+            .blocks(ClusterBlocks.builder()
+                .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
+            .build();
     }
 
     @Override

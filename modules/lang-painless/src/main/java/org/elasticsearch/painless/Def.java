@@ -240,7 +240,7 @@ public final class Def {
          }
 
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
-         BitSet lambdaArgs = new BitSet();
+         BitSet lambdaArgs = new BitSet(recipeString.length());
          for (int i = 0; i < recipeString.length(); i++) {
              lambdaArgs.set(recipeString.charAt(i));
          }

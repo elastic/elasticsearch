@@ -23,10 +23,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -155,8 +155,12 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             factory.includeExclude(incExc);
         }
         if (randomBoolean()) {
-            List<Terms.Order> order = randomOrder();
-            factory.order(order);
+            List<BucketOrder> order = randomOrder();
+            if(order.size() == 1 && randomBoolean()) {
+                factory.order(order.get(0));
+            } else {
+                factory.order(order);
+            }
         }
         if (randomBoolean()) {
             factory.showTermDocCountError(randomBoolean());
@@ -164,20 +168,20 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         return factory;
     }
 
-    private List<Terms.Order> randomOrder() {
-        List<Terms.Order> orders = new ArrayList<>();
+    private List<BucketOrder> randomOrder() {
+        List<BucketOrder> orders = new ArrayList<>();
         switch (randomInt(4)) {
         case 0:
-            orders.add(Terms.Order.term(randomBoolean()));
+            orders.add(BucketOrder.key(randomBoolean()));
             break;
         case 1:
-            orders.add(Terms.Order.count(randomBoolean()));
+            orders.add(BucketOrder.count(randomBoolean()));
             break;
         case 2:
-            orders.add(Terms.Order.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
+            orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
             break;
         case 3:
-            orders.add(Terms.Order.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean()));
+            orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean()));
             break;
         case 4:
             int numOrders = randomIntBetween(1, 3);

@@ -443,8 +443,8 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         Aggregations aggregations = classBuckets.next().getAggregations();
         SignificantTerms sigTerms = aggregations.get("mySignificantTerms");
 
-        Collection<SignificantTerms.Bucket> classA = sigTerms.getBuckets();
-        Iterator<SignificantTerms.Bucket> classBBucketIterator = sigTerms.getBuckets().iterator();
+        List<? extends SignificantTerms.Bucket> classA = sigTerms.getBuckets();
+        Iterator<SignificantTerms.Bucket> classBBucketIterator = sigTerms.iterator();
         assertThat(classA.size(), greaterThan(0));
         for (SignificantTerms.Bucket classABucket : classA) {
             SignificantTerms.Bucket classBBucket = classBBucketIterator.next();

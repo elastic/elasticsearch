@@ -19,7 +19,9 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.en.PorterStemFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
+import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
@@ -77,6 +79,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("nGram", null);
         filters.put("porter_stem", null);
         filters.put("reverse", ReverseStringFilterFactory.class);
+        filters.put("snowball", SnowballPorterFilterFactory.class);
+        filters.put("stemmer", PorterStemFilterFactory.class);
         filters.put("stop", null);
         filters.put("trim", null);
         filters.put("truncate", null);

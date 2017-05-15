@@ -777,6 +777,11 @@ public final class MockTransportService extends TransportService {
         public void close() throws IOException {
             connection.close();
         }
+
+        @Override
+        public Object getCacheKey() {
+            return connection.getCacheKey();
+        }
     }
 
     public Transport getOriginalTransport() {

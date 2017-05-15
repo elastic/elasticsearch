@@ -320,7 +320,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     @Override
     protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) {
         final Channel[] channels = new Channel[profile.getNumConnections()];
-        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile);
+        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile, transportServiceAdapter::onConnectionClosed);
         boolean success = false;
         try {
             final TimeValue connectTimeout;

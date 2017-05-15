@@ -100,7 +100,7 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
         return deserializedInstance;
     }
 
-    private T copyInstance(T instance) throws IOException {
+    protected T copyInstance(T instance) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             instance.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
@@ -112,9 +112,9 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
 
     /**
      * Get the {@link NamedWriteableRegistry} to use when de-serializing the object.
-     * 
+     *
      * Override this method if you need to register {@link NamedWriteable}s for the test object to de-serialize.
-     * 
+     *
      * By default this will return a {@link NamedWriteableRegistry} with no registered {@link NamedWriteable}s
      */
     protected NamedWriteableRegistry getNamedWriteableRegistry() {

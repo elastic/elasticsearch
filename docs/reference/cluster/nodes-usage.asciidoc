@@ -9,9 +9,12 @@ of features for each node.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/_nodes/usage'
-curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/usage'
+GET _nodes/nodeId1,nodeId2/usage
+GET _nodes/usage
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:node]
+// TEST[s/nodeId1,nodeId2/\$node_name/]
 
 The first command retrieves usage of all the nodes in the cluster. The
 second command selectively retrieves nodes usage of only `nodeId1` and
@@ -50,6 +53,11 @@ been called on the node:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"my_cluster"/$body.cluster_name/]
+// TESTRESPONSE[s/"pQHNt5rXTTWNvUgOrdynKg"/\$node_name/]
+// TESTRESPONSE[s/1492553961812/$body.$_path/]
+// TESTRESPONSE[s/1492553906606/$body.$_path/]
+// TESTRESPONSE[s/"rest_actions": [^}]+}/"rest_actions": $body.$_path/]
 <1> Timestamp for when this nodes usage request was performed.
 <2> Timestamp for when the usage information recording was started. This is 
 equivalent to the time that the node was started.

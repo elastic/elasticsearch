@@ -91,7 +91,10 @@ public class UsageService extends AbstractComponent {
         if (restActions) {
             restUsageMap = new HashMap<>();
             handlers.forEach(handler -> {
-                restUsageMap.put(handler.getName(), handler.getUsageCount());
+                long usageCount = handler.getUsageCount();
+                if (usageCount > 0) {
+                    restUsageMap.put(handler.getName(), usageCount);
+                }
             });
         } else {
             restUsageMap = null;

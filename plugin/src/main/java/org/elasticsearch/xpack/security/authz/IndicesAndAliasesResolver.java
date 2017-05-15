@@ -11,22 +11,32 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Collectors;
 
 public class IndicesAndAliasesResolver {
@@ -39,9 +49,11 @@ public class IndicesAndAliasesResolver {
     static final List<String> NO_INDICES_LIST = Arrays.asList(NO_INDICES_ARRAY);
 
     private final IndexNameExpressionResolver nameExpressionResolver;
+    private final RemoteClusterResolver remoteClusterResolver;
 
-    public IndicesAndAliasesResolver(IndexNameExpressionResolver nameExpressionResolver) {
-        this.nameExpressionResolver = nameExpressionResolver;
+    public IndicesAndAliasesResolver(Settings settings, ClusterService clusterService) {
+        this.nameExpressionResolver = new IndexNameExpressionResolver(settings);
+        this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
     }
 
     public Set<String> resolve(TransportRequest request, MetaData metaData, AuthorizedIndices authorizedIndices) {
@@ -98,13 +110,21 @@ public class IndicesAndAliasesResolver {
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.
             } else {
-                replacedIndices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(),
-                        indicesOptions, metaData, authorizedIndices.get(), replaceWildcards);
+                String[] localIndexNames = indicesRequest.indices();
+                List<String> remoteIndices = Collections.emptyList();
+                if (allowsRemoteIndices(indicesRequest)) {
+                    final Tuple<List<String>, List<String>> split = remoteClusterResolver.splitLocalAndRemoteIndexNames(localIndexNames);
+                    localIndexNames = split.v1().toArray(new String[split.v1().size()]);
+                    remoteIndices = split.v2();
+                }
+                replacedIndices = replaceWildcardsWithAuthorizedIndices(localIndexNames, indicesOptions, metaData, authorizedIndices.get(),
+                        replaceWildcards);
                 if (indicesOptions.ignoreUnavailable()) {
                     //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
                     //remove all the ones that the current user is not authorized for and ignore them
                     replacedIndices = replacedIndices.stream().filter(authorizedIndices.get()::contains).collect(Collectors.toList());
                 }
+                replacedIndices.addAll(remoteIndices);
             }
             if (replacedIndices.isEmpty()) {
                 if (indicesOptions.allowNoIndices()) {
@@ -162,6 +182,10 @@ public class IndicesAndAliasesResolver {
             }
         }
         return Collections.unmodifiableSet(indices);
+    }
+
+    private static boolean allowsRemoteIndices(IndicesRequest indicesRequest) {
+        return indicesRequest instanceof SearchRequest || indicesRequest instanceof FieldCapabilitiesRequest;
     }
 
     private List<String> loadAuthorizedAliases(List<String> authorizedIndices, MetaData metaData) {
@@ -330,5 +354,40 @@ public class IndicesAndAliasesResolver {
 
     private static List<String> indicesList(String[] list) {
         return (list == null) ? null : Arrays.asList(list);
+    }
+
+    private static class RemoteClusterResolver extends RemoteClusterAware {
+
+        private final CopyOnWriteArraySet<String> clusters;
+
+        private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
+            super(settings);
+            clusters = new CopyOnWriteArraySet<>(buildRemoteClustersSeeds(settings).keySet());
+            listenForUpdates(clusterSettings);
+        }
+
+        @Override
+        protected Set<String> getRemoteClusterNames() {
+            return clusters;
+        }
+
+        @Override
+        protected void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {
+            if (addresses.isEmpty()) {
+                clusters.remove(clusterAlias);
+            } else {
+                clusters.add(clusterAlias);
+            }
+        }
+
+        Tuple<List<String>, List<String>> splitLocalAndRemoteIndexNames(String ... indices) {
+            final Map<String, List<String>> map = super.groupClusterIndices(indices, exists -> false);
+            final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
+            final List<String> remote = map.entrySet().stream()
+                    .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))
+                    .collect(Collectors.toList());
+            return new Tuple<>(local == null ? Collections.emptyList() : local, remote);
+        }
+
     }
 }

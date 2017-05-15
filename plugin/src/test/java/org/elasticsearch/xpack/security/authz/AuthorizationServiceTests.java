@@ -40,6 +40,7 @@ import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.action.delete.DeleteAction;
@@ -151,6 +152,8 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void setup() {
         rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS); 
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         auditTrail = mock(AuditTrailService.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         threadPool = mock(ThreadPool.class);

@@ -22,7 +22,7 @@ setup:
               "cluster": ["all"],
               "indices": [
                 {
-                  "names": ["test_index", "my_remote_cluster:test_index", "my_remote_cluster:aliased_test_index", "test_remote_cluster:test_index", "my_remote_cluster:secure_alias"],
+                  "names": ["local_index", "my_remote_cluster:test_i*", "my_remote_cluster:aliased_test_index", "test_remote_cluster:test_i*", "my_remote_cluster:secure_alias"],
                   "privileges": ["read"]
                 }
               ]
@@ -42,7 +42,7 @@ teardown:
 
   - do:
       indices.create:
-        index: test_index
+        index: local_index
         body:
           settings:
             index:
@@ -53,21 +53,21 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "local_index", "_type": "test_type"}}'
             - '{"f1": "local_cluster", "filter_field": 0}'
-            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "local_index", "_type": "test_type"}}'
             - '{"f1": "local_cluster", "filter_field": 1}'
-            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "local_index", "_type": "test_type"}}'
             - '{"f1": "local_cluster", "filter_field": 0}'
-            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "local_index", "_type": "test_type"}}'
             - '{"f1": "local_cluster", "filter_field": 1}'
-            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "local_index", "_type": "test_type"}}'
             - '{"f1": "local_cluster", "filter_field": 0}'
 
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
-        index: test_index,my_remote_cluster:test_index
+        index: local_index,my_remote_cluster:test_index
         body:
           aggs:
             cluster:
@@ -85,7 +85,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
-        index: test_index,my_remote_cluster:test_index
+        index: local_index,my_remote_cluster:test_index
         body:
           query:
             term:
@@ -119,10 +119,28 @@ teardown:
   - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
   - match: { aggregations.cluster.buckets.0.doc_count: 6 }
 
+  # Test wildcard in cluster name
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
-        index: test_index
+        index: "my_*:test_index"
+        body:
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 6}
+  - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
+  - length: { aggregations.cluster.buckets: 1 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      search:
+        index: local_index
         body:
           aggs:
             cluster:
@@ -131,7 +149,7 @@ teardown:
 
   - match: { _shards.total: 2 }
   - match: { hits.total: 5}
-  - match: { hits.hits.0._index: "test_index"}
+  - match: { hits.hits.0._index: "local_index"}
   - length: { aggregations.cluster.buckets: 1 }
   - match: { aggregations.cluster.buckets.0.key: "local_cluster" }
   - match: { aggregations.cluster.buckets.0.doc_count: 5 }
@@ -161,6 +179,15 @@ teardown:
   - match: { _shards.total: 3 }
   - match: { hits.total: 6 }
   - match: { hits.hits.0._index: "test_remote_cluster:test_index" }
+
+  # Test wildcard that matches multiple (two) cluster names
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      search:
+        index: "*_remote_cluster:test_ind*"
+
+  - match: { _shards.total: 6 }
+  - match: { hits.total: 12 }
 
 ---
 "Search an filtered alias on the remote cluster":

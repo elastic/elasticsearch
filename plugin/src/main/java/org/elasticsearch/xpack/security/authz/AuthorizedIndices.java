@@ -9,12 +9,9 @@ import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.user.XPackUser;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;

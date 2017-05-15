@@ -102,7 +102,7 @@ public class AuthorizationService extends AbstractComponent {
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
-        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(new IndexNameExpressionResolver(settings));
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService);
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.anonymousUser = anonymousUser;

@@ -13,11 +13,17 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -32,7 +38,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
@@ -58,7 +66,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -86,6 +96,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 2))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
+                .put("search.remote.remote.seeds", "127.0.0.1:" + randomIntBetween(9301, 9350))
+                .put("search.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
                 .build();
 
         indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
@@ -144,10 +156,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
 
         ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         authzService = new AuthorizationService(settings, rolesStore, clusterService,
                 mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class),
                 new AnonymousUser(settings));
-        defaultIndicesResolver = new IndicesAndAliasesResolver(indexNameExpressionResolver);
+        defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService);
     }
 
     public void testDashIndicesAreAllowedInShardLevelRequests() {
@@ -504,6 +517,31 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest("missing*");
         request.indicesOptions(IndicesOptions.fromOptions(true, true, false, false));
         assertNoIndices(request, defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, SearchAction.NAME)));
+    }
+
+    public void testSearchWithRemoteIndex() {
+        SearchRequest request = new SearchRequest("remote:indexName");
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        final Set<String> resolved = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, SearchAction.NAME));
+        assertThat(resolved, containsInAnyOrder("remote:indexName"));
+        assertThat(request.indices(), arrayContaining("remote:indexName"));
+    }
+
+    public void testSearchWithRemoteAndLocalIndices() {
+        SearchRequest request = new SearchRequest("remote:indexName", "bar", "bar2");
+        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), randomBoolean(), randomBoolean()));
+        final Set<String> resolved = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, SearchAction.NAME));
+        assertThat(resolved, containsInAnyOrder("remote:indexName", "bar"));
+        assertThat(request.indices(), arrayContainingInAnyOrder("remote:indexName", "bar"));
+    }
+
+    public void testSearchWithRemoteAndLocalWildcards() {
+        SearchRequest request = new SearchRequest("*:foo", "r*:bar*", "remote:baz*", "bar*", "foofoo");
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
+        final Set<String> resolved = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, SearchAction.NAME));
+        final String[] expectedIndices = { "remote:foo", "other_remote:foo", "remote:bar*", "remote:baz*", "bar", "foofoo" };
+        assertThat(resolved, containsInAnyOrder(expectedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
     }
 
     public void testResolveIndicesAliasesRequest() {
@@ -1009,6 +1047,46 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(userNoIndices, GetAliasesAction.NAME)));
         assertEquals("no such index", e.getMessage());
+    }
+
+    /**
+     * Tests that all the request types that are known to support remote indices successfully pass them through
+     *  the resolver
+     */
+    public void testRemotableRequestsAllowRemoteIndices() {
+        IndicesOptions options = IndicesOptions.fromOptions(true, false, false, false);
+        Tuple<TransportRequest, String> tuple = randomFrom(
+                new Tuple<>(new SearchRequest("remote:foo").indicesOptions(options), SearchAction.NAME),
+                new Tuple<>(new FieldCapabilitiesRequest().indices("remote:foo").indicesOptions(options), FieldCapabilitiesAction.NAME)
+        );
+        final Set<String> resolved = defaultIndicesResolver.resolve(tuple.v1(), metaData, buildAuthorizedIndices(user, tuple.v2()));
+        assertThat(resolved, containsInAnyOrder("remote:foo"));
+    }
+
+    /**
+     * Tests that request types that do not support remote indices will be resolved as if all index names are local.
+     */
+    public void testNonRemotableRequestDoesNotAllowRemoteIndices() {
+        IndicesOptions options = IndicesOptions.fromOptions(true, false, false, false);
+        Tuple<TransportRequest, String> tuple = randomFrom(
+                new Tuple<>(new CloseIndexRequest("remote:foo").indicesOptions(options), CloseIndexAction.NAME),
+                new Tuple<>(new DeleteIndexRequest("remote:foo").indicesOptions(options), DeleteIndexAction.NAME),
+                new Tuple<>(new PutMappingRequest("remote:foo").indicesOptions(options), PutMappingAction.NAME)
+        );
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
+                () -> defaultIndicesResolver.resolve(tuple.v1(), metaData, buildAuthorizedIndices(user, tuple.v2())));
+        assertEquals("no such index", e.getMessage());
+    }
+
+    public void testNonRemotableRequestDoesNotAllowRemoteWildcardIndices() {
+        IndicesOptions options = IndicesOptions.fromOptions(randomBoolean(), true, true, true);
+        Tuple<TransportRequest, String> tuple = randomFrom(
+                new Tuple<>(new CloseIndexRequest("*:*").indicesOptions(options), CloseIndexAction.NAME),
+                new Tuple<>(new DeleteIndexRequest("*:*").indicesOptions(options), DeleteIndexAction.NAME),
+                new Tuple<>(new PutMappingRequest("*:*").indicesOptions(options), PutMappingAction.NAME)
+        );
+        final Set<String> resolved = defaultIndicesResolver.resolve(tuple.v1(), metaData, buildAuthorizedIndices(user, tuple.v2()));
+        assertNoIndices((IndicesRequest.Replaceable) tuple.v1(), resolved);
     }
 
     public void testCompositeIndicesRequestIsNotSupported() {

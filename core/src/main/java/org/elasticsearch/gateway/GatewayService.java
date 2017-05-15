@@ -251,7 +251,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                         blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
                     }
                     if (MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(recoveredState.metaData().settings())
-                        ||MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(recoveredState.metaData().settings())) {
+                        || MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(currentState.metaData().settings())) {
                         blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
                     }
 

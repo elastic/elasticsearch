@@ -358,8 +358,8 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
 
         public Builder updateBlocks(IndexMetaData indexMetaData) {
-            // let's remove all and add them back -- no need to remove all individual blocks....
-            indices.clear();
+            // let's remove all blocks for this index and add them back -- no need to remove all individual blocks....
+            indices.remove(indexMetaData.getIndex().getName());
             return addBlocks(indexMetaData);
         }
 

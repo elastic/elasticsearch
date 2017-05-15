@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -26,8 +27,10 @@ import org.elasticsearch.ingest.Processor;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The KeyValueProcessor parses and extracts messages of the `key=value` variety into fields with values of the keys.
@@ -39,18 +42,20 @@ public final class KeyValueProcessor extends AbstractProcessor {
     private final String field;
     private final String fieldSplit;
     private final String valueSplit;
-    private final List<String> includeKeys;
+    private final Set<String> includeKeys;
+    private final Set<String> excludeKeys;
     private final String targetField;
     private final boolean ignoreMissing;
 
-    KeyValueProcessor(String tag, String field, String fieldSplit, String valueSplit, List<String> includeKeys,
-                      String targetField, boolean ignoreMissing) {
+    KeyValueProcessor(String tag, String field, String fieldSplit, String valueSplit, Set<String> includeKeys,
+                      Set<String> excludeKeys, String targetField, boolean ignoreMissing) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
         this.fieldSplit = fieldSplit;
         this.valueSplit = valueSplit;
         this.includeKeys = includeKeys;
+        this.excludeKeys = excludeKeys;
         this.ignoreMissing = ignoreMissing;
     }
 
@@ -66,8 +71,12 @@ public final class KeyValueProcessor extends AbstractProcessor {
         return valueSplit;
     }
 
-    List<String> getIncludeKeys() {
+    Set<String> getIncludeKeys() {
         return includeKeys;
+    }
+
+    Set<String> getExcludeKeys() {
+        return excludeKeys;
     }
 
     String getTargetField() {
@@ -105,7 +114,9 @@ public final class KeyValueProcessor extends AbstractProcessor {
                 }
                 return kv;
             })
-            .filter((p) -> includeKeys == null || includeKeys.contains(p[0]))
+            .filter((p) ->
+                (includeKeys == null || includeKeys.contains(p[0])) &&
+                    (excludeKeys == null || excludeKeys.contains(p[0]) == false))
             .forEach((p) -> append(document, fieldPathPrefix + p[0], p[1]));
     }
 
@@ -122,12 +133,18 @@ public final class KeyValueProcessor extends AbstractProcessor {
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
             String fieldSplit = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field_split");
             String valueSplit = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "value_split");
-            List<String> includeKeys = ConfigurationUtils.readOptionalList(TYPE, processorTag, config, "include_keys");
-            if (includeKeys != null) {
-                includeKeys = Collections.unmodifiableList(includeKeys);
+            Set<String> includeKeys = null;
+            Set<String> excludeKeys = null;
+            List<String> includeKeysList = ConfigurationUtils.readOptionalList(TYPE, processorTag, config, "include_keys");
+            if (includeKeysList != null) {
+                includeKeys = Collections.unmodifiableSet(Sets.newHashSet(includeKeysList));
+            }
+            List<String> excludeKeysList = ConfigurationUtils.readOptionalList(TYPE, processorTag, config, "exclude_keys");
+            if (excludeKeysList != null) {
+                excludeKeys = Collections.unmodifiableSet(Sets.newHashSet(excludeKeysList));
             }
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new KeyValueProcessor(processorTag, field, fieldSplit, valueSplit, includeKeys, targetField, ignoreMissing);
+            return new KeyValueProcessor(processorTag, field, fieldSplit, valueSplit, includeKeys, excludeKeys, targetField, ignoreMissing);
         }
     }
 }

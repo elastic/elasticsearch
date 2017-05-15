@@ -70,7 +70,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private static final AtomicLong idGenerator = new AtomicLong();
 
-    private final String RECOVERY_PREFIX = "recovery.";
+    private static final String RECOVERY_PREFIX = "recovery.";
 
     private final ShardId shardId;
     private final long recoveryId;

@@ -23,7 +23,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,6 +35,7 @@ import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.index.search.NestedHelper;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -144,7 +144,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         builder.field(PATH_FIELD.getPreferredName(), path);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         if (scoreMode != null) {
-            builder.field(SCORE_MODE_FIELD.getPreferredName(), HasChildQueryBuilder.scoreModeAsString(scoreMode));
+            builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreModeAsString(scoreMode));
         }
         printBoostAndQueryName(builder);
         if (innerHitBuilder != null) {
@@ -183,7 +183,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
                     ignoreUnmapped = parser.booleanValue();
                 } else if (SCORE_MODE_FIELD.match(currentFieldName)) {
-                    scoreMode = HasChildQueryBuilder.parseScoreMode(parser.text());
+                    scoreMode = parseScoreMode(parser.text());
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
@@ -199,6 +199,30 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             queryBuilder.innerHit(innerHitBuilder, ignoreUnmapped);
         }
         return queryBuilder;
+    }
+
+    public static ScoreMode parseScoreMode(String scoreModeString) {
+        if ("none".equals(scoreModeString)) {
+            return ScoreMode.None;
+        } else if ("min".equals(scoreModeString)) {
+            return ScoreMode.Min;
+        } else if ("max".equals(scoreModeString)) {
+            return ScoreMode.Max;
+        } else if ("avg".equals(scoreModeString)) {
+            return ScoreMode.Avg;
+        } else if ("sum".equals(scoreModeString)) {
+            return ScoreMode.Total;
+        }
+        throw new IllegalArgumentException("No score mode for child query [" + scoreModeString + "] found");
+    }
+
+    public static String scoreModeAsString(ScoreMode scoreMode) {
+        if (scoreMode == ScoreMode.Total) {
+            // Lucene uses 'total' but 'sum' is more consistent with other elasticsearch APIs
+            return "sum";
+        } else {
+            return scoreMode.name().toLowerCase(Locale.ROOT);
+        }
     }
 
     @Override

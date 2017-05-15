@@ -33,20 +33,19 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static java.util.Collections.unmodifiableList;
 
 /**
  * Result of the significant terms aggregation.
  */
 public abstract class InternalSignificantTerms<A extends InternalSignificantTerms<A, B>, B extends InternalSignificantTerms.Bucket<B>>
         extends InternalMultiBucketAggregation<A, B> implements SignificantTerms, ToXContent {
+
     @SuppressWarnings("PMD.ConstructorCallsOverridableMethod")
-    public abstract static class Bucket<B extends Bucket<B>> extends SignificantTerms.Bucket {
+    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
+            implements SignificantTerms.Bucket {
         /**
          * Reads a bucket. Should be a constructor reference.
          */
@@ -55,14 +54,21 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             B read(StreamInput in, long subsetSize, long supersetSize, DocValueFormat format) throws IOException;
         }
 
+        long subsetDf;
+        long subsetSize;
+        long supersetDf;
+        long supersetSize;
         long bucketOrd;
-        protected InternalAggregations aggregations;
         double score;
+        protected InternalAggregations aggregations;
         final transient DocValueFormat format;
 
         protected Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
                 InternalAggregations aggregations, DocValueFormat format) {
-            super(subsetDf, subsetSize, supersetDf, supersetSize);
+            this.subsetSize = subsetSize;
+            this.supersetSize = supersetSize;
+            this.subsetDf = subsetDf;
+            this.supersetDf = supersetDf;
             this.aggregations = aggregations;
             this.format = format;
         }
@@ -71,7 +77,8 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
          * Read from a stream.
          */
         protected Bucket(StreamInput in, long subsetSize, long supersetSize, DocValueFormat format) {
-            super(in, subsetSize, supersetSize);
+            this.subsetSize = subsetSize;
+            this.supersetSize = supersetSize;
             this.format = format;
         }
 
@@ -95,7 +102,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             return subsetSize;
         }
 
-        public void updateScore(SignificanceHeuristic significanceHeuristic) {
+        void updateScore(SignificanceHeuristic significanceHeuristic) {
             score = significanceHeuristic.getScore(subsetDf, subsetSize, supersetDf, supersetSize);
         }
 
@@ -179,16 +186,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     protected abstract void writeTermTypeInfoTo(StreamOutput out) throws IOException;
 
     @Override
-    public Iterator<SignificantTerms.Bucket> iterator() {
-        return getBuckets().iterator();
-    }
-
-    @Override
-    public List<SignificantTerms.Bucket> getBuckets() {
-        return unmodifiableList(getBucketsInternal());
-    }
-
-    protected abstract List<B> getBucketsInternal();
+    public abstract List<B> getBuckets();
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
@@ -206,7 +204,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         for (InternalAggregation aggregation : aggregations) {
             @SuppressWarnings("unchecked")
             InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
-            for (B bucket : terms.getBucketsInternal()) {
+            for (B bucket : terms.getBuckets()) {
                 List<B> existingBuckets = buckets.get(bucket.getKeyAsString());
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<>(aggregations.size());

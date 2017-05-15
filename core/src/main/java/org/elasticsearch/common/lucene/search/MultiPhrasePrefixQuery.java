@@ -124,9 +124,7 @@ public class MultiPhrasePrefixQuery extends Query {
         Term[][] terms = new Term[termArrays.size()][];
         for (int i = 0; i < termArrays.size(); i++) {
             terms[i] = new Term[termArrays.get(i).length];
-            for (int j = 0; j < termArrays.get(i).length; j++) {
-                terms[i][j] = termArrays.get(i)[j];
-            }
+            System.arraycopy(termArrays.get(i), 0, terms[i], 0, termArrays.get(i).length);
         }
         return terms;
     }

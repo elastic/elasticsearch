@@ -149,4 +149,3 @@ cluster:admin/persistent/update_status
 cluster:admin/persistent/remove
 cluster:internal/xpack/ml/job/finalize_job_execution
 cluster:admin/reindex/rethrottle
-indices:data/write/reindex

@@ -128,3 +128,4 @@ internal:transport/handshake
 cluster:admin/reindex/rethrottle[n]
 indices:data/write/update/byquery
 indices:data/write/delete/byquery
+indices:data/write/reindex

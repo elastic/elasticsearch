@@ -33,18 +33,17 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -53,8 +52,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -224,9 +221,9 @@ public class JobManager extends AbstractComponent {
                     errorHandler.accept(new ResourceNotFoundException(message));
                 }
                 jobProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
-                    if (oldModelSnapshot != null && newModelSnapshot.getTimestamp().before(oldModelSnapshot.getTimestamp())) {
+                    if (oldModelSnapshot != null && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
                         String message = "Job [" + job.getId() + "] has a more recent model snapshot [" +
-                                oldModelSnapshot.getSnapshotId() + "]";
+                                oldModelSnapshot.result.getSnapshotId() + "]";
                         errorHandler.accept(new IllegalArgumentException(message));
                     }
                     handler.accept(true);
@@ -413,11 +410,11 @@ public class JobManager extends AbstractComponent {
      *
      * @param modelSnapshot         the updated model snapshot object to be stored
      */
-    public void updateModelSnapshot(ModelSnapshot modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
-        String index = AnomalyDetectorsIndex.resultsWriteAlias(modelSnapshot.getJobId());
-        IndexRequest indexRequest = new IndexRequest(index, ModelSnapshot.TYPE.getPreferredName(), ModelSnapshot.documentId(modelSnapshot));
+    public void updateModelSnapshot(Result<ModelSnapshot> modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
+        IndexRequest indexRequest = new IndexRequest(modelSnapshot.index, ModelSnapshot.TYPE.getPreferredName(),
+                ModelSnapshot.documentId(modelSnapshot.result));
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            modelSnapshot.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            modelSnapshot.result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             indexRequest.source(builder);
         } catch (IOException e) {
             errorHandler.accept(e);

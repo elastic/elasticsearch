@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.job.results.Result;
 
 import java.io.IOException;
 
@@ -23,7 +24,7 @@ class BatchedBucketsIterator extends BatchedResultsIterator<Bucket> {
     }
 
     @Override
-    protected ResultWithIndex<Bucket> map(SearchHit hit) {
+    protected Result<Bucket> map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
         XContentParser parser;
         try {
@@ -32,6 +33,6 @@ class BatchedBucketsIterator extends BatchedResultsIterator<Bucket> {
             throw new ElasticsearchParseException("failed to parse bucket", e);
         }
         Bucket bucket = Bucket.PARSER.apply(parser, null);
-        return new ResultWithIndex<>(hit.getIndex(), bucket);
+        return new Result<>(hit.getIndex(), bucket);
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
+import org.elasticsearch.xpack.ml.job.results.Result;
 
 import java.io.IOException;
 
@@ -22,7 +23,7 @@ class BatchedInfluencersIterator extends BatchedResultsIterator<Influencer> {
     }
 
     @Override
-    protected ResultWithIndex<Influencer> map(SearchHit hit) {
+    protected Result<Influencer> map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
         XContentParser parser;
         try {
@@ -32,6 +33,6 @@ class BatchedInfluencersIterator extends BatchedResultsIterator<Influencer> {
         }
 
         Influencer influencer = Influencer.PARSER.apply(parser, null);
-        return new ResultWithIndex<>(hit.getIndex(), influencer);
+        return new Result<>(hit.getIndex(), influencer);
     }
 }

@@ -5,22 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.Deque;
-import java.util.List;
-
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.persistence.BatchedDocumentsIterator;
-import org.elasticsearch.xpack.ml.job.persistence.BatchedResultsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.MockBatchedDocumentsIterator;
@@ -28,10 +18,19 @@ import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
+import org.elasticsearch.xpack.ml.job.results.Result;
 import org.junit.Before;
 import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.Deque;
+import java.util.List;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -191,10 +190,10 @@ public class ScoresUpdaterTests extends ESTestCase {
         Bucket bucket1 = generateBucket(new Date(0));
         bucket1.setAnomalyScore(42.0);
         bucket1.addBucketInfluencer(createTimeBucketInfluencer(bucket1.getTimestamp(), 0.04, 42.0));
-        List<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>> records = new ArrayList<>();
+        List<Result<AnomalyRecord>> records = new ArrayList<>();
         Date date = new Date();
         for (int i=0; i<100000; i++) {
-            records.add(new BatchedResultsIterator.ResultWithIndex<>("foo", new AnomalyRecord("foo", date, 1, i)));
+            records.add(new Result<>("foo", new AnomalyRecord("foo", date, 1, i)));
         }
 
         Bucket bucket2 = generateBucket(new Date(10000 * 1000));
@@ -207,9 +206,9 @@ public class ScoresUpdaterTests extends ESTestCase {
         givenProviderReturnsBuckets(batch);
 
 
-        List<Deque<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>>> recordBatches = new ArrayList<>();
+        List<Deque<Result<AnomalyRecord>>> recordBatches = new ArrayList<>();
         recordBatches.add(new ArrayDeque<>(records));
-        MockBatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>> recordIter =
+        MockBatchedDocumentsIterator<Result<AnomalyRecord>> recordIter =
                 new MockBatchedDocumentsIterator<>(recordBatches);
         recordIter.requireIncludeInterim(false);
         when(jobProvider.newBatchedRecordsIterator(JOB_ID)).thenReturn(recordIter);
@@ -337,30 +336,30 @@ public class ScoresUpdaterTests extends ESTestCase {
     }
 
     private void givenBuckets(List<Deque<Bucket>> batches) {
-        List<Deque<BatchedResultsIterator.ResultWithIndex<Bucket>>> batchesWithIndex = new ArrayList<>();
+        List<Deque<Result<Bucket>>> batchesWithIndex = new ArrayList<>();
         for (Deque<Bucket> deque : batches) {
-            Deque<BatchedResultsIterator.ResultWithIndex<Bucket>> queueWithIndex = new ArrayDeque<>();
+            Deque<Result<Bucket>> queueWithIndex = new ArrayDeque<>();
             for (Bucket bucket : deque) {
-                queueWithIndex.add(new BatchedResultsIterator.ResultWithIndex<>("foo", bucket));
+                queueWithIndex.add(new Result<>("foo", bucket));
             }
             batchesWithIndex.add(queueWithIndex);
         }
 
-        MockBatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<Bucket>> bucketIter =
+        MockBatchedDocumentsIterator<Result<Bucket>> bucketIter =
                 new MockBatchedDocumentsIterator<>(batchesWithIndex);
         bucketIter.requireIncludeInterim(false);
         when(jobProvider.newBatchedBucketsIterator(JOB_ID)).thenReturn(bucketIter);
     }
 
     private void givenProviderReturnsRecords(Deque<AnomalyRecord> records) {
-        Deque<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>> batch = new ArrayDeque<>();
-        List<Deque<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>>> batches = new ArrayList<>();
+        Deque<Result<AnomalyRecord>> batch = new ArrayDeque<>();
+        List<Deque<Result<AnomalyRecord>>> batches = new ArrayList<>();
         for (AnomalyRecord record : records) {
-            batch.add(new BatchedResultsIterator.ResultWithIndex<>("foo", record));
+            batch.add(new Result<>("foo", record));
         }
         batches.add(batch);
 
-        MockBatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>> recordIter =
+        MockBatchedDocumentsIterator<Result<AnomalyRecord>> recordIter =
                 new MockBatchedDocumentsIterator<>(batches);
         recordIter.requireIncludeInterim(false);
         when(jobProvider.newBatchedRecordsIterator(JOB_ID)).thenReturn(recordIter);
@@ -371,14 +370,13 @@ public class ScoresUpdaterTests extends ESTestCase {
     }
 
     private void givenProviderReturnsInfluencers(Deque<Influencer> influencers) {
-        List<Deque<BatchedResultsIterator.ResultWithIndex<Influencer>>> batches = new ArrayList<>();
-        Deque<BatchedResultsIterator.ResultWithIndex<Influencer>> queue = new ArrayDeque<>();
+        List<Deque<Result<Influencer>>> batches = new ArrayList<>();
+        Deque<Result<Influencer>> queue = new ArrayDeque<>();
         for (Influencer inf : influencers) {
-            queue.add(new BatchedResultsIterator.ResultWithIndex<>("foo", inf));
+            queue.add(new Result<>("foo", inf));
         }
         batches.add(queue);
-        MockBatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<Influencer>> iterator =
-                new MockBatchedDocumentsIterator<>(batches);
+        MockBatchedDocumentsIterator<Result<Influencer>> iterator = new MockBatchedDocumentsIterator<>(batches);
         iterator.requireIncludeInterim(false);
         when(jobProvider.newBatchedInfluencersIterator(JOB_ID)).thenReturn(iterator);
     }

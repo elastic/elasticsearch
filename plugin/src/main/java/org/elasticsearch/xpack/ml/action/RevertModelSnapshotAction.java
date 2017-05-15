@@ -310,7 +310,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
                     throw new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(),
                             request.getJobId()));
                 }
-                handler.accept(modelSnapshot);
+                handler.accept(modelSnapshot.result);
             }, errorHandler);
         }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -275,25 +276,25 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
                     listener.onFailure(new ResourceNotFoundException(Messages.getMessage(
                             Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())));
                 } else {
-                    ModelSnapshot updatedSnapshot = applyUpdate(request, modelSnapshot);
+                    Result<ModelSnapshot> updatedSnapshot = applyUpdate(request, modelSnapshot);
                     jobManager.updateModelSnapshot(updatedSnapshot, b -> {
                         // The quantiles can be large, and totally dominate the output -
                         // it's clearer to remove them
-                        listener.onResponse(new Response(new ModelSnapshot.Builder(updatedSnapshot).setQuantiles(null).build()));
+                        listener.onResponse(new Response(new ModelSnapshot.Builder(updatedSnapshot.result).setQuantiles(null).build()));
                     }, listener::onFailure);
                 }
             }, listener::onFailure);
         }
 
-        private static ModelSnapshot applyUpdate(Request request, ModelSnapshot target) {
-            ModelSnapshot.Builder updatedSnapshotBuilder = new ModelSnapshot.Builder(target);
+        private static Result<ModelSnapshot> applyUpdate(Request request, Result<ModelSnapshot> target) {
+            ModelSnapshot.Builder updatedSnapshotBuilder = new ModelSnapshot.Builder(target.result);
             if (request.getDescription() != null) {
                 updatedSnapshotBuilder.setDescription(request.getDescription());
             }
             if (request.getRetain() != null) {
                 updatedSnapshotBuilder.setRetain(request.getRetain());
             }
-            return updatedSnapshotBuilder.build();
+            return new Result(target.index, updatedSnapshotBuilder.build());
         }
     }
 }

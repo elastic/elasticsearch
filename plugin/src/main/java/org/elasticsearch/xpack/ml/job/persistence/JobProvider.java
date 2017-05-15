@@ -235,7 +235,7 @@ public class JobProvider {
     public void dataCounts(String jobId, Consumer<DataCounts> handler, Consumer<Exception> errorHandler) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         searchSingleResult(jobId, DataCounts.TYPE.getPreferredName(), createLatestDataCountsSearch(indexName, jobId),
-                DataCounts.PARSER, handler, errorHandler, () -> new DataCounts(jobId));
+                DataCounts.PARSER, result -> handler.accept(result.result), errorHandler, () -> new DataCounts(jobId));
     }
 
     private SearchRequestBuilder createLatestDataCountsSearch(String indexName, String jobId) {
@@ -496,7 +496,7 @@ public class JobProvider {
      * @param jobId the id of the job for which buckets are requested
      * @return a bucket {@link BatchedDocumentsIterator}
      */
-    public BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<Bucket>> newBatchedBucketsIterator(String jobId) {
+    public BatchedDocumentsIterator<Result<Bucket>> newBatchedBucketsIterator(String jobId) {
         return new BatchedBucketsIterator(client, jobId);
     }
 
@@ -508,7 +508,7 @@ public class JobProvider {
      * @param jobId the id of the job for which buckets are requested
      * @return a record {@link BatchedDocumentsIterator}
      */
-    public BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>>
+    public BatchedDocumentsIterator<Result<AnomalyRecord>>
     newBatchedRecordsIterator(String jobId) {
         return new BatchedRecordsIterator(client, jobId);
     }
@@ -732,14 +732,14 @@ public class JobProvider {
      * @param jobId the id of the job for which influencers are requested
      * @return an influencer {@link BatchedDocumentsIterator}
      */
-    public BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<Influencer>> newBatchedInfluencersIterator(String jobId) {
+    public BatchedDocumentsIterator<Result<Influencer>> newBatchedInfluencersIterator(String jobId) {
         return new BatchedInfluencersIterator(client, jobId);
     }
 
     /**
      * Get a job's model snapshot by its id
      */
-    public void getModelSnapshot(String jobId, @Nullable String modelSnapshotId, Consumer<ModelSnapshot> handler,
+    public void getModelSnapshot(String jobId, @Nullable String modelSnapshotId, Consumer<Result<ModelSnapshot>> handler,
                                  Consumer<Exception> errorHandler) {
         if (modelSnapshotId == null) {
             handler.accept(null);
@@ -748,8 +748,9 @@ public class JobProvider {
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         SearchRequestBuilder search = createDocIdSearch(resultsIndex, ModelSnapshot.TYPE.getPreferredName(),
                 ModelSnapshot.documentId(jobId, modelSnapshotId));
-        searchSingleResult(jobId, ModelSnapshot.TYPE.getPreferredName(), search,
-                ModelSnapshot.PARSER, builder -> handler.accept(builder == null ? null : builder.build()), errorHandler, () -> null);
+        searchSingleResult(jobId, ModelSnapshot.TYPE.getPreferredName(), search, ModelSnapshot.PARSER,
+                result -> handler.accept(result.result == null ? null : new Result(result.index, result.result.build())),
+                errorHandler, () -> null);
     }
 
     /**
@@ -936,21 +937,21 @@ public class JobProvider {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         searchSingleResult(jobId, ModelSizeStats.RESULT_TYPE_VALUE, createLatestModelSizeStatsSearch(indexName),
                 ModelSizeStats.PARSER,
-                builder -> handler.accept(builder.build()), errorHandler,
+                result -> handler.accept(result.result.build()), errorHandler,
                 () -> new ModelSizeStats.Builder(jobId));
     }
 
     private <U, T> void searchSingleResult(String jobId, String resultDescription, SearchRequestBuilder search,
-                                        BiFunction<XContentParser, U, T> objectParser, Consumer<T> handler,
+                                        BiFunction<XContentParser, U, T> objectParser, Consumer<Result<T>> handler,
                                         Consumer<Exception> errorHandler, Supplier<T> notFoundSupplier) {
         search.execute(ActionListener.wrap(
                 response -> {
                     SearchHit[] hits = response.getHits().getHits();
                     if (hits.length == 0) {
                         LOGGER.trace("No {} for job with id {}", resultDescription, jobId);
-                        handler.accept(notFoundSupplier.get());
+                        handler.accept(new Result(null, notFoundSupplier.get()));
                     } else if (hits.length == 1) {
-                        handler.accept(parseSearchHit(hits[0], objectParser, errorHandler));
+                        handler.accept(new Result(hits[0].getIndex(), parseSearchHit(hits[0], objectParser, errorHandler)));
                     } else {
                         errorHandler.accept(new IllegalStateException("Search for unique [" + resultDescription + "] returned ["
                                 + hits.length + "] hits even though size was 1"));

@@ -9,8 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.results.Result;
 
-public abstract class BatchedResultsIterator<T>
-        extends BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<T>> {
+public abstract class BatchedResultsIterator<T> extends BatchedDocumentsIterator<Result<T>> {
 
     public BatchedResultsIterator(Client client, String jobId, String resultType) {
         super(client, AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
@@ -20,15 +19,5 @@ public abstract class BatchedResultsIterator<T>
     @Override
     protected String getType() {
         return Result.TYPE.getPreferredName();
-    }
-
-    public static class ResultWithIndex<T> {
-        public final String indexName;
-        public final T result;
-
-        public ResultWithIndex(String indexName, T result) {
-            this.indexName = indexName;
-            this.result = result;
-        }
     }
 }

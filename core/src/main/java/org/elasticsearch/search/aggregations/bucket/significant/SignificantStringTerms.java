@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,7 +83,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         }
 
         @Override
-        int compareTerm(SignificantTerms.Bucket other) {
+        public int compareTerm(SignificantTerms.Bucket other) {
             return termBytes.compareTo(((Bucket) other).termBytes);
         }
 

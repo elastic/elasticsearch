@@ -130,7 +130,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
 
     private final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(getNamedXContents());
-    protected static final List<NamedXContentRegistry.Entry> namedXContents;
+
+    private static final List<NamedXContentRegistry.Entry> namedXContents;
     static {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();
         map.put(CardinalityAggregationBuilder.NAME, (p, c) -> ParsedCardinality.fromXContent(p, (String) c));
@@ -175,7 +176,11 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 .collect(Collectors.toList());
     }
 
-    public static List<NamedXContentRegistry.Entry> getNamedXContents() {
+    public static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
+        return namedXContents;
+    }
+
+    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         return namedXContents;
     }
 

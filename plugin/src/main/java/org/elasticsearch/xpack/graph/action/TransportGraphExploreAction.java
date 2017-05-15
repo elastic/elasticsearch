@@ -668,7 +668,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                             VertexRequest vr = rootHop.getVertexRequest(j);
                             if (request.useSignificance()) {
                                 SignificantTerms significantTerms = sample.getAggregations().get("field" + j);
-                                List<Bucket> buckets = significantTerms.getBuckets();
+                                List<? extends Bucket> buckets = significantTerms.getBuckets();
                                 for (Bucket bucket : buckets) {
                                     double signalWeight = bucket.getSignificanceScore() / totalSignalStrength;
                                     addVertex(vr.fieldName(), bucket.getKeyAsString(), signalWeight, 
@@ -695,7 +695,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                             if (request.useSignificance()) {
                                 // Signal is based on significance score
                                 SignificantTerms significantTerms = sample.getAggregations().get("field" + i);
-                                List<Bucket> buckets = significantTerms.getBuckets();
+                                List<? extends Bucket> buckets = significantTerms.getBuckets();
                                 for (Bucket bucket : buckets) {
                                     totalSignalStrength += bucket.getSignificanceScore();
                                 }

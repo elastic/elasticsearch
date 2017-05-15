@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

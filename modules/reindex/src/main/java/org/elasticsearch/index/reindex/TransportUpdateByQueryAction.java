@@ -21,6 +21,12 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.ParentBulkByScrollTask;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollParallelizationHelper;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource;
+import org.elasticsearch.action.bulk.byscroll.WorkingBulkByScrollTask;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;

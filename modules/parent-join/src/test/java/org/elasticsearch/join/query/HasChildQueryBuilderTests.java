@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -128,7 +129,8 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             hqb.innerHit(new InnerHitBuilder()
                     .setName(randomAlphaOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
-                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)), hqb.ignoreUnmapped());
+                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC))
+                    .setIgnoreUnmapped(hqb.ignoreUnmapped()));
         }
         return hqb;
     }
@@ -144,15 +146,15 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from
             // doCreateTestQueryBuilder)
             queryBuilder = (HasChildQueryBuilder) queryBuilder.rewrite(searchContext.getQueryShardContext());
-            Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
-            InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
-            for (InnerHitBuilder builder : innerHitBuilders.values()) {
+            Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
+            InnerHitContextBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
+            for (InnerHitContextBuilder builder : innerHitBuilders.values()) {
                 builder.build(searchContext, searchContext.innerHits());
             }
             assertNotNull(searchContext.innerHits());
             assertEquals(1, searchContext.innerHits().getInnerHits().size());
             assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
-            InnerHitsContext.BaseInnerHits innerHits =
+            InnerHitsContext.InnerHitSubContext innerHits =
                     searchContext.innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
             assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
             assertEquals(innerHits.sort().sort.getSort().length, 1);
@@ -231,7 +233,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertEquals(query, queryBuilder.childType(), "child");
         assertEquals(query, queryBuilder.scoreMode(), ScoreMode.Avg);
         assertNotNull(query, queryBuilder.innerHit());
-        InnerHitBuilder expected = new InnerHitBuilder(new InnerHitBuilder(), queryBuilder.query(), "child", false)
+        InnerHitBuilder expected = new InnerHitBuilder("child")
                 .setName("inner_hits_name")
                 .setSize(100)
                 .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC));

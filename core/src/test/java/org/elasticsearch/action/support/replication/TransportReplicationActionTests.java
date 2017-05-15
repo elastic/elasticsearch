@@ -194,8 +194,8 @@ public class TransportReplicationActionTests extends ESTestCase {
             }
         };
 
-        ClusterBlocks.Builder block = ClusterBlocks.builder()
-            .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL, false));
+        ClusterBlocks.Builder block = ClusterBlocks.builder().addGlobalBlock(new ClusterBlock(1, "non retryable", false, true,
+            RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL, false));
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
         reroutePhase.run();
@@ -219,8 +219,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertPhase(task, "waiting_for_retry");
         assertTrue(request.isRetrySet.get());
 
-        block = ClusterBlocks.builder()
-            .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL, false));
+        block = ClusterBlocks.builder().addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE,
+            ClusterBlockLevel.ALL, false));
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         assertListenerThrows("primary phase should fail operation when moving from a retryable block to a non-retryable one", listener,
             ClusterBlockException.class);

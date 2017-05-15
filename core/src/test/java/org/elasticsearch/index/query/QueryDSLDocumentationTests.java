@@ -53,8 +53,6 @@ import static org.elasticsearch.index.query.QueryBuilders.geoDistanceRangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoHashCellQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -198,20 +196,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 new GeoPoint(13.4080, 52.5186))
             .neighbors(true)
             .precision(3);
-    }
-
-    public void testHasChild() {
-        hasChildQuery(
-                "blog_tag",
-                termQuery("tag","something"),
-                ScoreMode.None);
-    }
-
-    public void testHasParent() {
-        hasParentQuery(
-            "blog",
-            termQuery("tag","something"),
-                false);
     }
 
     public void testIds() {

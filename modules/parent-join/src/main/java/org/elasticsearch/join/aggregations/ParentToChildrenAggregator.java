@@ -84,8 +84,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
-                metaData());
+        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal),
+            bucketAggregations(owningBucketOrdinal), pipelineAggregators(), metaData());
     }
 
     @Override

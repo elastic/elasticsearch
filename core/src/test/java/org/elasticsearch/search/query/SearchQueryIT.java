@@ -65,7 +65,6 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -1751,34 +1750,6 @@ public class SearchQueryIT extends ESIntegTestCase {
                         .noMatchQuery("none")).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("1"));
-    }
-
-    // See #2416
-    public void testIndicesQuerySkipParsing() throws Exception {
-        createIndex("simple");
-        assertAcked(prepareCreate("related")
-                .addMapping("child", jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent")
-                        .endObject().endObject().endObject()));
-
-        client().prepareIndex("simple", "lone").setId("1").setSource("text", "value1").get();
-        client().prepareIndex("related", "parent").setId("2").setSource("text", "parent").get();
-        client().prepareIndex("related", "child").setId("3").setParent("2").setSource("text", "value2").get();
-        refresh();
-
-        //has_child fails if executed on "simple" index
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("simple").setQuery(hasChildQuery("child", matchQuery("text", "value"), ScoreMode.None)).get());
-        assertThat(e.shardFailures().length, greaterThan(0));
-        for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
-            assertThat(shardSearchFailure.reason(), containsString("no mapping found for type [child]"));
-        }
-
-        //has_child doesn't get parsed for "simple" index
-        SearchResponse searchResponse = client().prepareSearch("related", "simple")
-                .setQuery(indicesQuery(hasChildQuery("child", matchQuery("text", "value2"), ScoreMode.None), "related")
-                        .noMatchQuery(matchQuery("text", "value1"))).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "1", "2");
     }
 
     public void testIndicesQueryMissingIndices() throws IOException, ExecutionException, InterruptedException {

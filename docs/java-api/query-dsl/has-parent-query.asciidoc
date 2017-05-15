@@ -13,4 +13,4 @@ QueryBuilder qb = hasParentQuery(
 --------------------------------------------------
 <1> parent type to query against
 <2> query
-<3> whether the score from the parent hit should propogate to the child hit
+<3> whether the score from the parent hit should propagate to the child hit

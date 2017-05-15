@@ -565,15 +565,20 @@ public class InnerHitsIT extends ESIntegTestCase {
     }
 
     public void testDontExplode() throws Exception {
-        assertAcked(prepareCreate("index1").addMapping("child", "_parent", "type=parent"));
-        List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("index1", "parent", "1").setSource("{}", XContentType.JSON));
-        requests.add(client().prepareIndex("index1", "child", "1").setParent("1").setSource("field", "value1"));
-        indexRandom(true, requests);
+        assertAcked(prepareCreate("index").addMapping("type", "nested", "type=nested"));
+        client().prepareIndex("index", "type", "1").setSource(jsonBuilder().startObject()
+            .startArray("nested")
+            .startObject()
+            .field("field", "value1")
+            .endObject()
+            .endArray()
+            .endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        QueryBuilder query = query = nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg)
+        QueryBuilder query = nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg)
             .innerHit(new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1), false);
-        SearchResponse response = client().prepareSearch("index2")
+        SearchResponse response = client().prepareSearch("index")
             .setQuery(query)
             .get();
         assertNoFailures(response);

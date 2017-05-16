@@ -72,8 +72,8 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         List<InternalBinaryRange.Bucket> buckets = new ArrayList<>();
         for (int i = 0; i < ranges.size(); ++i) {
             final int docCount = randomIntBetween(1, 100);
-            buckets.add(new InternalBinaryRange.Bucket(format, keyed, randomAlphaOfLength(10),
-                    ranges.get(i).v1(), ranges.get(i).v2(), docCount, aggregations));
+            final String key = i > 0 ? randomAlphaOfLength(10) : null;
+            buckets.add(new InternalBinaryRange.Bucket(format, keyed, key, ranges.get(i).v1(), ranges.get(i).v2(), docCount, aggregations));
         }
         return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators, metaData);
     }

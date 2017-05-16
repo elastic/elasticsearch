@@ -98,9 +98,12 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
             }
         } else {
             for (MultiBucketsAggregation.Bucket expectedBucket : expectedBuckets) {
+                final Object expectedKey = expectedBucket.getKey();
                 boolean found = false;
+
                 for (MultiBucketsAggregation.Bucket actualBucket : actualBuckets) {
-                    if (actualBucket.getKey().equals(expectedBucket.getKey())) {
+                    final Object actualKey = actualBucket.getKey();
+                    if ((actualKey != null && actualKey.equals(expectedKey)) || (actualKey == null && expectedKey == null)) {
                         found = true;
                         assertBucket(expectedBucket, actualBucket, false);
                         break;

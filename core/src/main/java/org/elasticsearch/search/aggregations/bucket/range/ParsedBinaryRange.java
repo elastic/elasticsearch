@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -64,8 +63,8 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Range.Bucket {
 
         private String key;
-        private BytesRef from;
-        private BytesRef to;
+        private String from;
+        private String to;
 
         @Override
         public Object getKey() {
@@ -79,36 +78,28 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
 
         @Override
         public Object getFrom() {
-            return getFromAsString();
+            return from;
         }
 
         @Override
         public String getFromAsString() {
-            return bytesRefToString(from);
+            return from;
         }
 
         @Override
         public Object getTo() {
-            return getToAsString();
+            return to;
         }
 
         @Override
         public String getToAsString() {
-            return bytesRefToString(to);
+            return to;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            String key = this.key;
             if (isKeyed()) {
-                if (key == null) {
-                    StringBuilder keyBuilder = new StringBuilder();
-                    keyBuilder.append(from == null ? "*" : getFromAsString());
-                    keyBuilder.append('-');
-                    keyBuilder.append(to == null ? "*" : getToAsString());
-                    key = keyBuilder.toString();
-                }
-                builder.startObject(key);
+                builder.startObject(key != null ? key : rangeKey(from, to));
             } else {
                 builder.startObject();
                 if (key != null) {
@@ -127,21 +118,16 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
             return builder;
         }
 
-        private static String bytesRefToString(final BytesRef bytesRef) {
-            if (bytesRef == null) {
-                return null;
-            }
-            return bytesRef.utf8ToString();
-        }
-
         static ParsedBucket fromXContent(final XContentParser parser, final boolean keyed) throws IOException {
             final ParsedBucket bucket = new ParsedBucket();
             bucket.setKeyed(keyed);
             XContentParser.Token token = parser.currentToken();
             String currentFieldName = parser.currentName();
+
+            String rangeKey = null;
             if (keyed) {
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-                bucket.key = currentFieldName;
+                rangeKey = currentFieldName;
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             }
 
@@ -155,16 +141,28 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
                     } else if (CommonFields.DOC_COUNT.getPreferredName().equals(currentFieldName)) {
                         bucket.setDocCount(parser.longValue());
                     } else if (CommonFields.FROM.getPreferredName().equals(currentFieldName)) {
-                        bucket.from = parser.utf8BytesOrNull();
+                        bucket.from = parser.text();
                     } else if (CommonFields.TO.getPreferredName().equals(currentFieldName)) {
-                        bucket.to = parser.utf8BytesOrNull();
+                        bucket.to = parser.text();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     aggregations.add(XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class));
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));
+
+            if (keyed) {
+                if (rangeKey(bucket.from, bucket.to).equals(rangeKey)) {
+                    bucket.key = null;
+                } else {
+                    bucket.key = rangeKey;
+                }
+            }
             return bucket;
+        }
+
+        private static String rangeKey(String from, String to) {
+            return (from == null ? "*" : from) + '-' + (to == null ? "*" : to);
         }
     }
 }

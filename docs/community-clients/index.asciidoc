@@ -6,7 +6,7 @@ Besides the link:/guide[officially supported Elasticsearch clients], there are
 a number of clients that have been contributed by the community for various languages:
 
 * <<clojure>>
-* <<cold-fusion>>
+* <<coldfusion>>
 * <<erlang>>
 * <<go>>
 * <<groovy>>
@@ -33,13 +33,16 @@ a number of clients that have been contributed by the community for various lang
 * http://github.com/clojurewerkz/elastisch[Elastisch]:
   Clojure client.
 
-[[cold-fusion]]
-== Cold Fusion
+[[coldfusion]]
+== ColdFusion (CFML)
+
+* https://www.forgebox.io/view/cbelasticsearch[cbElasticSearch]
+  Native ColdFusion (CFML) support for the ColdBox MVC Platform which provides you with a fluent search interface for Elasticsearch, in addition to a CacheBox Cache provider and a Logbox Appender for logging.
 
 The following project appears to be abandoned:
 
 * https://github.com/jasonfill/ColdFusion-ElasticSearch-Client[ColdFusion-Elasticsearch-Client]
-  Cold Fusion client for Elasticsearch
+  ColdFusion client for Elasticsearch
 
 [[erlang]]
 == Erlang

@@ -143,7 +143,7 @@ public class Stash implements ToXContent {
         }
         if (obj instanceof Map) {
             Map<?, ?> map = (Map<?, ?>) obj;
-            Map<String, Object> result = new TreeMap<>();
+            Map<String, Object> result = new HashMap<>();
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 String key = (String) entry.getKey();
                 Object value = entry.getValue();

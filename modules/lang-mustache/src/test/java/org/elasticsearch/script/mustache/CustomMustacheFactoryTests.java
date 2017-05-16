@@ -68,8 +68,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
         CompiledScript compiled = new CompiledScript(INLINE, null, MustacheScriptEngine.NAME, script);
 
         ExecutableScript executable = engine.executable(compiled, singletonMap("value", "a \"value\""));
-        BytesReference result = (BytesReference) executable.run();
-        assertThat(result.utf8ToString(), equalTo("{\"field\": \"a \\\"value\\\"\"}"));
+        assertThat(executable.run(), equalTo("{\"field\": \"a \\\"value\\\"\"}"));
     }
 
     public void testDefaultEncoder() {
@@ -80,8 +79,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
         CompiledScript compiled = new CompiledScript(INLINE, null, MustacheScriptEngine.NAME, script);
 
         ExecutableScript executable = engine.executable(compiled, singletonMap("value", "a \"value\""));
-        BytesReference result = (BytesReference) executable.run();
-        assertThat(result.utf8ToString(), equalTo("{\"field\": \"a \"value\"\"}"));
+        assertThat(executable.run(), equalTo("{\"field\": \"a \"value\"\"}"));
     }
 
     public void testUrlEncoder() {
@@ -92,7 +90,6 @@ public class CustomMustacheFactoryTests extends ESTestCase {
         CompiledScript compiled = new CompiledScript(INLINE, null, MustacheScriptEngine.NAME, script);
 
         ExecutableScript executable = engine.executable(compiled, singletonMap("value", "tilde~ AND date:[2016 FROM*]"));
-        BytesReference result = (BytesReference) executable.run();
-        assertThat(result.utf8ToString(), equalTo("{\"field\": \"tilde%7E+AND+date%3A%5B2016+FROM*%5D\"}"));
+        assertThat(executable.run(), equalTo("{\"field\": \"tilde%7E+AND+date%3A%5B2016+FROM*%5D\"}"));
     }
 }

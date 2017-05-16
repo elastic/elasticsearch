@@ -77,6 +77,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -348,39 +349,28 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         assertRecoveryState(recoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, true, Stage.DONE, nodeA, nodeB);
         validateIndexRecoveryState(recoveryStates.get(0).getIndex());
-
-        statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-        assertThat(statsResponse.getNodes(), hasSize(2));
-        for (NodeStats nodeStats : statsResponse.getNodes()) {
+        Consumer<String> assertNodeHasThrottleTimeAndNoRecoveries = nodeName ->  {
+            NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().setNodesIds(nodeName)
+                .clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
+            assertThat(nodesStatsResponse.getNodes(), hasSize(1));
+            NodeStats nodeStats = nodesStatsResponse.getNodes().get(0);
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
             assertThat(recoveryStats.currentAsSource(), equalTo(0));
             assertThat(recoveryStats.currentAsTarget(), equalTo(0));
-            if (nodeStats.getNode().getName().equals(nodeA)) {
-                assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
-            }
-            if (nodeStats.getNode().getName().equals(nodeB)) {
-                assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0L));
-            }
-        }
+            assertThat(nodeName + " throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
+        };
+        // we have to use assertBusy as recovery counters are decremented only when the last reference to the RecoveryTarget
+        // is decremented, which may happen after the recovery was done.
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeA));
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeB));
 
         logger.info("--> bump replica count");
         client().admin().indices().prepareUpdateSettings(INDEX_NAME)
                 .setSettings(Settings.builder().put("number_of_replicas", 1)).execute().actionGet();
         ensureGreen();
 
-        statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-        assertThat(statsResponse.getNodes(), hasSize(2));
-        for (NodeStats nodeStats : statsResponse.getNodes()) {
-            final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-            assertThat(recoveryStats.currentAsSource(), equalTo(0));
-            assertThat(recoveryStats.currentAsTarget(), equalTo(0));
-            if (nodeStats.getNode().getName().equals(nodeA)) {
-                assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
-            }
-            if (nodeStats.getNode().getName().equals(nodeB)) {
-                assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0L));
-            }
-        }
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeA));
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeB));
 
         logger.info("--> start node C");
         String nodeC = internalCluster().startNode();

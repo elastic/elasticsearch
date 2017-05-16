@@ -210,8 +210,8 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
      * @param indices the indices to check
      */
     public ClusterBlockException indicesAllowReleaseResources(String[] indices) {
-        final Function<String, Stream<ClusterBlock>> blocksForIndexAtLevel = index -> blocksForIndex(ClusterBlockLevel.METADATA_WRITE, index)
-            .stream();
+        final Function<String, Stream<ClusterBlock>> blocksForIndexAtLevel = index ->
+            blocksForIndex(ClusterBlockLevel.METADATA_WRITE, index).stream();
         Stream<ClusterBlock> blocks = concat(
             global(ClusterBlockLevel.METADATA_WRITE).stream(),
             Stream.of(indices).flatMap(blocksForIndexAtLevel)).filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false);

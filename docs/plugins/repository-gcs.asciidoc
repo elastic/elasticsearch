@@ -155,7 +155,7 @@ The following settings are supported:
 `client`::
 
     The client congfiguration to use. This controls which credentials are used to connect
-    to Comput Engine.
+    to Compute Engine.
 
 `base_path`::
 

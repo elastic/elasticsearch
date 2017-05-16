@@ -348,7 +348,6 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("Unknown plugin foo"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/24693")
     public void testPluginsDirMissing() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Files.delete(env.v2().pluginsFile());

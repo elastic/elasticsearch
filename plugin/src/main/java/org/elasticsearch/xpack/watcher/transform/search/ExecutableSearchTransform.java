@@ -11,6 +11,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.script.Script;
@@ -44,9 +45,9 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
         WatcherSearchTemplateRequest request = null;
         try {
             Script template = transform.getRequest().getOrCreateTemplate();
-            BytesReference renderedTemplate = searchTemplateService.renderTemplate(template, ctx, payload);
+            String renderedTemplate = searchTemplateService.renderTemplate(template, ctx, payload);
             // We need to make a copy, so that we don't modify the original instance that we keep around in a watch:
-            request = new WatcherSearchTemplateRequest(transform.getRequest(), renderedTemplate);
+            request = new WatcherSearchTemplateRequest(transform.getRequest(), new BytesArray(renderedTemplate));
             SearchResponse resp = client.search(searchTemplateService.toSearchRequest(request), timeout);
             return new SearchTransform.Result(request, new Payload.XContent(resp));
         } catch (Exception e) {

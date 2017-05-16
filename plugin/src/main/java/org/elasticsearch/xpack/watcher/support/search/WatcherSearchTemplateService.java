@@ -41,7 +41,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         this.xContentRegistry = xContentRegistry;
     }
 
-    public BytesReference renderTemplate(Script source,
+    public String renderTemplate(Script source,
                                          WatchExecutionContext ctx,
                                          Payload payload) throws IOException {
         // Due the inconsistency with templates in ES 1.x, we maintain our own template format.

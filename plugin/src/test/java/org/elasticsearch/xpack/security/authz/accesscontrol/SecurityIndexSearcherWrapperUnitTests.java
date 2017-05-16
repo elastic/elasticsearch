@@ -465,7 +465,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.singletonMap("custom", "value"));
         builder = jsonBuilder().startObject().field("template");
         script.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        BytesReference querySource = builder.endObject().bytes();
+        String querySource = builder.endObject().string();
 
         securityIndexSearcherWrapper.evaluateTemplate(querySource);
         ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
@@ -492,8 +492,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         securityIndexSearcherWrapper =
                 new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, scriptService);
         XContentBuilder builder = jsonBuilder();
-        BytesReference querySource =  new TermQueryBuilder("field", "value").toXContent(builder, ToXContent.EMPTY_PARAMS).bytes();
-        BytesReference result = securityIndexSearcherWrapper.evaluateTemplate(querySource);
+        String querySource =  new TermQueryBuilder("field", "value").toXContent(builder, ToXContent.EMPTY_PARAMS).string();
+        String result = securityIndexSearcherWrapper.evaluateTemplate(querySource);
         assertThat(result, sameInstance(querySource));
         verifyZeroInteractions(scriptService);
     }

@@ -57,7 +57,7 @@ public class TextTemplateTests extends ESTestCase {
         merged = unmodifiableMap(merged);
         ScriptType type = randomFrom(ScriptType.values());
 
-        CompiledTemplate compiledTemplate = templateParams -> new BytesArray("rendered_text");
+        CompiledTemplate compiledTemplate = templateParams -> "rendered_text";
         when(service.compileTemplate(new Script(type, lang, templateText,
                 type == ScriptType.INLINE ? Collections.singletonMap("content_type", "text/plain") : null,
                 merged), Watcher.SCRIPT_CONTEXT)).thenReturn(compiledTemplate);
@@ -72,7 +72,7 @@ public class TextTemplateTests extends ESTestCase {
         Map<String, Object> model = singletonMap("key", "model_val");
         ScriptType type = randomFrom(ScriptType.values());
 
-        CompiledTemplate compiledTemplate = templateParams -> new BytesArray("rendered_text");
+        CompiledTemplate compiledTemplate = templateParams -> "rendered_text";
         when(service.compileTemplate(new Script(type, lang, templateText,
                 type == ScriptType.INLINE ? Collections.singletonMap("content_type", "text/plain") : null,
                 model), Watcher.SCRIPT_CONTEXT)).thenReturn(compiledTemplate);
@@ -85,7 +85,7 @@ public class TextTemplateTests extends ESTestCase {
         String templateText = "_template";
         Map<String, Object> model = singletonMap("key", "model_val");
 
-        CompiledTemplate compiledTemplate = templateParams -> new BytesArray("rendered_text");
+        CompiledTemplate compiledTemplate = templateParams -> "rendered_text";
         when(service.compileTemplate(new Script(ScriptType.INLINE, lang, templateText,
                 Collections.singletonMap("content_type", "text/plain"), model), Watcher.SCRIPT_CONTEXT))
                 .thenReturn(compiledTemplate);

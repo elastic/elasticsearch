@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -53,9 +54,9 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         WatcherSearchTemplateRequest request = null;
         try {
             Script template = input.getRequest().getOrCreateTemplate();
-            BytesReference renderedTemplate = searchTemplateService.renderTemplate(template, ctx, payload);
+            String renderedTemplate = searchTemplateService.renderTemplate(template, ctx, payload);
             // We need to make a copy, so that we don't modify the original instance that we keep around in a watch:
-            request = new WatcherSearchTemplateRequest(input.getRequest(), renderedTemplate);
+            request = new WatcherSearchTemplateRequest(input.getRequest(), new BytesArray(renderedTemplate));
             return doExecute(ctx, request);
         } catch (Exception e) {
             logger.error("failed to execute [{}] input for watch [{}], reason [{}]", TYPE, ctx.watch().id(), e.getMessage());

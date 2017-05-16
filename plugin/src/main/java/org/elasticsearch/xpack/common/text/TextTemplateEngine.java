@@ -57,7 +57,7 @@ public class TextTemplateEngine extends AbstractComponent {
         }
         Script script = new Script(textTemplate.getType(), "mustache", template, options, mergedModel);
         CompiledTemplate compiledTemplate = service.compileTemplate(script, Watcher.SCRIPT_CONTEXT);
-        return compiledTemplate.run(model).utf8ToString();
+        return compiledTemplate.run(model);
     }
 
     private String trimContentType(TextTemplate textTemplate) {

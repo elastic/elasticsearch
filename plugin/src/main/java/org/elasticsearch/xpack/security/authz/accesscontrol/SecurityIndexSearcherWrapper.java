@@ -134,9 +134,9 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 BooleanQuery.Builder filter = new BooleanQuery.Builder();
                 for (BytesReference bytesReference : permissions.getQueries()) {
                     QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
-                    bytesReference = evaluateTemplate(bytesReference);
-                    try (XContentParser parser = XContentFactory.xContent(bytesReference)
-                            .createParser(queryShardContext.getXContentRegistry(), bytesReference)) {
+                    String templateResult = evaluateTemplate(bytesReference.utf8ToString());
+                    try (XContentParser parser = XContentFactory.xContent(templateResult)
+                            .createParser(queryShardContext.getXContentRegistry(), templateResult)) {
                         QueryBuilder queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
                         verifyRoleQuery(queryBuilder);
                         failIfQueryUsesClient(scriptService, queryBuilder, queryShardContext);
@@ -244,7 +244,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
         }
     }
 
-    BytesReference evaluateTemplate(BytesReference querySource) throws IOException {
+    String evaluateTemplate(String querySource) throws IOException {
         // EMPTY is safe here because we never use namedObject
         try (XContentParser parser = XContentFactory.xContent(querySource).createParser(NamedXContentRegistry.EMPTY, querySource)) {
             XContentParser.Token token = parser.nextToken();

@@ -101,18 +101,6 @@ public class BootstrapForTesting {
                 // initialize paths the same exact way as bootstrap
                 Permissions perms = new Permissions();
                 Security.addClasspathPermissions(perms);
-                // crazy jython
-                for (URL url : JarHell.parseClassPath()) {
-                    Path path = PathUtils.get(url.toURI());
-
-                    // crazy jython...
-                    String filename = path.getFileName().toString();
-                    if (filename.contains("jython") && filename.endsWith(".jar")) {
-                        // just enough so it won't fail when it does not exist
-                        perms.add(new FilePermission(path.getParent().toString(), "read,readlink"));
-                        perms.add(new FilePermission(path.getParent().resolve("Lib").toString(), "read,readlink"));
-                    }
-                }
                 // java.io.tmpdir
                 Security.addPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete");
                 // custom test config file

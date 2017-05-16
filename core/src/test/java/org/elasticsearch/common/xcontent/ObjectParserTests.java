@@ -31,6 +31,7 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -108,7 +109,6 @@ public class ObjectParserTests extends ESTestCase {
         s = objectParser.parse(parser, null);
         assertNotNull(s.object);
         assertEquals(s.object.test, 0);
-
     }
 
     /**
@@ -353,7 +353,11 @@ public class ObjectParserTests extends ESTestCase {
             builder.field("string_array_field", "5");
         }
         boolean nullValue = randomBoolean();
-        builder.field("boolean_field", nullValue);
+        if (randomBoolean()) {
+            builder.field("boolean_field", nullValue);
+        } else {
+            builder.field("boolean_field", Boolean.toString(nullValue));
+        }
         builder.field("string_or_null", nullValue ? null : "5");
         builder.endObject();
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string());
@@ -424,19 +428,19 @@ public class ObjectParserTests extends ESTestCase {
         objectParser.declareStringOrNull(TestStruct::setString_or_null, new ParseField("string_or_null"));
         objectParser.declareBoolean(TestStruct::setNull_value, new ParseField("boolean_field"));
         TestStruct parse = objectParser.parse(parser, new TestStruct(), null);
-        assertArrayEquals(parse.double_array_field.toArray(), Arrays.asList(2.1d).toArray());
+        assertArrayEquals(parse.double_array_field.toArray(), Collections.singletonList(2.1d).toArray());
         assertEquals(parse.double_field, 2.1d, 0.0d);
 
-        assertArrayEquals(parse.long_array_field.toArray(), Arrays.asList(4L).toArray());
+        assertArrayEquals(parse.long_array_field.toArray(), Collections.singletonList(4L).toArray());
         assertEquals(parse.long_field, 4L);
 
-        assertArrayEquals(parse.string_array_field.toArray(), Arrays.asList("5").toArray());
+        assertArrayEquals(parse.string_array_field.toArray(), Collections.singletonList("5").toArray());
         assertEquals(parse.string_field, "5");
 
-        assertArrayEquals(parse.int_array_field.toArray(), Arrays.asList(1).toArray());
+        assertArrayEquals(parse.int_array_field.toArray(), Collections.singletonList(1).toArray());
         assertEquals(parse.int_field, 1);
 
-        assertArrayEquals(parse.float_array_field.toArray(), Arrays.asList(3.1f).toArray());
+        assertArrayEquals(parse.float_array_field.toArray(), Collections.singletonList(3.1f).toArray());
         assertEquals(parse.float_field, 3.1f, 0.0f);
 
         assertEquals(nullValue, parse.null_value);

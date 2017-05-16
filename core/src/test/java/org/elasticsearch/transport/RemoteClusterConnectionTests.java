@@ -498,7 +498,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     barrier.await();
                                     CountDownLatch latch = new CountDownLatch(numConnectionAttempts);
                                     for (int i = 0; i < numConnectionAttempts; i++) {
-                                        AtomicReference<RuntimeException> executed = new AtomicReference<>();
+                                        AtomicReference<Exception> executed = new AtomicReference<>();
                                         ActionListener<Void> listener = ActionListener.wrap(
                                             x -> {
                                                 if (executed.compareAndSet(null, new RuntimeException())) {
@@ -508,10 +508,21 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                                 }
                                             },
                                             x -> {
-                                                if (executed.compareAndSet(null, new RuntimeException())) {
+                                                if (executed.compareAndSet(null, x)) {
                                                     latch.countDown();
                                                 } else {
-                                                    throw new AssertionError("shit's been called twice", executed.get());
+                                                    final String message = x.getMessage();
+                                                    if ((executed.get().getClass() == x.getClass()
+                                                        && "operation was cancelled reason [connect handler is closed]".equals(message)
+                                                        && message.equals(executed.get().getMessage())) == false) {
+                                                        // we do cancel the operation and that means that if timing allows it, the caller
+                                                        // of a blocking call as well as the handler will get the exception from the
+                                                        // ExecutionCancelledException concurrently. unless that is the case we fail
+                                                        // if we get called more than once!
+                                                        AssertionError assertionError = new AssertionError("shit's been called twice", x);
+                                                        assertionError.addSuppressed(executed.get());
+                                                        throw assertionError;
+                                                    }
                                                 }
                                                 if (x instanceof RejectedExecutionException || x instanceof AlreadyClosedException
                                                     || x instanceof CancellableThreads.ExecutionCancelledException) {

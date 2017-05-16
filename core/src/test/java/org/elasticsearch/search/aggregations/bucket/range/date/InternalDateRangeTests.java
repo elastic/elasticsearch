@@ -23,6 +23,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRangeTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -100,5 +101,15 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
     @Override
     protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
         return ParsedDateRange.class;
+    }
+
+    @Override
+    protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
+        return InternalDateRange.Bucket.class;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
+        return ParsedDateRange.ParsedBucket.class;
     }
 }

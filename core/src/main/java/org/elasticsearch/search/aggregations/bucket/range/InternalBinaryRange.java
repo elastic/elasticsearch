@@ -44,6 +44,7 @@ import static java.util.Collections.unmodifiableList;
 public final class InternalBinaryRange
         extends InternalMultiBucketAggregation<InternalBinaryRange, InternalBinaryRange.Bucket>
         implements Range {
+
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
 
         private final transient DocValueFormat format;

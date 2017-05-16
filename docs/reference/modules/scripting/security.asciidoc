@@ -87,6 +87,51 @@ change from the defaults described above. You should be very, very careful
 when allowing more than the defaults. Any extra permissions weakens the total
 security of the Elasticsearch deployment.
 
+[[allowed-script-types-setting]]
+[float]
+=== Allowed script types setting
+
+By default all script types are allowed to be executed.  This can be modified using the
+setting `script.allowed_types`.  Only the types specified as part of the setting will be
+allowed to be executed.
+
+[source,yaml]
+----
+script.allowed_types: inline <1>
+----
+<1> This will allow only inline scripts to be executed but not stored scripts
+(or any other types).
+
+[[allowed-script-contexts-setting]]
+[float]
+=== Allowed script contexts setting
+
+By default all script contexts are allowed to be executed.  This can be modified using the
+setting `script.allowed_contexts`.  Only the contexts specified as part of the setting will
+be allowed to be executed.
+
+[source,yaml]
+----
+script.allowed_contexts: search, update <1>
+----
+<1> This will allow only search and update scripts to be executed but not
+aggs or plugin scripts (or any other contexts).
+
+[[deprecated-script=settings]]
+[float]
+=== Deprecated script settings
+
+The following settings have all been deprecated and will be removed in 6.0:
+
+ * <<security-script-source>>
+ * <<security-script-context>>
+ * <<security-script-fine>>
+
+Use the following instead:
+
+ * <<allowed-script-types-setting>>
+ * <<allowed-script-contexts-setting>>
+
 [[security-script-source]]
 [float]
 === Script source settings

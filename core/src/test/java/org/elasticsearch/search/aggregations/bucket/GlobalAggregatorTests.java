@@ -78,17 +78,14 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_global").field("number"));
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        try (GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-            try {
-                aggregator.preCollection();
-                indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                aggregator.postCollection();
-                InternalGlobal result = (InternalGlobal) aggregator.buildAggregation(0L);
-                verify.accept(result, (InternalMin) result.getAggregations().asMap().get("in_global"));
-            } finally {
-                IOUtils.close(aggregator.subAggregators());
-            }
-        }
+
+        GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+        InternalGlobal result = (InternalGlobal) aggregator.buildAggregation(0L);
+        verify.accept(result, (InternalMin) result.getAggregations().asMap().get("in_global"));
+
         indexReader.close();
         directory.close();
     }

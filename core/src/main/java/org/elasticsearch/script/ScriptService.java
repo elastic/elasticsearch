@@ -152,7 +152,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         this.scriptEnginesByLang = unmodifiableMap(enginesByLangBuilder);
         this.scriptEnginesByExt = unmodifiableMap(enginesByExtBuilder);
 
-        this.scriptModes = new ScriptModes(scriptSettings, settings);
+        this.scriptModes = new ScriptModes(scriptContextRegistry, scriptSettings, settings);
 
         // add file watcher for static scripts
         scriptsDirectory = env.scriptsFile();
@@ -325,7 +325,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     /** Compiles a template. Note this will be moved to a separate TemplateService in the future. */
     public CompiledTemplate compileTemplate(Script script, ScriptContext scriptContext) {
         CompiledScript compiledScript = compile(script, scriptContext);
-        return params -> (BytesReference)executable(compiledScript, params).run();
+        return params -> (String)executable(compiledScript, params).run();
     }
 
     /**
@@ -511,7 +511,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     private boolean canExecuteScript(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         assert lang != null;
-        if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
+        if (scriptContextRegistry.isSupportedContext(scriptContext.getKey()) == false) {
             throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
         }
         return scriptModes.getScriptEnabled(lang, scriptType, scriptContext);

@@ -123,12 +123,12 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
      * The list of indices to lookup
      */
     public FieldCapabilitiesRequest indices(String... indices) {
-        this.indices = Objects.requireNonNull(indices);
+        this.indices = Objects.requireNonNull(indices, "indices must not be null");
         return this;
     }
 
     public FieldCapabilitiesRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = Objects.requireNonNull(indicesOptions);
+        this.indicesOptions = Objects.requireNonNull(indicesOptions, "indices options must not be null");
         return this;
     }
 

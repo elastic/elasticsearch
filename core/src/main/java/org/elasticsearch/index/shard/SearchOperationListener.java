@@ -245,7 +245,6 @@ public interface SearchOperationListener {
                     exception = ExceptionsHelper.useOrSuppress(exception, e);
                 }
             }
-
             ExceptionsHelper.reThrowIfNotNull(exception);
         }
     }

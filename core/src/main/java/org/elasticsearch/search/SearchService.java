@@ -444,7 +444,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return context;
         } catch (Exception e) {
             processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
+            throw e;
         }
     }
 

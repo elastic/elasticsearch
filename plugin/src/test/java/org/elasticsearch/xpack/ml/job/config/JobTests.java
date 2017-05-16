@@ -6,14 +6,19 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -22,6 +27,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class JobTests extends AbstractSerializingTestCase<Job> {
 
@@ -345,18 +352,33 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertEquals(AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-carol", job.getResultsIndexName());
     }
 
-    public void testBuilder_withInvalidIndexNameThrows () {
+    public void testBuilder_withInvalidIndexNameThrows() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsIndexName("_bad^name");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build());
         assertEquals(Messages.getMessage(Messages.INVALID_ID, Job.RESULTS_INDEX_NAME.getPreferredName(), "_bad^name"), e.getMessage());
     }
 
-    public void testBuilder_buildWithCreateTime () {
+    public void testBuilder_buildWithCreateTime() {
         Job.Builder builder = buildJobBuilder("foo");
         Date now = new Date();
         Job job = builder.build(now);
         assertEquals(now, job.getCreateTime());
+        assertEquals(Version.CURRENT, job.getJobVersion());
+    }
+
+    public void testJobWithoutVersion() throws IOException {
+        Job.Builder builder = buildJobBuilder("foo");
+        Job job = builder.build();
+        assertThat(job.getJobVersion(), is(nullValue()));
+
+        // Assert parsing a job without version works as expected
+        XContentBuilder xContentBuilder = toXContent(job, randomFrom(XContentType.values()));
+        try (XContentParser parser = XContentFactory.xContent(xContentBuilder.bytes())
+                .createParser(NAMED_X_CONTENT_REGISTRY, xContentBuilder.bytes())) {
+            Job parsed = Job.PARSER.apply(parser, null).build();
+            assertThat(parsed, equalTo(job));
+        }
     }
 
     public void testBuilder_buildRequiresDataDescription() {
@@ -399,6 +421,9 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         Job.Builder builder = new Job.Builder(jobId);
         if (randomBoolean()) {
             builder.setDescription(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            builder.setJobVersion(Version.CURRENT);
         }
         builder.setCreateTime(new Date(randomNonNegativeLong()));
         if (randomBoolean()) {

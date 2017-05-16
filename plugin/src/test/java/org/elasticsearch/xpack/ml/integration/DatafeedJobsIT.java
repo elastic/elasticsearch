@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
@@ -55,11 +57,11 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = createScheduledJob("lookback-job");
         registerJob(job);
-        assertTrue(putJob(job).isAcknowledged());
+        PutJobAction.Response putJobResponse = putJob(job);
+        assertTrue(putJobResponse.isAcknowledged());
+        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
         openJob(job.getId());
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
             assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED);
         });
 
@@ -98,9 +100,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertTrue(putJob(job).isAcknowledged());
         openJob(job.getId());
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
-            assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
+            assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED);
         });
 
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList("data"));

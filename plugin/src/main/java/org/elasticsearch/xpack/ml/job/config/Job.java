@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -50,6 +52,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
      */
     public static final ParseField ID = new ParseField("job_id");
     public static final ParseField JOB_TYPE = new ParseField("job_type");
+    public static final ParseField JOB_VERSION = new ParseField("job_version");
     public static final ParseField ANALYSIS_CONFIG = new ParseField("analysis_config");
     public static final ParseField ANALYSIS_LIMITS = new ParseField("analysis_limits");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
@@ -80,6 +83,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     static {
         PARSER.declareString(Builder::setId, ID);
         PARSER.declareString(Builder::setJobType, JOB_TYPE);
+        PARSER.declareString(Builder::setJobVersion, JOB_VERSION);
         PARSER.declareStringOrNull(Builder::setDescription, DESCRIPTION);
         PARSER.declareField(Builder::setCreateTime, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
@@ -124,6 +128,14 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     private final String jobId;
     private final String jobType;
+
+    /**
+     * The version when the job was created.
+     * Will be null for versions before 5.5.
+     */
+    @Nullable
+    private final Version jobVersion;
+
     private final String description;
     // TODO: Use java.time for the Dates here: x-pack-elasticsearch#829
     private final Date createTime;
@@ -142,7 +154,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final String resultsIndexName;
     private final boolean deleted;
 
-    private Job(String jobId, String jobType, String description, Date createTime,
+    private Job(String jobId, String jobType, Version jobVersion, String description, Date createTime,
             Date finishedTime, Date lastDataTime,
                AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
@@ -151,6 +163,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
         this.jobId = jobId;
         this.jobType = jobType;
+        this.jobVersion = jobVersion;
         this.description = description;
         this.createTime = createTime;
         this.finishedTime = finishedTime;
@@ -172,6 +185,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public Job(StreamInput in) throws IOException {
         jobId = in.readString();
         jobType = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
+        } else {
+            jobVersion = null;
+        }
         description = in.readOptionalString();
         createTime = new Date(in.readVLong());
         finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
@@ -201,6 +219,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     String getJobType() {
         return jobType;
+    }
+
+    public Version getJobVersion() {
+        return jobVersion;
     }
 
     /**
@@ -372,6 +394,14 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
         out.writeString(jobType);
+        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            if (jobVersion != null) {
+                out.writeBoolean(true);
+                Version.writeVersion(jobVersion, out);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
         out.writeOptionalString(description);
         out.writeVLong(createTime.getTime());
         if (finishedTime != null) {
@@ -413,6 +443,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
         builder.field(ID.getPreferredName(), jobId);
         builder.field(JOB_TYPE.getPreferredName(), jobType);
+        if (jobVersion != null) {
+            builder.field(JOB_VERSION.getPreferredName(), jobVersion);
+        }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
@@ -471,7 +504,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         }
 
         Job that = (Job) other;
-        return Objects.equals(this.jobId, that.jobId) && Objects.equals(this.description, that.description)
+        return Objects.equals(this.jobId, that.jobId)
+                && Objects.equals(this.jobType, that.jobType)
+                && Objects.equals(this.jobVersion, that.jobVersion)
+                && Objects.equals(this.description, that.description)
                 && Objects.equals(this.createTime, that.createTime)
                 && Objects.equals(this.finishedTime, that.finishedTime)
                 && Objects.equals(this.lastDataTime, that.lastDataTime)
@@ -490,13 +526,13 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, description, createTime, finishedTime, lastDataTime, analysisConfig,
+        return Objects.hash(jobId, jobType, jobVersion, description, createTime, finishedTime, lastDataTime, analysisConfig,
                 analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
                 modelSnapshotId, resultsIndexName, deleted);
     }
 
-    // Class alreadt extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
+    // Class already extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
     @Override
     public final String toString() {
         return Strings.toString(this);
@@ -512,6 +548,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
         private String id;
         private String jobType = ANOMALY_DETECTOR_JOB_TYPE;
+        private Version jobVersion;
         private String description;
         private AnalysisConfig analysisConfig;
         private AnalysisLimits analysisLimits;
@@ -538,6 +575,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
         public Builder(Job job) {
             this.id = job.getId();
+            this.jobType = job.getJobType();
+            this.jobVersion = job.getJobVersion();
             this.description = job.getDescription();
             this.analysisConfig = job.getAnalysisConfig();
             this.analysisLimits = job.getAnalysisLimits();
@@ -559,6 +598,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         public Builder(StreamInput in) throws IOException {
             id = in.readOptionalString();
             jobType = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+                jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
+            }
             description = in.readOptionalString();
             createTime = in.readBoolean() ? new Date(in.readVLong()) : null;
             finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
@@ -584,6 +626,14 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
         public String getId() {
             return id;
+        }
+
+        public void setJobVersion(Version jobVersion) {
+            this.jobVersion = jobVersion;
+        }
+
+        private void setJobVersion(String jobVersion) {
+            this.jobVersion = Version.fromString(jobVersion);
         }
 
         private void setJobType(String jobType) {
@@ -691,6 +741,14 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(id);
             out.writeString(jobType);
+            if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+                if (jobVersion != null) {
+                    out.writeBoolean(true);
+                    Version.writeVersion(jobVersion, out);
+                } else {
+                    out.writeBoolean(false);
+                }
+            }
             out.writeOptionalString(description);
             if (createTime != null) {
                 out.writeBoolean(true);
@@ -731,6 +789,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 builder.field(ID.getPreferredName(), id);
             }
             builder.field(JOB_TYPE.getPreferredName(), jobType);
+            if (jobVersion != null) {
+                builder.field(JOB_VERSION.getPreferredName(), jobVersion);
+            }
             if (description != null) {
                 builder.field(DESCRIPTION.getPreferredName(), description);
             }
@@ -791,6 +852,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
             Job.Builder that = (Job.Builder) o;
             return Objects.equals(this.id, that.id)
+                    && Objects.equals(this.jobType, that.jobType)
+                    && Objects.equals(this.jobVersion, that.jobVersion)
                     && Objects.equals(this.description, that.description)
                     && Objects.equals(this.analysisConfig, that.analysisConfig)
                     && Objects.equals(this.analysisLimits, that.analysisLimits)
@@ -811,9 +874,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, description, analysisConfig, analysisLimits, dataDescription, createTime, finishedTime,
-                    lastDataTime, modelPlotConfig, renormalizationWindowDays, backgroundPersistInterval, modelSnapshotRetentionDays,
-                    resultsRetentionDays, customSettings, modelSnapshotId, resultsIndexName, deleted);
+            return Objects.hash(id, jobType, jobVersion, description, analysisConfig, analysisLimits, dataDescription, createTime,
+                    finishedTime, lastDataTime, modelPlotConfig, renormalizationWindowDays, backgroundPersistInterval,
+                    modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId, resultsIndexName, deleted);
         }
 
         /**
@@ -851,11 +914,26 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             // Creation time is NOT required in user input, hence validated only on build
         }
 
+        /**
+         * Builds a job with the given {@code createTime} and the current version.
+         * This should be used when a new job is created as opposed to {@link #build()}.
+         *
+         * @param createTime The time this job was created
+         * @return The job
+         */
         public Job build(Date createTime) {
             setCreateTime(createTime);
+            setJobVersion(Version.CURRENT);
             return build();
         }
 
+        /**
+         * Builds a job.
+         * This should be used when an existing job is being built
+         * as opposed to {@link #build(Date)}.
+         *
+         * @return The job
+         */
         public Job build() {
 
             validateInputFields();
@@ -874,7 +952,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             }
 
             return new Job(
-                    id, jobType, description, createTime, finishedTime, lastDataTime,
+                    id, jobType, jobVersion, description, createTime, finishedTime, lastDataTime,
                     analysisConfig, analysisLimits,
                     dataDescription, modelPlotConfig, renormalizationWindowDays, backgroundPersistInterval,
                     modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,

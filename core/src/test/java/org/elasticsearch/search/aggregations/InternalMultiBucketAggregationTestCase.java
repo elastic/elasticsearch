@@ -67,28 +67,22 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     @Override
     protected final void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) {
-        assertMultiBucketsAggregation(aggregation, parsedAggregation, false);
+        assertMultiBucketsAggregations(aggregation, parsedAggregation, false);
     }
 
     public void testIterators() throws IOException {
         final T aggregation = createTestInstance();
-        assertMultiBucketsAggregation(aggregation, parseAndAssert(aggregation, false), true);
+        assertMultiBucketsAggregations(aggregation, parseAndAssert(aggregation, false), true);
     }
 
-    private void assertMultiBucketsAggregation(Aggregation expected, Aggregation actual, boolean checkOrder) {
+    private void assertMultiBucketsAggregations(Aggregation expected, Aggregation actual, boolean checkOrder) {
         assertTrue(expected instanceof MultiBucketsAggregation);
         MultiBucketsAggregation expectedMultiBucketsAggregation = (MultiBucketsAggregation) expected;
 
         assertTrue(actual instanceof MultiBucketsAggregation);
         MultiBucketsAggregation actualMultiBucketsAggregation = (MultiBucketsAggregation) actual;
 
-        Class<? extends ParsedMultiBucketAggregation> parsedClass = implementationClass();
-        assertTrue(parsedClass != null && parsedClass.isInstance(actual));
-
-        assertTrue(expected instanceof InternalAggregation && actual instanceof ParsedAggregation);
-        assertEquals(expected.getName(), actual.getName());
-        assertEquals(expected.getMetaData(), actual.getMetaData());
-        assertEquals(((InternalAggregation) expected).getType(), ((ParsedAggregation) actual).getType());
+        assertMultiBucketsAggregation(expectedMultiBucketsAggregation, actualMultiBucketsAggregation, checkOrder);
 
         List<? extends MultiBucketsAggregation.Bucket> expectedBuckets = expectedMultiBucketsAggregation.getBuckets();
         List<? extends MultiBucketsAggregation.Bucket> actualBuckets = actualMultiBucketsAggregation.getBuckets();
@@ -117,6 +111,17 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         }
     }
 
+    protected void assertMultiBucketsAggregation(MultiBucketsAggregation expected, MultiBucketsAggregation actual, boolean checkOrder) {
+        Class<? extends ParsedMultiBucketAggregation> parsedClass = implementationClass();
+        assertNotNull("Parsed aggregation class must not be null", parsedClass);
+        assertTrue(parsedClass.isInstance(actual));
+
+        assertTrue(expected instanceof InternalAggregation);
+        assertEquals(expected.getName(), actual.getName());
+        assertEquals(expected.getMetaData(), actual.getMetaData());
+        assertEquals(((InternalAggregation) expected).getType(), ((ParsedAggregation) actual).getType());
+    }
+
     protected void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
         assertTrue(expected instanceof InternalMultiBucketAggregation.InternalBucket);
         assertTrue(actual instanceof ParsedMultiBucketAggregation.ParsedBucket);
@@ -136,13 +141,13 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
             while (expectedIt.hasNext()) {
                 Aggregation expectedAggregation = expectedIt.next();
                 Aggregation actualAggregation = actualIt.next();
-                assertMultiBucketsAggregation(expectedAggregation, actualAggregation, true);
+                assertMultiBucketsAggregations(expectedAggregation, actualAggregation, true);
             }
         } else {
             for (Aggregation expectedAggregation : expectedAggregations) {
                 Aggregation actualAggregation = actualAggregations.get(expectedAggregation.getName());
                 assertNotNull(actualAggregation);
-                assertMultiBucketsAggregation(expectedAggregation, actualAggregation, false);
+                assertMultiBucketsAggregations(expectedAggregation, actualAggregation, false);
             }
         }
     }

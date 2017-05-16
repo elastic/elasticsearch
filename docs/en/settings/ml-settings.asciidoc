@@ -13,17 +13,18 @@ If set to `false` in `elasticsearch.yml`, the {ml} APIs are disabled.
 You also cannot open jobs or start {dfeeds}.
 If set to `false` in `kibana.yml`, the {ml} icon is not visible in {kib}. +
 +
-TIP: If you want to use {ml} features in your cluster, you must enable {ml} on
-all master-eligible nodes. This is the default behavior.
+IMPORTANT: If you want to use {ml} features in your cluster, you must enable
+{ml} on all master-eligible nodes. This is the default behavior.
 
 `node.ml`::
 Set to `true` (default) to identify the node as a _machine learning node_. +
 +
-If set to `false` in `elasticsearch.yml`, the node cannot run jobs.
-If you want to run jobs, there must be at least one machine learning node
-in your cluster. +
+If set to `false` in `elasticsearch.yml`, the node cannot run jobs. If set to
+`true` but `xpack.ml.enabled` is set to `false`, the `node.ml` setting is
+ignored and the node cannot run jobs. If you want to run jobs, there must be at
+least one machine learning node in your cluster. +
 +
-TIP: On dedicated coordinating nodes or dedicated master nodes, disable
+IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, disable
 the `node.ml` role.
 
 //Eventually this node information should be added to https://www.elastic.co/guide/en/elasticsearch/reference/5.3/modules-node.html

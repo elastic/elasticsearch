@@ -21,8 +21,9 @@ package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -30,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class InternalAdjacencyMatrixTests extends InternalAggregationTestCase<InternalAdjacencyMatrix> {
+public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregationTestCase<InternalAdjacencyMatrix> {
 
     private List<String> keys;
 
@@ -58,12 +59,12 @@ public class InternalAdjacencyMatrixTests extends InternalAggregationTestCase<In
 
     @Override
     protected InternalAdjacencyMatrix createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+            Map<String, Object> metaData, InternalAggregations aggregations) {
         final List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>();
         for (int i = 0; i < keys.size(); ++i) {
             String key = keys.get(i);
             int docCount = randomIntBetween(0, 1000);
-            buckets.add(new InternalAdjacencyMatrix.InternalBucket(key, docCount, InternalAggregations.EMPTY));
+            buckets.add(new InternalAdjacencyMatrix.InternalBucket(key, docCount, aggregations));
         }
         return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators, metaData);
     }
@@ -88,5 +89,10 @@ public class InternalAdjacencyMatrixTests extends InternalAggregationTestCase<In
     @Override
     protected Reader<InternalAdjacencyMatrix> instanceReader() {
         return InternalAdjacencyMatrix::new;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedAdjacencyMatrix.class;
     }
 }

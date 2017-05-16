@@ -52,6 +52,8 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             assertSearchHits(client().prepareSearch().get(), "1");
             assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),
                 IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+            assertBlocked(client().admin().indices().prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.number_of_replicas", 2)), IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             assertSearchHits(client().prepareSearch().get(), "1");
             assertAcked(client().admin().indices().prepareDelete("test"));
         } finally {
@@ -72,6 +74,8 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             assertSearchHits(client().prepareSearch().get(), "1");
             assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),
                 MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+            assertBlocked(client().admin().indices().prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.number_of_replicas", 2)), MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
             assertSearchHits(client().prepareSearch().get(), "1");
             assertAcked(client().admin().indices().prepareDelete("test"));
         } finally {

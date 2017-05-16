@@ -51,8 +51,8 @@ public class ClusterBlock implements Streamable, ToXContent {
     ClusterBlock() {
     }
 
-    public ClusterBlock(int id, String description, boolean retryable, boolean disableStatePersistence, RestStatus status,
-                        EnumSet<ClusterBlockLevel> levels, boolean allowReleaseResources) {
+    public ClusterBlock(int id, String description, boolean retryable, boolean disableStatePersistence, boolean allowReleaseResources, RestStatus status,
+                        EnumSet<ClusterBlockLevel> levels) {
         this.id = id;
         this.description = description;
         this.retryable = retryable;

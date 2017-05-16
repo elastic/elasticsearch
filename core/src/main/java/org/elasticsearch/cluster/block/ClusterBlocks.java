@@ -203,17 +203,14 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return new ClusterBlockException(unmodifiableSet(blocks.collect(toSet())));
     }
 
+    /**
+     * Returns <code>true</code> iff non of the given have a {@link ClusterBlockLevel#METADATA_WRITE} in place where the
+     * {@link ClusterBlock#isAllowReleaseResources()} returns <code>false</code>. This is used in places where resources will be released
+     * like the deletion of an index to free up resources on nodes.
+     * @param indices the indices to check
+     */
     public ClusterBlockException indicesAllowReleaseResources(String[] indices) {
-        boolean indexIsBlocked = false;
-        for (String index : indices) {
-            if (indexBlocked(ClusterBlockLevel.METADATA_WRITE, index)) {
-                indexIsBlocked = true;
-            }
-        }
-        if (globalBlocked(ClusterBlockLevel.METADATA_WRITE) == false && indexIsBlocked == false) {
-            return null;
-        }
-        Function<String, Stream<ClusterBlock>> blocksForIndexAtLevel = index -> blocksForIndex(ClusterBlockLevel.METADATA_WRITE, index)
+        final Function<String, Stream<ClusterBlock>> blocksForIndexAtLevel = index -> blocksForIndex(ClusterBlockLevel.METADATA_WRITE, index)
             .stream();
         Stream<ClusterBlock> blocks = concat(
             global(ClusterBlockLevel.METADATA_WRITE).stream(),

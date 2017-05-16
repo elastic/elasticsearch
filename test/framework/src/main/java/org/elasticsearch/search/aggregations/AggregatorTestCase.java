@@ -63,6 +63,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 import org.mockito.Matchers;
 
 import java.io.IOException;
@@ -203,17 +204,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                              AggregationBuilder builder,
                                                                              MappedFieldType... fieldTypes) throws IOException {
         C a = createAggregator(builder, searcher, fieldTypes);
-        try {
-            a.preCollection();
-            searcher.search(query, a);
-            a.postCollection();
-            @SuppressWarnings("unchecked")
-            A internalAgg = (A) a.buildAggregation(0L);
-            return internalAgg;
-        } finally {
-            Releasables.close(releasables);
-            releasables.clear();
-        }
+        a.preCollection();
+        searcher.search(query, a);
+        a.postCollection();
+        @SuppressWarnings("unchecked")
+        A internalAgg = (A) a.buildAggregation(0L);
+        return internalAgg;
+
     }
 
     /**
@@ -245,38 +242,35 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Query rewritten = searcher.rewrite(query);
         Weight weight = searcher.createWeight(rewritten, true, 1f);
         C root = createAggregator(builder, searcher, fieldTypes);
-        try {
-            for (ShardSearcher subSearcher : subSearchers) {
-                C a = createAggregator(builder, subSearcher, fieldTypes);
-                a.preCollection();
-                subSearcher.search(weight, a);
-                a.postCollection();
-                aggs.add(a.buildAggregation(0L));
-            }
-            if (aggs.isEmpty()) {
-                return null;
-            } else {
-                if (randomBoolean() && aggs.size() > 1) {
-                    // sometimes do an incremental reduce
-                    int toReduceSize = aggs.size();
-                    Collections.shuffle(aggs, random());
-                    int r = randomIntBetween(1, toReduceSize);
-                    List<InternalAggregation> toReduce = aggs.subList(0, r);
-                    A reduced = (A) aggs.get(0).doReduce(toReduce,
-                        new InternalAggregation.ReduceContext(root.context().bigArrays(), null, false));
-                    aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
-                    aggs.add(reduced);
-                }
-                // now do the final reduce
-                @SuppressWarnings("unchecked")
-                A internalAgg = (A) aggs.get(0).doReduce(aggs, new InternalAggregation.ReduceContext(root.context().bigArrays(), null,
-                    true));
-                return internalAgg;
-            }
-        } finally {
-            Releasables.close(releasables);
-            releasables.clear();
+
+        for (ShardSearcher subSearcher : subSearchers) {
+            C a = createAggregator(builder, subSearcher, fieldTypes);
+            a.preCollection();
+            subSearcher.search(weight, a);
+            a.postCollection();
+            aggs.add(a.buildAggregation(0L));
         }
+        if (aggs.isEmpty()) {
+            return null;
+        } else {
+            if (randomBoolean() && aggs.size() > 1) {
+                // sometimes do an incremental reduce
+                int toReduceSize = aggs.size();
+                Collections.shuffle(aggs, random());
+                int r = randomIntBetween(1, toReduceSize);
+                List<InternalAggregation> toReduce = aggs.subList(0, r);
+                A reduced = (A) aggs.get(0).doReduce(toReduce,
+                    new InternalAggregation.ReduceContext(root.context().bigArrays(), null, false));
+                aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
+                aggs.add(reduced);
+            }
+            // now do the final reduce
+            @SuppressWarnings("unchecked")
+            A internalAgg = (A) aggs.get(0).doReduce(aggs, new InternalAggregation.ReduceContext(root.context().bigArrays(), null,
+                true));
+            return internalAgg;
+        }
+
     }
 
     private static class ShardSearcher extends IndexSearcher {
@@ -299,5 +293,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     protected static DirectoryReader wrap(DirectoryReader directoryReader) throws IOException {
         return ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("_index", "_na_"), 0));
+    }
+
+    @After
+    private void cleanupReleasables() {
+        Releasables.close(releasables);
+        releasables.clear();
     }
 }

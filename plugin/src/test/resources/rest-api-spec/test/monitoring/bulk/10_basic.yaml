@@ -111,3 +111,50 @@
         body:
           - '{"index": {}}'
           - '{"field_1": "value_1"}'
+
+---
+"Bulk indexing of monitoring data on closed indices should throw an export exception":
+
+  - do:
+      xpack.monitoring.bulk:
+        system_id:          "beats"
+        system_api_version: "2"
+        interval:           "5s"
+        body:
+          - index:
+              _type:  metric_beat
+          - modules:
+              nginx:  true
+              mysql:  false
+          - index:
+              _type:  file_beat
+          - file:
+              path:   /var/log/dmesg
+              size:   31kb
+
+  - is_false: errors
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: .monitoring-beats-*
+  - match: { hits.total: 2 }
+
+  - do:
+      indices.close:
+        index: .monitoring-beats-*
+
+  - do:
+      catch: /export_exception/
+      xpack.monitoring.bulk:
+        system_id:          "beats"
+        system_api_version: "2"
+        interval:           "5s"
+        body:
+          - index:
+              _type:  file_beat
+          - file:
+              path:   /var/log/auth.log
+              size:   5kb

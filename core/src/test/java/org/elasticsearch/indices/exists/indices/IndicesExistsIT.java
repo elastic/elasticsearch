@@ -29,6 +29,7 @@ import java.util.Arrays;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesExistsIT extends ESIntegTestCase {
@@ -51,9 +52,9 @@ public class IndicesExistsIT extends ESIntegTestCase {
 
     public void testIndicesExistsWithBlocks() {
         createIndex("ro");
-
         // Request is not blocked
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
+        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY,
+            SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("ro", blockSetting);
                 assertThat(client().admin().indices().prepareExists("ro").execute().actionGet().isExists(), equalTo(true));

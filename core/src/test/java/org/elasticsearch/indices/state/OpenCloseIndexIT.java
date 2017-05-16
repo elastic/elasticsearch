@@ -43,6 +43,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -189,22 +190,22 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1", "test2", "test3");
     }
-    
+
     // if there are no indices to open/close throw an exception
     public void testOpenCloseWildCardsNoIndicesDefault() {
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareOpen("test").execute().actionGet());
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareClose("test").execute().actionGet());
-        
+
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareOpen("test*").execute().actionGet());
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareClose("test*").execute().actionGet());
-        
+
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareOpen("*").execute().actionGet());
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareClose("*").execute().actionGet());
-        
+
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareOpen("_all").execute().actionGet());
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareClose("_all").execute().actionGet());
     }
-    
+
     // if there are no indices to open/close and allow_no_indices=true, the open/close is a no-op
     public void testOpenCloseWildCardsNoIndicesAllowNoIndices() throws InterruptedException, ExecutionException {
         IndicesOptions openIndicesOptions = IndicesOptions.fromOptions(false, true, false, true);
@@ -217,10 +218,10 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareOpen("test*").setIndicesOptions(openIndicesOptions).execute().get());
         assertAcked(client().admin().indices().prepareClose("test*").setIndicesOptions(closeIndicesOptions).execute().get());
-        
+
         assertAcked(client().admin().indices().prepareOpen("*").setIndicesOptions(openIndicesOptions).execute().get());
         assertAcked(client().admin().indices().prepareClose("*").setIndicesOptions(closeIndicesOptions).execute().get());
-        
+
         assertAcked(client().admin().indices().prepareOpen("_all").setIndicesOptions(openIndicesOptions).execute().get());
         assertAcked(client().admin().indices().prepareClose("_all").setIndicesOptions(closeIndicesOptions).execute().get());
     }
@@ -414,7 +415,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed("test");
 
         // Opening an index is blocked
-        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
+        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
                 assertBlocked(client().admin().indices().prepareOpen("test"));

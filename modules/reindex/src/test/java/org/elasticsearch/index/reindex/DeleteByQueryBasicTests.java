@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -29,6 +28,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -200,11 +201,12 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         }
         indexRandom(true, true, true, builders);
 
+        String block = randomFrom(SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE);
         try {
-            enableIndexBlock("test", IndexMetaData.SETTING_READ_ONLY);
+            enableIndexBlock("test", block);
             assertThat(deleteByQuery().source("test").refresh(true).get(), matcher().deleted(0).failures(docs));
         } finally {
-            disableIndexBlock("test", IndexMetaData.SETTING_READ_ONLY);
+            disableIndexBlock("test", block);
         }
 
         assertHitCount(client().prepareSearch("test").setSize(0).get(), docs);

@@ -132,5 +132,13 @@ public interface Transport extends LifecycleComponent {
         default Version getVersion() {
             return getNode().getVersion();
         }
+
+        /**
+         * Returns a key that this connection can be cached on. Delegating subclasses must delegate method call to
+         * the original connection.
+         */
+        default Object getCacheKey() {
+            return this;
+        }
     }
 }

@@ -64,8 +64,8 @@ public final class ScriptContextRegistry {
     /**
      * @return <tt>true</tt> if the provided {@link ScriptContext} is supported, <tt>false</tt> otherwise
      */
-    boolean isSupportedContext(ScriptContext scriptContext) {
-        return scriptContexts.containsKey(scriptContext.getKey());
+    boolean isSupportedContext(String scriptContext) {
+        return scriptContexts.containsKey(scriptContext);
     }
 
     //script contexts can be used in fine-grained settings, we need to be careful with what we allow here

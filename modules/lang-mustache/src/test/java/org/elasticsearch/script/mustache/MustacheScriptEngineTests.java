@@ -58,11 +58,11 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
-            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptType.INLINE, "", "mustache",
+            String o = (String) qe.executable(new CompiledScript(ScriptType.INLINE, "", "mustache",
                     qe.compile(null, template, compileParams)), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
-                    o.utf8ToString());
+                    o);
         }
         {
             String template = "GET _search {\"query\": " + "{\"boosting\": {" + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
@@ -70,11 +70,11 @@ public class MustacheScriptEngineTests extends ESTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
-            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptType.INLINE, "", "mustache",
+            String o = (String) qe.executable(new CompiledScript(ScriptType.INLINE, "", "mustache",
                     qe.compile(null, template, compileParams)), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
-                    o.utf8ToString());
+                    o);
         }
     }
 
@@ -89,7 +89,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
                 qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
         ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
-        assertThat(((BytesReference) executableScript.run()).utf8ToString(), equalTo("{\"match_all\":{}}"));
+        assertThat(executableScript.run(), equalTo("{\"match_all\":{}}"));
     }
 
     public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
@@ -105,7 +105,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
                 qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
         ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
-        assertThat(((BytesReference) executableScript.run()).utf8ToString(), equalTo("{ \"match_all\":{} }"));
+        assertThat(executableScript.run(), equalTo("{ \"match_all\":{} }"));
     }
 
     public void testEscapeJson() throws IOException {

@@ -273,8 +273,9 @@ public class Environment {
         }
     }
 
+    // TODO: rename all these "file" methods to "dir"
     /**
-     * The config location.
+     * The config directory.
      */
     public Path configFile() {
         return configFile;

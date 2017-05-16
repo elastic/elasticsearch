@@ -97,14 +97,14 @@ public class ScriptModesTests extends ESTestCase {
     }
 
     public void testDefaultSettings() {
-        this.scriptModes = new ScriptModes(scriptSettings, Settings.EMPTY);
+        this.scriptModes = new ScriptModes(scriptContextRegistry, scriptSettings, Settings.EMPTY);
         assertScriptModesAllOps(true, ScriptType.FILE);
         assertScriptModesAllOps(false, ScriptType.STORED, ScriptType.INLINE);
     }
 
     public void testMissingSetting() {
         assertAllSettingsWereChecked = false;
-        this.scriptModes = new ScriptModes(scriptSettings, Settings.EMPTY);
+        this.scriptModes = new ScriptModes(scriptContextRegistry, scriptSettings, Settings.EMPTY);
         try {
             scriptModes.getScriptEnabled("non_existing", randomFrom(ScriptType.values()), randomFrom(scriptContexts));
             fail("Expected IllegalArgumentException");
@@ -131,7 +131,7 @@ public class ScriptModesTests extends ESTestCase {
             builder.put("script" + "." + randomScriptTypes[i].getName(), randomScriptModes[i]);
             deprecated.add("script" + "." + randomScriptTypes[i].getName());
         }
-        this.scriptModes = new ScriptModes(scriptSettings, builder.build());
+        this.scriptModes = new ScriptModes(scriptContextRegistry, scriptSettings, builder.build());
 
         for (int i = 0; i < randomInt; i++) {
             assertScriptModesAllOps(randomScriptModes[i], randomScriptTypes[i]);
@@ -167,7 +167,7 @@ public class ScriptModesTests extends ESTestCase {
             builder.put("script" + "." + randomScriptContexts[i].getKey(), randomScriptModes[i]);
             deprecated.add("script" + "." + randomScriptContexts[i].getKey());
         }
-        this.scriptModes = new ScriptModes(scriptSettings, builder.build());
+        this.scriptModes = new ScriptModes(scriptContextRegistry, scriptSettings, builder.build());
 
         for (int i = 0; i < randomInt; i++) {
             assertScriptModesAllTypes(randomScriptModes[i], randomScriptContexts[i]);
@@ -187,7 +187,7 @@ public class ScriptModesTests extends ESTestCase {
                 .put("script.stored", "true")
                 .put("script.inline", "true");
         //operations generic settings have precedence over script type generic settings
-        this.scriptModes = new ScriptModes(scriptSettings, builder.build());
+        this.scriptModes = new ScriptModes(scriptContextRegistry, scriptSettings, builder.build());
         assertScriptModesAllTypes(false, scriptContext);
         ScriptContext[] complementOf = complementOf(scriptContext);
         assertScriptModes(true, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);

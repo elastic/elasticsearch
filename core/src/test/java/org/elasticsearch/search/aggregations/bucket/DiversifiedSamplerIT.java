@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
@@ -103,7 +104,7 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("test").setTypes("book").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .addAggregation(terms("genres")
                         .field("genre")
-                        .order(Terms.Order.aggregation("sample>max_price.value", asc))
+                        .order(BucketOrder.aggregation("sample>max_price.value", asc))
                         .subAggregation(sampler("sample").shardSize(100)
                                 .subAggregation(max("max_price").field("price")))
                 ).execute().actionGet();

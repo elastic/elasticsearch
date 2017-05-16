@@ -280,13 +280,14 @@ Ordering the buckets alphabetically by their terms in an ascending manner:
         "genres" : {
             "terms" : {
                 "field" : "genre",
-                "order" : { "_term" : "asc" }
+                "order" : { "_key" : "asc" }
             }
         }
     }
 }
 --------------------------------------------------
 
+deprecated[6.0.0, Use `_key` instead of `_term` to order buckets by their term]
 
 Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
 

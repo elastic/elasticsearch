@@ -125,7 +125,7 @@ public class ClusterBlock implements Streamable, ToXContent {
         id = in.readVInt();
         description = in.readString();
         final int len = in.readVInt();
-        ArrayList<ClusterBlockLevel> levels = new ArrayList<>();
+        ArrayList<ClusterBlockLevel> levels = new ArrayList<>(len);
         for (int i = 0; i < len; i++) {
             levels.add(ClusterBlockLevel.fromId(in.readVInt()));
         }

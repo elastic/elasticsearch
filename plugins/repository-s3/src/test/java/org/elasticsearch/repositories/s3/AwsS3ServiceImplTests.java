@@ -24,10 +24,12 @@ import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -35,7 +37,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
         S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, "default");
-        AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, clientSettings);
+        AWSCredentialsProvider credentialsProvider =
+            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, clientSettings, Settings.EMPTY);
         assertThat(credentialsProvider, instanceOf(InternalAwsS3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -44,7 +47,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         secureSettings.setString("s3.client.default.access_key", "aws_key");
         secureSettings.setString("s3.client.default.secret_key", "aws_secret");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        launchAWSCredentialsWithElasticsearchSettingsTest(Settings.EMPTY, settings, "aws_key", "aws_secret");
+        assertCredentials(Settings.EMPTY, settings, "aws_key", "aws_secret");
     }
 
     public void testAwsCredsExplicitConfigSettings() {
@@ -55,14 +58,38 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         secureSettings.setString("s3.client.default.access_key", "wrong_key");
         secureSettings.setString("s3.client.default.secret_key", "wrong_secret");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "aws_key", "aws_secret");
+        assertCredentials(repositorySettings, settings, "aws_key", "aws_secret");
     }
 
-    private void launchAWSCredentialsWithElasticsearchSettingsTest(Settings singleRepositorySettings, Settings settings,
-                                                                     String expectedKey, String expectedSecret) {
+    public void testRepositorySettingsCredentialsDisallowed() {
+        Settings repositorySettings = Settings.builder()
+            .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "aws_key")
+            .put(S3Repository.SECRET_KEY_SETTING.getKey(), "aws_secret").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            assertCredentials(repositorySettings, Settings.EMPTY, "aws_key", "aws_secret"));
+        assertThat(e.getMessage(), containsString("Setting [access_key] is insecure"));
+    }
+
+    public void testRepositorySettingsCredentialsMissingKey() {
+        Settings repositorySettings = Settings.builder().put(S3Repository.SECRET_KEY_SETTING.getKey(), "aws_secret").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            assertCredentials(repositorySettings, Settings.EMPTY, "aws_key", "aws_secret"));
+        assertThat(e.getMessage(), containsString("must be accompanied by setting [access_key]"));
+    }
+
+    public void testRepositorySettingsCredentialsMissingSecret() {
+        Settings repositorySettings = Settings.builder().put(S3Repository.ACCESS_KEY_SETTING.getKey(), "aws_key").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            assertCredentials(repositorySettings, Settings.EMPTY, "aws_key", "aws_secret"));
+        assertThat(e.getMessage(), containsString("must be accompanied by setting [secret_key]"));
+    }
+
+    private void assertCredentials(Settings singleRepositorySettings, Settings settings,
+                                   String expectedKey, String expectedSecret) {
         String configName = InternalAwsS3Service.CLIENT_NAME.get(singleRepositorySettings);
         S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName);
-        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, clientSettings).getCredentials();
+        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, deprecationLogger,
+            clientSettings, singleRepositorySettings).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(expectedKey));
         assertThat(credentials.getAWSSecretKey(), is(expectedSecret));
     }

@@ -16,3 +16,8 @@ fetch the milliseconds since epoch if you need it.
 ==== Removed access to index internal via the _index variable
 
 The `_index` variable has been removed. If you used it for advanced scoring, consider writing a `Similarity` plugin.
+
+==== Script Settings
+
+All of the existing scripting security settings have been deprecated.  Instead
+they are replaced with `script.allowed_types` and `script.allowed_contexts`.

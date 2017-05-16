@@ -20,20 +20,15 @@
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ParsedAdjecencyMatrix extends ParsedMultiBucketAggregation<ParsedAdjecencyMatrix.ParsedBucket> implements AdjacencyMatrix {
+public class ParsedAdjacencyMatrix extends ParsedMultiBucketAggregation<ParsedAdjacencyMatrix.ParsedBucket> implements AdjacencyMatrix {
 
     private Map<String, ParsedBucket> bucketMap;
 
@@ -58,16 +53,16 @@ public class ParsedAdjecencyMatrix extends ParsedMultiBucketAggregation<ParsedAd
         return bucketMap.get(key);
     }
 
-    private static ObjectParser<ParsedAdjecencyMatrix, Void> PARSER =
-            new ObjectParser<>(ParsedAdjecencyMatrix.class.getSimpleName(), true, ParsedAdjecencyMatrix::new);
+    private static ObjectParser<ParsedAdjacencyMatrix, Void> PARSER =
+            new ObjectParser<>(ParsedAdjacencyMatrix.class.getSimpleName(), true, ParsedAdjacencyMatrix::new);
     static {
         declareMultiBucketAggregationFields(PARSER,
                 parser -> ParsedBucket.fromXContent(parser),
                 parser -> ParsedBucket.fromXContent(parser));
     }
 
-    public static ParsedAdjecencyMatrix fromXContent(XContentParser parser, String name) throws IOException {
-        ParsedAdjecencyMatrix aggregation = PARSER.parse(parser, null);
+    public static ParsedAdjacencyMatrix fromXContent(XContentParser parser, String name) throws IOException {
+        ParsedAdjacencyMatrix aggregation = PARSER.parse(parser, null);
         aggregation.setName(name);
         return aggregation;
     }
@@ -86,38 +81,8 @@ public class ParsedAdjecencyMatrix extends ParsedMultiBucketAggregation<ParsedAd
             return key;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CommonFields.KEY.getPreferredName(), key);
-            builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
-            getAggregations().toXContentInternal(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-
         static ParsedBucket fromXContent(XContentParser parser) throws IOException {
-            final ParsedBucket bucket = new ParsedBucket();
-            XContentParser.Token token = parser.currentToken();
-            String currentFieldName = parser.currentName();
-
-            List<Aggregation> aggregations = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if (CommonFields.DOC_COUNT.getPreferredName().equals(currentFieldName)) {
-                        bucket.setDocCount(parser.longValue());
-                    } else if (CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
-                        bucket.key = parser.text();
-                    }
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    aggregations.add(XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class));
-                }
-            }
-            bucket.setAggregations(new Aggregations(aggregations));
-            return bucket;
+            return parseXContent(parser, false, ParsedBucket::new, (p, bucket) -> bucket.key = p.text());
         }
     }
 }

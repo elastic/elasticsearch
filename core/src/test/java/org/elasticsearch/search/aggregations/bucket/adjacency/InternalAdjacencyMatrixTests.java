@@ -93,6 +93,6 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
 
     @Override
     protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
-        return ParsedAdjecencyMatrix.class;
+        return ParsedAdjacencyMatrix.class;
     }
 }

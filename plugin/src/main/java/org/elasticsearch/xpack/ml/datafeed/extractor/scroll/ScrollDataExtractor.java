@@ -152,7 +152,7 @@ class ScrollDataExtractor implements DataExtractor {
                     if (timestamp != null) {
                         if (timestampOnCancel == null) {
                             timestampOnCancel = timestamp;
-                        } else if (timestamp != timestampOnCancel) {
+                        } else if (timestamp.equals(timestampOnCancel) == false) {
                             hasNext = false;
                             clearScroll(scrollId);
                             break;

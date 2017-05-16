@@ -215,9 +215,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.cancel();
 
         SearchResponse response2 = createSearchResponse(
-                Arrays.asList(2000L, 3000L),
-                Arrays.asList("a3", "a4"),
-                Arrays.asList("b3", "b4")
+                Arrays.asList(2000L, 2000L, 3000L),
+                Arrays.asList("a3", "a4", "a5"),
+                Arrays.asList("b3", "b4", "b5")
         );
         extractor.setNextResponse(response2);
 
@@ -225,7 +225,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         stream = extractor.next();
         assertThat(stream.isPresent(), is(true));
-        expectedStream = "{\"time\":2000,\"field_1\":\"a3\"}";
+        expectedStream = "{\"time\":2000,\"field_1\":\"a3\"} {\"time\":2000,\"field_1\":\"a4\"}";
         assertThat(asString(stream.get()), equalTo(expectedStream));
         assertThat(extractor.hasNext(), is(false));
 

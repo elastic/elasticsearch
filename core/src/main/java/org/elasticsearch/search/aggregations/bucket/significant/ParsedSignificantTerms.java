@@ -33,15 +33,19 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregation<ParsedSignificantTerms.ParsedBucket>
         implements SignificantTerms {
 
-    private static final String SCORE = "score";
-    private static final String BG_COUNT = "bg_count";
-
+    private Map<String, ParsedBucket> bucketMap;
     protected long subsetSize;
+
+    protected long getSubsetSize() {
+        return subsetSize;
+    }
 
     @Override
     public List<? extends SignificantTerms.Bucket> getBuckets() {
@@ -50,12 +54,10 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
 
     @Override
     public SignificantTerms.Bucket getBucketByKey(String term) {
-        for (SignificantTerms.Bucket bucket : getBuckets()) {
-            if (bucket.getKeyAsString().equals(term)) {
-                return bucket;
-            }
+        if (bucketMap == null) {
+            bucketMap = buckets.stream().collect(Collectors.toMap(SignificantTerms.Bucket::getKeyAsString, Function.identity()));
         }
-        return null;
+        return bucketMap.get(term);
     }
 
     @Override
@@ -121,8 +123,8 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
             builder.startObject();
             keyToXContent(builder);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
-            builder.field(SCORE, getSignificanceScore());
-            builder.field(BG_COUNT, getSupersetDf());
+            builder.field(InternalSignificantTerms.SCORE, getSignificanceScore());
+            builder.field(InternalSignificantTerms.BG_COUNT, getSupersetDf());
             getAggregations().toXContentInternal(builder, params);
             builder.endObject();
             return builder;
@@ -148,9 +150,9 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
                         long value = parser.longValue();
                         bucket.subsetDf = value;
                         bucket.setDocCount(value);
-                    } else if (SCORE.equals(currentFieldName)) {
+                    } else if (InternalSignificantTerms.SCORE.equals(currentFieldName)) {
                         bucket.score = parser.longValue();
-                    } else if (BG_COUNT.equals(currentFieldName)) {
+                    } else if (InternalSignificantTerms.BG_COUNT.equals(currentFieldName)) {
                         bucket.supersetDf = parser.longValue();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {

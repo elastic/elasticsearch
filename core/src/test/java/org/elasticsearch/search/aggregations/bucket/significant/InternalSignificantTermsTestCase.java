@@ -63,6 +63,23 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
     }
 
     @Override
+    protected void assertMultiBucketsAggregation(MultiBucketsAggregation expected, MultiBucketsAggregation actual, boolean checkOrder) {
+        super.assertMultiBucketsAggregation(expected, actual, checkOrder);
+
+        assertTrue(expected instanceof InternalSignificantTerms);
+        assertTrue(actual instanceof ParsedSignificantTerms);
+
+        InternalSignificantTerms expectedSigTerms = (InternalSignificantTerms) expected;
+        ParsedSignificantTerms actualSigTerms = (ParsedSignificantTerms) actual;
+        assertEquals(expectedSigTerms.getSubsetSize(), actualSigTerms.getSubsetSize());
+
+        for (SignificantTerms.Bucket bucket : (SignificantTerms) expected) {
+            String key = bucket.getKeyAsString();
+            assertBucket(expectedSigTerms.getBucketByKey(key), actualSigTerms.getBucketByKey(key), checkOrder);
+        }
+    }
+
+    @Override
     protected void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
         super.assertBucket(expected, actual, checkOrder);
 

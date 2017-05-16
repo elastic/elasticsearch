@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -52,11 +51,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        RangeAggregationBuilder builder = PARSER.parse(context.parser(), new RangeAggregationBuilder(aggregationName), context);
-        if(builder.ranges().size() == 0){
-            throw new ElasticsearchParseException("No [ranges] specified for the [" + builder.getName() + "] aggregation");
-        }
-        return builder;
+        return PARSER.parse(context.parser(), new RangeAggregationBuilder(aggregationName), context);
     }
 
     private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
@@ -145,6 +140,9 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(context, config);
+        if (ranges.length == 0) {
+            throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
+        }
         return new RangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
                 metaData);
     }

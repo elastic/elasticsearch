@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.range.date;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -55,11 +54,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        DateRangeAggregationBuilder builder = PARSER.parse(context.parser(), new DateRangeAggregationBuilder(aggregationName), context);
-        if(builder.ranges().size() == 0){
-            throw new ElasticsearchParseException("No [ranges] specified for the [" + builder.getName() + "] aggregation");
-        }
-        return builder;
+        return PARSER.parse(context.parser(), new DateRangeAggregationBuilder(aggregationName), context);
     }
 
     private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
@@ -291,6 +286,9 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make
         // the decision of whether to cache the request
         Range[] ranges = processRanges(context, config);
+        if (ranges.length == 0) {
+            throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
+        }
         return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
                 metaData);
     }

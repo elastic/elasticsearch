@@ -26,9 +26,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -121,35 +123,46 @@ public class Stash implements ToXContent {
      * Goes recursively against each map entry and replaces any string value starting with "$" with its
      * corresponding value retrieved from the stash
      */
+    @SuppressWarnings("unchecked") // Safe because we check that all the map keys are string in unstashObject
     public Map<String, Object> replaceStashedValues(Map<String, Object> map) throws IOException {
-        Map<String, Object> copy = new HashMap<>(map);
-        unstashObject(copy);
-        return copy;
+        return (Map<String, Object>) unstashObject(map);
     }
 
-    @SuppressWarnings("unchecked")
-    private void unstashObject(Object obj) throws IOException {
+    private Object unstashObject(Object obj) throws IOException {
         if (obj instanceof List) {
-            List list = (List) obj;
-            for (int i = 0; i < list.size(); i++) {
-                Object o = list.get(i);
+            List<?> list = (List<?>) obj;
+            List<Object> result = new ArrayList<>();
+            for (Object o : list) {
                 if (containsStashedValue(o)) {
-                    list.set(i, getValue(o.toString()));
+                    result.add(getValue(o.toString()));
                 } else {
-                    unstashObject(o);
+                    result.add(unstashObject(o));
                 }
             }
+            return result;
         }
         if (obj instanceof Map) {
-            Map<String, Object> map = (Map) obj;
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                if (containsStashedValue(entry.getValue())) {
-                    entry.setValue(getValue(entry.getValue().toString()));
+            Map<?, ?> map = (Map<?, ?>) obj;
+            Map<String, Object> result = new HashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = (String) entry.getKey();
+                Object value = entry.getValue();
+                if (containsStashedValue(key)) {
+                    key = getValue(key).toString();
+                }
+                if (containsStashedValue(value)) {
+                    value = getValue(value.toString());
                 } else {
-                    unstashObject(entry.getValue());
+                    value = unstashObject(value);
+                }
+                if (null != result.putIfAbsent(key, value)) {
+                    throw new IllegalArgumentException("Unstashing has caused a key conflict! The map is [" + result + "] and the key is ["
+                            + entry.getKey() + "] which unstashes to [" + key + "]");
                 }
             }
+            return result;
         }
+        return obj;
     }
 
     @Override

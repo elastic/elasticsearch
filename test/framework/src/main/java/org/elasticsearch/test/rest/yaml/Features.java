@@ -40,6 +40,7 @@ public final class Features {
             "embedded_stash_key",
             "groovy_scripting",
             "headers",
+            "stash_in_key",
             "stash_in_path",
             "warnings",
             "yaml"));

@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.script.ScriptSecurity;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -304,6 +305,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,
                     ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
                     ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE,
+                    ScriptSecurity.TYPES_ALLOWED_SETTING,
+                    ScriptSecurity.CONTEXTS_ALLOWED_SETTING,
                     IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
                     IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
                     IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,

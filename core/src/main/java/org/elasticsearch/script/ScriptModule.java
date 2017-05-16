@@ -20,7 +20,6 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -34,10 +33,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Manages building {@link ScriptService} and {@link ScriptSettings} from a list of plugins.
+ * Manages building {@link ScriptService}.
  */
 public class ScriptModule {
-    private final ScriptSettings scriptSettings;
     private final ScriptService scriptService;
 
     /**
@@ -65,20 +63,11 @@ public class ScriptModule {
                         List<ScriptContext.Plugin> customScriptContexts) {
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngines);
-        scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         try {
-            scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry,
-                    scriptSettings);
+            scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry);
         } catch (IOException e) {
             throw new RuntimeException("Couldn't setup ScriptService", e);
         }
-    }
-
-    /**
-     * Extra settings for scripts.
-     */
-    public List<Setting<?>> getSettings() {
-        return scriptSettings.getSettings();
     }
 
     /**

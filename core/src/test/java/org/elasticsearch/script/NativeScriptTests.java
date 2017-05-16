@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import static java.util.Collections.emptyList;
@@ -48,9 +47,6 @@ public class NativeScriptTests extends ESTestCase {
                 .build();
         ScriptModule scriptModule = new ScriptModule(settings, new Environment(settings), null,
                 singletonList(new NativeScriptEngine(settings, singletonMap("my", new MyNativeScriptFactory()))), emptyList());
-        List<Setting<?>> scriptSettings = scriptModule.getSettings();
-        scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
-
         Script script = new Script(ScriptType.INLINE, NativeScriptEngine.NAME, "my", Collections.emptyMap());
         CompiledScript compiledScript = scriptModule.getScriptService().compile(script, ScriptContext.Standard.SEARCH);
         ExecutableScript executable = scriptModule.getScriptService().executable(compiledScript, script.getParams());
@@ -74,9 +70,8 @@ public class NativeScriptTests extends ESTestCase {
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(new NativeScriptEngine(settings,
             nativeScriptFactoryMap)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<>());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ScriptService scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry,
-            scriptContextRegistry, scriptSettings);
+            scriptContextRegistry);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             assertThat(scriptService.compile(new Script(ScriptType.INLINE, NativeScriptEngine.NAME, "my", Collections.emptyMap()),

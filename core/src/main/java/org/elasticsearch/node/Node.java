@@ -328,7 +328,6 @@ public class Node implements Closeable {
             final ScriptModule scriptModule = ScriptModule.create(settings, this.environment, resourceWatcherService,
                 pluginsService.filterPlugins(ScriptPlugin.class));
             AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
-            additionalSettings.addAll(scriptModule.getSettings());
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
             final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);

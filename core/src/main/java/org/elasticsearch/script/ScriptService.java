@@ -101,8 +101,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private final Cache<CacheKey, CompiledScript> cache;
     private final Path scriptsDirectory;
 
-    private final ScriptModes scriptModes;
     private final ScriptContextRegistry scriptContextRegistry;
+    private final ScriptSecurity scriptSecurity;
 
     private final ScriptMetrics scriptMetrics = new ScriptMetrics();
 
@@ -113,16 +113,14 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private double scriptsPerMinCounter;
     private double compilesAllowedPerNano;
 
-    public ScriptService(Settings settings, Environment env,
-                         ResourceWatcherService resourceWatcherService, ScriptEngineRegistry scriptEngineRegistry,
-                         ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings) throws IOException {
+    public ScriptService(Settings settings, Environment env, ResourceWatcherService resourceWatcherService,
+                         ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry) throws IOException {
         super(settings);
         Objects.requireNonNull(scriptEngineRegistry);
         Objects.requireNonNull(scriptContextRegistry);
-        Objects.requireNonNull(scriptSettings);
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
-                    "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: true` and `script.stored: true` in elasticsearch.yml");
+                    "Dynamic scripts can be enabled for all languages and all operations not using `script.disable_dynamic: false` in elasticsearch.yml");
         }
 
         this.scriptEngines = scriptEngineRegistry.getRegisteredLanguages().values();
@@ -152,7 +150,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         this.scriptEnginesByLang = unmodifiableMap(enginesByLangBuilder);
         this.scriptEnginesByExt = unmodifiableMap(enginesByExtBuilder);
 
-        this.scriptModes = new ScriptModes(scriptContextRegistry, scriptSettings, settings);
+        this.scriptSecurity = new ScriptSecurity(settings, scriptContextRegistry);
 
         // add file watcher for static scripts
         scriptsDirectory = env.scriptsFile();
@@ -260,9 +258,16 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         ScriptEngine scriptEngine = getScriptEngineServiceForLang(lang);
 
-        if (canExecuteScript(lang, type, scriptContext) == false) {
-            throw new IllegalStateException("scripts of type [" + script.getType() + "]," +
-                " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
+        if (scriptSecurity.isTypeEnabled(type) == false) {
+            throw new IllegalArgumentException("cannot execute [" + type + "] scripts");
+        }
+
+        if (scriptContextRegistry.isSupportedContext(scriptContext.getKey()) == false) {
+            throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
+        }
+
+        if (scriptSecurity.isContextEnabled(scriptContext) == false) {
+            throw new IllegalArgumentException("cannot execute scripts using [" + scriptContext.getKey() + "] context");
         }
 
         if (logger.isTraceEnabled()) {
@@ -406,16 +411,19 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         try {
             ScriptEngine scriptEngine = getScriptEngineServiceForLang(source.getLang());
 
-            if (isAnyScriptContextEnabled(source.getLang(), ScriptType.STORED)) {
+            if (scriptSecurity.isTypeEnabled(ScriptType.STORED) == false) {
+                throw new IllegalArgumentException(
+                    "cannot put [" + ScriptType.STORED + "] script, [" + ScriptType.STORED + "] scripts are not enabled");
+            } else if (scriptSecurity.isAnyContextEnabled() == false) {
+                throw new IllegalArgumentException(
+                    "cannot put [" + ScriptType.STORED + "] script, no script contexts are enabled");
+            } else {
                 Object compiled = scriptEngine.compile(request.id(), source.getCode(), Collections.emptyMap());
 
                 if (compiled == null) {
                     throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]" +
                         (source.getCode() == null ? "" : " using code [" + source.getCode() + "]"));
                 }
-            } else {
-                throw new IllegalArgumentException(
-                    "cannot put stored script [" + request.id() + "], stored scripts cannot be run under any context");
             }
         } catch (ScriptException good) {
             throw good;
@@ -500,23 +508,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript, lookup, params);
     }
 
-    private boolean isAnyScriptContextEnabled(String lang, ScriptType scriptType) {
-        for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            if (canExecuteScript(lang, scriptType, scriptContext)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean canExecuteScript(String lang, ScriptType scriptType, ScriptContext scriptContext) {
-        assert lang != null;
-        if (scriptContextRegistry.isSupportedContext(scriptContext.getKey()) == false) {
-            throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
-        }
-        return scriptModes.getScriptEnabled(lang, scriptType, scriptContext);
-    }
-
     public ScriptStats stats() {
         return scriptMetrics.stats();
     }
@@ -581,9 +572,15 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 }
 
                 try {
-                    //we don't know yet what the script will be used for, but if all of the operations for this lang
+                    // we don't know yet what the script will be used for, but if all of the operations for this lang
                     // with file scripts are disabled, it makes no sense to even compile it and cache it.
-                    if (isAnyScriptContextEnabled(engineService.getType(), ScriptType.FILE)) {
+                    if (scriptSecurity.isTypeEnabled(ScriptType.FILE) == false) {
+                        logger.warn("cannot compile [" + ScriptType.FILE + "] script [" + file.toAbsolutePath() + "], " +
+                            "[" + ScriptType.FILE + "] scripts are not enabled");
+                    } else if (scriptSecurity.isAnyContextEnabled() == false) {
+                        logger.warn("cannot compile [" + ScriptType.FILE + "] script [" + file.toAbsolutePath() + "], " +
+                            "no script contexts are enabled");
+                    } else {
                         logger.info("compiling script file [{}]", file.toAbsolutePath());
                         try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
                             String script = Streams.copyToString(reader);
@@ -595,8 +592,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                             staticCache.put(cacheKey, compiledScript);
                             scriptMetrics.onCompilation();
                         }
-                    } else {
-                        logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());
                     }
                 } catch (ScriptException e) {
                     try (XContentBuilder builder = JsonXContent.contentBuilder()) {

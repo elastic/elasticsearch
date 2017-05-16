@@ -40,6 +40,8 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalRangeTests;
 import org.elasticsearch.search.aggregations.bucket.range.date.InternalDateRangeTests;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistanceTests;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSamplerTests;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTermsTests;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
@@ -126,6 +128,8 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalGeoDistanceTests());
         aggsTests.add(new InternalFiltersTests());
         aggsTests.add(new InternalAdjacencyMatrixTests());
+        aggsTests.add(new SignificantLongTermsTests());
+        aggsTests.add(new SignificantStringTermsTests());
         return Collections.unmodifiableList(aggsTests);
     }
 

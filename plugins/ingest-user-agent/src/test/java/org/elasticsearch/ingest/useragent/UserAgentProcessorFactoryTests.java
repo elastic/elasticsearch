@@ -146,7 +146,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("regex_file", "does-not-exist.yml");
 
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config));
-        assertThat(e.getMessage(), equalTo("[regex_file] regex file [does-not-exist.yaml] doesn't exist (has to exist at node startup)"));
+        assertThat(e.getMessage(), equalTo("[regex_file] regex file [does-not-exist.yml] doesn't exist (has to exist at node startup)"));
     }
 
     public void testBuildFields() throws Exception {

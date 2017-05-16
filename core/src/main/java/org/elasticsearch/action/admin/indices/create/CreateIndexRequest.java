@@ -35,6 +35,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -82,6 +84,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private boolean updateAllTypes = false;
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+    
+    private static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(CreateIndexRequest.class));
 
     public CreateIndexRequest() {
     }
@@ -383,6 +387,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     @SuppressWarnings("unchecked")
     public CreateIndexRequest source(Map<String, ?> source) {
         boolean found = false;
+        String unsupportedKey = null;
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("settings")) {
@@ -407,12 +412,25 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                     } catch (IOException e) {
                         throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
                     }
+                } else {
+                    // found a key which is neither custom defined nor one of the supported ones
+                    if (unsupportedKey == null) {
+                        unsupportedKey = name;
+                    }
                 }
             }
-        }
+        }   
         if (!found) {
             // the top level are settings, use them
             settings(source);
+            deprecationLogger.deprecated("Implicit parsing of [{}] as [settings] is deprecated: "
+                    + "instead use \"settings\": { \"{}\": ... }", unsupportedKey, unsupportedKey);
+
+        }
+        if (found && unsupportedKey != null) {
+            throw new ElasticsearchParseException(
+                    "unknown key [{}] for a [{}], expected [settings], [mappings] or [aliases]",
+                    unsupportedKey, XContentParser.Token.START_OBJECT);
         }
         return this;
     }

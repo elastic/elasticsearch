@@ -31,6 +31,7 @@ import org.junit.Before;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class CreateIndexRequestBuilderTests extends ESTestCase {
@@ -60,17 +61,27 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
         CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
         builder.setSource("{\""+KEY+"\" : \""+VALUE+"\"}", XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
+        assertWarnings(String.format(Locale.ROOT,
+                "Implicit parsing of [%s] as [settings] is deprecated: "
+                + "instead use \"settings\": { \"%s\": ... }", KEY, KEY));
 
         XContentBuilder xContent = XContentFactory.jsonBuilder().startObject().field(KEY, VALUE).endObject();
         xContent.close();
         builder.setSource(xContent);
         assertEquals(VALUE, builder.request().settings().get(KEY));
+        assertWarnings(String.format(Locale.ROOT,
+                "Implicit parsing of [%s] as [settings] is deprecated: "
+                + "instead use \"settings\": { \"%s\": ... }", KEY, KEY));
 
         ByteArrayOutputStream docOut = new ByteArrayOutputStream();
         XContentBuilder doc = XContentFactory.jsonBuilder(docOut).startObject().field(KEY, VALUE).endObject();
         doc.close();
         builder.setSource(docOut.toByteArray(), XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
+        assertWarnings(String.format(Locale.ROOT, 
+                "Implicit parsing of [%s] as [settings] is deprecated: "
+                + "instead use \"settings\": { \"%s\": ... }", KEY, KEY));
+
 
         Map<String, String> settingsMap = new HashMap<>();
         settingsMap.put(KEY, VALUE);

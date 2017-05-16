@@ -31,7 +31,7 @@ import java.util.Map;
  * @see AbstractSearchScript
  * @see AbstractLongSearchScript
  * @see AbstractDoubleSearchScript
- * @deprecated Create a {@link ScriptEngine} instead of using native scripts
+ * @deprecated Create a {@link ScriptEngineService} instead of using native scripts
  */
 @Deprecated
 public interface NativeScriptFactory {

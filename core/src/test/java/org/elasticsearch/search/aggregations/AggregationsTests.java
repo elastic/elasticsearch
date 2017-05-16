@@ -176,7 +176,7 @@ public class AggregationsTests extends ESTestCase {
         }
     }
 
-    private static InternalAggregations createTestInstance() {
+    public final InternalAggregations createTestInstance() {
         return createTestInstance(1, 0, 5);
     }
 

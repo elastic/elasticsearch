@@ -60,7 +60,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContent {
 
-    static final String NAME = "suggest";
+    public static final String NAME = "suggest";
 
     public static final Comparator<Option> COMPARATOR = (first, second) -> {
         int cmp = Float.compare(second.getScore(), first.getScore());

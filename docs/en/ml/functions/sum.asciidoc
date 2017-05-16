@@ -2,33 +2,193 @@
 [[ml-sum-functions]]
 === Sum Functions
 
-The {xpackml} features include the following sum functions:
-
-* `sum`, `high_sum`, `low_sum`
-* `non_null_sum`, `high_non_null_sum`, `low_non_null_sum`
-
 The sum functions detect anomalies when the sum of a field in a bucket is anomalous.
 
-Use high-sided functions if you want to monitor unusually high totals.
+If you want to monitor unusually high totals, use high-sided functions.
 
-Use low-sided functions if want to look at drops in totals.
+If want to look at drops in totals, use low-sided functions.
 
-Use `non_null_sum` functions if your data is sparse. Buckets without values will
-be ignored; buckets with a zero value will be analyzed.
+If your data is sparse, use `non_null_sum` functions. Buckets without values are
+ignored; buckets with a zero value are analyzed.
 
-NOTE: Input data can contain pre-calculated fields that give the total count of some value.  For
-example, transactions per minute.
+The {xpackml} features include the following sum functions:
+
+* <<ml-sum,`sum`>>
+* <<ml-high-sum,`high_sum`>>
+* <<ml-low-sum,`low_sum`>>
+* <<ml-nonnull-sum,`non_null_sum`>>
+* <<ml-high-nonnull-sum,`high_non_null_sum`>>
+* <<ml-low-nonnull-sum,`low_non_null_sum`>>
 
 ////
 TBD: Incorporate from prelert docs?:
+Input data may contain pre-calculated fields giving the total count of some value e.g. transactions per minute.
 Ensure you are familiar with our advice on Summarization of Input Data, as this is likely to provide
 a more appropriate method to using the sum function.
+////
 
+[float]
+[[ml-sum]]
+==== Sum
+
+The `sum` function detects anomalies where the sum of a field in a bucket is
+anomalous.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job, it
+models total expenses per employees for each cost center. For each time bucket,
+it detects when an employee’s expenses are unusual for a cost center compared
+to other employees. 
 
 [source,js]
 --------------------------------------------------
-{ "function" : "high_sum", "fieldName" : "cs_bytes", "overFieldName" : "cs_host" }
+{
+  "function" : "sum",
+  "field_name" : "expenses",
+  "by_field_name" : "costcenter",
+  "over_field_name" : "employee"
+}
 --------------------------------------------------
 
+[float]
+[[ml-high-sum]]
+==== High_sum
 
-////
+The `high_sum` function detects anomalies where the sum of a field in a bucket
+is unusually high.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+For example, if you use the following function in a detector in your job, it
+models total `cs_bytes`. It detects `cs_hosts` that transfer unusually high
+volumes compared to other `cs_hosts`.
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "high_sum",
+  "field_name" : "cs_bytes",
+  "over_field_name" : "cs_host"
+}
+--------------------------------------------------
+
+This example looks for volumes of data transferred from a client to a server on
+the internet that are unusual compared to other clients. This scenario could be
+useful to detect data exfiltration or to find users that are abusing internet
+privileges.
+
+[float]
+[[ml-low-sum]]
+==== Low_sum
+
+The `low_sum` function detects anomalies where the sum of a field in a bucket
+is unusually low.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `over_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+[float]
+[[ml-nonnull-sum]]
+==== Non_null_sum
+
+The `non_null_sum` function is useful if your data is sparse. Buckets without
+values are ignored and buckets with a zero value are analyzed.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+NOTE: Population analysis (that is to say, use of the `over_field_name` property)
+is not applicable for this function.
+
+[float]
+[[ml-high-nonnull-sum]]
+==== High_non_null_sum
+
+The `high_non_null_sum` function is useful if your data is sparse. Buckets
+without values are ignored and buckets with a zero value are analyzed.
+Use this function if you want to monitor unusually high totals.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+NOTE: Population analysis (that is to say, use of the `over_field_name` property)
+is not applicable for this function.
+
+For example, if you use the following function in a detector in your job, it
+models the total `amount_approved` for each employee. It ignores any buckets
+where the amount is null. It detects employees who approve unusually high
+amounts compared to their past behavior.
+
+[source,js]
+--------------------------------------------------
+{
+  "function" : "high_non_null_sum",
+  "fieldName" : "amount_approved",
+  "byFieldName" : "employee"
+}
+--------------------------------------------------
+
+//For this credit control system analysis, using non_null_sum will ignore
+//periods where the employees are not active on the system.
+
+[float]
+[[ml-low-nonnull-sum]]
+==== Low_non_null_sum
+
+The `low_non_null_sum` function is useful if your data is sparse. Buckets
+without values are ignored and buckets with a zero value are analyzed.
+Use this function if you want to look at drops in totals.
+
+This function supports the following properties:
+
+* `field_name` (required)
+* `by_field_name` (optional)
+* `partition_field_name` (optional)
+* `summary_count_field_name` (optional)
+
+For more information about those properties,
+see <<ml-detectorconfig,Detector Configuration Objects>>.
+
+NOTE: Population analysis (that is to say, use of the `over_field_name` property)
+is not applicable for this function.

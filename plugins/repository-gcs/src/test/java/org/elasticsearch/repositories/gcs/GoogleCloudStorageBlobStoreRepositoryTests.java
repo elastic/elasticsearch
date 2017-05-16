@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.services.storage.Storage;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +31,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.junit.BeforeClass;
 
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,6 +72,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
     }
 
     public static class MockGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
+        MockGoogleCloudStoragePlugin() {
+            super(Settings.EMPTY);
+        }
         @Override
         protected GoogleCloudStorageService createStorageService(Environment environment) {
             return new MockGoogleCloudStorageService();
@@ -75,7 +83,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
 
     public static class MockGoogleCloudStorageService implements GoogleCloudStorageService {
         @Override
-        public Storage createClient(String serviceAccount, String application, TimeValue connectTimeout, TimeValue readTimeout) throws
+        public Storage createClient(String serviceAccount, String accountName, String application, TimeValue connectTimeout, TimeValue readTimeout) throws
                 Exception {
             return storage.get();
         }
@@ -117,5 +125,12 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetaData);
         });
         assertEquals("Failed to parse value [101mb] for setting [chunk_size] must be <= 100mb", e.getMessage());
+    }
+
+    public void testCreds() throws Exception {
+        try (InputStream is = Files.newInputStream(Paths.get("/Users/rjernst/Code/elastic/elasticsearch/plugins/repository-gcs/dummy-account.json"))) {
+            GoogleCredential cred = GoogleCredential.fromStream(is);
+            System.out.println(cred.getServiceAccountId());
+        }
     }
 }

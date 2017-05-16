@@ -193,7 +193,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
+                        .putArray("index.analysis.analyzer.tv_test.filter", "lowercase")));
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
@@ -278,7 +278,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(Settings.builder()
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
+                        .putArray("index.analysis.analyzer.tv_test.filter", "lowercase")));
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
@@ -585,7 +585,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
+                        .putArray("index.analysis.analyzer.tv_test.filter", "lowercase")));
 
         ensureGreen();
 
@@ -645,9 +645,8 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 assertThat("term: " + string, nextPosition, equalTo(termPos[k]));
                 assertThat("term: " + string, docsAndPositions.startOffset(), equalTo(termStartOffset[k]));
                 assertThat("term: " + string, docsAndPositions.endOffset(), equalTo(termEndOffset[k]));
-                if (withPayloads) {
-                    assertThat("term: " + string, docsAndPositions.getPayload(), equalTo(new BytesRef("word")));
-                }
+                // We never configure an analyzer with payloads for this test so this is never returned
+                assertNull("term: " + string, docsAndPositions.getPayload());
             }
         }
         assertThat(iterator.next(), nullValue());

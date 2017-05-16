@@ -26,7 +26,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
@@ -317,9 +316,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     private ValuesSource bytesField() throws IOException {
         final IndexFieldData<?> indexFieldData = fieldContext().indexFieldData();
         ValuesSource dataSource;
-        if (indexFieldData instanceof ParentChildIndexFieldData) {
-            dataSource = new ValuesSource.Bytes.WithOrdinals.ParentChild((ParentChildIndexFieldData) indexFieldData);
-        } else if (indexFieldData instanceof IndexOrdinalsFieldData) {
+        if (indexFieldData instanceof IndexOrdinalsFieldData) {
             dataSource = new ValuesSource.Bytes.WithOrdinals.FieldData((IndexOrdinalsFieldData) indexFieldData);
         } else {
             dataSource = new ValuesSource.Bytes.FieldData(indexFieldData);

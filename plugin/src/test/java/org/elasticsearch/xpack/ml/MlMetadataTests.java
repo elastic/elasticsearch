@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.config.JobTests;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
@@ -342,4 +344,16 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 
+    public void testGetJobState() {
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        // A missing task is a closed job
+        assertEquals(JobState.CLOSED, MlMetadata.getJobState("foo", tasksBuilder.build()));
+        // A task with no status is opening
+        tasksBuilder.addTask(MlMetadata.jobTaskId("foo"), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams("foo"),
+                new PersistentTasksCustomMetaData.Assignment("bar", "test assignment"));
+        assertEquals(JobState.OPENING, MlMetadata.getJobState("foo", tasksBuilder.build()));
+
+        tasksBuilder.updateTaskStatus(MlMetadata.jobTaskId("foo"), new JobTaskStatus(JobState.OPENED, tasksBuilder.getLastAllocationId()));
+        assertEquals(JobState.OPENED, MlMetadata.getJobState("foo", tasksBuilder.build()));
+    }
 }

@@ -405,11 +405,12 @@ public class MlMetadata implements MetaData.Custom {
 
     public static JobState getJobState(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
         PersistentTask<?> task = getJobTask(jobId, tasks);
-        if (task != null && task.getStatus() != null) {
+        if (task != null) {
             JobTaskStatus jobTaskState = (JobTaskStatus) task.getStatus();
-            if (jobTaskState != null) {
-                return jobTaskState.getState();
+            if (jobTaskState == null) {
+                return JobState.OPENING;
             }
+            return jobTaskState.getState();
         }
         // If we haven't opened a job than there will be no persistent task, which is the same as if the job was closed
         return JobState.CLOSED;

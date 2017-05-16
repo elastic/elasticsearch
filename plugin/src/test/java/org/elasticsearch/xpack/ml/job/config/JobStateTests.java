@@ -30,17 +30,20 @@ public class JobStateTests extends ESTestCase {
     public void testValidOrdinals() {
         assertEquals(0, JobState.CLOSING.ordinal());
         assertEquals(1, JobState.CLOSED.ordinal());
-        assertEquals(2, JobState.OPENED.ordinal());
-        assertEquals(3, JobState.FAILED.ordinal());
+        assertEquals(2, JobState.OPENING.ordinal());
+        assertEquals(3, JobState.OPENED.ordinal());
+        assertEquals(4, JobState.FAILED.ordinal());
     }
 
     public void testIsAnyOf() {
         assertFalse(JobState.OPENED.isAnyOf());
+        assertFalse(JobState.OPENING.isAnyOf(JobState.CLOSED, JobState.FAILED));
         assertFalse(JobState.OPENED.isAnyOf(JobState.CLOSED, JobState.FAILED));
         assertFalse(JobState.CLOSED.isAnyOf(JobState.FAILED, JobState.OPENED));
         assertFalse(JobState.CLOSING.isAnyOf(JobState.FAILED, JobState.OPENED));
 
-        assertTrue(JobState.OPENED.isAnyOf(JobState.OPENED));
+        assertTrue(JobState.OPENING.isAnyOf(JobState.OPENED, JobState.OPENING));
+        assertTrue(JobState.OPENED.isAnyOf(JobState.OPENED, JobState.CLOSED));
         assertTrue(JobState.OPENED.isAnyOf(JobState.OPENED, JobState.CLOSED));
         assertTrue(JobState.CLOSED.isAnyOf(JobState.CLOSED));
         assertTrue(JobState.CLOSING.isAnyOf(JobState.CLOSING));

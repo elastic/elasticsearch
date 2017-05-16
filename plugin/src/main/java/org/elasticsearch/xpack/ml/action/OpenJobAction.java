@@ -419,7 +419,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
-            // then delagating to PersistentTasksService doesn't make a whole lot of sense,
+            // then delegating to PersistentTasksService doesn't make a whole lot of sense,
             // because PersistentTasksService will then fail.
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
         }

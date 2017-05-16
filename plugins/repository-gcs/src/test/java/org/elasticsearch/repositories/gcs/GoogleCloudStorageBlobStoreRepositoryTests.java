@@ -67,7 +67,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
     }
 
     public static class MockGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
-        MockGoogleCloudStoragePlugin() {
+        public MockGoogleCloudStoragePlugin() {
             super(Settings.EMPTY);
         }
         @Override

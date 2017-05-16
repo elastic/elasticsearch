@@ -56,7 +56,7 @@ Plugin Repository HDFS::
 * Fixing permission errors for `KERBEROS` security mode for HDFS Repository {pull}23439[#23439] (issue: {issue}22156[#22156])
 
 Plugins::
-* X-Pack plugin download fails on Windows desktop [ISSUE] {pull}24570[#24570]
+* X-Pack plugin download fails on Windows desktop {pull}24570[#24570]
 * Fix plugin installation permissions {pull}24527[#24527] (issue: {issue}24480[#24480])
 
 Reindex API::

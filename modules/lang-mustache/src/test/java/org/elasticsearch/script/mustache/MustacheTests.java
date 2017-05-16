@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class MustacheTests extends ESTestCase {
 
-    private ScriptEngineService engine = new MustacheScriptEngineService();
+    private ScriptEngine engine = new MustacheScriptEngine();
 
     public void testBasics() {
         String template = "GET _search {\"query\": " + "{\"boosting\": {"
@@ -71,7 +71,7 @@ public class MustacheTests extends ESTestCase {
                 "Mustache templating broken",
                 "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                         + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.2 } }}",
-                ((BytesReference) result.run()).utf8ToString()
+                result.run()
         );
     }
 
@@ -83,22 +83,16 @@ public class MustacheTests extends ESTestCase {
             new String[] { "foo", "bar" },
             Arrays.asList("foo", "bar"));
         vars.put("data", data);
-        Object output = engine.executable(mustache, vars).run();
-        assertThat(output, notNullValue());
-        assertThat(output, instanceOf(BytesReference.class));
-        BytesReference bytes = (BytesReference) output;
-        assertThat(bytes.utf8ToString(), equalTo("foo bar"));
+        assertThat(engine.executable(mustache, vars).run(), equalTo("foo bar"));
 
         // Sets can come out in any order
         Set<String> setData = new HashSet<>();
         setData.add("foo");
         setData.add("bar");
         vars.put("data", setData);
-        output = engine.executable(mustache, vars).run();
-        assertThat(output, notNullValue());
-        assertThat(output, instanceOf(BytesReference.class));
-        bytes = (BytesReference) output;
-        assertThat(bytes.utf8ToString(), both(containsString("foo")).and(containsString("bar")));
+        Object output = engine.executable(mustache, vars).run();
+        assertThat(output, instanceOf(String.class));
+        assertThat((String)output, both(containsString("foo")).and(containsString("bar")));
     }
 
     public void testArrayInArrayAccess() throws Exception {
@@ -111,11 +105,7 @@ public class MustacheTests extends ESTestCase {
             singleton(new String[] { "foo", "bar" })
         );
         vars.put("data", data);
-        Object output = engine.executable(mustache, vars).run();
-        assertThat(output, notNullValue());
-        assertThat(output, instanceOf(BytesReference.class));
-        BytesReference bytes = (BytesReference) output;
-        assertThat(bytes.utf8ToString(), equalTo("foo bar"));
+        assertThat(engine.executable(mustache, vars).run(), equalTo("foo bar"));
     }
 
     public void testMapInArrayAccess() throws Exception {
@@ -126,22 +116,16 @@ public class MustacheTests extends ESTestCase {
             new Object[] { singletonMap("key", "foo"), singletonMap("key", "bar") },
             Arrays.asList(singletonMap("key", "foo"), singletonMap("key", "bar")));
         vars.put("data", data);
-        Object output = engine.executable(mustache, vars).run();
-        assertThat(output, notNullValue());
-        assertThat(output, instanceOf(BytesReference.class));
-        BytesReference bytes = (BytesReference) output;
-        assertThat(bytes.utf8ToString(), equalTo("foo bar"));
+        assertThat(engine.executable(mustache, vars).run(), equalTo("foo bar"));
 
         // HashSet iteration order isn't fixed
         Set<Object> setData = new HashSet<>();
         setData.add(singletonMap("key", "foo"));
         setData.add(singletonMap("key", "bar"));
         vars.put("data", setData);
-        output = engine.executable(mustache, vars).run();
-        assertThat(output, notNullValue());
-        assertThat(output, instanceOf(BytesReference.class));
-        bytes = (BytesReference) output;
-        assertThat(bytes.utf8ToString(), both(containsString("foo")).and(containsString("bar")));
+        Object output = engine.executable(mustache, vars).run();
+        assertThat(output, instanceOf(String.class));
+        assertThat((String)output, both(containsString("foo")).and(containsString("bar")));
     }
 
 
@@ -156,14 +140,8 @@ public class MustacheTests extends ESTestCase {
         data.put("list", randomList);
         Map<String, Object> vars = new HashMap<>();
         vars.put("data", data);
-
-        Object output = engine.executable(mustache, vars).run();
-        assertThat(output, notNullValue());
-        assertThat(output, instanceOf(BytesReference.class));
-
-        BytesReference bytes = (BytesReference) output;
         String expectedString = String.format(Locale.ROOT, "%s %s", randomArrayValues.length, randomList.size());
-        assertThat(bytes.utf8ToString(), equalTo(expectedString));
+        assertThat(engine.executable(mustache, vars).run(), equalTo(expectedString));
     }
 
     public void testPrimitiveToJSON() throws Exception {
@@ -399,9 +377,7 @@ public class MustacheTests extends ESTestCase {
 
     private void assertScript(String script, Map<String, Object> vars, Matcher<Object> matcher) {
         Object result = engine.executable(new CompiledScript(INLINE, "inline", "mustache", compile(script)), vars).run();
-        assertThat(result, notNullValue());
-        assertThat(result, instanceOf(BytesReference.class));
-        assertThat(((BytesReference) result).utf8ToString(), matcher);
+        assertThat(result, matcher);
     }
 
     private Object compile(String script) {

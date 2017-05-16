@@ -270,8 +270,6 @@ public class SearchModuleTests extends ModuleTestCase {
             "geo_distance",
             "geo_polygon",
             "geo_shape",
-            "has_child",
-            "has_parent",
             "ids",
             "match",
             "match_all",

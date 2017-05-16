@@ -43,7 +43,7 @@ public class ShardSearchFailureTests extends ESTestCase {
         String indexUuid = randomAlphaOfLengthBetween(5, 10);
         int shardId = randomInt();
         return new ShardSearchFailure(ex,
-                new SearchShardTarget(nodeId, new ShardId(new Index(indexName, indexUuid), shardId), null));
+                new SearchShardTarget(nodeId, new ShardId(new Index(indexName, indexUuid), shardId), null, null));
     }
 
     public void testFromXContent() throws IOException {
@@ -74,7 +74,7 @@ public class ShardSearchFailureTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(0, 0, "some message", null),
-                new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), OriginalIndices.NONE));
+                new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), null, OriginalIndices.NONE));
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
                 "{\"shard\":123,"

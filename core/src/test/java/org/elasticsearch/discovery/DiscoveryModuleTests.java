@@ -20,6 +20,7 @@ package org.elasticsearch.discovery;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -71,7 +72,8 @@ public class DiscoveryModuleTests extends ESTestCase {
         default Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
                                                                    NamedWriteableRegistry namedWriteableRegistry,
                                                                    MasterService masterService, ClusterApplier clusterApplier,
-                                                                   ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider) {
+                                                                   ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider,
+                                                                   AllocationService allocationService) {
             return impl();
         }
     }
@@ -93,7 +95,7 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     private DiscoveryModule newModule(Settings settings, List<DiscoveryPlugin> plugins) {
         return new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry, null, masterService,
-            clusterApplier, clusterSettings, plugins);
+            clusterApplier, clusterSettings, plugins, null);
     }
 
     public void testDefaults() {

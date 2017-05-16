@@ -29,6 +29,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -143,7 +144,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(1L));
 
         // removing a snapshot and writing to a new index generational file
-        repositoryData = repository.getRepositoryData().removeSnapshot(repositoryData.getSnapshotIds().get(0));
+        repositoryData = repository.getRepositoryData().removeSnapshot(repositoryData.getSnapshotIds().iterator().next());
         repository.writeIndexGen(repositoryData, repositoryData.getGenId());
         assertEquals(repository.getRepositoryData(), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(2L));
@@ -181,8 +182,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         for (int i = 0; i < numSnapshots; i++) {
             snapshotIds.add(new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()));
         }
-        RepositoryData repositoryData = new RepositoryData(readData.getGenId(), Collections.emptyList(), Collections.emptyMap(),
-                                                              snapshotIds);
+        RepositoryData repositoryData = new RepositoryData(readData.getGenId(),
+            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), snapshotIds);
         repository.blobContainer().deleteBlob("incompatible-snapshots");
         repository.writeIncompatibleSnapshots(repositoryData);
         readData = repository.getRepositoryData();
@@ -228,7 +229,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             for (int j = 0; j < numIndices; j++) {
                 indexIds.add(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()));
             }
-            repoData = repoData.addSnapshot(snapshotId, indexIds);
+            repoData = repoData.addSnapshot(snapshotId,
+                randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), indexIds);
         }
         return repoData;
     }

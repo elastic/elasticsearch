@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.NoopDiscovery;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -36,7 +35,7 @@ public class GatewayServiceTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 null);
         return new GatewayService(settings.build(),
-                null, clusterService, null, null, null, new NoopDiscovery(), null);
+                null, clusterService, null, null, null, null);
     }
 
     public void testDefaultRecoverAfterTime() throws IOException {

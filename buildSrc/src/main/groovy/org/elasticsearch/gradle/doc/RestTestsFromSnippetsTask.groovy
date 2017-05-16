@@ -167,6 +167,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                  * warning every time. */
                 current.println("  - skip:")
                 current.println("      features: ")
+                current.println("        - stash_in_key")
                 current.println("        - warnings")
             }
             if (test.skipTest) {

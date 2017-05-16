@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -35,7 +36,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -52,7 +55,8 @@ public class Environment {
     public static final Setting<String> DEFAULT_PATH_CONF_SETTING = Setting.simpleString("default.path.conf", Property.NodeScope);
     public static final Setting<String> PATH_CONF_SETTING =
             new Setting<>("path.conf", DEFAULT_PATH_CONF_SETTING, Function.identity(), Property.NodeScope);
-    public static final Setting<String> PATH_SCRIPTS_SETTING = Setting.simpleString("path.scripts", Property.NodeScope);
+    public static final Setting<String> PATH_SCRIPTS_SETTING =
+        Setting.simpleString("path.scripts", Property.NodeScope, Property.Deprecated);
     public static final Setting<List<String>> DEFAULT_PATH_DATA_SETTING =
             Setting.listSetting("default.path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> PATH_DATA_SETTING =
@@ -96,22 +100,6 @@ public class Environment {
 
     /** Path to the temporary file directory used by the JDK */
     private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
-
-    /** List of filestores on the system */
-    private static final FileStore[] fileStores;
-
-    /**
-     * We have to do this in clinit instead of init, because ES code is pretty messy,
-     * and makes these environments, throws them away, makes them again, etc.
-     */
-    static {
-        // gather information about filesystems
-        ArrayList<FileStore> allStores = new ArrayList<>();
-        for (FileStore store : PathUtils.getDefaultFileSystem().getFileStores()) {
-            allStores.add(new ESFileStore(store));
-        }
-        fileStores = allStores.toArray(new ESFileStore[allStores.size()]);
-    }
 
     public Environment(Settings settings) {
         final Path homeFile;
@@ -285,8 +273,9 @@ public class Environment {
         }
     }
 
+    // TODO: rename all these "file" methods to "dir"
     /**
-     * The config location.
+     * The config directory.
      */
     public Path configFile() {
         return configFile;
@@ -331,24 +320,8 @@ public class Environment {
         return tmpFile;
     }
 
-    /**
-     * Looks up the filestore associated with a Path.
-     * <p>
-     * This is an enhanced version of {@link Files#getFileStore(Path)}:
-     * <ul>
-     *   <li>On *nix systems, the store returned for the root filesystem will contain
-     *       the actual filesystem type (e.g. {@code ext4}) instead of {@code rootfs}.
-     *   <li>On some systems, the custom attribute {@code lucene:spins} is supported
-     *       via the {@link FileStore#getAttribute(String)} method.
-     *   <li>Only requires the security permissions of {@link Files#getFileStore(Path)},
-     *       no permissions to the actual mount point are required.
-     *   <li>Exception handling has the same semantics as {@link Files#getFileStore(Path)}.
-     *   <li>Works around https://bugs.openjdk.java.net/browse/JDK-8034057.
-     *   <li>Gives a better exception when filestore cannot be retrieved from inside a FreeBSD jail.
-     * </ul>
-     */
-    public static FileStore getFileStore(Path path) throws IOException {
-        return ESFileStore.getMatchingFileStore(path, fileStores);
+    public static FileStore getFileStore(final Path path) throws IOException {
+        return new ESFileStore(Files.getFileStore(path));
     }
 
     /**

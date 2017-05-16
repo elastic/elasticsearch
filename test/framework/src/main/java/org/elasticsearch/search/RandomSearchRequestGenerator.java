@@ -104,7 +104,7 @@ public class RandomSearchRequestGenerator {
             searchRequest.scroll(randomPositiveTimeValue());
         }
         if (randomBoolean()) {
-            searchRequest.searchType(randomFrom(SearchType.values()));
+            searchRequest.searchType(randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH));
         }
         if (randomBoolean()) {
             searchRequest.source(randomSearchSourceBuilder.get());

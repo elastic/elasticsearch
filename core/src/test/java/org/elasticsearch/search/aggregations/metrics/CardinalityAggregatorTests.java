@@ -118,13 +118,13 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
                 NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        try (CardinalityAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher,
-                fieldType)) {
-            aggregator.preCollection();
-            indexSearcher.search(query, aggregator);
-            aggregator.postCollection();
-            verify.accept((InternalCardinality) aggregator.buildAggregation(0L));
-        }
+        CardinalityAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher,
+            fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(query, aggregator);
+        aggregator.postCollection();
+        verify.accept((InternalCardinality) aggregator.buildAggregation(0L));
+
         indexReader.close();
         directory.close();
     }

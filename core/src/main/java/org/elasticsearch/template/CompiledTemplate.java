@@ -31,5 +31,5 @@ import org.elasticsearch.script.ScriptType;
 public interface CompiledTemplate {
 
     /** Run a template and return the resulting string, encoded in utf8 bytes. */
-    BytesReference run(Map<String, Object> params);
+    String run(Map<String, Object> params);
 }

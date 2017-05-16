@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -70,25 +71,26 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.STRING)
                 .executionHint(executionMode.toString())
                 .field("string")
-                .order(Terms.Order.term(true));
+                .order(BucketOrder.key(true));
             MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
             fieldType.setName("string");
             fieldType.setHasDocValues(true );
-            try (TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-                aggregator.preCollection();
-                indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                aggregator.postCollection();
-                Terms result = (Terms) aggregator.buildAggregation(0L);
-                assertEquals(4, result.getBuckets().size());
-                assertEquals("a", result.getBuckets().get(0).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(0).getDocCount());
-                assertEquals("b", result.getBuckets().get(1).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(1).getDocCount());
-                assertEquals("c", result.getBuckets().get(2).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(2).getDocCount());
-                assertEquals("d", result.getBuckets().get(3).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(3).getDocCount());
-            }
+
+            TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+            aggregator.preCollection();
+            indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+            aggregator.postCollection();
+            Terms result = (Terms) aggregator.buildAggregation(0L);
+            assertEquals(4, result.getBuckets().size());
+            assertEquals("a", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("b", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(1).getDocCount());
+            assertEquals("c", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            assertEquals("d", result.getBuckets().get(3).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(3).getDocCount());
+
         }
         indexReader.close();
         directory.close();
@@ -99,7 +101,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.LONG)
                 .executionHint(executionMode.toString())
                 .field("number")
-                .order(Terms.Order.term(true));
+                .order(BucketOrder.key(true));
             List<InternalAggregation> aggs = new ArrayList<> ();
             int numLongs = randomIntBetween(1, 3);
             for (int i = 0; i < numLongs; i++) {
@@ -136,7 +138,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 InternalAggregation mergedAggs = internalAgg.doReduce(aggs, ctx);
                 assertTrue(mergedAggs instanceof DoubleTerms);
                 long expected = numLongs + numDoubles;
-                List<Terms.Bucket> buckets = ((DoubleTerms) mergedAggs).getBuckets();
+                List<? extends Terms.Bucket> buckets = ((DoubleTerms) mergedAggs).getBuckets();
                 assertEquals(4, buckets.size());
                 assertEquals("1.0", buckets.get(0).getKeyAsString());
                 assertEquals(expected, buckets.get(0).getDocCount());
@@ -190,12 +192,11 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     private InternalAggregation buildInternalAggregation(TermsAggregationBuilder builder, MappedFieldType fieldType,
                                                          IndexSearcher searcher) throws IOException {
-        try (TermsAggregator aggregator = createAggregator(builder, searcher, fieldType)) {
-            aggregator.preCollection();
-            searcher.search(new MatchAllDocsQuery(), aggregator);
-            aggregator.postCollection();
-            return aggregator.buildAggregation(0L);
-        }
+        TermsAggregator aggregator = createAggregator(builder, searcher, fieldType);
+        aggregator.preCollection();
+        searcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+        return aggregator.buildAggregation(0L);
     }
 
 }

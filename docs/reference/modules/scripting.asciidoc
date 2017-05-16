@@ -51,7 +51,7 @@ certain tasks.
     |built-in
     |templates
 
-|<<modules-scripting-native, `java`>>
+|<<modules-scripting-engine, `java`>>
     |n/a
     |you write it!
     |expert API
@@ -83,6 +83,4 @@ include::scripting/painless-debugging.asciidoc[]
 
 include::scripting/expression.asciidoc[]
 
-include::scripting/native.asciidoc[]
-
-include::scripting/advanced-scripting.asciidoc[]
+include::scripting/engine.asciidoc[]

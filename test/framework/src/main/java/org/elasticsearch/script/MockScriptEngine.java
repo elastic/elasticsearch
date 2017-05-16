@@ -22,7 +22,6 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -46,7 +45,7 @@ import static java.util.Collections.emptyMap;
  *
  * The function is used to provide the result of the script execution and can return anything.
  */
-public class MockScriptEngine implements ScriptEngineService {
+public class MockScriptEngine implements ScriptEngine {
 
     public static final String NAME = "mockscript";
 
@@ -132,7 +131,7 @@ public class MockScriptEngine implements ScriptEngineService {
             if (vars != null) {
                 context.putAll(vars);
             }
-            return new MockExecutableScript(context, script != null ? script : ctx -> new BytesArray(source));
+            return new MockExecutableScript(context, script != null ? script : ctx -> source);
         }
 
         public SearchScript createSearchScript(Map<String, Object> vars, SearchLookup lookup) {

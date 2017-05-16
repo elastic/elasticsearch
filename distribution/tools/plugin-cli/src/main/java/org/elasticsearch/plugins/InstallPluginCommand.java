@@ -554,18 +554,18 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             Files.move(tmpRoot, destination, StandardCopyOption.ATOMIC_MOVE);
             Files.walkFileTree(destination, new SimpleFileVisitor<Path>() {
                 @Override
-                public FileVisitResult visitFile(Path pluginFile, BasicFileAttributes attrs) throws IOException {
-                    if (Files.isDirectory(pluginFile)) {
-                        setFileAttributes(pluginFile, PLUGIN_DIR_PERMS);
+                public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
+                    if ("bin".equals(file.getParent().getFileName().toString())) {
+                        setFileAttributes(file, BIN_FILES_PERMS);
                     } else {
-                        // There can also be "bin" directories under the plugin directory, storing native code executables
-                        Path parentDir = pluginFile.getParent().getFileName();
-                        if ("bin".equals(parentDir.toString())) {
-                            setFileAttributes(pluginFile, BIN_FILES_PERMS);
-                        } else {
-                            setFileAttributes(pluginFile, PLUGIN_FILES_PERMS);
-                        }
+                        setFileAttributes(file, PLUGIN_FILES_PERMS);
                     }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(final Path dir, final IOException exc) throws IOException {
+                    setFileAttributes(dir, PLUGIN_DIR_PERMS);
                     return FileVisitResult.CONTINUE;
                 }
             });

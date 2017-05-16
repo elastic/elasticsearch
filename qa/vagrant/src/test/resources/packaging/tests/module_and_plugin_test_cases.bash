@@ -475,3 +475,7 @@ fi
     # restore ES_JAVA_OPTS
     export ES_JAVA_OPTS=$es_java_opts
 }
+
+@test "[$GROUP] test umask" {
+    install_jvm_example $(readlink -m jvm-example-*.zip) 0077
+}

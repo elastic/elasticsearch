@@ -21,7 +21,7 @@ package org.elasticsearch.client.transport;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -69,7 +69,7 @@ public class TransportClientRetryIT extends ESIntegTestCase {
                 if (randomBoolean()) {
                     clusterState = client.admin().cluster().state(clusterStateRequest).get().getState();
                 } else {
-                    PlainListenableActionFuture<ClusterStateResponse> future = new PlainListenableActionFuture<>(client.threadPool());
+                    PlainActionFuture<ClusterStateResponse> future = PlainActionFuture.newFuture();
                     client.admin().cluster().state(clusterStateRequest, future);
                     clusterState = future.get().getState();
                 }

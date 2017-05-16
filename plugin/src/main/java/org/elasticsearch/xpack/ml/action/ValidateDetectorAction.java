@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -147,7 +146,7 @@ extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, ValidateDetectorAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                     Request::new);

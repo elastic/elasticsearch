@@ -278,8 +278,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
                 httpClient, httpTemplateParser, threadPool, clusterService, security.getCryptoService(), xContentRegistry, components));
 
 
-        components.addAll(machineLearning.createComponents(internalClient, clusterService, threadPool, resourceWatcherService,
-                scriptService, xContentRegistry));
+        components.addAll(machineLearning.createComponents(internalClient, clusterService, threadPool, xContentRegistry));
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);

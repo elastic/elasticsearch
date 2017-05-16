@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -29,12 +30,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
@@ -192,7 +191,7 @@ public class MachineLearning implements ActionPlugin {
     }
 
     public Settings additionalSettings() {
-        if (enabled == false || this.transportClientMode || this.tribeNode || this.tribeNodeClient) {
+        if (enabled == false || transportClientMode || tribeNode || tribeNodeClient) {
             return Settings.EMPTY;
         }
 
@@ -249,9 +248,8 @@ public class MachineLearning implements ActionPlugin {
     }
 
     public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry) {
-        if (this.transportClientMode || this.tribeNodeClient) {
+        if (transportClientMode || tribeNodeClient) {
             return emptyList();
         }
 
@@ -260,17 +258,18 @@ public class MachineLearning implements ActionPlugin {
         // Even when ML is disabled the native controller will be running if it's installed, and it
         // prevents graceful shutdown on Windows unless we tell it to stop.  Hence when disabled we
         // still return a lifecycle service that will tell the native controller to stop.
-        if (false == enabled || this.tribeNode) {
+        if (enabled == false || tribeNode) {
             return Collections.singletonList(mlLifeCycleService);
         }
 
-        JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, internalClient);
-        JobProvider jobProvider = new JobProvider(internalClient, settings);
-        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, internalClient);
-
         Auditor auditor = new Auditor(internalClient, clusterService);
+        JobProvider jobProvider = new JobProvider(internalClient, settings);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(settings, internalClient, clusterService, threadPool);
         JobManager jobManager = new JobManager(settings, jobProvider, clusterService, auditor, internalClient, notifier);
+
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, internalClient);
+        JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, internalClient);
+
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
         if (AUTODETECT_PROCESS.get(settings) && MachineLearningFeatureSet.isRunningOnMlPlatform(true)) {
@@ -305,7 +304,6 @@ public class MachineLearning implements ActionPlugin {
                 System::currentTimeMillis, auditor, persistentTasksService);
         InvalidLicenseEnforcer invalidLicenseEnforcer =
                 new InvalidLicenseEnforcer(settings, licenseState, threadPool, datafeedManager, autodetectProcessManager);
-
         PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Arrays.asList(
                 new OpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager),
                 new StartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, datafeedManager)
@@ -332,7 +330,7 @@ public class MachineLearning implements ActionPlugin {
     public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
 
-        if (transportClientMode) {
+        if (tribeNodeClient || transportClientMode) {
             return modules;
         }
 
@@ -348,7 +346,7 @@ public class MachineLearning implements ActionPlugin {
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        if (false == enabled || tribeNodeClient) {
+        if (false == enabled || tribeNodeClient || tribeNode) {
             return emptyList();
         }
         return Arrays.asList(
@@ -388,7 +386,7 @@ public class MachineLearning implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (false == enabled) {
+        if (false == enabled || tribeNodeClient || tribeNode) {
             return emptyList();
         }
         return Arrays.asList(
@@ -433,7 +431,7 @@ public class MachineLearning implements ActionPlugin {
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled || tribeNode || tribeNodeClient) {
+        if (false == enabled || tribeNode || tribeNodeClient || transportClientMode) {
             return emptyList();
         }
         int maxNumberOfJobs = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings);

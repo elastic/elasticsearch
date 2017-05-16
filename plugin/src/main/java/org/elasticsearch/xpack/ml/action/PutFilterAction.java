@@ -156,8 +156,8 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool,
                 TransportService transportService, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider,
-                JobManager jobManager, Client client, TransportBulkAction transportBulkAction) {
+                IndexNameExpressionResolver indexNameExpressionResolver,
+                TransportBulkAction transportBulkAction) {
             super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.transportBulkAction = transportBulkAction;

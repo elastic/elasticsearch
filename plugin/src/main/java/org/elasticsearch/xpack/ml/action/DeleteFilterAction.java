@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -32,12 +31,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetadata;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -152,9 +149,8 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool,
                 TransportService transportService, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider,
-                JobManager jobManager, Client client, ClusterService clusterService,
-                TransportBulkAction transportAction) {
+                IndexNameExpressionResolver indexNameExpressionResolver,
+                ClusterService clusterService, TransportBulkAction transportAction) {
             super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.clusterService = clusterService;

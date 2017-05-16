@@ -36,6 +36,8 @@ import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
+import org.elasticsearch.xpack.ml.action.ValidateJobConfigAction;
 
 public class MachineLearningClient {
 
@@ -353,6 +355,30 @@ public class MachineLearningClient {
             UpdateModelSnapshotAction.Request request) {
         PlainActionFuture<UpdateModelSnapshotAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(UpdateModelSnapshotAction.INSTANCE, request, listener);
+        return listener;
+    }
+
+    public void validateDetector(ValidateDetectorAction.Request request,
+                                    ActionListener<ValidateDetectorAction.Response> listener) {
+        client.execute(ValidateDetectorAction.INSTANCE, request, listener);
+    }
+
+    public ActionFuture<ValidateDetectorAction.Response> validateDetector(
+            ValidateDetectorAction.Request request) {
+        PlainActionFuture<ValidateDetectorAction.Response> listener = PlainActionFuture.newFuture();
+        client.execute(ValidateDetectorAction.INSTANCE, request, listener);
+        return listener;
+    }
+
+    public void validateJobConfig(ValidateJobConfigAction.Request request,
+                                 ActionListener<ValidateJobConfigAction.Response> listener) {
+        client.execute(ValidateJobConfigAction.INSTANCE, request, listener);
+    }
+
+    public ActionFuture<ValidateJobConfigAction.Response> validateJobConfig(
+            ValidateJobConfigAction.Request request) {
+        PlainActionFuture<ValidateJobConfigAction.Response> listener = PlainActionFuture.newFuture();
+        client.execute(ValidateJobConfigAction.INSTANCE, request, listener);
         return listener;
     }
 }

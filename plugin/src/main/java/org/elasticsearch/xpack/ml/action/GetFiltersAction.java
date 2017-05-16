@@ -225,9 +225,8 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool,
                 TransportService transportService, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider,
-                JobManager jobManager, Client client, TransportGetAction transportGetAction,
-                TransportSearchAction transportSearchAction) {
+                IndexNameExpressionResolver indexNameExpressionResolver,
+                TransportGetAction transportGetAction, TransportSearchAction transportSearchAction) {
             super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.transportGetAction = transportGetAction;

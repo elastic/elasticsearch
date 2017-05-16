@@ -59,10 +59,7 @@ public class ParsedSignificantLongTerms extends ParsedSignificantTerms {
             if (keyAsString != null) {
                 return keyAsString;
             }
-            if (key != null) {
-                return Long.toString(key);
-            }
-            return null;
+            return Long.toString(key);
         }
 
         public Number getKeyAsNumber() {

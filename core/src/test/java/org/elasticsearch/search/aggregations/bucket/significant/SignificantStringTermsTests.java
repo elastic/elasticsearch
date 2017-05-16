@@ -42,8 +42,10 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
 
     private SignificanceHeuristic significanceHeuristic;
 
+    @Override
     @Before
-    public void setUpSignificanceHeuristic() {
+    public void setUp() throws Exception {
+        super.setUp();
         significanceHeuristic = randomSignificanceHeuristic();
     }
 

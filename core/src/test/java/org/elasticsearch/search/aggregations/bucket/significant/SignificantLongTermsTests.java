@@ -42,8 +42,10 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
     private SignificanceHeuristic significanceHeuristic;
     private DocValueFormat format;
 
+    @Override
     @Before
-    public void setUpSignificanceHeuristic() {
+    public void setUp() throws Exception {
+        super.setUp();
         significanceHeuristic = randomSignificanceHeuristic();
         format = randomNumericDocValueFormat();
     }

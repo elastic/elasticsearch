@@ -60,17 +60,11 @@ public class ParsedSignificantStringTerms extends ParsedSignificantTerms {
             if (keyAsString != null) {
                 return keyAsString;
             }
-            if (key != null) {
-                return key.utf8ToString();
-            }
-            return null;
+            return key.utf8ToString();
         }
 
         public Number getKeyAsNumber() {
-            if (key != null) {
-                return Double.parseDouble(key.utf8ToString());
-            }
-            return null;
+            return Double.parseDouble(key.utf8ToString());
         }
 
         @Override

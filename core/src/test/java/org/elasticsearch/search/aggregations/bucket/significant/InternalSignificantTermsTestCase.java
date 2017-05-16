@@ -66,7 +66,6 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
     protected void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
         super.assertBucket(expected, actual, checkOrder);
 
-
         assertTrue(expected instanceof InternalSignificantTerms.Bucket);
         assertTrue(actual instanceof ParsedSignificantTerms.ParsedBucket);
 

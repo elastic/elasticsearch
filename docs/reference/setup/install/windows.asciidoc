@@ -45,7 +45,7 @@ Elasticsearch can be started from the command line as follows:
 
 [source,sh]
 --------------------------------------------
-.\bin\elasticsearch
+.\bin\elasticsearch.bat
 --------------------------------------------
 
 By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT`,
@@ -54,7 +54,7 @@ and can be stopped by pressing `Ctrl-C`.
 [[windows-configuring]]
 ==== Configuring Elasticsearch on the command line
 
-Elasticsearch loads its configuration from the `%ES_HOME%/config/elasticsearch.yml`
+Elasticsearch loads its configuration from the `%ES_HOME%\config\elasticsearch.yml`
 file by default.  The format of this config file is explained in
 <<settings>>.
 
@@ -63,7 +63,7 @@ the command line, using the `-E` syntax as follows:
 
 [source,sh]
 --------------------------------------------
-./bin/elasticsearch -Ecluster.name=my_cluster -Enode.name=node_1
+.\bin\elasticsearch.bat -Ecluster.name=my_cluster -Enode.name=node_1
 --------------------------------------------
 
 NOTE: Values that contain spaces must be surrounded with quotes.  For instance `-Epath.logs="C:\My Logs\logs"`.

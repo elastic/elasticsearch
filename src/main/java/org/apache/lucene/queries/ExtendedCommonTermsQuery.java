@@ -24,8 +24,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.legacy.common.lucene.search.Queries;
+import org.elasticsearch.legacy.index.mapper.FieldMapper;
 
 import java.io.IOException;
 

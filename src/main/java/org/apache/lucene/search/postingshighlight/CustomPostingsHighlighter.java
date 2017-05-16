@@ -23,8 +23,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.search.highlight.HighlightUtils;
+import org.elasticsearch.legacy.common.Strings;
+import org.elasticsearch.legacy.search.highlight.HighlightUtils;
 
 import java.io.IOException;
 import java.text.BreakIterator;

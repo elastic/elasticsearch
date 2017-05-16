@@ -19,9 +19,9 @@
 package org.apache.lucene.store;
 
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.legacy.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.legacy.common.Nullable;
+import org.elasticsearch.legacy.common.unit.ByteSizeValue;
 
 /**
  */

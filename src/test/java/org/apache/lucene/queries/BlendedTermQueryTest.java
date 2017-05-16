@@ -33,7 +33,7 @@ import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.legacy.test.ElasticsearchLuceneTestCase;
 import org.junit.Test;
 
 import java.io.IOException;

@@ -21,7 +21,7 @@ package org.apache.lucene.analysis;
 
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.legacy.ElasticsearchIllegalArgumentException;
 
 import java.io.IOException;
 import java.io.Reader;

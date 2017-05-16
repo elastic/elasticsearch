@@ -17,15 +17,15 @@ package org.apache.lucene.expressions;
  * limitations under the License.
  */
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.valuesource.DoubleFieldSource;
 import org.apache.lucene.queries.function.valuesource.FloatFieldSource;
 import org.apache.lucene.queries.function.valuesource.IntFieldSource;
 import org.apache.lucene.queries.function.valuesource.LongFieldSource;
 import org.apache.lucene.search.SortField;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Simple class that binds expression variable names to {@link SortField}s
@@ -50,7 +50,7 @@ import org.apache.lucene.search.SortField;
 public final class XSimpleBindings extends Bindings {
 
     static {
-        assert org.elasticsearch.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5806)";
+        assert org.elasticsearch.legacy.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5806)";
     }
 
     final Map<String,Object> map = new HashMap<>();

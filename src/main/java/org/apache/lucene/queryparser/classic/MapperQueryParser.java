@@ -27,23 +27,23 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.legacy.common.lucene.Lucene;
+import org.elasticsearch.legacy.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.legacy.common.lucene.search.Queries;
+import org.elasticsearch.legacy.common.lucene.search.XFilteredQuery;
+import org.elasticsearch.legacy.common.unit.Fuzziness;
+import org.elasticsearch.legacy.index.mapper.FieldMapper;
+import org.elasticsearch.legacy.index.mapper.MapperService;
+import org.elasticsearch.legacy.index.query.QueryParseContext;
+import org.elasticsearch.legacy.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
+import static org.elasticsearch.legacy.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.elasticsearch.legacy.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
  * A query parser that uses the {@link MapperService} in order to build smarter

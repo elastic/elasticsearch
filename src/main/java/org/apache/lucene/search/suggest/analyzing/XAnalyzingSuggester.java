@@ -32,7 +32,7 @@ import org.apache.lucene.util.fst.FST.BytesReader;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.apache.lucene.util.fst.Util.Result;
 import org.apache.lucene.util.fst.Util.TopResults;
-import org.elasticsearch.common.collect.HppcMaps;
+import org.elasticsearch.legacy.common.collect.HppcMaps;
 
 import java.io.File;
 import java.io.IOException;

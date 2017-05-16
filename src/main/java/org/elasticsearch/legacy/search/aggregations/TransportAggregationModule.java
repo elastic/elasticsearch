@@ -1,0 +1,106 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.elasticsearch.legacy.search.aggregations;
+
+import com.google.common.collect.ImmutableList;
+import org.elasticsearch.legacy.common.inject.AbstractModule;
+import org.elasticsearch.legacy.common.inject.Module;
+import org.elasticsearch.legacy.common.inject.SpawnModules;
+import org.elasticsearch.legacy.search.aggregations.bucket.filter.InternalFilter;
+import org.elasticsearch.legacy.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
+import org.elasticsearch.legacy.search.aggregations.bucket.global.InternalGlobal;
+import org.elasticsearch.legacy.search.aggregations.bucket.histogram.InternalDateHistogram;
+import org.elasticsearch.legacy.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.legacy.search.aggregations.bucket.missing.InternalMissing;
+import org.elasticsearch.legacy.search.aggregations.bucket.nested.InternalNested;
+import org.elasticsearch.legacy.search.aggregations.bucket.nested.InternalReverseNested;
+import org.elasticsearch.legacy.search.aggregations.bucket.range.InternalRange;
+import org.elasticsearch.legacy.search.aggregations.bucket.range.date.InternalDateRange;
+import org.elasticsearch.legacy.search.aggregations.bucket.range.geodistance.InternalGeoDistance;
+import org.elasticsearch.legacy.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
+import org.elasticsearch.legacy.search.aggregations.bucket.significant.SignificantLongTerms;
+import org.elasticsearch.legacy.search.aggregations.bucket.significant.SignificantStringTerms;
+import org.elasticsearch.legacy.search.aggregations.bucket.significant.UnmappedSignificantTerms;
+import org.elasticsearch.legacy.search.aggregations.bucket.significant.heuristics.TransportSignificantTermsHeuristicModule;
+import org.elasticsearch.legacy.search.aggregations.bucket.terms.DoubleTerms;
+import org.elasticsearch.legacy.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.legacy.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.legacy.search.aggregations.bucket.terms.UnmappedTerms;
+import org.elasticsearch.legacy.search.aggregations.metrics.tophits.InternalTopHits;
+import org.elasticsearch.legacy.search.aggregations.metrics.avg.InternalAvg;
+import org.elasticsearch.legacy.search.aggregations.metrics.cardinality.InternalCardinality;
+import org.elasticsearch.legacy.search.aggregations.metrics.geobounds.InternalGeoBounds;
+import org.elasticsearch.legacy.search.aggregations.metrics.max.InternalMax;
+import org.elasticsearch.legacy.search.aggregations.metrics.min.InternalMin;
+import org.elasticsearch.legacy.search.aggregations.metrics.percentiles.InternalPercentiles;
+import org.elasticsearch.legacy.search.aggregations.metrics.percentiles.InternalPercentileRanks;
+import org.elasticsearch.legacy.search.aggregations.metrics.stats.InternalStats;
+import org.elasticsearch.legacy.search.aggregations.metrics.stats.extended.InternalExtendedStats;
+import org.elasticsearch.legacy.search.aggregations.metrics.sum.InternalSum;
+import org.elasticsearch.legacy.search.aggregations.metrics.valuecount.InternalValueCount;
+
+/**
+ * A module that registers all the transport streams for the addAggregation
+ */
+public class TransportAggregationModule extends AbstractModule implements SpawnModules {
+
+    @Override
+    protected void configure() {
+
+        // calcs
+        InternalAvg.registerStreams();
+        InternalSum.registerStreams();
+        InternalMin.registerStreams();
+        InternalMax.registerStreams();
+        InternalStats.registerStreams();
+        InternalExtendedStats.registerStreams();
+        InternalValueCount.registerStreams();
+        InternalPercentiles.registerStreams();
+        InternalPercentileRanks.registerStreams();
+        InternalCardinality.registerStreams();
+
+        // buckets
+        InternalGlobal.registerStreams();
+        InternalFilter.registerStreams();
+        InternalMissing.registerStreams();
+        StringTerms.registerStreams();
+        LongTerms.registerStreams();
+        SignificantStringTerms.registerStreams();
+        SignificantLongTerms.registerStreams();
+        UnmappedSignificantTerms.registerStreams();
+        InternalGeoHashGrid.registerStreams();                
+        DoubleTerms.registerStreams();
+        UnmappedTerms.registerStreams();
+        InternalRange.registerStream();
+        InternalDateRange.registerStream();
+        InternalIPv4Range.registerStream();
+        InternalHistogram.registerStream();
+        InternalDateHistogram.registerStream();
+        InternalGeoDistance.registerStream();
+        InternalNested.registerStream();
+        InternalReverseNested.registerStream();
+        InternalTopHits.registerStreams();
+        InternalGeoBounds.registerStream();
+    }
+
+    @Override
+    public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(new TransportSignificantTermsHeuristicModule());
+    }
+}

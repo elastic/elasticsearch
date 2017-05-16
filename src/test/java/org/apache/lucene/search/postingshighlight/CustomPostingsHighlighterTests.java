@@ -30,8 +30,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.search.highlight.HighlightUtils;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.legacy.search.highlight.HighlightUtils;
+import org.elasticsearch.legacy.test.ElasticsearchLuceneTestCase;
 import org.junit.Test;
 
 import java.util.*;

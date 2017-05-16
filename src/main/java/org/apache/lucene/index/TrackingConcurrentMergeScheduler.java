@@ -19,13 +19,13 @@
 
 package org.apache.lucene.index;
 
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.legacy.common.logging.ESLogger;
+import org.elasticsearch.legacy.common.metrics.CounterMetric;
+import org.elasticsearch.legacy.common.metrics.MeanMetric;
+import org.elasticsearch.legacy.common.unit.ByteSizeValue;
+import org.elasticsearch.legacy.common.unit.TimeValue;
+import org.elasticsearch.legacy.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.legacy.index.merge.OnGoingMerge;
 
 import java.io.IOException;
 import java.util.Collections;

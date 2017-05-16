@@ -1,0 +1,274 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.legacy.rest.action.search;
+
+import org.elasticsearch.legacy.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.legacy.action.search.SearchRequest;
+import org.elasticsearch.legacy.action.search.SearchResponse;
+import org.elasticsearch.legacy.action.support.IndicesOptions;
+import org.elasticsearch.legacy.client.Client;
+import org.elasticsearch.legacy.common.Strings;
+import org.elasticsearch.legacy.common.inject.Inject;
+import org.elasticsearch.legacy.common.settings.Settings;
+import org.elasticsearch.legacy.index.query.QueryBuilders;
+import org.elasticsearch.legacy.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.legacy.rest.BaseRestHandler;
+import org.elasticsearch.legacy.rest.RestChannel;
+import org.elasticsearch.legacy.rest.RestController;
+import org.elasticsearch.legacy.rest.RestRequest;
+import org.elasticsearch.legacy.rest.action.support.RestStatusToXContentListener;
+import org.elasticsearch.legacy.search.Scroll;
+import org.elasticsearch.legacy.search.builder.SearchSourceBuilder;
+import org.elasticsearch.legacy.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.legacy.search.sort.SortOrder;
+
+import static org.elasticsearch.legacy.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.legacy.rest.RestRequest.Method.GET;
+import static org.elasticsearch.legacy.rest.RestRequest.Method.POST;
+import static org.elasticsearch.legacy.search.suggest.SuggestBuilder.termSuggestion;
+
+/**
+ *
+ */
+public class RestSearchAction extends BaseRestHandler {
+
+    @Inject
+    public RestSearchAction(Settings settings, Client client, RestController controller) {
+        super(settings, client);
+        controller.registerHandler(GET, "/_search", this);
+        controller.registerHandler(POST, "/_search", this);
+        controller.registerHandler(GET, "/{index}/_search", this);
+        controller.registerHandler(POST, "/{index}/_search", this);
+        controller.registerHandler(GET, "/{index}/{type}/_search", this);
+        controller.registerHandler(POST, "/{index}/{type}/_search", this);
+        controller.registerHandler(GET, "/_search/template", this);
+        controller.registerHandler(POST, "/_search/template", this);
+        controller.registerHandler(GET, "/{index}/_search/template", this);
+        controller.registerHandler(POST, "/{index}/_search/template", this);
+        controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
+        controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
+    }
+
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+        SearchRequest searchRequest;
+        searchRequest = RestSearchAction.parseSearchRequest(request);
+        searchRequest.listenerThreaded(false);
+        client.search(searchRequest, new RestStatusToXContentListener<SearchResponse>(channel));
+    }
+
+    public static SearchRequest parseSearchRequest(RestRequest request) {
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        SearchRequest searchRequest = new SearchRequest(indices);
+        // get the content, and put it in the body
+        // add content/source as template if template flag is set
+        boolean isTemplateRequest = request.path().endsWith("/template");
+        if (request.hasContent()) {
+            if (isTemplateRequest) {
+                searchRequest.templateSource(request.content(), request.contentUnsafe());
+            } else {
+                searchRequest.source(request.content(), request.contentUnsafe());
+            }
+        } else {
+            String source = request.param("source");
+            if (source != null) {
+                if (isTemplateRequest) {
+                    searchRequest.templateSource(source);
+                } else {
+                    searchRequest.source(source);
+                }
+            }
+        }
+
+        searchRequest.extraSource(parseSearchSource(request));
+        searchRequest.searchType(request.param("search_type"));
+
+        String scroll = request.param("scroll");
+        if (scroll != null) {
+            searchRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
+        }
+
+        searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+        searchRequest.routing(request.param("routing"));
+        searchRequest.preference(request.param("preference"));
+        searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
+
+        return searchRequest;
+    }
+
+    public static SearchSourceBuilder parseSearchSource(RestRequest request) {
+        SearchSourceBuilder searchSourceBuilder = null;
+        String queryString = request.param("q");
+        if (queryString != null) {
+            QueryStringQueryBuilder queryBuilder = QueryBuilders.queryString(queryString);
+            queryBuilder.defaultField(request.param("df"));
+            queryBuilder.analyzer(request.param("analyzer"));
+            queryBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
+            queryBuilder.lowercaseExpandedTerms(request.paramAsBoolean("lowercase_expanded_terms", true));
+            queryBuilder.lenient(request.paramAsBoolean("lenient", null));
+            String defaultOperator = request.param("default_operator");
+            if (defaultOperator != null) {
+                if ("OR".equals(defaultOperator)) {
+                    queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.OR);
+                } else if ("AND".equals(defaultOperator)) {
+                    queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
+                } else {
+                    throw new ElasticsearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
+                }
+            }
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.query(queryBuilder);
+        }
+
+        int from = request.paramAsInt("from", -1);
+        if (from != -1) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.from(from);
+        }
+        int size = request.paramAsInt("size", -1);
+        if (size != -1) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.size(size);
+        }
+
+        if (request.hasParam("explain")) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.explain(request.paramAsBoolean("explain", null));
+        }
+        if (request.hasParam("version")) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.version(request.paramAsBoolean("version", null));
+        }
+        if (request.hasParam("timeout")) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
+        }
+
+        String sField = request.param("fields");
+        if (sField != null) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            if (!Strings.hasText(sField)) {
+                searchSourceBuilder.noFields();
+            } else {
+                String[] sFields = Strings.splitStringByCommaToArray(sField);
+                if (sFields != null) {
+                    for (String field : sFields) {
+                        searchSourceBuilder.field(field);
+                    }
+                }
+            }
+        }
+        FetchSourceContext fetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
+        if (fetchSourceContext != null) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.fetchSource(fetchSourceContext);
+        }
+
+        if (request.hasParam("track_scores")) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
+        }
+
+        String sSorts = request.param("sort");
+        if (sSorts != null) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            String[] sorts = Strings.splitStringByCommaToArray(sSorts);
+            for (String sort : sorts) {
+                int delimiter = sort.lastIndexOf(":");
+                if (delimiter != -1) {
+                    String sortField = sort.substring(0, delimiter);
+                    String reverse = sort.substring(delimiter + 1);
+                    if ("asc".equals(reverse)) {
+                        searchSourceBuilder.sort(sortField, SortOrder.ASC);
+                    } else if ("desc".equals(reverse)) {
+                        searchSourceBuilder.sort(sortField, SortOrder.DESC);
+                    }
+                } else {
+                    searchSourceBuilder.sort(sort);
+                }
+            }
+        }
+
+        String sIndicesBoost = request.param("indices_boost");
+        if (sIndicesBoost != null) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            String[] indicesBoost = Strings.splitStringByCommaToArray(sIndicesBoost);
+            for (String indexBoost : indicesBoost) {
+                int divisor = indexBoost.indexOf(',');
+                if (divisor == -1) {
+                    throw new ElasticsearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], no ','");
+                }
+                String indexName = indexBoost.substring(0, divisor);
+                String sBoost = indexBoost.substring(divisor + 1);
+                try {
+                    searchSourceBuilder.indexBoost(indexName, Float.parseFloat(sBoost));
+                } catch (NumberFormatException e) {
+                    throw new ElasticsearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], boost not a float number");
+                }
+            }
+        }
+
+        String sStats = request.param("stats");
+        if (sStats != null) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.stats(Strings.splitStringByCommaToArray(sStats));
+        }
+
+        String suggestField = request.param("suggest_field");
+        if (suggestField != null) {
+            String suggestText = request.param("suggest_text", queryString);
+            int suggestSize = request.paramAsInt("suggest_size", 5);
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            String suggestMode = request.param("suggest_mode");
+            searchSourceBuilder.suggest().addSuggestion(
+                    termSuggestion(suggestField).field(suggestField).text(suggestText).size(suggestSize)
+                            .suggestMode(suggestMode)
+            );
+        }
+
+        return searchSourceBuilder;
+    }
+}

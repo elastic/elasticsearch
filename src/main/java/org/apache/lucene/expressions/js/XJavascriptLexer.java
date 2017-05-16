@@ -2,19 +2,15 @@
 
 package org.apache.lucene.expressions.js;
 
-import java.text.ParseException;
-
-
 import org.antlr.runtime.*;
-import java.util.Stack;
-import java.util.List;
-import java.util.ArrayList;
+
+import java.text.ParseException;
 
 @SuppressWarnings("all")
 class XJavascriptLexer extends Lexer {
 
     static {
-        assert org.elasticsearch.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5806)";
+        assert org.elasticsearch.legacy.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5806)";
     }
 
     public static final int EOF=-1;

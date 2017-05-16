@@ -16,7 +16,7 @@
             <outputDirectory>/lib</outputDirectory>
             <useTransitiveDependencies>false</useTransitiveDependencies>
             <includes>
-                <include>org.elasticsearch:elasticsearch</include>
+                <include>org.elasticsearch.legacy:elasticsearch</include>
             </includes>
         </dependencySet>
     </dependencySets>

@@ -21,7 +21,7 @@ package org.apache.lucene.search.postingshighlight;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.legacy.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;

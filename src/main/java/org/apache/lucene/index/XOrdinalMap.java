@@ -17,9 +17,6 @@ package org.apache.lucene.index;
  * limitations under the License.
  */
 
-import java.io.IOException;
-import java.util.Arrays;
-
 import org.apache.lucene.index.MultiTermsEnum.TermsEnumIndex;
 import org.apache.lucene.index.MultiTermsEnum.TermsEnumWithSlice;
 import org.apache.lucene.util.Accountable;
@@ -30,6 +27,9 @@ import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
 
+import java.io.IOException;
+import java.util.Arrays;
+
 /** maps per-segment ordinals to/from global ordinal space */
 // TODO: we could also have a utility method to merge Terms[] and use size() as a weight when we need it
 // TODO: use more efficient packed ints structures?
@@ -37,7 +37,7 @@ import org.apache.lucene.util.packed.PackedInts;
 public class XOrdinalMap implements Accountable {
 
 static {
-  assert org.elasticsearch.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5780, LUCENE-5782)";
+  assert org.elasticsearch.legacy.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5780, LUCENE-5782)";
 }
   
   private static class SegmentMap implements Accountable {

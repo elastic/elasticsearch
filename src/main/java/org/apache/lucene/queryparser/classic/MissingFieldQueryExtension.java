@@ -20,9 +20,9 @@
 package org.apache.lucene.queryparser.classic;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
-import org.elasticsearch.index.query.MissingFilterParser;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.legacy.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.legacy.index.query.MissingFilterParser;
+import org.elasticsearch.legacy.index.query.QueryParseContext;
 
 /**
  *

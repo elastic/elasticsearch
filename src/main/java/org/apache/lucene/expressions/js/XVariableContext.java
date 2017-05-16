@@ -27,7 +27,7 @@ import java.util.List;
 public class XVariableContext {
 
     static {
-        assert org.elasticsearch.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5806)";
+        assert org.elasticsearch.legacy.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5806)";
     }
 
     public static enum Type {

@@ -19,9 +19,9 @@
 
 package org.apache.lucene.util;
 
-import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.legacy.common.geo.GeoDistance;
+import org.elasticsearch.legacy.common.unit.DistanceUnit;
+import org.elasticsearch.legacy.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.number.IsCloseTo.closeTo;

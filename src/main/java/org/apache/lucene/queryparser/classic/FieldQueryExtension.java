@@ -20,7 +20,7 @@
 package org.apache.lucene.queryparser.classic;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.legacy.index.query.QueryParseContext;
 
 /**
  *

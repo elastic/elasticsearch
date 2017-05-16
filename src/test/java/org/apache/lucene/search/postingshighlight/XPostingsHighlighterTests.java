@@ -27,7 +27,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.legacy.test.ElasticsearchLuceneTestCase;
 import org.junit.Test;
 
 import java.io.BufferedReader;

@@ -24,7 +24,6 @@ teardown:
 
 ---
 "Test disable then enable user":
-# check that the user works
   - do:
       headers:
         Authorization: "Basic am9lOnMza3JpdA=="

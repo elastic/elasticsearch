@@ -154,7 +154,6 @@
                   job_id: index-layout-job2
   - match: {count: 3}
 
-# Put some categorizer state
   - do:
       index:
         index: .ml-state

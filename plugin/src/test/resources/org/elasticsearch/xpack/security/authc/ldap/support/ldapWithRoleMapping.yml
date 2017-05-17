@@ -1,4 +1,3 @@
-# This LDAP connection does group lookup by attribute with group to role mapping
 ldap:
   urls: # these connections are not round-robin, but primary, secondary, etc.  When the first fails the second is attempted
     - ldap://ldap.example.com:1389

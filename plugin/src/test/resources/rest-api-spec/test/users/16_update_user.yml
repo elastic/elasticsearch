@@ -37,7 +37,6 @@ teardown:
   - skip:
       features: [headers, catch_unauthorized]
 
-# test that the role actually works
   - do:
       headers:
         Authorization: "Basic am9lOnMza3JpdA=="

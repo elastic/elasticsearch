@@ -11,7 +11,6 @@ teardown:
         id: "my_watch"
         ignore: 404
 
-# See https://github.com/elastic/x-pack-elasticsearch/issues/1123
 ---
 "Ensure that ack status is reset after unsuccesful execution":
 

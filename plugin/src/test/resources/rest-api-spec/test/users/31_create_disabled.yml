@@ -24,7 +24,6 @@ teardown:
 
 ---
 "Test disable then enable user":
-# validate user cannot login
   - do:
       catch: unauthorized
       headers:

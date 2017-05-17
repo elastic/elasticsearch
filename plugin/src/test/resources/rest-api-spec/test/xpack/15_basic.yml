@@ -1,5 +1,3 @@
-# Integration tests xpack info and usage API
-#
 "X-Pack Info and Usage":
 
   - do:

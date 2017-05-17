@@ -54,7 +54,6 @@ teardown:
 "Test changing users password":
   - skip:
       features: catch_unauthorized
-# validate that the user actually works
   - do:
       headers:
         Authorization: "Basic am9lOnMza3JpdA=="

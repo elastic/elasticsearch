@@ -55,7 +55,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -138,7 +137,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         return Arrays.asList(ExplainableScriptPlugin.class);
     }
 
-    public void testNativeExplainScript() throws InterruptedException, IOException, ExecutionException {
+    public void testExplainScript() throws InterruptedException, IOException, ExecutionException {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             indexRequests.add(client().prepareIndex("test", "type").setId(Integer.toString(i)).setSource(
@@ -162,7 +161,8 @@ public class ExplainableScriptIT extends ESIntegTestCase {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
             assertThat(hit.getExplanation().toString(),
                     containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
-            assertThat(hit.getExplanation().toString(), containsString("freq=1.0 = termFreq=1.0"));
+            assertThat(hit.getExplanation().toString(), containsString("freq=1.0"));
+            assertThat(hit.getExplanation().toString(), containsString("termFreq=1.0"));
             assertThat(hit.getExplanation().getDetails().length, equalTo(2));
             idCounter--;
         }

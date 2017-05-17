@@ -62,7 +62,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
         assertThat(skipSection.getLowerVersion(), equalTo(VersionUtils.getFirstVersion()));
-        assertThat(skipSection.getUpperVersion(), equalTo(Version.V_5_1_1_UNRELEASED));
+        assertThat(skipSection.getUpperVersion(), equalTo(Version.V_5_1_1));
         assertThat(skipSection.getFeatures().size(), equalTo(0));
         assertThat(skipSection.getReason(), equalTo("Delete ignores the parent param"));
     }

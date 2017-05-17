@@ -54,9 +54,9 @@ public class PipelineConfigurationTests extends ESTestCase {
 
     public void testSerializationBwc() throws IOException {
         final byte[] data = Base64.getDecoder().decode("ATECe30AAAA=");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
         try (StreamInput in = StreamInput.wrap(data)) {
+            final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+                Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
             in.setVersion(version);
             PipelineConfiguration configuration = PipelineConfiguration.readFrom(in);
             assertEquals(XContentType.JSON, configuration.getXContentType());

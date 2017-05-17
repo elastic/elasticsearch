@@ -152,7 +152,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             .put("index.sort.field", "field1")
             .build();
         IllegalArgumentException exc =
-            expectThrows(IllegalArgumentException.class, () -> indexSettings(settings, Version.V_5_4_0_UNRELEASED));
+            expectThrows(IllegalArgumentException.class, () -> indexSettings(settings, Version.V_5_4_0));
         assertThat(exc.getMessage(),
             containsString("unsupported index.version.created:5.4.0, " +
                 "can't set index.sort on versions prior to 6.0.0-alpha1"));

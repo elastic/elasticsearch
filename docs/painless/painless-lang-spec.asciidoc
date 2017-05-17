@@ -1,0 +1,73 @@
+[[painless-specification]]
+== Painless Language Specification
+
+Painless uses a Java-style syntax that is similar to Groovy. In fact, most
+Painless scripts are also valid Groovy, and simple Groovy scripts are typically
+valid Painless. This specification assumes you have at least a passing
+familiarity with Java and related languages.
+
+Painless is essentially a subset of Java with some additional scripting
+language features that make scripts easier to write. However, there are some
+important differences, particularly with the casting model. For more detailed
+conceptual information about the basic constructs that Java and Painless share,
+refer to the corresponding topics in the
+https://docs.oracle.com/javase/specs/jls/se8/html/index.html[Java Language
+Specification].
+
+Painless scripts are parsed and compiled using the http://www.antlr.org/[ANTLR4]
+and http://asm.ow2.org/[ASM] libraries. Painless scripts are compiled directly
+into Java byte code and executed against a standard Java Virtual Machine. This
+specification uses ANTLR4 grammar notation to describe the allowed syntax.
+However, the actual Painless grammar is more compact than what is shown here.
+
+[float]
+[[comments]]
+==== Comments
+
+Painless supports both single-line and multi-line comments. You can include
+comments anywhere within a script.
+
+Single-line comments are preceded by two slashes: `// comment`. They can be
+placed anywhere on a line. All characters from the two slashes to the end of
+the line are ignored.
+
+Multi-line comments are preceded by a slash-star `/*` and closed by
+star-slash `*/`. Multi-line comments can start anywhere on a line. All
+characters from the opening `/*` to the closing `*/` are ignored.
+
+*Examples:*
+
+[source,Java]
+----
+// single-line comment
+
+<code> // single-line comment
+
+/* multi-
+   line
+   comment */
+
+<code> /* multi-line
+          comment */ <code>
+
+<code> /* multi-line comment */ <code>
+----
+
+[float]
+[[keywords]]
+==== Keywords
+
+Painless reserves the following keywords for built-in language features.
+These keywords cannot be used used in other contexts, such as identifiers.
+
+[cols="^1,^1,^1,^1,^1"]
+|====
+| if | else | while | do | for
+| in | continue | break | return | new
+| try | catch | throw | this | instanceof
+|====
+
+include::painless-literals.asciidoc[]
+include::painless-variables.asciidoc[]
+include::painless-types.asciidoc[]
+include::painless-operators.asciidoc[]

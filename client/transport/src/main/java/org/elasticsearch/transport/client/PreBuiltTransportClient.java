@@ -26,6 +26,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
@@ -41,7 +42,8 @@ import java.util.concurrent.TimeUnit;
  * {@link Netty4Plugin},
  * {@link ReindexPlugin},
  * {@link PercolatorPlugin},
- * and {@link MustachePlugin}
+ * {@link MustachePlugin},
+ * {@link ParentJoinPlugin}
  * plugins for the client. These plugins are all the required modules for Elasticsearch.
  */
 @SuppressWarnings({"unchecked","varargs"})
@@ -83,7 +85,8 @@ public class PreBuiltTransportClient extends TransportClient {
                 Netty4Plugin.class,
                 ReindexPlugin.class,
                 PercolatorPlugin.class,
-                MustachePlugin.class));
+                MustachePlugin.class,
+                ParentJoinPlugin.class));
 
     /**
      * Creates a new transport client with pre-installed plugins.

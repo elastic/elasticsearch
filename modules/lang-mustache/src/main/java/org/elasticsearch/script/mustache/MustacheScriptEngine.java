@@ -39,6 +39,7 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Reader;
+import java.io.StringWriter;
 import java.lang.ref.SoftReference;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -57,21 +58,6 @@ public final class MustacheScriptEngine implements ScriptEngine {
     private static final Logger logger = ESLoggerFactory.getLogger(MustacheScriptEngine.class);
 
     public static final String NAME = "mustache";
-
-    /** Thread local UTF8StreamWriter to store template execution results in, thread local to save object creation.*/
-    private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<>();
-
-    /** If exists, reset and return, otherwise create, reset and return a writer.*/
-    private static UTF8StreamWriter utf8StreamWriter() {
-        SoftReference<UTF8StreamWriter> ref = utf8StreamWriter.get();
-        UTF8StreamWriter writer = (ref == null) ? null : ref.get();
-        if (writer == null) {
-            writer = new UTF8StreamWriter(1024 * 4);
-            utf8StreamWriter.set(new SoftReference<>(writer));
-        }
-        writer.reset();
-        return writer;
-    }
 
     /**
      * Compile a template string to (in this case) a Mustache object than can
@@ -146,8 +132,8 @@ public final class MustacheScriptEngine implements ScriptEngine {
 
         @Override
         public Object run() {
-            final BytesStreamOutput result = new BytesStreamOutput();
-            try (UTF8StreamWriter writer = utf8StreamWriter().setOutput(result)) {
+            final StringWriter writer = new StringWriter();
+            try {
                 // crazy reflection here
                 SpecialPermission.check();
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
@@ -158,7 +144,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
                 logger.error((Supplier<?>) () -> new ParameterizedMessage("Error running {}", template), e);
                 throw new GeneralScriptException("Error running " + template, e);
             }
-            return result.bytes();
+            return writer.toString();
         }
     }
 

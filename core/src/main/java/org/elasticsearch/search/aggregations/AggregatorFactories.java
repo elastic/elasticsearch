@@ -183,7 +183,7 @@ public class AggregatorFactories {
     }
 
     public List<PipelineAggregator> createPipelineAggregators() throws IOException {
-        List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
+        List<PipelineAggregator> pipelineAggregators = new ArrayList<>(this.pipelineAggregatorFactories.size());
         for (PipelineAggregationBuilder factory : this.pipelineAggregatorFactories) {
             pipelineAggregators.add(factory.create());
         }

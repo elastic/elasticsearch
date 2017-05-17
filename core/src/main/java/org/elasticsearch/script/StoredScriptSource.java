@@ -365,7 +365,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * only the code parameter will be read in as a bytes reference.
      */
     public StoredScriptSource(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             this.lang = in.readString();
             this.code = in.readString();
             @SuppressWarnings("unchecked")
@@ -385,7 +385,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeString(lang);
             out.writeString(code);
             @SuppressWarnings("unchecked")

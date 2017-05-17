@@ -35,6 +35,7 @@ The create job API enables you to instantiate a job.
 `model_snapshot_retention_days`::
   (long) The time in days that model snapshots are retained for the job.
   Older snapshots are deleted. The default value is 1 day.
+  For more information about model snapshots, see <<ml-snapshot-resource>>.
 
 `results_index_name`::
   (string) The name of the index in which to store the {ml} results.

@@ -49,6 +49,7 @@ so do not set the `background_persist_interval` value too low.
 `model_snapshot_id`::
   (string) A numerical character string that uniquely identifies the model
   snapshot. For example, `1491007364`.
+  For more information about model snapshots, see <<ml-snapshot-resource>>.
 
 `model_snapshot_retention_days`::
   (long) The time in days that model snapshots are retained for the job.

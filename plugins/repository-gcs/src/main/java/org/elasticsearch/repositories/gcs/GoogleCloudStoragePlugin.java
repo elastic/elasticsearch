@@ -23,10 +23,12 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import com.google.api.client.auth.oauth2.TokenRequest;
 import com.google.api.client.auth.oauth2.TokenResponse;
+import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.googleapis.json.GoogleJsonError;
 import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpHeaders;
@@ -40,16 +42,13 @@ import com.google.api.services.storage.model.Bucket;
 import com.google.api.services.storage.model.Objects;
 import com.google.api.services.storage.model.StorageObject;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository;
-import org.elasticsearch.repositories.gcs.GoogleCloudStorageService;
 
 public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin {
 
@@ -115,14 +114,25 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         });
     }
 
+    private final Map<String, GoogleCredential> credentials;
+
+    public GoogleCloudStoragePlugin(Settings settings) {
+        credentials = GoogleCloudStorageService.loadClientCredentials(settings);
+    }
+
     // overridable for tests
     protected GoogleCloudStorageService createStorageService(Environment environment) {
-        return new GoogleCloudStorageService.InternalGoogleCloudStorageService(environment);
+        return new GoogleCloudStorageService.InternalGoogleCloudStorageService(environment, credentials);
     }
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         return Collections.singletonMap(GoogleCloudStorageRepository.TYPE,
             (metadata) -> new GoogleCloudStorageRepository(metadata, env, namedXContentRegistry, createStorageService(env)));
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Collections.singletonList(GoogleCloudStorageService.CREDENTIALS_FILE_SETTING);
     }
 }

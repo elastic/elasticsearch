@@ -67,6 +67,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
     }
 
     public static class MockGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
+        public MockGoogleCloudStoragePlugin() {
+            super(Settings.EMPTY);
+        }
         @Override
         protected GoogleCloudStorageService createStorageService(Environment environment) {
             return new MockGoogleCloudStorageService();
@@ -75,7 +78,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
 
     public static class MockGoogleCloudStorageService implements GoogleCloudStorageService {
         @Override
-        public Storage createClient(String serviceAccount, String application, TimeValue connectTimeout, TimeValue readTimeout) throws
+        public Storage createClient(String serviceAccount, String accountName, String application,
+                                    TimeValue connectTimeout, TimeValue readTimeout) throws
                 Exception {
             return storage.get();
         }

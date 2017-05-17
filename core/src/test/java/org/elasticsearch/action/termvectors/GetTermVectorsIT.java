@@ -216,10 +216,9 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     public void testRandomSingleTermVectors() throws IOException {
         FieldType ft = new FieldType();
-        int config = randomInt(6);
+        int config = randomInt(4);
         boolean storePositions = false;
         boolean storeOffsets = false;
-        boolean storePayloads = false;
         boolean storeTermVectors = false;
         switch (config) {
             case 0: {
@@ -246,23 +245,11 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 storeOffsets = true;
                 break;
             }
-            case 5: {
-                storeTermVectors = true;
-                storePositions = true;
-                storePayloads = true;
-                break;
-            }
-            case 6: {
-                storeTermVectors = true;
-                storePositions = true;
-                storeOffsets = true;
-                storePayloads = true;
-                break;
-            }
+            default:
+                throw new IllegalArgumentException("Unsupported option: " + config);
         }
         ft.setStoreTermVectors(storeTermVectors);
         ft.setStoreTermVectorOffsets(storeOffsets);
-        ft.setStoreTermVectorPayloads(storePayloads);
         ft.setStoreTermVectorPositions(storePositions);
 
         String optionString = FieldMapper.termVectorOptionsToString(ft);
@@ -293,13 +280,12 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         int[][] startOffset = {{10}, {40}, {16}, {20}, {35}, {26}, {4}, {0, 31}};
         int[][] endOffset = {{15}, {43}, {19}, {25}, {39}, {30}, {9}, {3, 34}};
 
-        boolean isPayloadRequested = randomBoolean();
         boolean isOffsetRequested = randomBoolean();
         boolean isPositionsRequested = randomBoolean();
-        String infoString = createInfoString(isPositionsRequested, isOffsetRequested, isPayloadRequested, optionString);
+        String infoString = createInfoString(isPositionsRequested, isOffsetRequested, optionString);
         for (int i = 0; i < 10; i++) {
             TermVectorsRequestBuilder resp = client().prepareTermVectors("test", "type1", Integer.toString(i))
-                    .setPayloads(isPayloadRequested).setOffsets(isOffsetRequested).setPositions(isPositionsRequested).setSelectedFields();
+                    .setOffsets(isOffsetRequested).setPositions(isPositionsRequested).setSelectedFields();
             TermVectorsResponse response = resp.execute().actionGet();
             assertThat(infoString + "doc id: " + i + " doesn't exists but should", response.isExists(), equalTo(true));
             Fields fields = response.getFields();
@@ -340,13 +326,8 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         } else {
                             assertThat(infoString + "positions for term: ", nextPosition, equalTo(-1));
                         }
-                        // only return something useful if requested and stored
-                        if (isPayloadRequested && storePayloads) {
-                            assertThat(infoString + "payloads for term: " + string, docsAndPositions.getPayload(), equalTo(new BytesRef(
-                                    "word")));
-                        } else {
-                            assertThat(infoString + "payloads for term: " + string, docsAndPositions.getPayload(), equalTo(null));
-                        }
+                        // payloads are never made by the mapping in this test
+                        assertNull(infoString + "payloads for term: " + string, docsAndPositions.getPayload());
                         // only return something useful if requested and stored
                         if (isOffsetRequested && storeOffsets) {
 
@@ -365,11 +346,9 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         }
     }
 
-    private String createInfoString(boolean isPositionsRequested, boolean isOffsetRequested, boolean isPayloadRequested,
-                                    String optionString) {
+    private String createInfoString(boolean isPositionsRequested, boolean isOffsetRequested, String optionString) {
         String ret = "Store config: " + optionString + "\n" + "Requested: pos-"
-                + (isPositionsRequested ? "yes" : "no") + ", offsets-" + (isOffsetRequested ? "yes" : "no") + ", payload- "
-                + (isPayloadRequested ? "yes" : "no") + "\n";
+                + (isPositionsRequested ? "yes" : "no") + ", offsets-" + (isOffsetRequested ? "yes" : "no") + "\n";
         return ret;
     }
 

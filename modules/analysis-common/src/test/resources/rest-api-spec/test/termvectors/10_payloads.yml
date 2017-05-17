@@ -3,23 +3,23 @@
   # because there are no token filters that support payloads in core.
   - do:
       indices.create:
-          index: test
-          body:
-            mappings:
-              doc:
-                properties:
-                  text:
-                    type: text
-                    term_vector: with_positions_offsets_payloads
-                    analyzer: has_payloads
-              settings:
-                number_of_shards: 1
-                number_of_replicas: 1
-                analysis:
-                  analyzer:
-                    had_payloads:
-                      tokenizer: standard
-                      filter: [type_as_payload]
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
+            analysis:
+              analyzer:
+                has_payloads:
+                  tokenizer: standard
+                  filter: [type_as_payload]
+          mappings:
+            doc:
+              properties:
+                text:
+                  type: text
+                  term_vector: with_positions_offsets_payloads
+                  analyzer: has_payloads
 
   - do:
       index:
@@ -37,4 +37,4 @@
         id:    1
         payloads: true
   - match: {term_vectors.text.field_statistics.sum_doc_freq: 5}
-  - match: {term_vectors.text.terms.brown.tokens.0.payload: 10}
+  - match: {term_vectors.text.terms.brown.tokens.0.payload: PEFMUEhBTlVNPg==}

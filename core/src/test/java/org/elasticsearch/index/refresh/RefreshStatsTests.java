@@ -34,15 +34,4 @@ public class RefreshStatsTests extends AbstractStreamableTestCase<RefreshStats> 
     protected RefreshStats createBlankInstance() {
         return new RefreshStats();
     }
-
-    public void testPre5Dot2() throws IOException {
-        // We can drop the compatibility once the assertion just below this list fails
-        assertTrue(Version.CURRENT.minimumCompatibilityVersion().before(Version.V_5_2_0_UNRELEASED));
-
-        RefreshStats instance = createTestInstance();
-        RefreshStats copied = copyInstance(instance, Version.V_5_1_1_UNRELEASED);
-        assertEquals(instance.getTotal(), copied.getTotal());
-        assertEquals(instance.getTotalTimeInMillis(), copied.getTotalTimeInMillis());
-        assertEquals(0, copied.getListeners());
-    }
 }

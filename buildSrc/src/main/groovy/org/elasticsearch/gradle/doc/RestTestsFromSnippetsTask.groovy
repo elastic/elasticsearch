@@ -296,7 +296,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             Path dest = outputRoot().toPath().resolve(test.path)
             // Replace the extension
             String fileName = dest.getName(dest.nameCount - 1)
-            dest = dest.parent.resolve(fileName.replace('.asciidoc', '.yaml'))
+            dest = dest.parent.resolve(fileName.replace('.asciidoc', '.yml'))
 
             // Now setup the writer
             Files.createDirectories(dest.parent)

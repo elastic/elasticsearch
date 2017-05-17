@@ -120,7 +120,7 @@ public class SearchTransportService extends AbstractComponent {
         // this used to be the QUERY_AND_FETCH which doesn't exists anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
-        if (connection.getVersion().before(Version.V_5_3_0_UNRELEASED) && fetchDocuments) {
+        if (connection.getVersion().before(Version.V_5_3_0) && fetchDocuments) {
             // this is a BWC layer for pre 5.3 indices
             if (request.scroll() != null) {
                 /**

@@ -33,7 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.Version.V_5_3_0_UNRELEASED;
+import static org.elasticsearch.Version.V_5_3_0;
 import static org.elasticsearch.Version.V_6_0_0_alpha2_UNRELEASED;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -46,30 +46,30 @@ import static org.hamcrest.Matchers.sameInstance;
 public class VersionTests extends ESTestCase {
 
     public void testVersionComparison() throws Exception {
-        assertThat(V_5_3_0_UNRELEASED.before(V_6_0_0_alpha2_UNRELEASED), is(true));
-        assertThat(V_5_3_0_UNRELEASED.before(V_5_3_0_UNRELEASED), is(false));
-        assertThat(V_6_0_0_alpha2_UNRELEASED.before(V_5_3_0_UNRELEASED), is(false));
+        assertThat(V_5_3_0.before(V_6_0_0_alpha2_UNRELEASED), is(true));
+        assertThat(V_5_3_0.before(V_5_3_0), is(false));
+        assertThat(V_6_0_0_alpha2_UNRELEASED.before(V_5_3_0), is(false));
 
-        assertThat(V_5_3_0_UNRELEASED.onOrBefore(V_6_0_0_alpha2_UNRELEASED), is(true));
-        assertThat(V_5_3_0_UNRELEASED.onOrBefore(V_5_3_0_UNRELEASED), is(true));
-        assertThat(V_6_0_0_alpha2_UNRELEASED.onOrBefore(V_5_3_0_UNRELEASED), is(false));
+        assertThat(V_5_3_0.onOrBefore(V_6_0_0_alpha2_UNRELEASED), is(true));
+        assertThat(V_5_3_0.onOrBefore(V_5_3_0), is(true));
+        assertThat(V_6_0_0_alpha2_UNRELEASED.onOrBefore(V_5_3_0), is(false));
 
-        assertThat(V_5_3_0_UNRELEASED.after(V_6_0_0_alpha2_UNRELEASED), is(false));
-        assertThat(V_5_3_0_UNRELEASED.after(V_5_3_0_UNRELEASED), is(false));
-        assertThat(V_6_0_0_alpha2_UNRELEASED.after(V_5_3_0_UNRELEASED), is(true));
+        assertThat(V_5_3_0.after(V_6_0_0_alpha2_UNRELEASED), is(false));
+        assertThat(V_5_3_0.after(V_5_3_0), is(false));
+        assertThat(V_6_0_0_alpha2_UNRELEASED.after(V_5_3_0), is(true));
 
-        assertThat(V_5_3_0_UNRELEASED.onOrAfter(V_6_0_0_alpha2_UNRELEASED), is(false));
-        assertThat(V_5_3_0_UNRELEASED.onOrAfter(V_5_3_0_UNRELEASED), is(true));
-        assertThat(V_6_0_0_alpha2_UNRELEASED.onOrAfter(V_5_3_0_UNRELEASED), is(true));
+        assertThat(V_5_3_0.onOrAfter(V_6_0_0_alpha2_UNRELEASED), is(false));
+        assertThat(V_5_3_0.onOrAfter(V_5_3_0), is(true));
+        assertThat(V_6_0_0_alpha2_UNRELEASED.onOrAfter(V_5_3_0), is(true));
 
         assertTrue(Version.fromString("5.0.0-alpha2").onOrAfter(Version.fromString("5.0.0-alpha1")));
         assertTrue(Version.fromString("5.0.0").onOrAfter(Version.fromString("5.0.0-beta2")));
         assertTrue(Version.fromString("5.0.0-rc1").onOrAfter(Version.fromString("5.0.0-beta24")));
         assertTrue(Version.fromString("5.0.0-alpha24").before(Version.fromString("5.0.0-beta0")));
 
-        assertThat(V_5_3_0_UNRELEASED, is(lessThan(V_6_0_0_alpha2_UNRELEASED)));
-        assertThat(V_5_3_0_UNRELEASED.compareTo(V_5_3_0_UNRELEASED), is(0));
-        assertThat(V_6_0_0_alpha2_UNRELEASED, is(greaterThan(V_5_3_0_UNRELEASED)));
+        assertThat(V_5_3_0, is(lessThan(V_6_0_0_alpha2_UNRELEASED)));
+        assertThat(V_5_3_0.compareTo(V_5_3_0), is(0));
+        assertThat(V_6_0_0_alpha2_UNRELEASED, is(greaterThan(V_5_3_0)));
     }
 
     public void testMin() {
@@ -100,7 +100,7 @@ public class VersionTests extends ESTestCase {
         assertEquals(Version.V_5_0_0, Version.V_6_0_0_alpha2_UNRELEASED.minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099), Version.V_5_0_0.minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099),
-                Version.V_5_1_1_UNRELEASED.minimumIndexCompatibilityVersion());
+                Version.V_5_1_1.minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099),
                 Version.V_5_0_0_alpha1.minimumIndexCompatibilityVersion());
     }
@@ -157,7 +157,7 @@ public class VersionTests extends ESTestCase {
     public void testIndexCreatedVersion() {
         // an actual index has a IndexMetaData.SETTING_INDEX_UUID
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_2,
-                Version.V_5_2_0_UNRELEASED, Version.V_6_0_0_alpha2_UNRELEASED);
+                Version.V_5_2_0, Version.V_6_0_0_alpha2_UNRELEASED);
         assertEquals(version, Version.indexCreated(Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
     }
 
@@ -311,8 +311,8 @@ public class VersionTests extends ESTestCase {
                 }
                 if (other.isAlpha() == false && version.isAlpha() == false
                         && other.major == version.major && other.minor == version.minor) {
-                    assertEquals(other.luceneVersion.major, version.luceneVersion.major);
-                    assertEquals(other.luceneVersion.minor, version.luceneVersion.minor);
+                    assertEquals(version + " vs. " + other, other.luceneVersion.major, version.luceneVersion.major);
+                    assertEquals(version + " vs. " + other, other.luceneVersion.minor, version.luceneVersion.minor);
                     // should we also assert the lucene bugfix version?
                 }
             }
@@ -326,10 +326,11 @@ public class VersionTests extends ESTestCase {
 
     public void testIsCompatible() {
         assertTrue(isCompatible(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
-        assertTrue(isCompatible(Version.V_5_0_0, Version.V_6_0_0_alpha2_UNRELEASED));
+        assertTrue(isCompatible(Version.V_5_5_0_UNRELEASED, Version.V_6_0_0_alpha2_UNRELEASED));
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_6_0_0_alpha2_UNRELEASED));
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_5_0_0));
     }
+
 
     public boolean isCompatible(Version left, Version right) {
         boolean result = left.isCompatible(right);

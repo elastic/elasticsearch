@@ -37,7 +37,6 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.rest.RestStatus;
 
@@ -421,7 +420,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             opType = OpType.fromId(in.readByte());
         } else {
             opType = OpType.fromString(in.readString());
@@ -448,7 +447,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeByte(opType.getId());
         } else {
             out.writeString(opType.getLowercase());

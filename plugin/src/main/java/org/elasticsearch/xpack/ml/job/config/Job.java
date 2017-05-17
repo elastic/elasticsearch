@@ -27,7 +27,9 @@ import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -217,7 +219,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         return jobId;
     }
 
-    String getJobType() {
+    public String getJobType() {
         return jobType;
     }
 
@@ -542,6 +544,19 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         if (value != null && value < minVal) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, name, minVal, value));
         }
+    }
+
+    /**
+     * Returns the job types that are compatible with a node running on {@code nodeVersion}
+     * @param nodeVersion the version of the node
+     * @return the compatible job types
+     */
+    public static Set<String> getCompatibleJobTypes(Version nodeVersion) {
+        Set<String> compatibleTypes = new HashSet<>();
+        if (nodeVersion.onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            compatibleTypes.add(ANOMALY_DETECTOR_JOB_TYPE);
+        }
+        return compatibleTypes;
     }
 
     public static class Builder implements Writeable, ToXContent  {

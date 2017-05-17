@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -43,8 +45,12 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class OpenJobActionTests extends ESTestCase {
 
@@ -62,6 +68,23 @@ public class OpenJobActionTests extends ESTestCase {
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> OpenJobAction.validate("job_id", mlBuilder.build()));
         assertEquals("Cannot open job [job_id] because it has been marked as deleted", e.getMessage());
+    }
+
+    public void testValidate_jobWithoutVersion() {
+        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
+        Job.Builder jobBuilder = buildJobBuilder("job_id");
+        mlBuilder.putJob(jobBuilder.build(), false);
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> OpenJobAction.validate("job_id", mlBuilder.build()));
+        assertEquals("Cannot open job [job_id] because jobs created prior to version 5.5 are not supported", e.getMessage());
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+    }
+
+    public void testValidate_givenValidJob() {
+        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
+        Job.Builder jobBuilder = buildJobBuilder("job_id");
+        mlBuilder.putJob(jobBuilder.build(new Date()), false);
+        OpenJobAction.validate("job_id", mlBuilder.build());
     }
 
     public void testSelectLeastLoadedMlNode() {
@@ -219,6 +242,68 @@ public class OpenJobActionTests extends ESTestCase {
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
 
+    public void testSelectLeastLoadedMlNode_noCompatibleJobTypeNodes() {
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .build();
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        addJobTask("incompatible_type_job", "_node_id1", null, tasksBuilder);
+        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        Function<String, Job> incompatibleJobCreator = jobId -> {
+            Job job = mock(Job.class);
+            when(job.getId()).thenReturn(jobId);
+            when(job.getJobVersion()).thenReturn(Version.CURRENT);
+            when(job.getJobType()).thenReturn("incompatible_type");
+            when(job.getResultsIndexName()).thenReturn("shared");
+            return job;
+        };
+        addJobAndIndices(metaData, routingTable, incompatibleJobCreator, "incompatible_type_job");
+        cs.nodes(nodes);
+        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
+        cs.metaData(metaData);
+        cs.routingTable(routingTable.build());
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", cs.build(), 2, 10, logger);
+        assertThat(result.getExplanation(), containsString("because this node does not support jobs of type [incompatible_type]"));
+        assertNull(result.getExecutorNode());
+    }
+
+    public void testSelectLeastLoadedMlNode_noNodesPriorTo_V_5_5() {
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        nodeAttr, Collections.emptySet(), Version.V_5_4_0_UNRELEASED))
+                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                        nodeAttr, Collections.emptySet(), Version.V_5_4_0_UNRELEASED))
+                .build();
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        addJobTask("incompatible_type_job", "_node_id1", null, tasksBuilder);
+        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addJobAndIndices(metaData, routingTable, "incompatible_type_job");
+        cs.nodes(nodes);
+        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
+        cs.metaData(metaData);
+        cs.routingTable(routingTable.build());
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", cs.build(), 2, 10, logger);
+        assertThat(result.getExplanation(), containsString("because this node does not support jobs of version [" + Version.CURRENT + "]"));
+        assertNull(result.getExecutorNode());
+    }
+
     public void testVerifyIndicesPrimaryShardsAreActive() {
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
@@ -263,6 +348,11 @@ public class OpenJobActionTests extends ESTestCase {
     }
 
     private void addJobAndIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable, String... jobIds) {
+        addJobAndIndices(metaData, routingTable, jobId -> BaseMlIntegTestCase.createFareQuoteJob(jobId).build(new Date()), jobIds);
+    }
+
+    private void addJobAndIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable, Function<String, Job> jobCreator,
+                                  String... jobIds) {
         List<String> indices = new ArrayList<>();
         indices.add(AnomalyDetectorsIndex.jobStateIndexName());
         indices.add(AnomalyDetectorsIndex.ML_META_INDEX);
@@ -288,7 +378,7 @@ public class OpenJobActionTests extends ESTestCase {
 
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         for (String jobId : jobIds) {
-            Job job = BaseMlIntegTestCase.createFareQuoteJob(jobId).build(new Date());
+            Job job = jobCreator.apply(jobId);
             mlMetadata.putJob(job, false);
         }
         metaData.putCustom(MlMetadata.TYPE, mlMetadata.build());

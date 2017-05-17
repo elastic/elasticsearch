@@ -210,8 +210,15 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     public void openJob(JobTask jobTask, boolean ignoreDowntime, Consumer<Exception> handler) {
         String jobId = jobTask.getJobId();
-        logger.info("Opening job [{}]", jobId);
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
+
+        if (job.getJobVersion() == null) {
+            handler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId
+                    + "] because jobs created prior to version 5.5 are not supported"));
+            return;
+        }
+
+        logger.info("Opening job [{}]", jobId);
         jobProvider.getAutodetectParams(job, params -> {
             // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {

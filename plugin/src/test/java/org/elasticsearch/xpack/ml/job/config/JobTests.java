@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -387,6 +388,19 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertThat(e.getMessage(), equalTo("A data_description must be set"));
+    }
+
+    public void testGetCompatibleJobTypes_givenVersionBefore_V_5_4() {
+        assertThat(Job.getCompatibleJobTypes(Version.V_5_0_0).isEmpty(), is(true));
+        assertThat(Job.getCompatibleJobTypes(Version.V_5_3_0_UNRELEASED).isEmpty(), is(true));
+        assertThat(Job.getCompatibleJobTypes(Version.V_5_3_2_UNRELEASED).isEmpty(), is(true));
+    }
+
+    public void testGetCompatibleJobTypes_givenVersionAfter_V_5_4() {
+        assertThat(Job.getCompatibleJobTypes(Version.V_5_4_0_UNRELEASED), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
+        assertThat(Job.getCompatibleJobTypes(Version.V_5_4_0_UNRELEASED).size(), equalTo(1));
+        assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0_UNRELEASED), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
+        assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0_UNRELEASED).size(), equalTo(1));
     }
 
     public static Job.Builder buildJobBuilder(String id, Date date) {

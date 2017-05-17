@@ -42,6 +42,10 @@ public class ExceptionsHelper {
         return new ElasticsearchStatusException(msg, RestStatus.CONFLICT, args);
     }
 
+    public static ElasticsearchStatusException badRequestException(String msg, Object... args) {
+        return new ElasticsearchStatusException(msg, RestStatus.BAD_REQUEST, args);
+    }
+
     /**
      * Creates an error message that explains there are shard failures, displays info
      * for the first failure (shard/reason) and kindly asks to see more info in the logs

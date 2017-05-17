@@ -47,6 +47,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -56,6 +57,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -66,6 +68,9 @@ import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -112,6 +117,28 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             handler.accept(buildAutodetectParams());
             return null;
         }).when(jobProvider).getAutodetectParams(any(), any(), any());
+    }
+
+    public void testOpenJob_withoutVersion() {
+        Client client = mock(Client.class);
+        AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
+        Job.Builder jobBuilder = new Job.Builder(createJobDetails("no_version"));
+        jobBuilder.setJobVersion(null);
+        Job job = jobBuilder.build();
+        assertThat(job.getJobVersion(), is(nullValue()));
+
+        when(jobManager.getJobOrThrowIfUnknown(job.getId())).thenReturn(job);
+        AutodetectProcessManager manager = createManager(communicator, client);
+
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn(job.getId());
+
+        AtomicReference<Exception> errorHolder = new AtomicReference<>();
+        manager.openJob(jobTask, false, e -> errorHolder.set(e));
+
+        Exception error = errorHolder.get();
+        assertThat(error, is(notNullValue()));
+        assertThat(error.getMessage(), equalTo("Cannot open job [no_version] because jobs created prior to version 5.5 are not supported"));
     }
 
     public void testOpenJob() {

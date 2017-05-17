@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Persiste
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
+import org.elasticsearch.xpack.security.support.Exceptions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,6 +68,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE;
@@ -538,8 +541,12 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
     }
 
     /**
-     * Fail fast before trying to update the job state on master node if the job doesn't exist or its state
-     * is not what it should be.
+     * Validations to fail fast before trying to update the job state on master node:
+     * <ul>
+     *     <li>check job exists</li>
+     *     <li>check job is not marked as deleted</li>
+     *     <li>check job's version is supported</li>
+     * </ul>
      */
     static void validate(String jobId, MlMetadata mlMetadata) {
         Job job = mlMetadata.getJobs().get(jobId);
@@ -548,6 +555,10 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
         if (job.isDeleted()) {
             throw ExceptionsHelper.conflictStatusException("Cannot open job [" + jobId + "] because it has been marked as deleted");
+        }
+        if (job.getJobVersion() == null) {
+            throw ExceptionsHelper.badRequestException("Cannot open job [" + jobId
+                    + "] because jobs created prior to version 5.5 are not supported");
         }
     }
 
@@ -570,6 +581,25 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             String enabled = nodeAttributes.get(MachineLearning.ML_ENABLED_NODE_ATTR);
             if (Boolean.valueOf(enabled) == false) {
                 String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node isn't a ml node.";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
+            }
+
+            MlMetadata mlMetadata = clusterState.getMetaData().custom(MlMetadata.TYPE);
+            Job job = mlMetadata.getJobs().get(jobId);
+            Set<String> compatibleJobTypes = Job.getCompatibleJobTypes(node.getVersion());
+            if (compatibleJobTypes.contains(job.getJobType()) == false) {
+                String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node does not support jobs of type ["
+                        + job.getJobType() + "]";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
+            }
+
+            if (nodeSupportsJobVersion(node.getVersion(), job.getJobVersion()) == false) {
+                String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node does not support jobs of version ["
+                        + job.getJobVersion() + "]";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;
@@ -645,5 +675,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             }
         }
         return unavailableIndices;
+    }
+
+    static boolean nodeSupportsJobVersion(Version nodeVersion, Version jobVersion) {
+        return nodeVersion.onOrAfter(Version.V_5_5_0_UNRELEASED);
     }
 }

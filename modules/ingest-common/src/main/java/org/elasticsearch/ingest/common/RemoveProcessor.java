@@ -25,6 +25,8 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TemplateService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,20 +36,20 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     public static final String TYPE = "remove";
 
-    private final TemplateService.Template field;
+    private final List<String> fields;
 
-    RemoveProcessor(String tag, TemplateService.Template field) {
+    RemoveProcessor(String tag, List<String> fields) {
         super(tag);
-        this.field = field;
+        this.fields = new ArrayList<>(fields);
     }
 
-    public TemplateService.Template getField() {
-        return field;
+    public List<String> getField() {
+        return fields;
     }
 
     @Override
     public void execute(IngestDocument document) {
-        document.removeField(field);
+       fields.forEach(document::removeField);
     }
 
     @Override
@@ -57,19 +59,11 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final TemplateService templateService;
-
-        public Factory(TemplateService templateService) {
-            this.templateService = templateService;
-        }
-
         @Override
         public RemoveProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            TemplateService.Template compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "field", field, templateService);
-            return new RemoveProcessor(processorTag, compiledTemplate);
+            List<String> fields = ConfigurationUtils.readList(TYPE, processorTag, config, "field");
+            return new RemoveProcessor(processorTag, fields);
         }
     }
 }

@@ -246,10 +246,10 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder newInnnerQuery = innerQuery.rewrite(queryShardContext);
+        QueryBuilder newInnerQuery = innerQuery.rewrite(queryShardContext);
         QueryBuilder newNoMatchQuery = noMatchQuery.rewrite(queryShardContext);
-        if (newInnnerQuery != innerQuery || newNoMatchQuery != noMatchQuery) {
-            return new IndicesQueryBuilder(innerQuery, indices).noMatchQuery(noMatchQuery);
+        if (newInnerQuery != innerQuery || newNoMatchQuery != noMatchQuery) {
+            return new IndicesQueryBuilder(newInnerQuery, indices).noMatchQuery(newNoMatchQuery);
         }
         return this;
     }

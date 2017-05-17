@@ -101,11 +101,7 @@ class Netty4InternalESLogger extends AbstractInternalLogger {
 
     @Override
     public void info(String msg) {
-        if (!("Your platform does not provide complete low-level API for accessing direct buffers reliably. " +
-                "Unless explicitly requested, heap buffer will always be preferred to avoid potential system " +
-                "instability.").equals(msg)) {
-            logger.info(msg);
-        }
+        logger.info(msg);
     }
 
     @Override

@@ -1,0 +1,158 @@
+# Integration tests for the phrase suggester with a few analyzers
+
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
+            analysis:
+              analyzer:
+                body:
+                  tokenizer: standard
+                  filter: [lowercase]
+                bigram:
+                  tokenizer: standard
+                  filter: [lowercase, bigram]
+                ngram:
+                  tokenizer: standard
+                  filter: [lowercase, ngram]
+              filter:
+                bigram:
+                  type: shingle
+                  output_unigrams: false
+                  min_shingle_size: 2
+                  max_shingle_size: 2
+                ngram:
+                  type: shingle
+                  output_unigrams: true
+                  min_shingle_size: 2
+                  max_shingle_size: 2
+          mappings:
+            doc:
+              properties:
+                body:
+                  type: text
+                  analyzer: body
+                  fields:
+                    bigram:
+                      type: text
+                      analyzer: bigram
+                    ngram:
+                      type: text
+                      analyzer: ngram
+
+  - do:
+      bulk:
+        index: test
+        type: doc
+        refresh: true
+        body: |
+          { "index": {} }
+          { "body": "Xorr the God-Jewel" }
+          { "index": {} }
+          { "body": "Xorn" }
+
+---
+"sorts by score":
+  - do:
+      search:
+        size: 0
+        index: test
+        body:
+          suggest:
+            text: xor the got-jewel
+            test:
+              phrase:
+                field: body.ngram
+                force_unigrams: true
+                max_errors: 0.5
+                direct_generator:
+                  - field: body.ngram
+                    min_word_length: 1
+                    suggest_mode: always
+
+  - match: {suggest.test.0.options.0.text: xorr the god jewel}
+  - match: {suggest.test.0.options.1.text: xorn the god jewel}
+
+---
+"breaks ties by sorting terms":
+  # This runs the suggester without bigrams so we can be sure of the sort order
+  - do:
+      search:
+        size: 0
+        index: test
+        body:
+          suggest:
+            text: xor the got-jewel
+            test:
+              phrase:
+                field: body
+                analyzer: body
+                force_unigrams: true
+                max_errors: 0.5
+                direct_generator:
+                  - field: body
+                    min_word_length: 1
+                    suggest_mode: always
+
+  # The scores are identical but xorn comes first because it sorts first
+  - match: {suggest.test.0.options.0.text: xorn the god jewel}
+  - match: {suggest.test.0.options.1.text: xorr the god jewel}
+  - match: {suggest.test.0.options.0.score: $body.suggest.test.0.options.0.score}
+
+---
+"fails when asked to run on a field without unigrams":
+  - do:
+      catch: /since it doesn't emit unigrams/
+      search:
+        size: 0
+        index: test
+        body:
+          suggest:
+            text: xor the got-jewel
+            test:
+              phrase:
+                field: body.bigram
+
+  - do:
+      catch: /since it doesn't emit unigrams/
+      search:
+        size: 0
+        index: test
+        body:
+          suggest:
+            text: xor the got-jewel
+            test:
+              phrase:
+                field: body.bigram
+                analyzer: bigram
+
+---
+"doesn't fail when asked to run on a field without unigrams when force_unigrams=false":
+  - do:
+      search:
+        size: 0
+        index: test
+        body:
+          suggest:
+            text: xor the got-jewel
+            test:
+              phrase:
+                field: body.bigram
+                force_unigrams: false
+
+  - do:
+      search:
+        size: 0
+        index: test
+        body:
+          suggest:
+            text: xor the got-jewel
+            test:
+              phrase:
+                field: body.bigram
+                analyzer: bigram
+                force_unigrams: false

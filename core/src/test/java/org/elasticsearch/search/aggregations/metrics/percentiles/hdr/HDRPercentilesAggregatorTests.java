@@ -127,12 +127,12 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
                 fieldType.setName("number");
-                try (HDRPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType)) {
-                    aggregator.preCollection();
-                    indexSearcher.search(query, aggregator);
-                    aggregator.postCollection();
-                    verify.accept((InternalHDRPercentiles) aggregator.buildAggregation(0L));
-                }
+                HDRPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
+                aggregator.preCollection();
+                indexSearcher.search(query, aggregator);
+                aggregator.postCollection();
+                verify.accept((InternalHDRPercentiles) aggregator.buildAggregation(0L));
+
             }
         }
     }

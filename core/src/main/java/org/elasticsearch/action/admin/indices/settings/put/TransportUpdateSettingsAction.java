@@ -62,7 +62,10 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
         if (globalBlock != null) {
             return globalBlock;
         }
-        if (request.settings().size() == 1 && IndexMetaData.INDEX_BLOCKS_METADATA_SETTING.exists(request.settings()) || IndexMetaData.INDEX_READ_ONLY_SETTING.exists(request.settings())) {
+        if (request.settings().size() == 1 &&  // we have to allow resetting these settings otherwise users can't unblock an index
+            IndexMetaData.INDEX_BLOCKS_METADATA_SETTING.exists(request.settings())
+            || IndexMetaData.INDEX_READ_ONLY_SETTING.exists(request.settings())
+            || IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())) {
             return null;
         }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));

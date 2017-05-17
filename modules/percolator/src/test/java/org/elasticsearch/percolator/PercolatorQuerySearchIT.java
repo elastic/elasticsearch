@@ -161,7 +161,8 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
     public void testPercolatorRangeQueries() throws Exception {
         createIndex("test", client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field1", "type=long", "field2", "type=double", "field3", "type=ip", "query", "type=percolator")
+                .addMapping("type", "field1", "type=long", "field2", "type=double", "field3", "type=ip", "field4", "type=date",
+                        "query", "type=percolator")
         );
 
         client().prepareIndex("test", "type", "1")
@@ -202,6 +203,11 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(rangeQuery("field3").from("192.168.1.0").to("192.168.1.5"))
                         .must(rangeQuery("field3").from("192.168.1.5").to("192.168.1.10"))
+                ).endObject()).get();
+        client().prepareIndex("test", "type", "10")
+                .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                        .must(rangeQuery("field4").from("2010-01-01").to("2018-01-01"))
+                        .must(rangeQuery("field4").from("2010-01-01").to("now"))
                 ).endObject()).get();
         client().admin().indices().prepareRefresh().get();
 
@@ -252,6 +258,14 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("7"));
+
+        // Test date range:
+        source = jsonBuilder().startObject().field("field4", "2016-05-15").endObject().bytes();
+        response = client().prepareSearch()
+                .setQuery(new PercolateQueryBuilder("query", "type", source, XContentType.JSON))
+                .get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("10"));
     }
 
     public void testPercolatorQueryExistingDocument() throws Exception {

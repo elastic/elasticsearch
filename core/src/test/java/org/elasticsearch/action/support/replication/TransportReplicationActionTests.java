@@ -913,7 +913,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         final CapturingTransport.CapturedRequest capturedRequest = capturedRequests.get(0);
         assertThat(capturedRequest.action, equalTo("testActionWithExceptions[r]"));
         assertThat(capturedRequest.request, instanceOf(TransportReplicationAction.ConcreteReplicaRequest.class));
-        assertThat(((TransportReplicationAction.ConcreteReplicaRequest) capturedRequest.request).getGlobalCheckpoint(), equalTo(checkpoint));
+        assertThat(((TransportReplicationAction.ConcreteReplicaRequest) capturedRequest.request).getGlobalCheckpoint(),
+                equalTo(checkpoint));
         assertConcreteShardRequest(capturedRequest.request, request, replica.allocationId());
     }
 

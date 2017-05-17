@@ -230,6 +230,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_BLOCK, IndexMetaData.INDEX_READ_ONLY_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK, IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING, openSettings);
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_METADATA_BLOCK, IndexMetaData.INDEX_BLOCKS_METADATA_SETTING, openSettings);
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_WRITE_BLOCK, IndexMetaData.INDEX_BLOCKS_WRITE_SETTING, openSettings);
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_BLOCK, IndexMetaData.INDEX_BLOCKS_READ_SETTING, openSettings);
@@ -276,7 +277,11 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     for (Index index : closeIndices) {
                         final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
                         final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        // Verifies that the current index settings can be updated with the updated dynamic settings.
                         indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData);
+                        // Now check that we can create the index with the updated settings (dynamic and non-dynamic).
+                        // This step is mandatory since we allow to update non-dynamic settings on closed indices.
+                        indicesService.verifyIndexMetadata(updatedMetaData, updatedMetaData);
                     }
                 } catch (IOException ex) {
                     throw ExceptionsHelper.convertToElastic(ex);

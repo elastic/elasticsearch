@@ -805,10 +805,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final boolean force = request.force();
         logger.trace("flush with {}", request);
         /*
-         * We allow flushes while recovery since we allow operations to happen while recovering and
-         * we want to keep the translog under control (up to deletes, which we do not GC). Yet, we
-         * do not use flush internally to clear deletes and flush the index writer since we use
-         * Engine#writeIndexingBuffer for this now.
+         * We allow flushes while recovery since we allow operations to happen while recovering and we want to keep the translog under
+         * control (up to deletes, which we do not GC). Yet, we do not use flush internally to clear deletes and flush the index writer
+         * since we use Engine#writeIndexingBuffer for this now.
          */
         verifyNotClosed();
         final Engine engine = getEngine();
@@ -1316,8 +1315,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Tests whether or not the translog should be flushed. This test is based on the current size
-     * of the translog comparted to the configured flush threshold size.
+     * Tests whether or not the translog should be flushed. This test is based on the current size of the translog comparted to the
+     * configured flush threshold size.
      *
      * @return {@code true} if the translog should be flushed
      */
@@ -1335,9 +1334,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Tests whether or not the translog generation should be rolled to a new generation. This test
-     * is based on the size of the current generation compared to the configured generation
-     * threshold size.
+     * Tests whether or not the translog generation should be rolled to a new generation. This test is based on the size of the current
+     * generation compared to the configured generation threshold size.
      *
      * @return {@code true} if the current generation should be rolled to a new generation
      */
@@ -1919,21 +1917,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicBoolean flushOrRollRunning = new AtomicBoolean();
 
     /**
-     * Schedules a flush or translog generation roll if needed but will not schedule more than one
-     * concurrently. The operation will be executed asynchronously on the flush thread pool.
+     * Schedules a flush or translog generation roll if needed but will not schedule more than one concurrently. The operation will be
+     * executed asynchronously on the flush thread pool.
      */
     public void afterWriteOperation() {
         if (shouldFlush() || shouldRollTranslogGeneration()) {
             if (flushOrRollRunning.compareAndSet(false, true)) {
                 /*
-                 * We have to check again since otherwise there is a race when a thread passes the
-                 * first check next to another thread which performs the operation quickly enough to
-                 * finish before the current thread could flip the flag. In that situation, we have
-                 * an extra operation.
+                 * We have to check again since otherwise there is a race when a thread passes the first check next to another thread which
+                 * performs the operation quickly enough to  finish before the current thread could flip the flag. In that situation, we
+                 * have an extra operation.
                  *
-                 * Additionally, a flush implicitly executes a translog generation roll so if we
-                 * execute a flush then we do not need to check if we should roll the translog
-                 * generation.
+                 * Additionally, a flush implicitly executes a translog generation roll so if we execute a flush then we do not need to
+                 * check if we should roll the translog generation.
                  */
                 if (shouldFlush()) {
                     logger.debug("submitting async flush request");

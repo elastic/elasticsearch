@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
@@ -78,6 +79,8 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         super.readFrom(in);
         fields = in.readStringArray();
         if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            indices = in.readStringArray();
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
             mergeResults = in.readBoolean();
         } else {
             mergeResults = true;
@@ -89,6 +92,8 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         super.writeTo(out);
         out.writeStringArray(fields);
         if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            out.writeStringArray(indices);
+            indicesOptions.writeIndicesOptions(out);
             out.writeBoolean(mergeResults);
         }
     }
@@ -118,12 +123,12 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
      * The list of indices to lookup
      */
     public FieldCapabilitiesRequest indices(String... indices) {
-        this.indices = indices;
+        this.indices = Objects.requireNonNull(indices, "indices must not be null");
         return this;
     }
 
     public FieldCapabilitiesRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
+        this.indicesOptions = Objects.requireNonNull(indicesOptions, "indices options must not be null");
         return this;
     }
 

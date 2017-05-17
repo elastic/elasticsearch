@@ -113,7 +113,7 @@ public final class ELambda extends AExpression implements ILambda {
             // we don't know anything: treat as def
             returnType = Definition.DEF_TYPE;
             // don't infer any types, replace any null types with def
-            actualParamTypeStrs = new ArrayList<>();
+            actualParamTypeStrs = new ArrayList<>(paramTypeStrs.size());
             for (String type : paramTypeStrs) {
                 if (type == null) {
                     actualParamTypeStrs.add("def");
@@ -139,7 +139,7 @@ public final class ELambda extends AExpression implements ILambda {
                 returnType = interfaceMethod.rtn;
             }
             // replace any null types with the actual type
-            actualParamTypeStrs = new ArrayList<>();
+            actualParamTypeStrs = new ArrayList<>(paramTypeStrs.size());
             for (int i = 0; i < paramTypeStrs.size(); i++) {
                 String paramType = paramTypeStrs.get(i);
                 if (paramType == null) {
@@ -162,8 +162,8 @@ public final class ELambda extends AExpression implements ILambda {
             }
         }
         // prepend capture list to lambda's arguments
-        List<String> paramTypes = new ArrayList<>();
-        List<String> paramNames = new ArrayList<>();
+        List<String> paramTypes = new ArrayList<>(captures.size() + actualParamTypeStrs.size());
+        List<String> paramNames = new ArrayList<>(captures.size() + paramNameStrs.size());
         for (Variable var : captures) {
             paramTypes.add(var.type.name);
             paramNames.add(var.name);

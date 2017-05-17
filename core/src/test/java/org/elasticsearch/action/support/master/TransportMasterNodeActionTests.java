@@ -205,7 +205,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlock block = new ClusterBlock(1, "", retryableBlock, true,
-                randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
+            false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
         ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
                 .blocks(ClusterBlocks.builder().addGlobalBlock(block)).build();
         setState(clusterService, stateWithBlock);

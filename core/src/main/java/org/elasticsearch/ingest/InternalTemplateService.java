@@ -48,7 +48,7 @@ public class InternalTemplateService implements TemplateService {
             return new Template() {
                 @Override
                 public String execute(Map<String, Object> model) {
-                    return compiledTemplate.run(model).utf8ToString();
+                    return compiledTemplate.run(model);
                 }
 
                 @Override

@@ -38,7 +38,9 @@ public interface ScriptEngine extends Closeable {
     /**
      * The extension for file scripts in this language.
      */
-    String getExtension();
+    default String getExtension() {
+        return getType();
+    }
 
     /**
      * Compiles a script.

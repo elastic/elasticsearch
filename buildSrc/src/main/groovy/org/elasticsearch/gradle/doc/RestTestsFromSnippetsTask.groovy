@@ -167,6 +167,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                  * warning every time. */
                 current.println("  - skip:")
                 current.println("      features: ")
+                current.println("        - stash_in_key")
                 current.println("        - warnings")
             }
             if (test.skipTest) {
@@ -295,7 +296,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             Path dest = outputRoot().toPath().resolve(test.path)
             // Replace the extension
             String fileName = dest.getName(dest.nameCount - 1)
-            dest = dest.parent.resolve(fileName.replace('.asciidoc', '.yaml'))
+            dest = dest.parent.resolve(fileName.replace('.asciidoc', '.yml'))
 
             // Now setup the writer
             Files.createDirectories(dest.parent)

@@ -101,7 +101,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner _source definition", e);
             }
-        }, SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
+        }, SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
         PARSER.declareObject(InnerHitBuilder::setHighlightBuilder, (p, c) -> HighlightBuilder.fromXContent(c),
                 SearchSourceBuilder.HIGHLIGHT_FIELD);
         PARSER.declareObject(InnerHitBuilder::setChildInnerHits, (p, c) -> {
@@ -195,7 +195,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
     }
 
-    InnerHitBuilder(InnerHitBuilder other, QueryBuilder query, String parentChildType, boolean ignoreUnmapped) {
+    // NORELEASE Do not use this ctr, it is public for hasChild and hasParent query but this is temporary
+    public InnerHitBuilder(InnerHitBuilder other, QueryBuilder query, String parentChildType, boolean ignoreUnmapped) {
         this(other);
         this.query = query;
         this.parentChildType = parentChildType;
@@ -212,7 +213,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         name = in.readOptionalString();
         nestedPath = in.readOptionalString();
         parentChildType = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
             ignoreUnmapped = in.readBoolean();
         }
         from = in.readVInt();
@@ -253,7 +254,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         out.writeOptionalString(name);
         out.writeOptionalString(nestedPath);
         out.writeOptionalString(parentChildType);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
             out.writeBoolean(ignoreUnmapped);
         }
         out.writeVInt(from);
@@ -751,7 +752,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
     }
 
-    static InnerHitBuilder rewrite(InnerHitBuilder original, QueryBuilder rewrittenQuery) {
+    // TODO public for hasParent and hasChild query
+    public static InnerHitBuilder rewrite(InnerHitBuilder original, QueryBuilder rewrittenQuery) {
         if (original == null) {
             return null;
         }

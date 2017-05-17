@@ -272,27 +272,12 @@ public final class AnalysisModule {
         NamedRegistry<PreConfiguredTokenFilter> preConfiguredTokenFilters = new NamedRegistry<>("pre-configured token_filter");
 
         // Add filters available in lucene-core
-        preConfiguredTokenFilters.register("lowercase",
-                new PreConfiguredTokenFilter("lowercase", true, CachingStrategy.LUCENE, LowerCaseFilter::new));
-        preConfiguredTokenFilters.register("standard",
-                new PreConfiguredTokenFilter("standard", false, CachingStrategy.LUCENE, StandardFilter::new));
+        preConfiguredTokenFilters.register("lowercase", PreConfiguredTokenFilter.singleton("lowercase", true, LowerCaseFilter::new));
+        preConfiguredTokenFilters.register("standard", PreConfiguredTokenFilter.singleton("standard", false, StandardFilter::new));
         /* Note that "stop" is available in lucene-core but it's pre-built
          * version uses a set of English stop words that are in
          * lucene-analyzers-common so "stop" is defined in the analysis-common
          * module. */
-        
-        // Add token filters declared in PreBuiltTokenFilters until they have all been migrated
-        for (PreBuiltTokenFilters preBuilt : PreBuiltTokenFilters.values()) {
-            switch (preBuilt) {
-            case LOWERCASE:
-                // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
-                continue;
-            default:
-                String name = preBuilt.name().toLowerCase(Locale.ROOT);
-                preConfiguredTokenFilters.register(name,
-                        new PreConfiguredTokenFilter(name, preBuilt.isMultiTermAware(), preBuilt.getCachingStrategy(), preBuilt::create));
-            }
-        }
 
         for (AnalysisPlugin plugin: plugins) {
             for (PreConfiguredTokenFilter filter : plugin.getPreConfiguredTokenFilters()) {

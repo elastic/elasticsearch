@@ -43,6 +43,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -70,7 +71,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected SortedSetDocValues globalOrds;
 
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-           Terms.Order order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
+           BucketOrder order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
            IncludeExclude.OrdinalsFilter includeExclude, SearchContext context, Aggregator parent,
            SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators,
            Map<String, Object> metaData) throws IOException {
@@ -122,8 +123,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 public void collect(int doc, long bucket) throws IOException {
                     assert bucket == 0;
                     if (ords.advanceExact(doc)) {
-                        for (long globalOrd = ords.nextOrd(); 
-                                globalOrd != SortedSetDocValues.NO_MORE_ORDS; 
+                        for (long globalOrd = ords.nextOrd();
+                                globalOrd != SortedSetDocValues.NO_MORE_ORDS;
                                 globalOrd = ords.nextOrd()) {
                             collectExistingBucket(sub, doc, globalOrd);
                         }
@@ -218,8 +219,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public int compareTerm(Terms.Bucket other) {
-            return Long.compare(globalOrd, ((OrdBucket) other).globalOrd);
+        public int compareKey(OrdBucket other) {
+            return Long.compare(globalOrd, other.globalOrd);
         }
 
         @Override
@@ -261,7 +262,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         private final LongHash bucketOrds;
 
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource, Terms.Order order,
+        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource, BucketOrder order,
                 DocValueFormat format, BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude,
                 SearchContext context, Aggregator parent, SubAggCollectionMode collectionMode,
                 boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
@@ -296,8 +297,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     @Override
                     public void collect(int doc, long bucket) throws IOException {
                         if (ords.advanceExact(doc)) {
-                            for (long globalOrd = ords.nextOrd(); 
-                                    globalOrd != SortedSetDocValues.NO_MORE_ORDS; 
+                            for (long globalOrd = ords.nextOrd();
+                                    globalOrd != SortedSetDocValues.NO_MORE_ORDS;
                                     globalOrd = ords.nextOrd()) {
                                 long bucketOrd = bucketOrds.add(globalOrd);
                                 if (bucketOrd < 0) {
@@ -337,7 +338,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private SortedSetDocValues segmentOrds;
 
         public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-                Terms.Order order, DocValueFormat format,
+                BucketOrder order, DocValueFormat format,
                 BucketCountThresholds bucketCountThresholds, SearchContext context, Aggregator parent,
                 SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
@@ -371,8 +372,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     public void collect(int doc, long bucket) throws IOException {
                         assert bucket == 0;
                         if (ords.advanceExact(doc)) {
-                            for (long segmentOrd = ords.nextOrd(); 
-                                    segmentOrd != SortedSetDocValues.NO_MORE_ORDS; 
+                            for (long segmentOrd = ords.nextOrd();
+                                    segmentOrd != SortedSetDocValues.NO_MORE_ORDS;
                                     segmentOrd = ords.nextOrd()) {
                                 segmentDocCounts.increment(segmentOrd + 1, 1);
                             }

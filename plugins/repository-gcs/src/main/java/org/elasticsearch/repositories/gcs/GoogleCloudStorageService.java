@@ -63,14 +63,13 @@ interface GoogleCloudStorageService {
     /**
      * Creates a client that can be used to manage Google Cloud Storage objects.
      *
-     * @param serviceAccount path to service account file
      * @param clientName     name of client settings to use from secure settings
      * @param application    name of the application
      * @param connectTimeout connection timeout for HTTP requests
      * @param readTimeout    read timeout for HTTP requests
      * @return a Client instance that can be used to manage objects
      */
-    Storage createClient(String serviceAccount, String clientName, String application,
+    Storage createClient(String clientName, String application,
                          TimeValue connectTimeout, TimeValue readTimeout) throws Exception;
 
     /**
@@ -92,10 +91,10 @@ interface GoogleCloudStorageService {
         }
 
         @Override
-        public Storage createClient(String serviceAccountFile, String clientName, String application,
+        public Storage createClient(String clientName, String application,
                                     TimeValue connectTimeout, TimeValue readTimeout) throws Exception {
             try {
-                GoogleCredential credential = getCredential(serviceAccountFile, clientName);
+                GoogleCredential credential = getCredential(clientName);
                 NetHttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
 
                 Storage.Builder storage = new Storage.Builder(httpTransport, JacksonFactory.getDefaultInstance(),
@@ -111,25 +110,10 @@ interface GoogleCloudStorageService {
         }
 
         // pkg private for tests
-        GoogleCredential getCredential(String serviceAccountFile, String clientName) throws IOException {
-            if (DEFAULT.equalsIgnoreCase(serviceAccountFile) == false) {
-                deprecationLogger.deprecated("Using GCS service account file from disk is deprecated. " +
-                    "Move the file into the elasticsearch keystore.");
-                Path account = environment.configFile().resolve(serviceAccountFile);
-                if (Files.exists(account) == false) {
-                    throw new IllegalArgumentException("Unable to find service account file [" + serviceAccountFile
-                        + "] defined for repository");
-                }
-
-                try (InputStream is = Files.newInputStream(account)) {
-                    GoogleCredential credential = GoogleCredential.fromStream(is);
-                    if (credential.createScopedRequired()) {
-                        credential = credential.createScoped(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
-                    }
-                    return credential;
-                }
-            } else if (credentials.containsKey(clientName)) {
-                return credentials.get(clientName);
+        GoogleCredential getCredential(String clientName) throws IOException {
+            GoogleCredential cred = credentials.get(clientName);
+            if (cred != null) {
+                return cred;
             }
             return getDefaultCredential();
         }

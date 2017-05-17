@@ -25,9 +25,9 @@ The create job API enables you to instantiate a job.
 `analysis_limits`::
   Optionally specifies runtime limits for the job. See <<ml-apilimits,analysis limits>>.
 
-`data_description`::
-  (object) Describes the format of the input data.
-  See <<ml-datadescription,data description objects>>.
+`data_description` (required)::
+  (object) Describes the format of the input data. This object is required, but
+  it can be empty (`{}`). See <<ml-datadescription,data description objects>>.
 
 `description`::
   (string) An optional description of the job.

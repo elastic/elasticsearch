@@ -64,7 +64,7 @@ final class ExpandSearchPhase extends SearchPhase {
 
     @Override
     public void run() throws IOException {
-        if (isCollapseRequest()) {
+        if (isCollapseRequest() && searchResponse.getHits().getHits().length > 0) {
             SearchRequest searchRequest = context.getRequest();
             CollapseBuilder collapseBuilder = searchRequest.source().collapse();
             MultiSearchRequest multiRequest = new MultiSearchRequest();

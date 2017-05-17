@@ -171,7 +171,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     public static Iterable<Object[]> createParameters() throws Exception {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
         List<Object[]> tests = new ArrayList<>();
-        Map<String, Set<Path>> yamlSuites = loadYamlSuites(paths);
+        Map<String, Set<Path>> yamlSuites = loadSuites(paths);
         // yaml suites are grouped by directory (effectively by api)
         for (String api : yamlSuites.keySet()) {
             List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
@@ -191,28 +191,28 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     /** Find all yaml suites that match the given list of paths from the root test path. */
     // pkg private for tests
-    static Map<String, Set<Path>> loadYamlSuites(String... paths) throws Exception {
+    static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
         Map<String, Set<Path>> files = new HashMap<>();
         Path root = PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI());
         for (String strPath : paths) {
             Path path = root.resolve(strPath);
             if (Files.isDirectory(path)) {
                 Files.walk(path).forEach(file -> {
-                    if (file.toString().endsWith(".yaml")) {
-                        addYamlSuite(root, file, files);
+                    if (file.toString().endsWith(".yml")) {
+                        addSuite(root, file, files);
                     }
                 });
             } else {
-                path = root.resolve(strPath + ".yaml");
+                path = root.resolve(strPath + ".yml");
                 assert Files.exists(path);
-                addYamlSuite(root, path, files);
+                addSuite(root, path, files);
             }
         }
         return files;
     }
 
     /** Add a single suite file to the set of suites. */
-    private static void addYamlSuite(Path root, Path file, Map<String, Set<Path>> files) {
+    private static void addSuite(Path root, Path file, Map<String, Set<Path>> files) {
         String groupName = root.relativize(file.getParent()).toString();
         Set<Path> filesSet = files.get(groupName);
         if (filesSet == null) {

@@ -147,7 +147,6 @@ setup:
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._id: "5" }
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
 
-
 ---
 "field collapsing, inner_hits and maxConcurrentGroupRequests":
 
@@ -247,3 +246,22 @@ setup:
                 match_all: {}
               query_weight: 1
               rescore_query_weight: 2
+
+---
+"no hits and inner_hits":
+
+  - skip:
+      version: " - 5.4.0"
+      reason:  "bug fixed in 5.4.1"
+
+  - do:
+      search:
+        index: test
+        type:  test
+        body:
+          size: 0
+          collapse: { field: numeric_group, inner_hits: { name: sub_hits, size: 1} }
+          sort: [{ sort: desc }]
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 0 }

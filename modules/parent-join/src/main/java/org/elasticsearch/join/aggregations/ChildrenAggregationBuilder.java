@@ -49,7 +49,6 @@ public class ChildrenAggregationBuilder
 
     public static final String NAME = "children";
 
-    private String parentType;
     private final String childType;
     private Query parentFilter;
     private Query childFilter;
@@ -86,7 +85,7 @@ public class ChildrenAggregationBuilder
                                                                         ValuesSourceConfig<WithOrdinals> config,
                                                                         AggregatorFactory<?> parent,
                                                                         Builder subFactoriesBuilder) throws IOException {
-        return new ChildrenAggregatorFactory(name, config, parentType, childFilter, parentFilter, context, parent,
+        return new ChildrenAggregatorFactory(name, config, childFilter, parentFilter, context, parent,
                 subFactoriesBuilder, metaData);
     }
 
@@ -100,7 +99,7 @@ public class ChildrenAggregationBuilder
             if (!parentFieldMapper.active()) {
                 throw new IllegalArgumentException("[children] no [_parent] field not configured that points to a parent type");
             }
-            parentType = parentFieldMapper.type();
+            String parentType = parentFieldMapper.type();
             DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
             if (parentDocMapper != null) {
                 parentFilter = parentDocMapper.typeFilter(context.getQueryShardContext());

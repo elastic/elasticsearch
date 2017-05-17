@@ -38,15 +38,13 @@ import java.util.Map;
 public class ChildrenAggregatorFactory
         extends ValuesSourceAggregatorFactory<WithOrdinals, ChildrenAggregatorFactory> {
 
-    private final String parentType;
     private final Query parentFilter;
     private final Query childFilter;
 
-    public ChildrenAggregatorFactory(String name, ValuesSourceConfig<WithOrdinals> config, String parentType,
+    public ChildrenAggregatorFactory(String name, ValuesSourceConfig<WithOrdinals> config,
                                      Query childFilter, Query parentFilter, SearchContext context, AggregatorFactory<?> parent,
                                      AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
-        this.parentType = parentType;
         this.childFilter = childFilter;
         this.parentFilter = parentFilter;
     }
@@ -69,7 +67,7 @@ public class ChildrenAggregatorFactory
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                     throws IOException {
         long maxOrd = valuesSource.globalMaxOrd(context.searcher());
-        return new ParentToChildrenAggregator(name, factories, context, parent, parentType, childFilter,
+        return new ParentToChildrenAggregator(name, factories, context, parent, childFilter,
             parentFilter, valuesSource, maxOrd, pipelineAggregators, metaData);
     }
 }

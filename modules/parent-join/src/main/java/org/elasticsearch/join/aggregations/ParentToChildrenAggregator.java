@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.join.aggregations;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -54,7 +52,6 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     static final ParseField TYPE_FIELD = new ParseField("type");
 
-    private final String parentType;
     private final Weight childFilter;
     private final Weight parentFilter;
     private final ValuesSource.Bytes.WithOrdinals valuesSource;
@@ -74,12 +71,11 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     private boolean multipleBucketsPerParentOrd = false;
 
     public ParentToChildrenAggregator(String name, AggregatorFactories factories,
-            SearchContext context, Aggregator parent, String parentType, Query childFilter,
+            SearchContext context, Aggregator parent, Query childFilter,
             Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
             long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
-        this.parentType = parentType;
         // these two filters are cached in the parser
         this.childFilter = context.searcher().createNormalizedWeight(childFilter, false);
         this.parentFilter = context.searcher().createNormalizedWeight(parentFilter, false);

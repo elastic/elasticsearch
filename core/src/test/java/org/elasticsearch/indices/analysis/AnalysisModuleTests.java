@@ -23,11 +23,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.store.Directory;
@@ -125,12 +122,6 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testSimpleConfigurationYaml() throws IOException {
         Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
-    }
-
-    public void testDefaultFactoryTokenFilters() throws IOException {
-        assertTokenFilter("keyword_repeat", KeywordRepeatFilter.class);
-        assertTokenFilter("persian_normalization", PersianNormalizationFilter.class);
-        assertTokenFilter("arabic_normalization", ArabicNormalizationFilter.class);
     }
 
     public void testAnalyzerAliasNotAllowedPost5x() throws IOException {

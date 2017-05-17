@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -33,8 +34,50 @@ public class FieldCapabilitiesRequestTests extends ESTestCase {
         for (int i = 0; i < size; i++) {
             randomFields[i] = randomAlphaOfLengthBetween(5, 10);
         }
+
+        size = randomIntBetween(0, 20);
+        String[] randomIndices = new String[size];
+        for (int i = 0; i < size; i++) {
+            randomIndices[i] = randomAlphaOfLengthBetween(5, 10);
+        }
         request.fields(randomFields);
+        request.indices(randomIndices);
+        if (randomBoolean()) {
+            request.indicesOptions(randomBoolean() ? IndicesOptions.strictExpand() : IndicesOptions.lenientExpandOpen());
+        }
         return request;
+    }
+
+    public void testEqualsAndHashcode() {
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indices("foo");
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+        request.fields("bar");
+
+        FieldCapabilitiesRequest other = new FieldCapabilitiesRequest();
+        other.indices("foo");
+        other.indicesOptions(IndicesOptions.lenientExpandOpen());
+        other.fields("bar");
+        assertEquals(request, request);
+        assertEquals(request, other);
+        assertEquals(request.hashCode(), other.hashCode());
+
+        // change indices
+        other.indices("foo", "bar");
+        assertNotEquals(request, other);
+        other.indices("foo");
+        assertEquals(request, other);
+
+        // change fields
+        other.fields("foo", "bar");
+        assertNotEquals(request, other);
+        other.fields("bar");
+        assertEquals(request, request);
+
+        // change indices options
+        other.indicesOptions(IndicesOptions.strictExpand());
+        assertNotEquals(request, other);
+
     }
 
     public void testFieldCapsRequestSerialization() throws IOException {

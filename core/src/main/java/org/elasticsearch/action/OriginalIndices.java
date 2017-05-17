@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Used to keep track of original indices within internal (e.g. shard level) requests
@@ -63,5 +64,13 @@ public final class OriginalIndices implements IndicesRequest {
         assert originalIndices != NONE;
         out.writeStringArrayNullable(originalIndices.indices);
         originalIndices.indicesOptions.writeIndicesOptions(out);
+    }
+
+    @Override
+    public String toString() {
+        return "OriginalIndices{" +
+            "indices=" + Arrays.toString(indices) +
+            ", indicesOptions=" + indicesOptions +
+            '}';
     }
 }

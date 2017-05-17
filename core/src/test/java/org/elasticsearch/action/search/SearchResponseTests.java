@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchHit;
@@ -50,6 +49,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SearchResponseTests extends ESTestCase {
@@ -78,7 +78,7 @@ public class SearchResponseTests extends ESTestCase {
         return xContentRegistry;
     }
 
-    private SearchResponse createTestItem(boolean withFailures) {
+    private SearchResponse createTestItem(ShardSearchFailure... shardSearchFailures) {
         SearchHits hits = SearchHitsTests.createTestItem();
         boolean timedOut = randomBoolean();
         Boolean terminatedEarly = randomBoolean() ? null : randomBoolean();
@@ -86,33 +86,30 @@ public class SearchResponseTests extends ESTestCase {
         long tookInMillis = randomNonNegativeLong();
         int successfulShards = randomInt();
         int totalShards = randomInt();
-        int numFailures = withFailures ? randomIntBetween(1, 5) : 0;
-        ShardSearchFailure[] failures = new ShardSearchFailure[numFailures];
-        for (int i = 0; i < numFailures; i++) {
-            failures[i] = ShardSearchFailureTests.createTestItem();
-        }
+
         InternalAggregations aggregations = aggregationsTests.createTestInstance();
         Suggest suggest = SuggestTests.createTestItem();
         SearchProfileShardResults profileShardResults = SearchProfileShardResultsTests.createTestItem();
 
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, aggregations, suggest, profileShardResults,
                 timedOut, terminatedEarly, numReducePhases);
-        return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards, tookInMillis, failures);
+        return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards, tookInMillis, shardSearchFailures);
     }
 
     public void testFromXContent() throws IOException {
         // the "_shard/total/failures" section makes if impossible to directly compare xContent, so we omit it here
-        SearchResponse response = createTestItem(false);
+        SearchResponse response = createTestItem();
         XContentType xcontentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, humanReadable);
-        XContentParser parser = createParser(xcontentType.xContent(), originalBytes);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        SearchResponse parsed = SearchResponse.fromXContent(parser);
-        assertToXContentEquivalent(originalBytes, XContentHelper.toXContent(parsed, xcontentType, params, humanReadable), xcontentType);
-        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-        assertNull(parser.nextToken());
+        try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            SearchResponse parsed = SearchResponse.fromXContent(parser);
+            assertToXContentEquivalent(originalBytes, XContentHelper.toXContent(parsed, xcontentType, params, humanReadable), xcontentType);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
     }
 
     /**
@@ -122,17 +119,34 @@ public class SearchResponseTests extends ESTestCase {
      * and the subsections xContent equivalence independently
      */
     public void testFromXContentWithFailures() throws IOException {
-        SearchResponse response = createTestItem(true);
+        int numFailures = randomIntBetween(1, 5);
+        ShardSearchFailure[] failures = new ShardSearchFailure[numFailures];
+        for (int i = 0; i < failures.length; i++) {
+            failures[i] = ShardSearchFailureTests.createTestItem();
+        }
+        SearchResponse response = createTestItem(failures);
         XContentType xcontentType = randomFrom(XContentType.values());
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, randomBoolean());
-        XContentParser parser = createParser(xcontentType.xContent(), originalBytes);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        SearchResponse parsed = SearchResponse.fromXContent(parser);
-        // check that we at least get the same number of shardFailures
-        assertEquals(response.getShardFailures().length, parsed.getShardFailures().length);
-        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-        assertNull(parser.nextToken());
+        try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            SearchResponse parsed = SearchResponse.fromXContent(parser);
+            for (int i = 0; i < parsed.getShardFailures().length; i++) {
+                ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
+                ShardSearchFailure originalFailure = failures[i];
+                assertEquals(originalFailure.index(), parsedFailure.index());
+                assertEquals(originalFailure.shard().getNodeId(), parsedFailure.shard().getNodeId());
+                assertEquals(originalFailure.shardId(), parsedFailure.shardId());
+                String originalMsg = originalFailure.getCause().getMessage();
+                assertEquals(parsedFailure.getCause().getMessage(), "Elasticsearch exception [type=parsing_exception, reason=" +
+                        originalMsg + "]");
+                String nestedMsg = originalFailure.getCause().getCause().getMessage();
+                assertEquals(parsedFailure.getCause().getCause().getMessage(),
+                        "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
+            }
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
     }
 
     public void testToXContent() {

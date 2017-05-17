@@ -282,9 +282,9 @@ public class OpenJobActionTests extends ESTestCase {
         nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        nodeAttr, Collections.emptySet(), Version.V_5_4_0_UNRELEASED))
+                        nodeAttr, Collections.emptySet(), Version.V_5_4_0))
                 .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                        nodeAttr, Collections.emptySet(), Version.V_5_4_0_UNRELEASED))
+                        nodeAttr, Collections.emptySet(), Version.V_5_4_0))
                 .build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();

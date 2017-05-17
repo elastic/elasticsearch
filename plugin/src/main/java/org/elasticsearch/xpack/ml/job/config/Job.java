@@ -553,7 +553,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
      */
     public static Set<String> getCompatibleJobTypes(Version nodeVersion) {
         Set<String> compatibleTypes = new HashSet<>();
-        if (nodeVersion.onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (nodeVersion.onOrAfter(Version.V_5_4_0)) {
             compatibleTypes.add(ANOMALY_DETECTOR_JOB_TYPE);
         }
         return compatibleTypes;

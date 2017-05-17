@@ -598,8 +598,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             }
 
             if (nodeSupportsJobVersion(node.getVersion(), job.getJobVersion()) == false) {
-                String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node does not support jobs of version ["
-                        + job.getJobVersion() + "]";
+                String reason = "Not opening job [" + jobId + "] on node [" + node
+                        + "], because this node does not support jobs of version [" + job.getJobVersion() + "]";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;

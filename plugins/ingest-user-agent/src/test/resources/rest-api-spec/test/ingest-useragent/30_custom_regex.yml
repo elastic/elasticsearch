@@ -10,7 +10,7 @@
               {
                 "user_agent" : {
                   "field": "field1",
-                  "regex_file": "test-regexes.yaml"  
+                  "regex_file": "test-regexes.yml"
                 }
               }
             ]

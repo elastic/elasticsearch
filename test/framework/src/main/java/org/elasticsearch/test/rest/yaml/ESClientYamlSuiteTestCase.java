@@ -200,6 +200,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 Files.walk(path).forEach(file -> {
                     if (file.toString().endsWith(".yml")) {
                         addSuite(root, file, files);
+                    } else if (file.toString().endsWith(".yaml")) {
+                        throw new IllegalArgumentException("yaml files are no longer supported: " + file);
                     }
                 });
             } else {

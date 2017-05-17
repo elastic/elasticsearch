@@ -5,7 +5,19 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.ArgumentCaptor;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
+
+import java.io.IOException;
+
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class JobStateTests extends ESTestCase {
 
@@ -30,9 +42,9 @@ public class JobStateTests extends ESTestCase {
     public void testValidOrdinals() {
         assertEquals(0, JobState.CLOSING.ordinal());
         assertEquals(1, JobState.CLOSED.ordinal());
-        assertEquals(2, JobState.OPENING.ordinal());
-        assertEquals(3, JobState.OPENED.ordinal());
-        assertEquals(4, JobState.FAILED.ordinal());
+        assertEquals(2, JobState.OPENED.ordinal());
+        assertEquals(3, JobState.FAILED.ordinal());
+        assertEquals(4, JobState.OPENING.ordinal());
     }
 
     public void testIsAnyOf() {
@@ -47,5 +59,36 @@ public class JobStateTests extends ESTestCase {
         assertTrue(JobState.OPENED.isAnyOf(JobState.OPENED, JobState.CLOSED));
         assertTrue(JobState.CLOSED.isAnyOf(JobState.CLOSED));
         assertTrue(JobState.CLOSING.isAnyOf(JobState.CLOSING));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStreaming_v54BackwardsCompatibility() throws IOException {
+        StreamOutput out = mock(StreamOutput.class);
+        when(out.getVersion()).thenReturn(Version.V_5_4_0_UNRELEASED);
+        ArgumentCaptor<Enum> enumCaptor = ArgumentCaptor.forClass(Enum.class);
+
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) {
+                return null;
+            }
+        }).when(out).writeEnum(enumCaptor.capture());
+
+        // OPENING state was introduced in v5.5.
+        // Pre v5.5 its translated as CLOSED
+        JobState.OPENING.writeTo(out);
+        assertEquals(JobState.CLOSED, enumCaptor.getValue());
+
+        when(out.getVersion()).thenReturn(Version.V_5_5_0_UNRELEASED);
+
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) {
+                return null;
+            }
+        }).when(out).writeEnum(enumCaptor.capture());
+
+        JobState.OPENING.writeTo(out);
+        assertEquals(JobState.OPENING, enumCaptor.getValue());
     }
 }

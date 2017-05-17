@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,7 +23,7 @@ import java.util.Locale;
  */
 public enum JobState implements ToXContent, Writeable {
 
-    CLOSING, CLOSED, OPENING, OPENED, FAILED;
+    CLOSING, CLOSED, OPENED, FAILED, OPENING;
 
     public static JobState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -34,7 +35,12 @@ public enum JobState implements ToXContent, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(this);
+        JobState state = this;
+        // Pre v5.5 the OPENING state didn't exist
+        if (this == OPENING && out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+            state = CLOSED;
+        }
+        out.writeEnum(state);
     }
 
     @Override

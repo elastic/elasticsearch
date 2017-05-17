@@ -148,12 +148,11 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
                 fieldType.setName("number");
-                try (TDigestPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType)) {
-                    aggregator.preCollection();
-                    indexSearcher.search(query, aggregator);
-                    aggregator.postCollection();
-                    verify.accept((InternalTDigestPercentiles) aggregator.buildAggregation(0L));
-                }
+                TDigestPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
+                aggregator.preCollection();
+                indexSearcher.search(query, aggregator);
+                aggregator.postCollection();
+                verify.accept((InternalTDigestPercentiles) aggregator.buildAggregation(0L));
             }
         }
     }

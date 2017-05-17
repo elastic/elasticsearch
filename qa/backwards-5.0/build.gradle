@@ -28,7 +28,7 @@ integTest {
 integTestCluster {
   numNodes = 4
   numBwcNodes = 2
-  bwcVersion = project.bwcVersion
+  bwcVersion = project.wireCompatVersions[-1]
   setting 'logger.org.elasticsearch', 'DEBUG'
 }
 

@@ -19,9 +19,12 @@
 
 package org.elasticsearch.script;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -41,6 +44,11 @@ public class NativeScriptEngine extends AbstractComponent implements ScriptEngin
 
     public NativeScriptEngine(Settings settings, Map<String, NativeScriptFactory> scripts) {
         super(settings);
+        if (scripts.isEmpty() == false) {
+            Logger logger = Loggers.getLogger(ScriptModule.class);
+            DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+            deprecationLogger.deprecated("Native scripts are deprecated. Use a custom ScriptEngine to write scripts in java.");
+        }
         this.scripts = unmodifiableMap(scripts);
     }
 

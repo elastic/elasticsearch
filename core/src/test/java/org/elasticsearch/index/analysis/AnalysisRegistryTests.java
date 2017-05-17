@@ -59,13 +59,17 @@ public class AnalysisRegistryTests extends ESTestCase {
         return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDEX, new EnglishAnalyzer());
     }
 
+    private static AnalysisRegistry emptyAnalysisRegistry(Settings settings) {
+        return new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
+                emptyMap());
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        emptyEnvironment = new Environment(Settings.builder()
+        emptyRegistry = emptyAnalysisRegistry(Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build());
-        emptyRegistry = new AnalysisRegistry(emptyEnvironment, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
         emptyIndexSettingsOfCurrentVersion = IndexSettingsModule.newIndexSettings("index", Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build());
@@ -191,12 +195,8 @@ public class AnalysisRegistryTests extends ESTestCase {
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-        IndexAnalyzers indexAnalyzers =
-                new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
-                    .build(idxSettings);
-        IndexAnalyzers otherIndexAnalyzers =
-                new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
-                    .build(idxSettings);
+        IndexAnalyzers indexAnalyzers = emptyAnalysisRegistry(settings).build(idxSettings);
+        IndexAnalyzers otherIndexAnalyzers = emptyAnalysisRegistry(settings).build(idxSettings);
         final int numIters = randomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {
             PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(random(), PreBuiltAnalyzers.values());
@@ -213,7 +213,7 @@ public class AnalysisRegistryTests extends ESTestCase {
                     return new MockTokenFilter(tokenStream, MockTokenFilter.EMPTY_STOPSET);
                 });
         try (AnalysisRegistry registryWithPreBuiltTokenFilter = new AnalysisRegistry(emptyEnvironment, emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap(), singletonMap("asserts_built_once", assertsBuiltOnce))) {
+                emptyMap(), emptyMap(), singletonMap("asserts_built_once", assertsBuiltOnce), emptyMap())) {
             IndexAnalyzers indexAnalyzers = registryWithPreBuiltTokenFilter.build(emptyIndexSettingsOfCurrentVersion);
             IndexAnalyzers otherIndexAnalyzers = registryWithPreBuiltTokenFilter.build(emptyIndexSettingsOfCurrentVersion);
             assertSame(indexAnalyzers.get("asserts_built_once"), otherIndexAnalyzers.get("asserts_built_once"));
@@ -231,9 +231,7 @@ public class AnalysisRegistryTests extends ESTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-                new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
-                    .build(idxSettings));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> emptyAnalysisRegistry(settings).build(idxSettings));
         assertThat(e.getMessage(), equalTo("analyzer [test_analyzer] must specify either an analyzer type, or a tokenizer"));
     }
 

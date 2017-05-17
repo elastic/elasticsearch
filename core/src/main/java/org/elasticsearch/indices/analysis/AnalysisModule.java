@@ -312,7 +312,7 @@ public final class AnalysisModule {
         preConfiguredTokenizers.register("PathHierarchy", preConfiguredTokenizers.getRegistry().get("path_hierarchy"));
 
         for (AnalysisPlugin plugin: plugins) {
-            for (PreConfiguredTokenizer tokenizer : plugin.getPreConfiguredTokenizer()) {
+            for (PreConfiguredTokenizer tokenizer : plugin.getPreConfiguredTokenizers()) {
                 preConfiguredTokenizers.register(tokenizer.getName(), tokenizer);
             }
         }

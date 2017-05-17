@@ -101,7 +101,7 @@ public interface AnalysisPlugin {
     /**
      * Override to add additional pre-configured {@link Tokenizer}.
      */
-    default List<PreConfiguredTokenizer> getPreConfiguredTokenizer() {
+    default List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
         return emptyList();
     }
 

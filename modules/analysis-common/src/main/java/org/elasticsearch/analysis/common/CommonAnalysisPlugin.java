@@ -180,7 +180,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     }
 
     @Override
-    public List<PreConfiguredTokenizer> getPreConfiguredTokenizer() {
+    public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
         List<PreConfiguredTokenizer> tokenizers = new ArrayList<>();
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", LowerCaseTokenizer::new, () -> new TokenFilterFactory() {
             @Override

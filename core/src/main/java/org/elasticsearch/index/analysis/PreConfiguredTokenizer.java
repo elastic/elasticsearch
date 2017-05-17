@@ -68,8 +68,8 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
      * @param multiTermComponent null if this tokenizer shouldn't be used for multi-term queries, otherwise a supplier for the
      *        {@link TokenFilterFactory} that stands in for this tokenizer in multi-term queries.
      */
-    public static PreConfiguredTokenizer elasticsearchVersion(String name, boolean useFilterForMultitermQueries,
-            Function<org.elasticsearch.Version, Tokenizer> create, @Nullable Function<Version, TokenFilterFactory> multiTermComponent) {
+    public static PreConfiguredTokenizer elasticsearchVersion(String name, Function<org.elasticsearch.Version, Tokenizer> create,
+            @Nullable Function<Version, TokenFilterFactory> multiTermComponent) {
         return new PreConfiguredTokenizer(name, CachingStrategy.ELASTICSEARCH, create, multiTermComponent);
     }
 

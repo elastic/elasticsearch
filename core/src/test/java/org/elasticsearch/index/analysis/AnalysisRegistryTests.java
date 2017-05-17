@@ -41,7 +41,6 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -50,10 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class AnalysisRegistryTests extends ESTestCase {
-
-    private Environment emptyEnvironment;
     private AnalysisRegistry emptyRegistry;
-    private IndexSettings emptyIndexSettingsOfCurrentVersion;
 
     private static AnalyzerProvider<?> analyzerProvider(final String name) {
         return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDEX, new EnglishAnalyzer());
@@ -64,14 +60,17 @@ public class AnalysisRegistryTests extends ESTestCase {
                 emptyMap());
     }
 
+    private static IndexSettings indexSettingsOfCurrentVersion(Settings.Builder settings) {
+        return IndexSettingsModule.newIndexSettings("index", settings
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build());
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
         emptyRegistry = emptyAnalysisRegistry(Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build());
-        emptyIndexSettingsOfCurrentVersion = IndexSettingsModule.newIndexSettings("index", Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build());
     }
 
@@ -204,22 +203,6 @@ public class AnalysisRegistryTests extends ESTestCase {
         }
     }
 
-    public void testPreConfiguredTokenFiltersAreCached() throws IOException {
-        AtomicBoolean built = new AtomicBoolean(false);
-        PreConfiguredTokenFilter assertsBuiltOnce = PreConfiguredTokenFilter.singleton("asserts_built_once", false, tokenStream -> {
-                    if (false == built.compareAndSet(false, true)) {
-                        fail("Attempted to build the token filter twice when it should have been cached");
-                    }
-                    return new MockTokenFilter(tokenStream, MockTokenFilter.EMPTY_STOPSET);
-                });
-        try (AnalysisRegistry registryWithPreBuiltTokenFilter = new AnalysisRegistry(emptyEnvironment, emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap(), singletonMap("asserts_built_once", assertsBuiltOnce), emptyMap())) {
-            IndexAnalyzers indexAnalyzers = registryWithPreBuiltTokenFilter.build(emptyIndexSettingsOfCurrentVersion);
-            IndexAnalyzers otherIndexAnalyzers = registryWithPreBuiltTokenFilter.build(emptyIndexSettingsOfCurrentVersion);
-            assertSame(indexAnalyzers.get("asserts_built_once"), otherIndexAnalyzers.get("asserts_built_once"));
-        }
-    }
-
     public void testNoTypeOrTokenizerErrorMessage() throws IOException {
         Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings
@@ -236,7 +219,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     public void testCloseIndexAnalyzersMultipleTimes() throws IOException {
-        IndexAnalyzers indexAnalyzers = emptyRegistry.build(emptyIndexSettingsOfCurrentVersion);
+        IndexAnalyzers indexAnalyzers = emptyRegistry.build(indexSettingsOfCurrentVersion(Settings.builder()));
         indexAnalyzers.close();
         indexAnalyzers.close();
     }

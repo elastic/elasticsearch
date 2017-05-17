@@ -333,7 +333,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     protected Translog createTranslog(Path translogPath) throws IOException {
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, deletionPolicy);
         return new Translog(translogConfig, null, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
     }
 
@@ -423,7 +423,7 @@ public class InternalEngineTests extends ESTestCase {
                                SnapshotDeletionPolicy deletionPolicy,
                                ReferenceManager.RefreshListener refreshListener, Sort indexSort) {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, deletionPolicy);
         final EngineConfig.OpenMode openMode;
         try {
             if (Lucene.indexExists(store.directory()) == false) {
@@ -2727,7 +2727,7 @@ public class InternalEngineTests extends ESTestCase {
         engine.close();
 
         Translog translog = new Translog(
-            new TranslogConfig(shardId, createTempDir(), INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
+            new TranslogConfig(shardId, createTempDir(), INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, deletionPolicy),
             null,
             () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
         translog.add(new Translog.Index("test", "SomeBogusId", "{}".getBytes(Charset.forName("UTF-8"))));
@@ -2736,7 +2736,7 @@ public class InternalEngineTests extends ESTestCase {
 
         EngineConfig config = engine.config();
         /* create a TranslogConfig that has been created with a different UUID */
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE, deletionPolicy);
 
         EngineConfig brokenConfig = new EngineConfig(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, shardId, threadPool,
                 config.getIndexSettings(), null, store, createSnapshotDeletionPolicy(), newMergePolicy(), config.getAnalyzer(),

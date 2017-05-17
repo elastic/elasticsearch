@@ -19,8 +19,18 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogReader;
+import org.elasticsearch.index.translog.TranslogWriter;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.LongSupplier;
 
 public class DeletionPolicy extends SnapshotDeletionPolicy {
 
@@ -29,4 +39,83 @@ public class DeletionPolicy extends SnapshotDeletionPolicy {
     }
 
 
+    /** Records how many views are held against each
+     *  translog generation */
+    protected final Map<Long,Integer> translogRefCounts = new HashMap<>();
+
+    /**
+     * the translog generation that is requires to properly recover from the oldest non deleted
+     * {@link org.apache.lucene.index.IndexCommit}.
+     */
+    private long minTranslogGenerationForRecovery = -1;
+
+    /**
+     * a supplier to get the last global checkpoint that is persisted by the translog
+     * TODO: remove in first version
+     */
+    private LongSupplier lastPersistedGlobalCheckpoint;
+
+
+    @Override
+    public synchronized void onInit(List<? extends IndexCommit> commits) throws IOException {
+        super.onInit(commits);
+        setLastCommittedTranslogGeneration(commits);
+    }
+    public synchronized void onTranslogRollover(List<TranslogReader> readers, TranslogWriter currentWriter) {
+        lastPersistedGlobalCheckpoint = currentWriter::lastSyncedGlobalCheckpoint;
+    }
+
+    @Override
+    public synchronized void onCommit(List<? extends IndexCommit> commits) throws IOException {
+        super.onCommit(commits);
+        setLastCommittedTranslogGeneration(commits);
+    }
+
+    private void setLastCommittedTranslogGeneration(List<? extends IndexCommit> commits) throws IOException {
+        // TODO: move this to just use current commit in the first iteration.
+        long minGen = Long.MAX_VALUE;
+        for (IndexCommit indexCommit : commits) {
+            if (indexCommit.isDeleted() == false) {
+                long refGen = Long.parseLong(indexCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+                minGen = Math.min(minGen, refGen);
+            }
+        }
+        assert minGen >= minTranslogGenerationForRecovery :
+            "a new minTranslogGenerationForRecovery of [" + minGen + "] is lower than the previous one ["
+                + minTranslogGenerationForRecovery + "]";
+        minTranslogGenerationForRecovery = minGen;
+    }
+
+    public synchronized long acquireTranslogGenForView() {
+       int current = translogRefCounts.getOrDefault(minTranslogGenerationForRecovery, 0);
+       translogRefCounts.put(minTranslogGenerationForRecovery, current + 1);
+       return minTranslogGenerationForRecovery;
+    }
+
+    public synchronized int pendingViewsCount() {
+        return translogRefCounts.size();
+    }
+
+    public synchronized void releaseTranslogGenView(long translogGen) {
+        Integer current = translogRefCounts.get(translogGen);
+        if (current == null || current <= 0) {
+            throw new IllegalArgumentException("translog gen [" + translogGen + "] wasn't acquired");
+        }
+        if (current == 1) {
+            translogRefCounts.remove(translogGen);
+        } else {
+            translogRefCounts.put(translogGen, current - 1);
+        }
+    }
+
+    public synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter currentWriter) {
+        // TODO: here we can do things like check for translog size etc.
+        long viewRefs = translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
+        return Math.min(viewRefs, minTranslogGenerationForRecovery);
+    }
+
+    /** returns the translog generation that will be used as a basis of a future store/peer recovery */
+    public long getMinTranslogGenerationForRecovery() {
+        return minTranslogGenerationForRecovery;
+    }
 }

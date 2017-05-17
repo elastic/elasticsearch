@@ -151,7 +151,7 @@ public class TranslogTests extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         try {
-            assertEquals("there are still open views", 0, translog.getNumOpenViews());
+            assertEquals("there are still open views", 0, translog.getConfig().getDeletionPolicy().pendingViewsCount());
             translog.close();
         } finally {
             super.tearDown();
@@ -1403,7 +1403,7 @@ public class TranslogTests extends ESTestCase {
                             break;
                         case DELETE:
                             op = new Translog.Delete(
-                                "test", threadId + "_" + opCount, 
+                                "test", threadId + "_" + opCount,
                                 new Term("_uid", threadId + "_" + opCount),
                                 opCount,
                                 0,

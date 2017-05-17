@@ -64,31 +64,15 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     public void testDelete() throws IOException {
         {
             // Testing non existing document
+            final XContentType xContentType = randomFrom(XContentType.values());
+            IndexRequest indexRequest = new IndexRequest("index", "type")
+                    .source(XContentBuilder.builder(xContentType.xContent()).startObject().field("test", "test").endObject());
+            execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
+
             String docId = "does_not_exist";
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                    () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync));
-            assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]", exception.getMessage());
-            assertEquals("index", exception.getMetadata("es.index").get(0));
-        }
-        {
-            // Testing non existing document with external version
-            String docId = "does_not_exist";
-            DeleteRequest deleteRequest = new DeleteRequest("index_external", "type", docId).versionType(VersionType.EXTERNAL).version(0);
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
-            assertEquals("index_external", deleteResponse.getIndex());
-            assertEquals("type", deleteResponse.getType());
-            assertEquals(docId, deleteResponse.getId());
-            assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
-        }
-        {
-            // Testing non existing document with external gte version
-            String docId = "does_not_exist";
-            DeleteRequest deleteRequest = new DeleteRequest("index_external_gte", "type", docId).versionType(VersionType.EXTERNAL_GTE)
-                    .version(0);
-            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
-            assertEquals("index_external_gte", deleteResponse.getIndex());
+            assertEquals("index", deleteResponse.getIndex());
             assertEquals("type", deleteResponse.getType());
             assertEquals(docId, deleteResponse.getId());
             assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());

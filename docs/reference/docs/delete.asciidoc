@@ -105,7 +105,7 @@ thrown instead.
 [[delete-index-creation]]
 === Automatic index creation
 
-If external version is used,
+If an <<docs-index_,external versioning variant>> is used,
 the delete operation automatically creates an index if it has not been
 created before (check out the <<indices-create-index,create index API>>
 for manually creating an index), and also automatically creates a

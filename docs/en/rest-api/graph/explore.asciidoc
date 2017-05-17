@@ -1,7 +1,7 @@
 [[graph-api-explore]]
 === Explore API
 
-The Graph "explore" API is accessible via the /_xpack/graph/_explore endpoint.
+The Graph "explore" API is accessible via the /_xpack/_graph/_explore endpoint.
 One of the best ways to understand the behaviour of this API is to use the Kibana
 Graph UI to visually click around connected data and then view the "Last request"
 panel (accessible from the button with the cog icon). This panel shows the JSON request/response
@@ -23,7 +23,7 @@ An initial search typically begins with a query to identify strongly related ter
 
 [source,js]
 --------------------------------------------------
-POST clicklogs/_xpack/graph/_explore
+POST clicklogs/_xpack/_graph/_explore
 {
     "query": { <1>
         "match": {
@@ -122,7 +122,7 @@ The previous basic example omitted several parameters that have default values. 
 
 [source,js]
 --------------------------------------------------
-POST clicklogs/_xpack/graph/_explore
+POST clicklogs/_xpack/_graph/_explore
 {
    "query": {<1>
       "bool": {
@@ -218,7 +218,7 @@ An example request is as follows:
 
 [source,js]
 --------------------------------------------------
-POST clicklogs/_xpack/graph/_explore
+POST clicklogs/_xpack/_graph/_explore
 {
    "vertices": [
       {

@@ -200,7 +200,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
     public void testSkipExpandCollapseNoHits() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         mockSearchPhaseContext.searchTransport = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
 
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {

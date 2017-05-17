@@ -348,19 +348,19 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         private final int maxChildren;
         private final String parentType;
         private final ScoreMode scoreMode;
-        private final SortedSetDVOrdinalsIndexFieldData parentChildIndexFieldData;
+        private final SortedSetDVOrdinalsIndexFieldData fieldDataJoin;
         private final Similarity similarity;
 
         LateParsingQuery(Query toQuery, Query innerQuery, int minChildren, int maxChildren,
                          String parentType, ScoreMode scoreMode,
-                         SortedSetDVOrdinalsIndexFieldData parentChildIndexFieldData, Similarity similarity) {
+                         SortedSetDVOrdinalsIndexFieldData fieldData, Similarity similarity) {
             this.toQuery = toQuery;
             this.innerQuery = innerQuery;
             this.minChildren = minChildren;
             this.maxChildren = maxChildren;
             this.parentType = parentType;
             this.scoreMode = scoreMode;
-            this.parentChildIndexFieldData = parentChildIndexFieldData;
+            this.fieldDataJoin = fieldData;
             this.similarity = similarity;
         }
 
@@ -375,7 +375,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 IndexSearcher indexSearcher = new IndexSearcher(reader);
                 indexSearcher.setQueryCache(null);
                 indexSearcher.setSimilarity(similarity);
-                IndexOrdinalsFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal((DirectoryReader) reader);
+                IndexOrdinalsFieldData indexParentChildFieldData = fieldDataJoin.loadGlobal((DirectoryReader) reader);
                 MultiDocValues.OrdinalMap ordinalMap = indexParentChildFieldData.getOrdinalMap();
                 return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode,
                     ordinalMap, minChildren, maxChildren);

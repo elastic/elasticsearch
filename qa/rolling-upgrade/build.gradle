@@ -88,6 +88,7 @@ mixedClusterTestCluster {
 
 mixedClusterTestRunner {
     systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.rest.blacklist', 'mixed_cluster/30_kibana_write/*'
     finalizedBy 'oldClusterTestCluster#node0.stop'
 }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -298,6 +300,7 @@ public class AnalysisModuleTests extends ESTestCase {
      * Tests that plugins can register pre-configured token filters that vary in behavior based on Elasticsearch version, Lucene version,
      * and that do not vary based on version at all.
      */
+    @Repeat(iterations = 100)
     public void testPluginPreConfiguredTokenizers() throws IOException {
         boolean noVersionSupportsMultiTerm = randomBoolean();
         boolean luceneVersionSupportsMultiTerm = randomBoolean();
@@ -340,11 +343,11 @@ public class AnalysisModuleTests extends ESTestCase {
                                 noVersionSupportsMultiTerm ? () -> AppendTokenFilter.factoryForSuffix("no_version") : null),
                         PreConfiguredTokenizer.luceneVersion("lucene_version",
                                 luceneVersion -> new FixedTokenizer(luceneVersion.toString()),
-                                noVersionSupportsMultiTerm ?
+                                luceneVersionSupportsMultiTerm ?
                                         luceneVersion -> AppendTokenFilter.factoryForSuffix(luceneVersion.toString()) : null),
                         PreConfiguredTokenizer.elasticsearchVersion("elasticsearch_version",
                                 esVersion -> new FixedTokenizer(esVersion.toString()),
-                                noVersionSupportsMultiTerm ?
+                                elasticsearchVersionSupportsMultiTerm ?
                                         esVersion -> AppendTokenFilter.factoryForSuffix(esVersion.toString()) : null)
                         );
             }

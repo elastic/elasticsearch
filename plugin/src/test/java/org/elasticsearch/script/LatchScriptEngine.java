@@ -45,7 +45,10 @@ public class LatchScriptEngine implements ScriptEngine {
 
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
-        return new AbstractSearchScript() {
+        return new ExecutableScript() {
+            @Override
+            public void setNextVar(String name, Object value) {}
+
             @Override
             public Object run() {
                 scriptStartedLatch.countDown();

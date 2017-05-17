@@ -13,10 +13,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.AbstractSearchScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -32,8 +29,8 @@ import org.elasticsearch.xpack.graph.action.VertexRequest;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -212,8 +209,8 @@ public class GraphTests extends XPackSingleNodeTestCase {
         //00s friends of beatles
         grb.createNextHop(QueryBuilders.termQuery("decade", "00s")).addVertexRequest("people").size(100).minDocCount(1); 
         // A query that should cause a timeout
-        ScriptQueryBuilder timeoutQuery = QueryBuilders.scriptQuery(new Script(ScriptType.INLINE, "native",
-                NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, Collections.emptyMap()));
+        ScriptQueryBuilder timeoutQuery = QueryBuilders.scriptQuery(new Script(ScriptType.INLINE, "mockscript",
+                "graph_timeout", Collections.emptyMap()));
         grb.createNextHop(timeoutQuery).addVertexRequest("people").size(100).minDocCount(1);
 
         GraphExploreResponse response = grb.get();
@@ -345,44 +342,17 @@ public class GraphTests extends XPackSingleNodeTestCase {
         assertThat(why, strongVertex.getWeight(), greaterThan(weakVertex.getWeight()));
     }
 
-    public static class ScriptedTimeoutPlugin extends Plugin implements ScriptPlugin {
+    public static class ScriptedTimeoutPlugin extends MockScriptPlugin {
         @Override
-        public List<NativeScriptFactory> getNativeScripts() {
-            return Collections.singletonList(new NativeTestScriptedTimeout.Factory());
+        public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap("graph_timeout", params -> {
+                try {
+                    Thread.sleep(750);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                return true;
+            });
         }
     }
-
-    public static class NativeTestScriptedTimeout extends AbstractSearchScript {
-
-        public static final String TEST_NATIVE_SCRIPT_TIMEOUT = "native_test_graph_timeout_script";
-
-        public static class Factory implements NativeScriptFactory {
-
-            @Override
-            public ExecutableScript newScript(Map<String, Object> params) {
-                return new NativeTestScriptedTimeout();
-            }
-
-            @Override
-            public boolean needsScores() {
-                return false;
-            }
-
-            @Override
-            public String getName() {
-                return TEST_NATIVE_SCRIPT_TIMEOUT;
-            }
-        }
-
-        @Override
-        public Object run() {
-            try {
-                Thread.sleep(750);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            return true;
-        }
-    }
-
 }

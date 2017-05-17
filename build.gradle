@@ -61,16 +61,41 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
   }
 }
 
-int prevMajor = Integer.parseInt(VersionProperties.elasticsearch.split('\\.')[0]) - 1
-String prevSnapshot = VersionProperties.elasticsearch.contains('alpha') ? '-SNAPSHOT' : ''
+// introspect all versions of ES that may be tested agains for backwards compatibility
+String currentVersion = VersionProperties.elasticsearch.minus('-SNAPSHOT')
+int prevMajor = Integer.parseInt(currentVersion.split('\\.')[0]) - 1
 File versionFile = file('core/src/main/java/org/elasticsearch/Version.java')
 List<String> versionLines = versionFile.readLines('UTF-8')
-int prevMinor = 0
+List<String> versions = []
+// keep track of the previous major version's last minor, so we know where wire compat begins
+int prevMinorIndex = -1 // index in the versions list of the last minor from the prev major
+int lastPrevMinor = -1 // the minor version number from the prev major we most recently seen
 for (String line : versionLines) {
-  Matcher match = line =~ /\W+public static final Version V_${prevMajor}_(\d+)_.*/
+  Matcher match = line =~ /\W+public static final Version V_(\d+)_(\d+)_(\d+)(_UNRELEASED)? .*/
   if (match.matches()) {
-    prevMinor = Math.max(Integer.parseInt(match.group(1)), prevMinor)
+    int major = Integer.parseInt(match.group(1))
+    int minor = Integer.parseInt(match.group(2))
+    int bugfix = Integer.parseInt(match.group(3))
+    String versionStr = "${major}.${minor}.${bugfix}"
+    if (currentVersion != versionStr) {
+      versions.add(versionStr)
+    }
+    if (major == prevMajor && minor > lastPrevMinor) {
+      prevMinorIndex = versions.size() - 1
+      lastPrevMinor = minor
+    }
   }
+}
+if (versions.toSorted() != versions) {
+  throw new GradleException('Versions.java contains out of order version constants')
+}
+if (currentVersion.split('\\.')[2].split('-')[0] == '0') {
+  // If on a release branch, after the initial release of that branch, the bugfix version will
+  // be bumped, and will be != 0. On master and N.x branches, we want to test against the
+  // unreleased version of closest branch. So for those cases, the version includes -SNAPSHOT,
+  // and the bwc-zip distribution will checkout and build that version. The version parsing
+  // logic above pulls the bugfix version, and then strips off any prerelease version
+  versions[-1] += '-SNAPSHOT'
 }
 
 // injecting groovy property variables into all projects
@@ -80,7 +105,8 @@ allprojects {
     isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
     isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
     // for backcompat testing
-    bwcVersion = "${prevMajor}.${prevMinor}.0${prevSnapshot}"
+    indexCompatVersions = versions
+    wireCompatVersions = versions.subList(prevMinorIndex, versions.size())
   }
 }
 
@@ -128,7 +154,7 @@ subprojects {
     "org.elasticsearch.client:transport:${version}": ':client:transport',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
-    "org.elasticsearch.distribution.zip:elasticsearch:${bwcVersion}": ':distribution:bwc-zip',
+    "org.elasticsearch.distribution.zip:elasticsearch:${wireCompatVersions[-1]}": ':distribution:bwc-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
     "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
     "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',

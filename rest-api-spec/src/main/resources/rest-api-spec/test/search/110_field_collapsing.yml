@@ -251,8 +251,8 @@ setup:
 "no hits and inner_hits":
 
   - skip:
-      version: " - 5.4.99"
-      reason:  "bug fixed in 5.5.0"
+      version: " - 5.4.0"
+      reason:  "bug fixed in 5.4.1"
 
   - do:
       search:

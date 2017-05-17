@@ -25,7 +25,7 @@
           mappings:
             doc:
               properties:
-                body:
+                text:
                   type: text
                   analyzer: index
                   search_analyzer: search
@@ -43,9 +43,10 @@
         body:
           query:
             match:
-              text: fox runs
-              operator: AND
-  - match: {hits.count: 1}
+              text:
+                query: fox runs
+                operator: AND
+  - match: {hits.total: 1}
 
   - do:
       index:
@@ -60,6 +61,7 @@
         body:
           query:
             match:
-              text: fox runs
-              operator: AND
-  - match: {hits.count: 2}
+              text:
+                query: fox runs
+                operator: AND
+  - match: {hits.total: 2}

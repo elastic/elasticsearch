@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -72,7 +73,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(),
             request.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
+        final String[] concreteIndices;
+        if (remoteClusterIndices.isEmpty() == false && localIndices.indices().length == 0) {
+            // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote
+            // indices
+            concreteIndices = Strings.EMPTY_ARRAY;
+        } else {
+            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
+        }
         final int totalNumRequest = concreteIndices.length + remoteClusterIndices.size();
         final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());

@@ -29,7 +29,10 @@ import org.elasticsearch.gradle.LoggedExec
 
 apply plugin: 'distribution'
 
-File checkoutDir = file("${buildDir}/bwc/checkout-5.x")
+String bwcVersion = wireCompatVersions[-1]
+(String major, String minor, String bugfix) = bwcVersion.split('\\.')
+String bwcBranch = bugfix == '0' ? "${major}.x" : "${major}.${minor}"
+File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 task createClone(type: LoggedExec) {
   onlyIf { checkoutDir.exists() == false }
   commandLine = ['git', 'clone', rootDir, checkoutDir]
@@ -74,7 +77,7 @@ task fetchLatest(type: LoggedExec) {
 task checkoutBwcBranch(type: LoggedExec) {
   dependsOn fetchLatest
   workingDir = checkoutDir
-  commandLine = ['git', 'checkout', 'upstream/5.x']
+  commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]
 }
 
 File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.zip")

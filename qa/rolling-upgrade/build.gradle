@@ -27,7 +27,7 @@ task oldClusterTest(type: RestIntegTestTask) {
 
 oldClusterTestCluster {
   distribution = 'zip'
-  bwcVersion = project.bwcVersion // TODO: either randomize, or make this settable with sysprop
+  bwcVersion = project.wireCompatVersions[-1] // TODO: either randomize, or make this settable with sysprop
   numBwcNodes = 2
   numNodes = 2
   clusterName = 'rolling-upgrade'

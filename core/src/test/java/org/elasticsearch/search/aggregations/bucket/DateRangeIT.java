@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -51,6 +52,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
@@ -864,6 +866,19 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(((DateTime) buckets.get(0).getTo()).getMillis(), equalTo(1L));
         assertThat(buckets.get(0).getDocCount(), equalTo(0L));
         assertThat(buckets.get(0).getAggregations().asList().isEmpty(), is(true));
+    }
+
+    public void testNoRangesInQuery()  {
+        try {
+            client().prepareSearch("idx")
+                .addAggregation(dateRange("my_date_range_agg").field("value"))
+                .execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException spee){
+            Throwable rootCause = spee.getCause().getCause();
+            assertThat(rootCause, instanceOf(IllegalArgumentException.class));
+            assertEquals(rootCause.getMessage(), "No [ranges] specified for the [my_date_range_agg] aggregation");
+        }
     }
 
     /**

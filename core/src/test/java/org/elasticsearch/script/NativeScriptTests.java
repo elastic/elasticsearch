@@ -55,6 +55,7 @@ public class NativeScriptTests extends ESTestCase {
         CompiledScript compiledScript = scriptModule.getScriptService().compile(script, ScriptContext.Standard.SEARCH);
         ExecutableScript executable = scriptModule.getScriptService().executable(compiledScript, script.getParams());
         assertThat(executable.run().toString(), equalTo("test"));
+        assertWarnings("Native scripts are deprecated. Use a custom ScriptEngine to write scripts in java.");
     }
 
     public void testFineGrainedSettingsDontAffectNativeScripts() throws IOException {
@@ -82,6 +83,7 @@ public class NativeScriptTests extends ESTestCase {
             assertThat(scriptService.compile(new Script(ScriptType.INLINE, NativeScriptEngine.NAME, "my", Collections.emptyMap()),
                 scriptContext), notNullValue());
         }
+        assertWarnings("Native scripts are deprecated. Use a custom ScriptEngine to write scripts in java.");
     }
 
     public static class MyNativeScriptFactory implements NativeScriptFactory {

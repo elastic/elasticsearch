@@ -535,7 +535,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path pluginDir = createPluginDir(temp);
         Path configDir = pluginDir.resolve("config");
         Files.createDirectory(configDir);
-        Files.createFile(configDir.resolve("custom.yaml"));
+        Files.createFile(configDir.resolve("custom.yml"));
         String pluginZip = createPluginUrl("fake", pluginDir);
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
@@ -545,19 +545,19 @@ public class InstallPluginCommandTests extends ESTestCase {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path envConfigDir = env.v2().configFile().resolve("fake");
         Files.createDirectories(envConfigDir);
-        Files.write(envConfigDir.resolve("custom.yaml"), "existing config".getBytes(StandardCharsets.UTF_8));
+        Files.write(envConfigDir.resolve("custom.yml"), "existing config".getBytes(StandardCharsets.UTF_8));
         Path pluginDir = createPluginDir(temp);
         Path configDir = pluginDir.resolve("config");
         Files.createDirectory(configDir);
-        Files.write(configDir.resolve("custom.yaml"), "new config".getBytes(StandardCharsets.UTF_8));
-        Files.createFile(configDir.resolve("other.yaml"));
+        Files.write(configDir.resolve("custom.yml"), "new config".getBytes(StandardCharsets.UTF_8));
+        Files.createFile(configDir.resolve("other.yml"));
         String pluginZip = createPluginUrl("fake", pluginDir);
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
-        List<String> configLines = Files.readAllLines(envConfigDir.resolve("custom.yaml"), StandardCharsets.UTF_8);
+        List<String> configLines = Files.readAllLines(envConfigDir.resolve("custom.yml"), StandardCharsets.UTF_8);
         assertEquals(1, configLines.size());
         assertEquals("existing config", configLines.get(0));
-        assertTrue(Files.exists(envConfigDir.resolve("other.yaml")));
+        assertTrue(Files.exists(envConfigDir.resolve("other.yml")));
     }
 
     public void testConfigNotDir() throws Exception {

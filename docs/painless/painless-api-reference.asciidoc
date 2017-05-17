@@ -1,7 +1,7 @@
 ["appendix",id="painless-api-reference"]
 = Painless API Reference
 
-<<modules-scripting-painless,Painless>> has a strict whitelist for methods and
+Painless has a strict whitelist for methods and
 classes to make sure that all painless scripts are secure and fast. Most of
 these methods are exposed directly from the JRE while others are part of
 Elasticsearch or Painless itself. Below is a list of all available methods

@@ -28,14 +28,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.AbstractSearchScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -208,7 +205,7 @@ public class IpRangeIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> client().prepareSearch("idx").addAggregation(
                         AggregationBuilders.ipRange("my_range")
-                        .script(new Script(ScriptType.INLINE, "native", DummyScript.NAME, Collections.emptyMap())) ).get());
+                        .script(new Script(ScriptType.INLINE, "mockscript", "dummy", Collections.emptyMap())) ).get());
         assertThat(e.getMessage(), containsString("[ip_range] does not support scripts"));
     }
 
@@ -217,42 +214,14 @@ public class IpRangeIT extends ESIntegTestCase {
                 () -> client().prepareSearch("idx").addAggregation(
                         AggregationBuilders.ipRange("my_range")
                         .field("ip")
-                        .script(new Script(ScriptType.INLINE, "native", DummyScript.NAME, Collections.emptyMap())) ).get());
+                        .script(new Script(ScriptType.INLINE, "mockscript", "dummy", Collections.emptyMap())) ).get());
         assertThat(e.getMessage(), containsString("[ip_range] does not support scripts"));
     }
 
-    public static class DummyScriptPlugin extends Plugin implements ScriptPlugin {
+    public static class DummyScriptPlugin extends MockScriptPlugin {
         @Override
-        public List<NativeScriptFactory> getNativeScripts() {
-            return Collections.singletonList(new DummyScriptFactory());
+        public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap("dummy", params -> null);
         }
     }
-
-    public static class DummyScriptFactory implements NativeScriptFactory {
-        public DummyScriptFactory() {}
-        @Override
-        public ExecutableScript newScript(@Nullable Map<String, Object> params) {
-            return new DummyScript();
-        }
-        @Override
-        public boolean needsScores() {
-            return false;
-        }
-
-        @Override
-        public String getName() {
-            return DummyScript.NAME;
-        }
-    }
-
-    private static class DummyScript extends AbstractSearchScript {
-
-        public static final String NAME = "dummy";
-
-        @Override
-        public Object run() {
-            return null;
-        }
-    }
-
 }

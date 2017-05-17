@@ -65,22 +65,12 @@ public class ScriptModesTests extends ESTestCase {
         }
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
-        scriptEngines = buildScriptEnginesByLangMap(newHashSet(
-                //add the native engine just to make sure it gets filtered out
-                new NativeScriptEngine(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
-                new CustomScriptEngine()));
+        scriptEngines = buildScriptEnginesByLangMap(newHashSet(new CustomScriptEngine()));
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngines.values());
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         checkedSettings = new HashSet<>();
         assertAllSettingsWereChecked = true;
         assertScriptModesNonNull = true;
-    }
-
-    @After
-    public void assertNativeScriptsAreAlwaysAllowed() {
-        if (assertScriptModesNonNull) {
-            assertThat(scriptModes.getScriptEnabled(NativeScriptEngine.NAME, randomFrom(ScriptType.values()), randomFrom(scriptContexts)), equalTo(true));
-        }
     }
 
     @After

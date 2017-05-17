@@ -31,16 +31,13 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
-import org.elasticsearch.search.aggregations.bucket.script.NativeSignificanceScoreScriptNoParams;
-import org.elasticsearch.search.aggregations.bucket.script.NativeSignificanceScoreScriptWithParams;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
@@ -64,6 +61,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -168,7 +166,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         }
     }
 
-    public static class CustomSignificanceHeuristicPlugin extends Plugin implements ScriptPlugin, SearchPlugin {
+    public static class CustomSignificanceHeuristicPlugin extends MockScriptPlugin implements SearchPlugin {
         @Override
         public List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
             return singletonList(new SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>(SimpleHeuristic.NAME,
@@ -176,9 +174,22 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<NativeScriptFactory> getNativeScripts() {
-            return Arrays.asList(new NativeSignificanceScoreScriptNoParams.Factory(),
-                    new NativeSignificanceScoreScriptWithParams.Factory());
+        public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+            scripts.put("script_with_params", params -> {
+                double factor = ((Number) params.get("param")).doubleValue();
+                return factor * (longValue(params.get("_subset_freq")) + longValue(params.get("_subset_size")) +
+                                 longValue(params.get("_superset_freq")) + longValue(params.get("_superset_size"))) / factor;
+            });
+            scripts.put("script_no_params", params ->
+                longValue(params.get("_subset_freq")) + longValue(params.get("_subset_size")) +
+                longValue(params.get("_superset_freq")) + longValue(params.get("_superset_size"))
+            );
+            return scripts;
+        }
+
+        private static long longValue(Object value) {
+            return ((ScriptHeuristic.LongAccessor) value).longValue();
         }
     }
 
@@ -514,9 +525,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         if (randomBoolean()) {
             Map<String, Object> params = new HashMap<>();
             params.put("param", randomIntBetween(1, 100));
-            script = new Script(ScriptType.INLINE, "native", "native_significance_score_script_with_params", params);
+            script = new Script(ScriptType.INLINE, "mockscript", "script_with_params", params);
         } else {
-            script = new Script(ScriptType.INLINE, "native", "native_significance_score_script_no_params", Collections.emptyMap());
+            script = new Script(ScriptType.INLINE, "mockscript", "script_no_params", Collections.emptyMap());
         }
         return new ScriptHeuristic(script);
     }

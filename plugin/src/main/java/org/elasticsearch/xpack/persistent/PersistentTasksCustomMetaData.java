@@ -183,7 +183,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_4_0_UNRELEASED;
+        return Version.V_5_4_0;
     }
 
     @Override

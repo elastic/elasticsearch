@@ -65,7 +65,7 @@ public class PutWatchSerializationTests extends ESTestCase {
     public void testPutWatchSerializationXContentBwc() throws IOException {
         final byte[] data = Base64.getDecoder().decode("ADwDAmlkDXsiZm9vIjoiYmFyIn0BAAAA");
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-                Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+                Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
         try (StreamInput in = StreamInput.wrap(data)) {
             in.setVersion(version);
             PutWatchRequest request = new PutWatchRequest();

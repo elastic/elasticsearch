@@ -94,7 +94,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                         securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
                                 new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
                                         , handler), sender), connection.getVersion());
-                    } else if (reservedRealmEnabled && connection.getVersion().before(Version.V_5_2_0_UNRELEASED) &&
+                    } else if (reservedRealmEnabled && connection.getVersion().before(Version.V_5_2_0) &&
                             KibanaUser.NAME.equals(securityContext.getUser().principal())) {
                         final User kibanaUser = securityContext.getUser();
                         final User bwcKibanaUser = new User(kibanaUser.principal(), new String[] { "kibana" }, kibanaUser.fullName(),

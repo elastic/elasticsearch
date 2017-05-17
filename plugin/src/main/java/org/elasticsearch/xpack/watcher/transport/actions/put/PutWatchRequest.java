@@ -125,7 +125,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         id = in.readString();
         source = in.readBytesReference();
         active = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             xContentType = XContentType.readFrom(in);
         } else {
             xContentType = XContentFactory.xContentType(source);
@@ -138,7 +138,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         out.writeString(id);
         out.writeBytesReference(source);
         out.writeBoolean(active);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             xContentType.writeTo(out);
         }
     }

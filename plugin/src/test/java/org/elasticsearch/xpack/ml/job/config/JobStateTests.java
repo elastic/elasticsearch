@@ -64,7 +64,7 @@ public class JobStateTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testStreaming_v54BackwardsCompatibility() throws IOException {
         StreamOutput out = mock(StreamOutput.class);
-        when(out.getVersion()).thenReturn(Version.V_5_4_0_UNRELEASED);
+        when(out.getVersion()).thenReturn(Version.V_5_4_0);
         ArgumentCaptor<Enum> enumCaptor = ArgumentCaptor.forClass(Enum.class);
 
         doAnswer(new Answer<Void>() {

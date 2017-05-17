@@ -167,7 +167,7 @@ public class NativeRealmMigratorTests extends ESTestCase {
                         .immutableMap()
         );
         String[] disabledUsers = new String[]{LogstashSystemUser.NAME, BeatsSystemUser.NAME};
-        verifyUpgrade(randomFrom(Version.V_5_1_1_UNRELEASED, Version.V_5_0_2, Version.V_5_0_0), disabledUsers, true);
+        verifyUpgrade(randomFrom(Version.V_5_1_1, Version.V_5_0_2, Version.V_5_0_0), disabledUsers, true);
     }
 
     public void testDisableBeatsAndConvertPasswordsOnUpgradeFromVersionPriorToV6() throws Exception {
@@ -179,7 +179,7 @@ public class NativeRealmMigratorTests extends ESTestCase {
                         .immutableMap()
         );
         String[] disabledUsers = new String[]{BeatsSystemUser.NAME};
-        Version version = randomFrom(Version.V_5_3_0_UNRELEASED, Version.V_5_2_1_UNRELEASED);
+        Version version = randomFrom(Version.V_5_3_0, Version.V_5_2_1);
         verifyUpgrade(version, disabledUsers, true);
     }
 
@@ -193,7 +193,7 @@ public class NativeRealmMigratorTests extends ESTestCase {
                                 .immutableMap()
                 ));
         String[] disabledUsers = new String[]{BeatsSystemUser.NAME};
-        verifyUpgrade(Version.V_5_2_0_UNRELEASED, disabledUsers, true);
+        verifyUpgrade(Version.V_5_2_0, disabledUsers, true);
     }
 
     private void verifyUpgrade(Version fromVersion, String[] disabledUsers, boolean convertDefaultPasswords) throws Exception {

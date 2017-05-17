@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -66,7 +65,7 @@ public class UserTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         User.writeTo(authUser, output);
         StreamInput input = output.bytes().streamInput();
-        input.setVersion(randomFrom(Version.V_5_0_0, Version.V_5_4_0_UNRELEASED));
+        input.setVersion(randomFrom(Version.V_5_0_0, Version.V_5_4_0));
         User readFrom = User.readFrom(input);
 
         assertThat(readFrom.principal(), is(user.principal()));
@@ -84,7 +83,7 @@ public class UserTests extends ESTestCase {
         User authUser = new User(randomAlphaOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false), user);
 
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(randomFrom(Version.V_5_0_0, Version.V_5_4_0_UNRELEASED));
+        output.setVersion(randomFrom(Version.V_5_0_0, Version.V_5_4_0));
         User.writeTo(authUser, output);
         StreamInput input = output.bytes().streamInput();
         User readFrom = User.readFrom(input);

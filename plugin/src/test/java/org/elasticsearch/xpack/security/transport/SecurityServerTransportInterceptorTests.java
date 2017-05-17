@@ -211,7 +211,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         };
         AsyncSender sender = interceptor.interceptSender(intercepted);
         Transport.Connection connection = mock(Transport.Connection.class);
-        final Version version = Version.fromId(randomIntBetween(Version.V_5_0_0_ID, Version.V_5_2_0_ID_UNRELEASED - 100));
+        final Version version = Version.fromId(randomIntBetween(Version.V_5_0_0_ID, Version.V_5_2_0_ID - 100));
         when(connection.getVersion()).thenReturn(version);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
@@ -223,7 +223,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         // reset and test with version that was changed
         calledWrappedSender.set(false);
         sendingUser.set(null);
-        when(connection.getVersion()).thenReturn(Version.V_5_2_0_UNRELEASED);
+        when(connection.getVersion()).thenReturn(Version.V_5_2_0);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertEquals(user, sendingUser.get());

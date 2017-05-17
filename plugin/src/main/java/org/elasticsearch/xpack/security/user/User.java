@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.user;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -197,7 +196,7 @@ public class User implements ToXContentObject {
         boolean hasInnerUser = input.readBoolean();
         if (hasInnerUser) {
             User innerUser = readFrom(input);
-            if (input.getVersion().onOrBefore(Version.V_5_4_0_UNRELEASED)) {
+            if (input.getVersion().onOrBefore(Version.V_5_4_0)) {
                 // backcompat: runas user was read first, so reverse outer and inner
                 return new User(innerUser, outerUser);
             } else {
@@ -219,7 +218,7 @@ public class User implements ToXContentObject {
             if (user.authenticatedUser == null) {
                 // no backcompat necessary, since there is no inner user
                 writeUser(user, output);
-            } else if (output.getVersion().onOrBefore(Version.V_5_4_0_UNRELEASED)) {
+            } else if (output.getVersion().onOrBefore(Version.V_5_4_0)) {
                 // backcompat: write runas user as the "inner" user
                 writeUser(user.authenticatedUser, output);
                 output.writeBoolean(true);

@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -183,7 +182,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
         assertThat(manager.isTemplateCreationPending(), Matchers.equalTo(templateUpdatePending));
 
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(false));
-        assertThat(manager.getMappingVersion(), Matchers.equalTo(Version.V_5_1_2_UNRELEASED));
+        assertThat(manager.getMappingVersion(), Matchers.equalTo(Version.V_5_1_2));
         assertThat(manager.isMappingUpdatePending(), Matchers.equalTo(mappingUpdatePending));
 
         assertThat(manager.isWritable(), Matchers.equalTo(false));

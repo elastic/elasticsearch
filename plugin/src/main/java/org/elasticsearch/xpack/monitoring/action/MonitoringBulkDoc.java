@@ -64,7 +64,7 @@ public class MonitoringBulkDoc extends MonitoringDoc implements Writeable {
         String id = in.readOptionalString();
         BytesReference source = in.readBytesReference();
         XContentType xContentType;
-        if (source != BytesArray.EMPTY && in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (source != BytesArray.EMPTY && in.getVersion().onOrAfter(Version.V_5_3_0)) {
             xContentType = XContentType.readFrom(in);
         } else {
             xContentType = XContentFactory.xContentType(source);
@@ -84,7 +84,7 @@ public class MonitoringBulkDoc extends MonitoringDoc implements Writeable {
         out.writeOptionalString(type);
         out.writeOptionalString(id);
         out.writeBytesReference(source);
-        if (source != null && source != BytesArray.EMPTY && out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (source != null && source != BytesArray.EMPTY && out.getVersion().onOrAfter(Version.V_5_3_0)) {
             xContentType.writeTo(out);
         }
     }

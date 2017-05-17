@@ -87,7 +87,6 @@ public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPac
                 assertThat(builder.string(),
                         anyOf(containsString("\"roles\":{\"native\":{\"size\":1,\"fls\":true,\"dls\":true}"),
                                 containsString("\"roles\":{\"native\":{\"size\":1,\"dls\":true,\"fls\":true}")));
-
             }
         }
 
@@ -128,7 +127,7 @@ public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPac
 
         /* check that a search that misses all documents doesn't hit any alias starting with `-`. We have one in the backwards compatibility
          * indices for versions before 5.1.0 because we can't create them any more. */
-        if (version.before(Version.V_5_1_1_UNRELEASED)) {
+        if (version.before(Version.V_5_1_1)) {
             GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases().get();
             List<AliasMetaData> aliases = aliasesResponse.getAliases().get("index3");
             assertThat("alias doesn't exist", aliases, hasSize(1));

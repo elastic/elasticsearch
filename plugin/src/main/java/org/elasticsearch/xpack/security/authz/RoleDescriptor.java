@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
-import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.support.Validation;
 
@@ -179,7 +178,7 @@ public class RoleDescriptor implements ToXContentObject {
         Map<String, Object> metadata = in.readMap();
 
         final Map<String, Object> transientMetadata;
-        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
             transientMetadata = in.readMap();
         } else {
             transientMetadata = Collections.emptyMap();
@@ -196,7 +195,7 @@ public class RoleDescriptor implements ToXContentObject {
         }
         out.writeStringArray(descriptor.runAs);
         out.writeMap(descriptor.metadata);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
             out.writeMap(descriptor.transientMetadata);
         }
     }

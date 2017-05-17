@@ -86,6 +86,9 @@ for (String line : versionLines) {
     }
   }
 }
+if (versions.toSorted() != versions) {
+  throw new GradleException('Versions.java contains out of order version constants')
+}
 if (currentVersion.split('\\.')[2].split('-')[0] == '0') {
   // If on a release branch, after the initial release of that branch, the bugfix version will
   // be bumped, and will be != 0. On master and N.x branches, we want to test against the

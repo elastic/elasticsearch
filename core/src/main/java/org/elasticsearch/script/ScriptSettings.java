@@ -74,10 +74,6 @@ public class ScriptSettings {
         final List<Setting<Boolean>> scriptModeSettings = new ArrayList<>();
 
         for (final Class<? extends ScriptEngine> scriptEngineService : scriptEngineRegistry.getRegisteredScriptEngineServices()) {
-            if (scriptEngineService == NativeScriptEngine.class) {
-                // native scripts are always enabled, and their settings can not be changed
-                continue;
-            }
             final String language = scriptEngineRegistry.getLanguage(scriptEngineService);
             for (final ScriptType scriptType : ScriptType.values()) {
                 // Top level, like "script.engine.groovy.inline"

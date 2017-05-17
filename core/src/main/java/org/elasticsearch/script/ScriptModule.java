@@ -45,12 +45,8 @@ public class ScriptModule {
      * {@link ScriptModule#ScriptModule(Settings, List, List)} for easier use in tests.
      */
     public static ScriptModule create(Settings settings, List<ScriptPlugin> scriptPlugins) {
-        Map<String, NativeScriptFactory> factoryMap = scriptPlugins.stream().flatMap(x -> x.getNativeScripts().stream())
-            .collect(Collectors.toMap(NativeScriptFactory::getName, Function.identity()));
-        NativeScriptEngine nativeScriptEngineService = new NativeScriptEngine(settings, factoryMap);
         List<ScriptEngine> scriptEngines = scriptPlugins.stream().map(x -> x.getScriptEngine(settings))
             .filter(Objects::nonNull).collect(Collectors.toList());
-        scriptEngines.add(nativeScriptEngineService);
         List<ScriptContext.Plugin> plugins = scriptPlugins.stream().map(x -> x.getCustomScriptContexts()).filter(Objects::nonNull)
                 .collect(Collectors.toList());
         return new ScriptModule(settings, scriptEngines, plugins);

@@ -31,11 +31,13 @@ import java.util.function.Function;
 /**
  * Mock scripts shared by DateRangeIT and DateHistogramIT.
  *
- * Provides {@link DateScriptMocksPlugin#EXTRACT_FIELD} and {@link DateScriptMocksPlugin#PLUS_ONE_MONTH} scripts.
+ * Provides {@link DateScriptMocksPlugin#EXTRACT_FIELD}, {@link DateScriptMocksPlugin#DOUBLE_PLUS_ONE_MONTH},
+ * and {@link DateScriptMocksPlugin#LONG_PLUS_ONE_MONTH} scripts.
  */
 public class DateScriptMocksPlugin extends MockScriptPlugin {
     static final String EXTRACT_FIELD = "extract_field";
-    static final String PLUS_ONE_MONTH = "date_plus_1_month";
+    static final String DOUBLE_PLUS_ONE_MONTH = "double_date_plus_1_month";
+    static final String LONG_PLUS_ONE_MONTH = "long_date_plus_1_month";
 
     @Override
     public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
@@ -45,8 +47,10 @@ public class DateScriptMocksPlugin extends MockScriptPlugin {
             String fieldname = (String) params.get("fieldname");
             return docLookup.get(fieldname);
         });
-        scripts.put(PLUS_ONE_MONTH, params ->
+        scripts.put(DOUBLE_PLUS_ONE_MONTH, params ->
             new DateTime(Double.valueOf((double) params.get("_value")).longValue(), DateTimeZone.UTC).plusMonths(1).getMillis());
+        scripts.put(LONG_PLUS_ONE_MONTH, params ->
+            new DateTime((long) params.get("_value"), DateTimeZone.UTC).plusMonths(1).getMillis());
         return scripts;
     }
 }

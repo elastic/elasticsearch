@@ -607,7 +607,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("date")
-                        .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.PLUS_ONE_MONTH, params))
+                        .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.LONG_PLUS_ONE_MONTH, params))
                         .dateHistogramInterval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -746,7 +746,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("dates")
-                        .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.PLUS_ONE_MONTH, params))
+                        .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.LONG_PLUS_ONE_MONTH, params))
                         .dateHistogramInterval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -1330,7 +1330,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "d");
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateHistogram("histo").field("d")
-                .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.PLUS_ONE_MONTH, params))
+                .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.LONG_PLUS_ONE_MONTH, params))
                 .dateHistogramInterval(DateHistogramInterval.MONTH)).get();
         assertSearchResponse(r);
 

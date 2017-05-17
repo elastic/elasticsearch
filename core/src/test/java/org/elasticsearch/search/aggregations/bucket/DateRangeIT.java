@@ -543,7 +543,7 @@ public class DateRangeIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("dates")
-                                .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.PLUS_ONE_MONTH, params))
+                                .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.DOUBLE_PLUS_ONE_MONTH, params))
                                 .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))).execute()
                 .actionGet();
 
@@ -904,7 +904,7 @@ public class DateRangeIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateRange("foo").field("date")
-                .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.PLUS_ONE_MONTH, params))
+                .script(new Script(ScriptType.INLINE, "mockscript", DateScriptMocksPlugin.DOUBLE_PLUS_ONE_MONTH, params))
                 .addRange(new DateTime(2012, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC), new DateTime(2013, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC)))
                 .get();
         assertSearchResponse(r);

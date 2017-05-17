@@ -148,7 +148,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         logger.info("Executing search");
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test").setQuery(
             scriptQuery(new Script(
-                ScriptType.INLINE, "native", "search", Collections.emptyMap())))
+                ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);

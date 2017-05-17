@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
@@ -41,9 +41,7 @@ public class ParsedScriptedMetric extends ParsedAggregation implements ScriptedM
 
     @Override
     public Object aggregation() {
-        if (aggregation.size() != 1) {
-            throw new IllegalStateException("aggregation was not reduced");
-        }
+        assert aggregation.size() == 1; // see InternalScriptedMetric#aggregations() for why we can assume this
         return aggregation.get(0);
     }
 
@@ -63,16 +61,27 @@ public class ParsedScriptedMetric extends ParsedAggregation implements ScriptedM
 
     private static Object parseValue(XContentParser parser) throws IOException {
         Token token = parser.currentToken();
+        Object value = null;
         if (token == XContentParser.Token.VALUE_NULL) {
-            return null;
+            value = null;
         } else if (token.isValue()) {
-            return XContentParserUtils.parseStoredFieldsValue(parser);
+            if (token == XContentParser.Token.VALUE_STRING) {
+                //binary values will be parsed back and returned as base64 strings when reading from json and yaml
+                value = parser.text();
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                value = parser.numberValue();
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                value = parser.booleanValue();
+            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
+                value = new BytesArray(parser.binaryValue());
+            }
         } else if (token == XContentParser.Token.START_OBJECT) {
-            return parser.map();
+            value = parser.map();
         } else if (token == XContentParser.Token.START_ARRAY) {
-            return parser.list();
+            value = parser.list();
         }
-        return null;
+        return value;
     }
 
     public static ParsedScriptedMetric fromXContent(XContentParser parser, final String name) {

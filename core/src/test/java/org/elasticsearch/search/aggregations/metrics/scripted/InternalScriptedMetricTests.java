@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
-import com.google.common.base.Supplier;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -36,7 +34,6 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,6 +42,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class InternalScriptedMetricTests extends InternalAggregationTestCase<InternalScriptedMetric> {
 
@@ -57,10 +55,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     private final Supplier<Object>[] nestedValueSuppliers = new Supplier[] { () -> new HashMap<String, Object>(),
             () -> new ArrayList<>() };
 
-
-
     @Override
-    @Before
     public void setUp() throws Exception {
         super.setUp();
         hasReduceScript = randomBoolean();
@@ -164,7 +159,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         assertValues(aggregation.aggregation(), parsed.aggregation());
     }
 
-    private void assertValues(Object expected, Object actual) {
+    private static void assertValues(Object expected, Object actual) {
         if (expected instanceof Long) {
             // longs that fit into the integer range are parsed back as integer
             if (actual instanceof Integer) {

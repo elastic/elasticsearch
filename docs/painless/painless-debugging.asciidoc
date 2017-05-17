@@ -1,4 +1,4 @@
-[[modules-scripting-painless-debugging]]
+[[painless-debugging]]
 === Painless Debugging
 
 experimental[The Painless scripting language is new and is still marked as experimental. The syntax or API may be changed in the future in non-backwards compatible ways if required.]
@@ -15,8 +15,8 @@ places. While you can throw your own exceptions
 (`throw new Exception('whatever')`), Painless's sandbox prevents you from
 accessing useful information like the type of an object. So Painless has a
 utility method, `Debug.explain` which throws the exception for you. For
-example, you can use the <<search-explain>> to explore the context available to
-a <<query-dsl-script-query>>.
+example, you can use {ref}/search-explain.html[`_explain`] to explore the
+context available to a {ref}/query-dsl-script-query.html[script query].
 
 [source,js]
 ---------------------------------------------------------

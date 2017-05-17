@@ -89,17 +89,18 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
 
     @SuppressWarnings("unchecked")
     private static Object randomValue(Supplier<Object>[] valueTypes, int level) {
-        Supplier<Object> sup = valueTypes[level];
-        Object value = sup.get();
+        Object value = valueTypes[level].get();
         if (value instanceof Map) {
-            int elements = randomIntBetween(1,5);
+            int elements = randomIntBetween(1, 5);
+            Map<String, Object> map = (Map<String, Object>) value;
             for (int i = 0; i < elements; i++) {
-                ((Map<String, Object>) value).put(randomAlphaOfLength(5), randomValue(valueTypes, level + 1));
+                map.put(randomAlphaOfLength(5), randomValue(valueTypes, level + 1));
             }
         } else if (value instanceof List) {
             int elements = randomIntBetween(1,5);
+            List<Object> list = (List<Object>) value;
             for (int i = 0; i < elements; i++) {
-                ((List<Object>) value).add(randomValue(valueTypes, level + 1));
+                list.add(randomValue(valueTypes, level + 1));
             }
         }
         return value;

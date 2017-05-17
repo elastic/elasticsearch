@@ -414,13 +414,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         FAILURE
     }
 
-    static {
-        assert Version.CURRENT.minimumCompatibilityVersion().after(Version.V_5_0_0) == false:
-                "Remove logic handling NoOp result from primary response; see TODO in replicaItemExecutionMode" +
-                        " as the current minimum compatible version [" +
-                        Version.CURRENT.minimumCompatibilityVersion() + "] is after 5.0";
-    }
-
     /**
      * Determines whether a bulk item request should be executed on the replica.
      * @return {@link ReplicaItemExecutionMode#NORMAL} upon normal primary execution with no failures
@@ -438,11 +431,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             // NOTE: write requests originating from pre-6.0 nodes can send a no-op operation to
             // the replica; we ignore replication
-            // TODO: remove noOp result check from primary response, when pre-6.0 nodes are not supported
-            // we should return ReplicationItemExecutionMode.NORMAL instead
-            return primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP
-                    ? ReplicaItemExecutionMode.NORMAL // execution successful on primary
-                    : ReplicaItemExecutionMode.NOOP; // ignore replication
+            return ReplicaItemExecutionMode.NORMAL;
         }
     }
 

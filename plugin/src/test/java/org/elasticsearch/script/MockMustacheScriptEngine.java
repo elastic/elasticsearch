@@ -39,11 +39,6 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
     }
 
     @Override
-    public String getExtension() {
-        return NAME;
-    }
-
-    @Override
     public Object compile(String name, String script, Map<String, String> params) {
         if (script.contains("{{") && script.contains("}}")) {
             throw new IllegalArgumentException("Fix your test to not rely on mustache");

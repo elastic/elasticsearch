@@ -11,7 +11,6 @@ integTestCluster {
   plugin ':x-pack-elasticsearch:plugin'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
-  setting 'path.scripts', "${project.buildDir}/resources/test/templates"
   setupCommand 'setupDummyUser',
           'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
   waitCondition = { node, ant ->

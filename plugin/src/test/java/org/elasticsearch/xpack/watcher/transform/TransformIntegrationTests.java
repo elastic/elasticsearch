@@ -130,7 +130,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         if (randomBoolean()) {
             logger.info("testing script transform with an inline script");
             script = mockScript("['key3' : ctx.payload.key1 + ctx.payload.key2]");
-        } else if (randomBoolean()) {
+        } else {
             logger.info("testing script transform with an indexed script");
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setId("my-script")
@@ -138,9 +138,6 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                     .setContent(new BytesArray("{\"script\" : \"['key3' : ctx.payload.key1 + ctx.payload.key2]\"}"), XContentType.JSON)
                     .get());
             script = new Script(ScriptType.STORED, "mockscript", "my-script", Collections.emptyMap());
-        } else {
-            logger.info("testing script transform with a file script");
-            script = new Script(ScriptType.FILE, "mockscript", "my-script", Collections.emptyMap());
         }
 
         // put a watch that has watch level transform:

@@ -39,11 +39,6 @@ public class MockPainlessScriptEngine extends MockScriptEngine {
     }
 
     @Override
-    public String getExtension() {
-        return NAME;
-    }
-
-    @Override
     public Object compile(String name, String script, Map<String, String> params) {
         // We always return the script's source as it is
         return new MockCompiledScript(name, params, script, null);

@@ -41,17 +41,13 @@ public class WatcherTemplateIT extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        Settings setting = Settings.builder().put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, true).build();
-        Environment environment = Mockito.mock(Environment.class);
-        ResourceWatcherService resourceWatcherService = Mockito.mock(ResourceWatcherService.class);
         ScriptContextRegistry registry = new ScriptContextRegistry(Collections.singletonList(new ScriptContext.Plugin("xpack", "watch")));
 
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
                 Collections.singleton(new MustacheScriptEngine())
         );
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, registry);
-        ScriptService scriptService = new ScriptService(setting, environment, resourceWatcherService, scriptEngineRegistry,
-                registry, scriptSettings);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptEngineRegistry, registry, scriptSettings);
         engine = new TextTemplateEngine(Settings.EMPTY, scriptService);
     }
 

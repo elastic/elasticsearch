@@ -24,7 +24,7 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
     }
 
     public void testFromXContentWithTemplateCustomLang() throws IOException {
-        String source = "{\"template\":{\"file\":\"custom-script\", \"lang\":\"painful\",\"params\":{\"bar\":\"baz\"}}}";
+        String source = "{\"template\":{\"inline\":\"custom-script\", \"lang\":\"painful\",\"params\":{\"bar\":\"baz\"}}}";
         assertTemplate(source, "custom-script", "painful", singletonMap("bar", "baz"));
     }
 

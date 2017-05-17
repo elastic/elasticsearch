@@ -111,7 +111,7 @@ setup:
                   "privileges": ["all"],
                   "query" : {
                     "template" : {
-                      "file" : "query"
+                      "id" : "query"
                     }
                   }
                 }

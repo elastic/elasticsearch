@@ -116,7 +116,7 @@ you can then reference it by name in the watch condition.
 --------------------------------------------------
 "condition" : {
   "script" : {
-    "file" : "threshold_hits",
+    "id" : "threshold_hits",
     "params" : {
       "threshold" : 0 <1>
     }
@@ -181,7 +181,7 @@ PUT _xpack/watcher/watch/rss_watch
   },
   "condition" : {
     "script" : {
-      "file" : "threshold_hits",
+      "id" : "threshold_hits",
       "params" : {
         "threshold" : 0
       }
@@ -204,7 +204,7 @@ PUT _xpack/watcher/watch/rss_watch
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/"file" : "threshold_hits"/"inline": "return ctx.payload.hits.total > params.threshold"/]
+// TEST[s/"id" : "threshold_hits"/"inline": "return ctx.payload.hits.total > params.threshold"/]
 <1> Replace `<username>@<domainname>` with your email address to receive
     notifications.
 

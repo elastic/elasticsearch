@@ -248,8 +248,7 @@ public final class WatcherTestUtils {
         ScriptEngineRegistry scriptEngineRegistry =
                 new ScriptEngineRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        return new ScriptService(settings, new Environment(settings), new ResourceWatcherService(settings, tp),
-            scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        return new ScriptService(settings, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
     }
 
     public static SearchType getRandomSupportedSearchType() {

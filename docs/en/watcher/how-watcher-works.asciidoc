@@ -458,7 +458,7 @@ references the script file `threshold_hits.painless`:
 --------------------------------------------------
 "condition" : {
     "script" : {
-      "file" : "threshold_hits",
+      "id" : "threshold_hits",
       "params" : {
         "threshold" : 0
       }

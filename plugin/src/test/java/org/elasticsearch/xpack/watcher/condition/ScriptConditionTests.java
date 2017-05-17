@@ -92,11 +92,8 @@ public class ScriptConditionTests extends ESTestCase {
         ScriptContextRegistry contextRegistry = new ScriptContextRegistry(singleton(new ScriptContext.Plugin("xpack", "watch")));
         ScriptSettings scriptSettings = new ScriptSettings(registry, contextRegistry);
 
-        Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .build();
 
-        scriptService = new ScriptService(settings, new Environment(settings), null, registry, contextRegistry, scriptSettings);
+        scriptService = new ScriptService(Settings.EMPTY, registry, contextRegistry, scriptSettings);
         ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
         clusterState.metaData(MetaData.builder().putCustom(ScriptMetaData.TYPE, new ScriptMetaData.Builder(null).build()));
         ClusterState cs = clusterState.build();
@@ -152,7 +149,7 @@ public class ScriptConditionTests extends ESTestCase {
             fail("expected a condition exception trying to parse an invalid condition XContent");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(),
-                    containsString("must specify either code for an [inline] script or an id for a [stored] script or [file] script"));
+                    containsString("must specify either code for an [inline] script or an id for a [stored] script"));
         }
     }
 
@@ -163,10 +160,6 @@ public class ScriptConditionTests extends ESTestCase {
         switch (scriptType) {
             case STORED:
                 expectedException = ResourceNotFoundException.class;
-                script = "nonExisting_script";
-                break;
-            case FILE:
-                expectedException = IllegalArgumentException.class;
                 script = "nonExisting_script";
                 break;
             default:
@@ -227,9 +220,6 @@ public class ScriptConditionTests extends ESTestCase {
         switch (scriptType) {
             case INLINE:
                 builder.field("inline", script);
-                break;
-            case FILE:
-                builder.field("file", script);
                 break;
             case STORED:
                 builder.field("stored", script);

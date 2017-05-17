@@ -192,7 +192,7 @@ public class SearchTransformTests extends ESIntegTestCase {
             builder.field("search_type", searchType.name());
         }
         if (templateName != null) {
-            TextTemplate template = new TextTemplate(templateName, null, ScriptType.FILE, null);
+            TextTemplate template = new TextTemplate(templateName, null, ScriptType.INLINE, null);
             builder.field("template", template);
         }
 
@@ -228,7 +228,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         }
         if (templateName != null) {
             assertThat(executable.transform().getRequest().getTemplate(),
-                    equalTo(new Script(ScriptType.FILE, "mustache", "template1", Collections.emptyMap())));
+                    equalTo(new Script(ScriptType.INLINE, "mustache", "template1", Collections.emptyMap())));
         }
         assertThat(executable.transform().getRequest().getSearchSource().utf8ToString(), equalTo("{\"query\":{\"match_all\":{}}}"));
         assertThat(executable.transform().getTimeout(), equalTo(readTimeout));

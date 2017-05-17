@@ -102,9 +102,6 @@ public class TextTemplateTests extends ESTestCase {
             case INLINE:
                 builder.field("inline", template.getTemplate());
                 break;
-            case FILE:
-                builder.field("file", template.getTemplate());
-                break;
             case STORED:
                 builder.field("stored", template.getTemplate());
         }

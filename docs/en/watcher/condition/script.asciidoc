@@ -72,7 +72,7 @@ file:
 --------------------------------------------------
 "condition" : {
   "script" : {
-    "file" : "my_script"
+    "id" : "my_script"
   }
 }
 --------------------------------------------------
@@ -84,7 +84,7 @@ script language and parameters:
 --------------------------------------------------
 "condition" : {
   "script" : {
-    "file" : "my_script",
+    "id" : "my_script",
     "lang" : "javascript",
     "params" : {
       "result" : true

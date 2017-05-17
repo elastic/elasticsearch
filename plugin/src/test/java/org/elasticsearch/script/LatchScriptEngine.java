@@ -39,11 +39,6 @@ public class LatchScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public String getExtension() {
-        return NAME;
-    }
-
-    @Override
     public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         return scriptSource;
     }

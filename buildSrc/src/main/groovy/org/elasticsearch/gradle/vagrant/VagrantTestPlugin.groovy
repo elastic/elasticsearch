@@ -82,17 +82,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
     }
 
-
-
-    private static File getVersionsFile(Project project) {
-        File versions = new File(project.projectDir, 'versions');
-        if (versions.exists() == false) {
-            // Use the elasticsearch's versions file from project :qa:vagrant
-            versions = project.project(":qa:vagrant").file('versions')
-        }
-        return versions
-    }
-
     private static void configureBatsRepositories(Project project) {
         RepositoryHandler repos = project.repositories
 
@@ -128,8 +117,7 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         String upgradeFromVersion = System.getProperty("tests.packaging.upgradeVersion");
         if (upgradeFromVersion == null) {
-            List<String> availableVersions = getVersionsFile(project).readLines('UTF-8')
-            upgradeFromVersion = availableVersions[new Random(seed).nextInt(availableVersions.size())]
+            upgradeFromVersion = project.indexCompatVersions[new Random(seed).nextInt(project.indexCompatVersions.size())]
         }
 
         DISTRIBUTION_ARCHIVES.each {

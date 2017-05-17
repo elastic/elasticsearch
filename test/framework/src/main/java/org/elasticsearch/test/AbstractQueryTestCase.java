@@ -1087,12 +1087,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             if (scriptPlugins == null || scriptPlugins.isEmpty()) {
                 return newTestScriptModule();
             }
-
-            Settings settings = Settings.builder()
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                    .build();
-            Environment environment = new Environment(settings);
-            return ScriptModule.create(settings, environment, null, scriptPlugins);
+            return ScriptModule.create(Settings.EMPTY, scriptPlugins);
         }
     }
 }

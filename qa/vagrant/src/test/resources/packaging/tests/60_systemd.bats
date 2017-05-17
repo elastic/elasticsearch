@@ -69,11 +69,6 @@ setup() {
 }
 
 @test "[SYSTEMD] start" {
-    # Install scripts used to test script filters and search templates before
-    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
-    # them.
-    install_elasticsearch_test_scripts
-
     # Capture the current epoch in millis
     run date +%s
     epoch="$output"

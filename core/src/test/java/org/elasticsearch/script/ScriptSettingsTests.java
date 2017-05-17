@@ -33,12 +33,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptSettingsTests extends ESTestCase {
 
-    public static Setting<?>[] buildDeprecatedSettingsArray(ScriptSettings scriptSettings, String... keys) {
-        return buildDeprecatedSettingsArray(null, scriptSettings, keys);
-    }
 
-    public static Setting<?>[] buildDeprecatedSettingsArray(Setting<?>[] deprecated, ScriptSettings scriptSettings, String... keys) {
-        Setting<?>[] settings = new Setting[keys.length + (deprecated == null ? 0 : deprecated.length)];
+    public static Setting<?>[] buildDeprecatedSettingsArray(ScriptSettings scriptSettings, String... keys) {
+        Setting<?>[] settings = new Setting[keys.length];
         int count = 0;
 
         for (Setting<?> setting : scriptSettings.getSettings()) {
@@ -47,10 +44,6 @@ public class ScriptSettingsTests extends ESTestCase {
                     settings[count++] = setting;
                 }
             }
-        }
-
-        if (deprecated != null) {
-            System.arraycopy(deprecated, 0, settings, keys.length, deprecated.length);
         }
 
         return settings;
@@ -79,11 +72,6 @@ public class ScriptSettingsTests extends ESTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 

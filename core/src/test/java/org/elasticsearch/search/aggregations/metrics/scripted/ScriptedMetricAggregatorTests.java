@@ -198,15 +198,13 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     @Override
     protected QueryShardContext queryShardContextMock(MapperService mapperService, final MappedFieldType[] fieldTypes,
             CircuitBreakerService circuitBreakerService) {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS);
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(scriptEngine));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ScriptService scriptService;
         try {
-            scriptService =  new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry,
-                    scriptSettings);
+            scriptService =  new ScriptService(Settings.EMPTY, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         }

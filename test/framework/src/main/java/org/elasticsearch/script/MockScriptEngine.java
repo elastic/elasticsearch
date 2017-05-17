@@ -67,11 +67,6 @@ public class MockScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public String getExtension() {
-        return getType();
-    }
-
-    @Override
     public Object compile(String name, String source, Map<String, String> params) {
         // Scripts are always resolved using the script's source. For inline scripts, it's easy because they don't have names and the
         // source is always provided. For stored and file scripts, the source of the script must match the key of a predefined script.

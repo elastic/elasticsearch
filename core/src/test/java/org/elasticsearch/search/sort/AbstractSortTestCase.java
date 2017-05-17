@@ -93,8 +93,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new TestEngine()));
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        scriptService = new ScriptService(baseSettings, environment,
-                new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
+        scriptService = new ScriptService(baseSettings, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
             public CompiledScript compile(Script script, ScriptContext scriptContext) {
                 return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);

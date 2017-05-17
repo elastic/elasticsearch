@@ -149,7 +149,7 @@ It is also possible to customize the key for each range:
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a stored script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -158,7 +158,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
         "price_ranges" : {
             "range" : {
                 "script" : {
-                    "file": "my_script",
+                    "stored": "my_script",
                     "params": {
                         "field": "price"
                     }
@@ -173,8 +173,6 @@ This will interpret the `script` parameter as an `inline` script with the `painl
     }
 }
 --------------------------------------------------
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ==== Value Script
 

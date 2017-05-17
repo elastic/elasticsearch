@@ -462,7 +462,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                 continue;
             }
             if (luceneFactory == null) {
-                luceneFactory = TokenFilterFactory.lookupClass(toCamelCase(name));
+                luceneFactory = TokenizerFactory.lookupClass(toCamelCase(name));
             }
             assertThat(luceneFactory, typeCompatibleWith(TokenizerFactory.class));
             PreConfiguredTokenizer tokenizer = preConfiguredTokenizers.get(name);

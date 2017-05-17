@@ -60,5 +60,5 @@ abstract class PreConfiguredAnalysisComponent<T> implements AnalysisModule.Analy
         return name;
     }
 
-    protected abstract T create(final Version version);
+    protected abstract T create(Version version);
 }

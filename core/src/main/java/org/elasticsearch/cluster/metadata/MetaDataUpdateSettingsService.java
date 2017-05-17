@@ -128,10 +128,10 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
 
         if (nrReplicasChanged.size() > 0) {
-            // update settings and kick of a reroute (implicit) for them to take effect
-            for (final Integer fNumberOfReplicas : nrReplicasChanged.keySet()) {
-                Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
-                final List<Index> indices = nrReplicasChanged.get(fNumberOfReplicas);
+            // update settings and kick off a reroute (implicit) for them to take effect
+            for (final Map.Entry<Integer, List<Index>> nrReplicasChangedWithList : nrReplicasChanged.entrySet()) {
+                Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, nrReplicasChangedWithList.getKey()).build();
+                final List<Index> indices = nrReplicasChangedWithList.getValue();
 
                 UpdateSettingsClusterStateUpdateRequest updateRequest = new UpdateSettingsClusterStateUpdateRequest()
                         .indices(indices.toArray(new Index[indices.size()])).settings(settings)
@@ -142,14 +142,14 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     @Override
                     public void onResponse(ClusterStateUpdateResponse response) {
                         for (Index index : indices) {
-                            logger.info("{} auto expanded replicas to [{}]", index, fNumberOfReplicas);
+                            logger.info("{} auto expanded replicas to [{}]", index, nrReplicasChangedWithList.getKey());
                         }
                     }
 
                     @Override
                     public void onFailure(Exception t) {
                         for (Index index : indices) {
-                            logger.warn("{} fail to auto expand replicas to [{}]", index, fNumberOfReplicas);
+                            logger.warn("{} fail to auto expand replicas to [{}]", index, nrReplicasChangedWithList.getKey());
                         }
                     }
                 });

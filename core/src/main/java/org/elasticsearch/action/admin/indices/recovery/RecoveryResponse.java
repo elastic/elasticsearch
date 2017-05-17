@@ -80,12 +80,12 @@ public class RecoveryResponse extends BroadcastResponse implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (hasRecoveries()) {
-            for (String index : shardRecoveryStates.keySet()) {
-                List<RecoveryState> recoveryStates = shardRecoveryStates.get(index);
+            for (Map.Entry<String, List<RecoveryState>> shardRecoveryState : shardRecoveryStates.entrySet()) {
+                List<RecoveryState> recoveryStates = shardRecoveryState.getValue();
                 if (recoveryStates == null || recoveryStates.size() == 0) {
                     continue;
                 }
-                builder.startObject(index);
+                builder.startObject(shardRecoveryState.getKey());
                 builder.startArray("shards");
                 for (RecoveryState recoveryState : recoveryStates) {
                     builder.startObject();
@@ -103,10 +103,10 @@ public class RecoveryResponse extends BroadcastResponse implements ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(shardRecoveryStates.size());
-        for (Map.Entry<String, List<RecoveryState>> entry : shardRecoveryStates.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().size());
-            for (RecoveryState recoveryState : entry.getValue()) {
+        for (Map.Entry<String, List<RecoveryState>> shardRecoveryState : shardRecoveryStates.entrySet()) {
+            out.writeString(shardRecoveryState.getKey());
+            out.writeVInt(shardRecoveryState.getValue().size());
+            for (RecoveryState recoveryState : shardRecoveryState.getValue()) {
                 recoveryState.writeTo(out);
             }
         }

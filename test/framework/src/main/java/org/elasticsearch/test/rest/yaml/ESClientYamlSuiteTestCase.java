@@ -32,15 +32,12 @@ import java.util.Set;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.HttpHost;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -173,10 +170,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         List<Object[]> tests = new ArrayList<>();
         Map<String, Set<Path>> yamlSuites = loadSuites(paths);
         // yaml suites are grouped by directory (effectively by api)
-        for (String api : yamlSuites.keySet()) {
-            List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
+        for (Map.Entry<String, Set<Path>> yamlSuite : yamlSuites.entrySet()) {
+            List<Path> yamlFiles = new ArrayList<>(yamlSuite.getValue());
             for (Path yamlFile : yamlFiles) {
-                ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(api, yamlFile);
+                ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(yamlSuite.getKey(), yamlFile);
                 for (ClientYamlTestSection testSection : restTestSuite.getTestSections()) {
                     tests.add(new Object[]{ new ClientYamlTestCandidate(restTestSuite, testSection) });
                 }

@@ -288,14 +288,14 @@ public class RunningStats implements Writeable, Cloneable {
             // merge covariances
             if (covariances.containsKey(fieldName)) {
                 HashMap<String, Double> cFieldVals = covariances.get(fieldName);
-                for (String cFieldName : cFieldVals.keySet()) {
-                    newVal = cFieldVals.get(cFieldName);
-                    if (other.covariances.containsKey(fieldName) && other.covariances.get(fieldName).containsKey(cFieldName)) {
-                        newVal += other.covariances.get(fieldName).get(cFieldName) + f * dR * deltas.get(cFieldName);
+                for (Map.Entry<String, Double> cFieldVal : cFieldVals.entrySet()) {
+                    newVal = cFieldVal.getValue();
+                    if (other.covariances.containsKey(fieldName) && other.covariances.get(fieldName).containsKey(cFieldVal.getKey())) {
+                        newVal += other.covariances.get(fieldName).get(cFieldVal.getKey()) + f * dR * deltas.get(cFieldVal.getKey());
                     } else {
-                        newVal += other.covariances.get(cFieldName).get(fieldName) + f * dR * deltas.get(cFieldName);
+                        newVal += other.covariances.get(cFieldVal.getKey()).get(fieldName) + f * dR * deltas.get(cFieldVal.getKey());
                     }
-                    cFieldVals.put(cFieldName, newVal);
+                    cFieldVals.put(cFieldVal.getKey(), newVal);
                 }
                 covariances.put(fieldName, cFieldVals);
             }

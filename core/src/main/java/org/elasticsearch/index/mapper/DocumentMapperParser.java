@@ -154,8 +154,8 @@ public class DocumentMapperParser {
 
     private static String getRemainingFields(Map<?, ?> map) {
         StringBuilder remainingFields = new StringBuilder();
-        for (Object key : map.keySet()) {
-            remainingFields.append(" [").append(key).append(" : ").append(map.get(key)).append("]");
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            remainingFields.append(" [").append(entry.getKey()).append(" : ").append(entry.getValue()).append("]");
         }
         return remainingFields.toString();
     }

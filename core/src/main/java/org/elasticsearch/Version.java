@@ -290,7 +290,8 @@ public class Version implements Comparable<Version> {
 
     /**
      * Returns the minimum created index version that this version supports. Indices created with lower versions
-     * can't be used with this version.
+     * can't be used with this version. This should also be used for file based serialization backwards compatibility ie. on serialization
+     * code that is used to read / write file formats like transaction logs, cluster state, and index metadata.
      */
     public Version minimumIndexCompatibilityVersion() {
         final int bwcMajor;

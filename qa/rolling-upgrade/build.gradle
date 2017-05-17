@@ -30,7 +30,6 @@ task bwcTest {
 for (String version : wireCompatVersions) {
   String baseName = "v${version}"
 
-  println "creating rest integ test task"
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
     mustRunAfter(precommit)
   }
@@ -90,7 +89,6 @@ for (String version : wireCompatVersions) {
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
     dependsOn = [upgradedClusterTest]
   }
-  println "Created ${versionBwcTest.name}"
 
   bwcTest.dependsOn(versionBwcTest)
 }

@@ -58,11 +58,6 @@ public class NativeScriptEngine extends AbstractComponent implements ScriptEngin
     }
 
     @Override
-    public String getExtension() {
-        return ""; // Native scripts have no extensions
-    }
-
-    @Override
     public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         NativeScriptFactory scriptFactory = scripts.get(scriptSource);
         if (scriptFactory != null) {

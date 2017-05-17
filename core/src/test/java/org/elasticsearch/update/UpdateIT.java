@@ -92,11 +92,6 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public String getExtension() {
-            return NAME;
-        }
-
-        @Override
         public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
             return new Object(); // unused
         }
@@ -165,11 +160,6 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public String getExtension() {
-            return NAME;
-        }
-
-        @Override
         public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
             return scriptSource;
         }
@@ -227,11 +217,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 
@@ -294,11 +279,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 

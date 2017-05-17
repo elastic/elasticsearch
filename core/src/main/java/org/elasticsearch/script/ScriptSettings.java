@@ -84,9 +84,6 @@ public class ScriptSettings {
                 final boolean defaultNonFileScriptMode = scriptEngineRegistry.getDefaultInlineScriptEnableds().get(language);
                 boolean defaultLangAndType = defaultNonFileScriptMode;
                 // Files are treated differently because they are never default-deny
-                if (ScriptType.FILE == scriptType) {
-                    defaultLangAndType = ScriptType.FILE.isDefaultEnabled();
-                }
                 final boolean defaultIfNothingSet = defaultLangAndType;
 
                 Function<Settings, String> defaultLangAndTypeFn = settings -> {

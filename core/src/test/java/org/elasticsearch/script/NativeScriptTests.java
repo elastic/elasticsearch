@@ -46,7 +46,8 @@ public class NativeScriptTests extends ESTestCase {
                 .put("node.name", "testNativeScript")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
-        ScriptModule scriptModule = new ScriptModule(settings, new Environment(settings), null,
+
+        ScriptModule scriptModule = new ScriptModule(settings,
                 singletonList(new NativeScriptEngine(settings, singletonMap("my", new MyNativeScriptFactory()))), emptyList());
         List<Setting<?>> scriptSettings = scriptModule.getSettings();
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
@@ -68,15 +69,13 @@ public class NativeScriptTests extends ESTestCase {
             builder.put("script" + "." + scriptContext.getKey(), randomBoolean());
         }
         Settings settings = builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        Environment environment = new Environment(settings);
-        ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, null);
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(new NativeScriptEngine(settings,
             nativeScriptFactoryMap)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<>());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry,
+        ScriptService scriptService = new ScriptService(settings, scriptEngineRegistry,
             scriptContextRegistry, scriptSettings);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {

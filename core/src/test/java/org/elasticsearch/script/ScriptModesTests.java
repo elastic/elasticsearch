@@ -88,7 +88,7 @@ public class ScriptModesTests extends ESTestCase {
         if (assertScriptModesNonNull) {
             assertThat(scriptModes, notNullValue());
             int numberOfSettings = ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
-            numberOfSettings += 3; // for top-level inline/store/file settings
+            numberOfSettings += 2; // for top-level inline/store settings
             assertThat(scriptModes.scriptEnabled.size(), equalTo(numberOfSettings));
             if (assertAllSettingsWereChecked) {
                 assertThat(checkedSettings.size(), equalTo(numberOfSettings));
@@ -98,7 +98,6 @@ public class ScriptModesTests extends ESTestCase {
 
     public void testDefaultSettings() {
         this.scriptModes = new ScriptModes(scriptContextRegistry, scriptSettings, Settings.EMPTY);
-        assertScriptModesAllOps(true, ScriptType.FILE);
         assertScriptModesAllOps(false, ScriptType.STORED, ScriptType.INLINE);
     }
 
@@ -136,9 +135,6 @@ public class ScriptModesTests extends ESTestCase {
         for (int i = 0; i < randomInt; i++) {
             assertScriptModesAllOps(randomScriptModes[i], randomScriptTypes[i]);
         }
-        if (randomScriptTypesSet.contains(ScriptType.FILE) == false) {
-            assertScriptModesAllOps(true, ScriptType.FILE);
-        }
         if (randomScriptTypesSet.contains(ScriptType.STORED) == false) {
             assertScriptModesAllOps(false, ScriptType.STORED);
         }
@@ -174,7 +170,6 @@ public class ScriptModesTests extends ESTestCase {
         }
 
         ScriptContext[] complementOf = complementOf(randomScriptContexts);
-        assertScriptModes(true, new ScriptType[]{ScriptType.FILE}, complementOf);
         assertScriptModes(false, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
         assertSettingDeprecationsAndWarnings(
             ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, deprecated.toArray(new String[] {})));
@@ -190,7 +185,7 @@ public class ScriptModesTests extends ESTestCase {
         this.scriptModes = new ScriptModes(scriptContextRegistry, scriptSettings, builder.build());
         assertScriptModesAllTypes(false, scriptContext);
         ScriptContext[] complementOf = complementOf(scriptContext);
-        assertScriptModes(true, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);
+        assertScriptModes(true, new ScriptType[]{ScriptType.STORED}, complementOf);
         assertScriptModes(true, new ScriptType[]{ScriptType.INLINE}, complementOf);
         assertSettingDeprecationsAndWarnings(
             ScriptSettingsTests.buildDeprecatedSettingsArray(
@@ -244,11 +239,6 @@ public class ScriptModesTests extends ESTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 

@@ -144,12 +144,9 @@ or disabled based on where they are stored. For example:
 -----------------------------------
 script.inline: false  <1>
 script.stored: false  <2>
-script.file:   true   <3>
 -----------------------------------
 <1> Refuse to run scripts provided inline in the API.
 <2> Refuse to run scripts stored using the API.
-<3> Run scripts found on the filesystem in `/etc/elasticsearch/scripts`
-(rpm or deb) or `config/scripts` (zip or tar).
 
 NOTE: These settings override the defaults mentioned
 <<modules-scripting-security-do-no-weaken, above>>. Recreating the defaults
@@ -194,14 +191,14 @@ settings. They have two forms:
 
 [source,yaml]
 ------------------------
-script.engine.{lang}.{inline|file|stored}.{context}: true|false
+script.engine.{lang}.{inline|stored}.{context}: true|false
 ------------------------
 
 And
 
 [source,yaml]
 ------------------------
-script.engine.{lang}.{inline|file|stored}: true|false
+script.engine.{lang}.{inline|stored}: true|false
 ------------------------
 
 For example:
@@ -210,7 +207,6 @@ For example:
 -----------------------------------
 script.inline: false <1>
 script.stored: false <1>
-script.file:   false <1>
 
 script.engine.painless.inline:          true <2>
 script.engine.painless.stored.search:   true <3>

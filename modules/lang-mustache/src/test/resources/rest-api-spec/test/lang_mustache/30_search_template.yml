@@ -23,12 +23,6 @@
   - match: { hits.total: 1 }
 
   - do:
-      search_template:
-        body: { "file" : "file_search_template", "params": { "my_value": "value1", "my_field" : "_type" } }
-
-  - match: { hits.total: 1 }
-
-  - do:
       put_template:
         id: "1"
         body: { "template": { "query": { "term": { "text": "{{template}}" } } } }
@@ -94,22 +88,28 @@
       indices.refresh: {}
 
   - do:
+      put_template:
+        id: "template_1"
+        body: { "template": { "query": { "match": { "{{field}}": { "query" : "{{value}}", "operator" : "{{operator}}{{^operator}}or{{/operator}}" } } }, "size": "{{size}}" } }
+  - match: { acknowledged: true }
+
+  - do:
       search_template:
-        body: { "file" : "template_1", "params": { "size": "2", "field": "theField", "value": "foo" } }
+        body: { "id" : "template_1", "params": { "size": "2", "field": "theField", "value": "foo" } }
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 2 }
 
   - do:
       search_template:
-        body: { "file" : "template_1", "params": { "size": "2", "field": "otherField", "value": "foo" } }
+        body: { "id" : "template_1", "params": { "size": "2", "field": "otherField", "value": "foo" } }
 
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
 
   - do:
       search_template:
-        body: { "file" : "template_1", "params": { "size": "2", "field": "otherField", "value": "foo" }, "explain" : true }
+        body: { "id" : "template_1", "params": { "size": "2", "field": "otherField", "value": "foo" }, "explain" : true }
 
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
@@ -117,7 +117,7 @@
 
   - do:
       search_template:
-        body: { "file" : "template_1", "params": { "size": "2", "field": "otherField", "value": "foo" }, "profile" : true }
+        body: { "id" : "template_1", "params": { "size": "2", "field": "otherField", "value": "foo" }, "profile" : true }
 
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }

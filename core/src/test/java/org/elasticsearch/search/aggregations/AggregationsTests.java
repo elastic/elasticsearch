@@ -58,6 +58,7 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDR
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentilesTests;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentilesRanksTests;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentilesTests;
+import org.elasticsearch.search.aggregations.metrics.scripted.InternalScriptedMetricTests;
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSumTests;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCountTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
@@ -130,6 +131,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalAdjacencyMatrixTests());
         aggsTests.add(new SignificantLongTermsTests());
         aggsTests.add(new SignificantStringTermsTests());
+        aggsTests.add(new InternalScriptedMetricTests());
         return Collections.unmodifiableList(aggsTests);
     }
 

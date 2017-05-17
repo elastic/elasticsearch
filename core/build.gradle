@@ -124,8 +124,8 @@ forbiddenPatterns {
 task generateModulesList {
   List<String> modules = project(':modules').subprojects.collect { it.name }
   File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
-  processResources.from(modulesFile) 
-  inputs.property('modules', modules) 
+  processResources.from(modulesFile)
+  inputs.property('modules', modules)
   outputs.file(modulesFile)
   doLast {
     modulesFile.parentFile.mkdirs()
@@ -138,8 +138,8 @@ task generatePluginsList {
     .findAll { it.name.contains('example') == false }
     .collect { it.name }
   File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
-  processResources.from(pluginsFile) 
-  inputs.property('plugins', plugins) 
+  processResources.from(pluginsFile)
+  inputs.property('plugins', plugins)
   outputs.file(pluginsFile)
   doLast {
     pluginsFile.parentFile.mkdirs()
@@ -256,7 +256,7 @@ thirdPartyAudit.excludes = [
   'org.zeromq.ZMQ',
 
   // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
-  'org.noggit.JSONParser', 
+  'org.noggit.JSONParser',
 ]
 
 dependencyLicenses {
@@ -276,4 +276,44 @@ if (isEclipse == false || project.path == ":core-tests") {
   }
   check.dependsOn integTest
   integTest.mustRunAfter test
+}
+
+String currentVersion = versions.elasticsearch.minus('-SNAPSHOT')
+task('verifyVersions') {
+  description 'Update file containing options for the\n    "starting" version in the "upgrade from" packaging tests.'
+  group 'Verification'
+  enabled = false == gradle.startParameter.isOffline()
+  doLast {
+    Set<String> versions = listReleasedVersions(project)
+    // TODO replace with something that checks the major version of the first indexCompatibleVersion
+    versions = versions.findAll { it ==~ /5.+/}
+    Set<String> actualVersions = new TreeSet<>(getVersionsFile(project).readLines('UTF-8'))
+    if (!versions.equals(actualVersions)) {
+      throw new GradleException("out-of-date versions " + actualVersions +
+        ", expected " + versions + "; run gradle vagrantUpdateVersions")
+    }
+  }
+}
+check.dependsOn(verifyVersions)
+
+// Replace me with Ryan's list
+File getVersionsFile(Project project) {
+  File versions = new File(project.projectDir, 'versions');
+  if (versions.exists() == false) {
+    // Use the elasticsearch's versions file from project :qa:vagrant
+    versions = project.project(":qa:vagrant").file('versions')
+  }
+  return versions
+}
+
+/**
+ * Gets the list of released elasticsearch versions from maven central.
+ */
+Set<String> listReleasedVersions(Project project) {
+    Node xml
+    new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
+        xml = new XmlParser().parse(s)
+    }
+    Set<String> versions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ })
+    return versions;
 }

@@ -12,8 +12,8 @@ IF NOT EXIST "%JAVA%" (
   EXIT /B 1
 )
 
-set SCRIPT_DIR=%~dp0
-for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
+set SCRIPT_DIR=%~dps0
+for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpsfI
 
 TITLE Elasticsearch Plugin Manager ${project.version}
 

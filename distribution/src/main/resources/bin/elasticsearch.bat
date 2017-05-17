@@ -37,7 +37,7 @@ SET HOSTNAME=%COMPUTERNAME%
 
 if "%ES_JVM_OPTIONS%" == "" (
 rem '0' is the batch file, '~dp' appends the drive and path
-set ES_JVM_OPTIONS=%~dp0\..\config\jvm.options
+set ES_JVM_OPTIONS=%~dps0\..\config\jvm.options
 )
 
 @setlocal
@@ -46,7 +46,7 @@ rem such options are the lines beginning with '-', thus "findstr /b"
 for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%"`) do set JVM_OPTIONS=!JVM_OPTIONS! %%a
 @endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS% %ES_JAVA_OPTS%
 
-CALL "%~dp0elasticsearch.in.bat"
+CALL "%~dps0elasticsearch.in.bat"
 IF ERRORLEVEL 1 (
 	IF NOT DEFINED nopauseonerror (
 		PAUSE

@@ -56,7 +56,7 @@ public class MapperTests extends ESTestCase {
                         "As a replacement, you can use an [copy_to] on mapping fields to create your own catch all field.",
                 e.getMessage());
 
-        settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_3_0_UNRELEASED).build();
+        settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_3_0).build();
 
         // Create the mapping service with an older index creation version
         final MapperService oldMapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings, "test");

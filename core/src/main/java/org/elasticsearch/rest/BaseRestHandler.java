@@ -85,12 +85,12 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         final Set<String> invalids,
         final Set<String> candidates,
         final String detail) {
-        String message = String.format(
+        StringBuilder message = new StringBuilder(String.format(
             Locale.ROOT,
             "request [%s] contains unrecognized %s%s: ",
             request.path(),
             detail,
-            invalids.size() > 1 ? "s" : "");
+            invalids.size() > 1 ? "s" : ""));
         boolean first = true;
         for (final String invalid : invalids) {
             final LevensteinDistance ld = new LevensteinDistance();
@@ -108,17 +108,23 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
                 else return a.v2().compareTo(b.v2());
             });
             if (first == false) {
-                message += ", ";
+                message.append(", ");
             }
-            message += "[" + invalid + "]";
+            message.append("[").append(invalid).append("]");
             final List<String> keys = scoredParams.stream().map(Tuple::v2).collect(Collectors.toList());
             if (keys.isEmpty() == false) {
-                message += " -> did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]" : "any of " + keys.toString()) + "?";
+                message.append(" -> did you mean ");
+                if (keys.size() == 1) {
+                    message.append("[").append(keys.get(0)).append("]");
+                } else {
+                    message.append("any of ").append(keys.toString());
+                }
+                message.append("?");
             }
             first = false;
         }
 
-        return message;
+        return message.toString();
     }
 
     /**

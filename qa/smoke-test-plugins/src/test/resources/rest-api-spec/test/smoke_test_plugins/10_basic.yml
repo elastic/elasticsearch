@@ -1,5 +1,3 @@
-# Integration tests for smoke testing plugins
-#
 "Plugins are actually installed":
     - do:
         cluster.state: {}

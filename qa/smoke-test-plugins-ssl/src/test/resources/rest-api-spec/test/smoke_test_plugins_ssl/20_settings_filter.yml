@@ -1,5 +1,3 @@
-# Integration tests for smoke testing plugins
-#
 "Secret settings are correctly filtered":
   - do:
       cluster.state: {}

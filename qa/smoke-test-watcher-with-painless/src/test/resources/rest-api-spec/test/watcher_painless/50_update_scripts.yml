@@ -1,5 +1,3 @@
-# When a script is specified in a watch, updates should be taken into account
-# See https://github.com/elastic/x-plugins/issues/4237
 ---
 "Test transform scripts are updated on execution":
   - skip:

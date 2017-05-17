@@ -45,6 +45,6 @@ subprojects {
   }
   ext.projectSubstitutions += [
      "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack-elasticsearch:plugin',
-     "org.elasticsearch.plugin:x-pack:${bwcVersion}": ':x-pack-elasticsearch:plugin:bwc-zip'
+     "org.elasticsearch.plugin:x-pack:${wireCompatVersions[-1]}": ':x-pack-elasticsearch:plugin:bwc-zip'
   ]
 }

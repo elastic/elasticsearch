@@ -414,6 +414,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         FAILURE
     }
 
+    static {
+        assert Version.CURRENT.minimumCompatibilityVersion().after(Version.V_6_0_0_alpha1_UNRELEASED) == false:
+                "Remove logic handling NoOp result from primary response; see TODO in replicaItemExecutionMode" +
+                        " as the current minimum compatible version [" +
+                        Version.CURRENT.minimumCompatibilityVersion() + "] is after 6.0";
+    }
+
     /**
      * Determines whether a bulk item request should be executed on the replica.
      * @return {@link ReplicaItemExecutionMode#NORMAL} upon normal primary execution with no failures

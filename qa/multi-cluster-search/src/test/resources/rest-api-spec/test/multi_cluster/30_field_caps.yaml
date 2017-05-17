@@ -64,3 +64,16 @@
   - match: {fields.geo.keyword.indices:                 ["my_remote_cluster:field_caps_index_3"]}
   - is_false: fields.geo.keyword.non_searchable_indices
   - is_false: fields.geo.keyword.on_aggregatable_indices
+
+  - do:
+      field_caps:
+        index: 'my_remote_cluster:some_index_that_doesnt_exist'
+        fields: [number]
+  - match: { 'fields': {} } # empty response - this index doesn't exists
+
+  - do:
+      field_caps:
+        index: 'my_remote_cluster:field_caps_index_1'
+        fields: [number]
+  - match: {fields.number.double.searchable:            true}
+  - match: {fields.number.double.aggregatable:          true}

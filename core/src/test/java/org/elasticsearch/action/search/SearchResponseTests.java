@@ -156,19 +156,25 @@ public class SearchResponseTests extends ESTestCase {
         SearchResponse response = new SearchResponse(
                 new InternalSearchResponse(new SearchHits(hits, 100, 1.5f), null, null, null, false, null, 1), null, 0, 0, 0,
                 new ShardSearchFailure[0]);
-        assertEquals(
-                "{\"took\":0,"
-                        + "\"timed_out\":false,"
-                        + "\"_shards\":"
-                        + "{\"total\":0,"
-                        + "\"successful\":0,"
-                        + "\"failed\":0"
-                        + "},"
-                        + "\"hits\":"
-                        + "{\"total\":100,"
-                        + "\"max_score\":1.5,"
-                        + "\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]"
-                        + "}"
-                        + "}", Strings.toString(response));
+        StringBuilder expectedString = new StringBuilder();
+        expectedString.append("{");
+        {
+            expectedString.append("\"took\":0,");
+            expectedString.append("\"timed_out\":false,");
+            expectedString.append("\"_shards\":");
+            {
+                expectedString.append("{\"total\":0,");
+                expectedString.append("\"successful\":0,");
+                expectedString.append("\"failed\":0},");
+            }
+            expectedString.append("\"hits\":");
+            {
+                expectedString.append("{\"total\":100,");
+                expectedString.append("\"max_score\":1.5,");
+                expectedString.append("\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]}");
+            }
+        }
+        expectedString.append("}");
+        assertEquals(expectedString.toString(), Strings.toString(response));
     }
 }

@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.watcher;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -31,9 +33,11 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for watcher indexes created before 5.0.
@@ -62,6 +66,7 @@ public class OldWatcherIndicesBackwardsCompatibilityTests extends AbstractOldXPa
         });
 
         try {
+            assertOldTemplatesAreDeleted();
             assertWatchIndexContentsWork(version);
             assertBasicWatchInteractions();
         } finally {
@@ -71,6 +76,12 @@ public class OldWatcherIndicesBackwardsCompatibilityTests extends AbstractOldXPa
             assertBusy(() -> internalCluster().getInstances(WatcherService.class)
                     .forEach(watcherService -> assertThat(watcherService.state(), is(WatcherState.STOPPED))));
         }
+    }
+
+    private void assertOldTemplatesAreDeleted() {
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        List<String> templateNames = response.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).collect(Collectors.toList());
+        assertThat(templateNames, not(hasItems(is("watches"), startsWith("watch-history"), is("triggered_watches"))));
     }
 
     void assertWatchIndexContentsWork(Version version) throws Exception {

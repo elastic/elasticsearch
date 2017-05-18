@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -165,6 +166,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -504,5 +506,15 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
                 " for the next 6 months daily history indices are allowed to be created, but please make sure" +
                 " that any future history indices after 6 months with the pattern " +
                 "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
+    }
+
+    // These are all old templates from pre 6.0 era, that need to be deleted
+    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+        return map -> {
+            map.keySet().removeIf(name -> "watches".equals(name) || "triggered_watches".equals(name)
+                        || name.startsWith("watch_history_"));
+
+            return map;
+        };
     }
 }

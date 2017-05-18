@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -29,19 +28,14 @@ import org.elasticsearch.xpack.security.InternalClient;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.when;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -94,52 +88,6 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         when(cs.metaData()).thenReturn(metaData);
 
         return event;
-    }
-
-    public void testThatDeprecatedTemplatesAreRemovedOnce() throws Exception {
-        List<String> templateNames = new ArrayList<>();
-
-        // old index templates to be deleted
-        boolean containsWatchesTemplate = randomBoolean();
-        if (containsWatchesTemplate) {
-            templateNames.add("watches");
-        }
-        boolean containsTriggeredWatchesTemplates = randomBoolean();
-        if (containsTriggeredWatchesTemplates) {
-            templateNames.add("triggered_watches");
-        }
-        boolean containsVersionedWatchHistoryTemplate = randomBoolean();
-        if (containsVersionedWatchHistoryTemplate) {
-            templateNames.add("watcher_history_" + randomIntBetween(0, 100));
-        }
-
-        List<String> templatesInClusterState = new ArrayList<>();
-        templatesInClusterState.addAll(Arrays.asList(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME,
-                WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME, WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME));
-        templatesInClusterState.addAll(templateNames);
-        ClusterChangedEvent event = createClusterChangedEvent(templatesInClusterState);
-        registry.clusterChanged(event);
-
-        ArgumentCaptor<DeleteIndexTemplateRequest> requestArgumentCaptor = ArgumentCaptor.forClass(DeleteIndexTemplateRequest.class);
-        verify(client, times(templateNames.size())).execute(anyObject(), requestArgumentCaptor.capture(), anyObject());
-        assertThat(requestArgumentCaptor.getAllValues(), hasSize(templateNames.size()));
-        List<String> deletedTemplateNames = requestArgumentCaptor.getAllValues().stream().map(DeleteIndexTemplateRequest::name)
-                .collect(Collectors.toList());
-        if (containsWatchesTemplate) {
-            assertThat(deletedTemplateNames, hasItem("watches"));
-        }
-        if (containsTriggeredWatchesTemplates) {
-            assertThat(deletedTemplateNames, hasItem("triggered_watches"));
-        }
-        if (containsVersionedWatchHistoryTemplate) {
-            assertThat(deletedTemplateNames, hasItem(startsWith("watcher_history_")));
-        }
-
-        // a second event with removed templates should not trigger any further requests, so the invocation count stays the same
-        ClusterChangedEvent newEvent = createClusterChangedEvent(Arrays.asList(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME,
-                WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME, WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME));
-        registry.clusterChanged(newEvent);
-        verify(client, times(templateNames.size())).execute(anyObject(), anyObject(), anyObject());
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() {

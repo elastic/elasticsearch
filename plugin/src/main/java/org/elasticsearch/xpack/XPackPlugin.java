@@ -14,6 +14,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Binder;
@@ -466,7 +467,11 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         entries.addAll(machineLearning.getNamedXContent());
         entries.addAll(licensing.getNamedXContent());
         return entries;
+    }
 
+    @Override
+    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+        return watcher.getIndexTemplateMetaDataUpgrader();
     }
 
     public void onIndexModule(IndexModule module) {

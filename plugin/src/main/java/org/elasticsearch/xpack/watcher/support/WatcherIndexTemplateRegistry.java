@@ -98,22 +98,6 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         }
 
         addTemplatesIfMissing(state);
-        deleteDeprecatedTemplates(state);
-    }
-
-    /**
-     * This methods deletes the 5.x watcher index templates
-     * @param state The current cluster state
-     */
-    private void deleteDeprecatedTemplates(ClusterState state) {
-        for (ObjectCursor<String> cursor : state.metaData().getTemplates().keys()) {
-            String name = cursor.value;
-            if ("watches".equals(name) || "triggered_watches".equals(name) || name.startsWith("watcher_history_")) {
-                client.deleteTemplate(new DeleteIndexTemplateRequest(name), ActionListener.wrap(
-                        r -> logger.debug("Deleted old index template [{}]", name),
-                        e -> logger.debug("Could not delete watcher template [{}]: [{}]", name, e.getMessage())));
-            }
-        }
     }
 
     void addTemplatesIfMissing(ClusterState state) {

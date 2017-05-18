@@ -9,7 +9,7 @@
 
   - do:
       put_script:
-        lang: transform-script
+        id: transform-script
         body: >
           {
             "script":{
@@ -56,7 +56,7 @@
 
   - do:
       put_script:
-        lang: transform-script
+        id: transform-script
         body: >
           {
             "script":
@@ -84,7 +84,7 @@
 
   - do:
       put_script:
-        lang: condition-script
+        id: condition-script
         body: >
           {
             "script":
@@ -132,7 +132,7 @@
 
   - do:
       put_script:
-        lang: condition-script
+        id: condition-script
         body: >
           {
             "script": {

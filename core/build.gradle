@@ -299,10 +299,13 @@ task('verifyVersions') {
     }
     knownVersions = knownVersions.findAll { Integer.parseInt(it.split('\\.')[0]) >= prevMajor }
 
-    // Limit the listed versions to those that have been released
+    /* Limit the listed versions to those that have been marked as released.
+     * Versions not marked as released don't get the same testing and we want
+     * to make sure that we flip all unreleased versions to released as soon
+     * as possible after release. */
     Set<String> actualVersions = new TreeSet<>(
       indexCompatVersions
-        .findAll { false == it.snapshot && false == it.unreleased }
+        .findAll { false == it.unreleased }
         .collect { it.toString() })
 
     // Finally, compare!

@@ -77,7 +77,8 @@ for (String line : versionLines) {
     int major = Integer.parseInt(match.group(1))
     int minor = Integer.parseInt(match.group(2))
     int bugfix = Integer.parseInt(match.group(3))
-    Version foundVersion = new Version(major, minor, bugfix, false)
+    boolean unreleased = match.group(4) != null
+    Version foundVersion = new Version(major, minor, bugfix, false, unreleased)
     if (currentVersion != foundVersion) {
       versions.add(foundVersion)
     }
@@ -88,7 +89,7 @@ for (String line : versionLines) {
   }
 }
 if (versions.toSorted { it.id } != versions) {
-  println "Versions: ${versions}" 
+  println "Versions: ${versions}"
   throw new GradleException("Versions.java contains out of order version constants")
 }
 if (currentVersion.bugfix == 0) {
@@ -97,7 +98,8 @@ if (currentVersion.bugfix == 0) {
   // unreleased version of closest branch. So for those cases, the version includes -SNAPSHOT,
   // and the bwc-zip distribution will checkout and build that version.
   Version last = versions[-1]
-  versions[-1] = new Version(last.major, last.minor, last.bugfix, true)
+  versions[-1] = new Version(last.major, last.minor, last.bugfix,
+      true, last.unreleased)
 }
 
 // injecting groovy property variables into all projects

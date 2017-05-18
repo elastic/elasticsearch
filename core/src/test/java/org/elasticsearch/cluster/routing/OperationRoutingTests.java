@@ -21,8 +21,11 @@ package org.elasticsearch.cluster.routing;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -374,44 +377,59 @@ public class OperationRoutingTests extends ESTestCase{
         // subsequent searches and that the nodes are selected fairly i.e.
         // given identically sorted lists of nodes across all shard IDs
         // each shard ID doesn't pick the same node.
-        TestThreadPool threadPool = null;
-        ClusterService clusterService = null;
-        try {
-            threadPool = new TestThreadPool("testFairSessionIdPreferences");
-            clusterService = ClusterServiceUtils.createClusterService(threadPool);
-            final String indexName = "test";
-            final int numShards = 4;
-            ClusterServiceUtils.setState(clusterService,
-                    ClusterStateCreationUtils.stateWithAssignedPrimariesAndOneReplica(indexName, numShards));
+        final int numIndices = randomIntBetween(1, 3);
+        final int numShards = randomIntBetween(2, 10);
+        final int numReplicas = randomIntBetween(1, 3);
+        final String[] indexNames = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indexNames[i] = "test" + i;
+        }
+        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, numShards, numReplicas);
+        final int numRepeatedSearches = 4;
+        List<ShardRouting> sessionsfirstSearch = null;
+        OperationRouting opRouting = new OperationRouting(Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        String sessionKey = randomAlphaOfLength(10);
+        for (int i = 0; i < numRepeatedSearches; i++) {
+            List<ShardRouting> searchedShards = new ArrayList<>(numShards);
+            Set<String> selectedNodes = new HashSet<>(numShards);
+            final GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, sessionKey);
 
-            final int numRepeatedSearches = 4;
-            List<ShardRouting> firstSearch = null;
-            OperationRouting opRouting = new OperationRouting(Settings.EMPTY,
-                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+            assertEquals("One group per index shard", numIndices * numShards, groupIterator.size());
+            for (ShardIterator shardIterator : groupIterator) {
+                assertEquals(numReplicas + 1, shardIterator.size());
 
-            for (int i = 0; i < numRepeatedSearches; i++) {
-                List<ShardRouting> searchedShards = new ArrayList<>(numShards);
-                Set<String> selectedNodes = new HashSet<>(numShards);
-                for (int shardNum = 0; shardNum < numShards; shardNum++) {
-                    final ShardIterator it = opRouting.getShards(clusterService.state(), indexName, shardNum, "my_session_id");
-                    ShardRouting firstChoice = it.nextOrNull();
-                    assertNotNull(firstChoice);
-                    searchedShards.add(firstChoice);
-                    selectedNodes.add(firstChoice.currentNodeId());
-                }
-                if (firstSearch == null) {
-                    firstSearch = searchedShards;
-                } else {
-                    assertEquals(firstSearch, searchedShards);
-                }
-                assertThat("More than one node should be selected", selectedNodes.size(), greaterThan(1));
+                ShardRouting firstChoice = shardIterator.nextOrNull();
+                assertNotNull(firstChoice);
+                ShardRouting duelFirst = duelGetShards(state, firstChoice.shardId(), sessionKey).nextOrNull();
+                assertEquals("Regression test failure", duelFirst, firstChoice);
+
+                searchedShards.add(firstChoice);
+                selectedNodes.add(firstChoice.currentNodeId());
+            }
+            if (sessionsfirstSearch == null) {
+                sessionsfirstSearch = searchedShards;
+            } else {
+                assertEquals("Sessions must reuse same replica choices", sessionsfirstSearch, searchedShards);
             }
 
-        } finally {
-            IOUtils.close(clusterService);
-            terminate(threadPool);
+            // 2 is the bare minimum number of nodes we can reliably expect from
+            // randomized tests in my experiments over thousands of iterations.
+            // Ideally we would test for greater levels of machine utilisation
+            // given a configuration with many nodes but the nature of hash
+            // collisions means we can't always rely on optimal node usage in
+            // all cases.
+            assertThat("Search should use more than one of the nodes", selectedNodes.size(), greaterThan(1));
         }
-    }  
+    }
+    
+    // Regression test for the routing logic - implements same hashing logic
+    private ShardIterator duelGetShards(ClusterState clusterState, ShardId shardId, String sessionId) {
+        final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(shardId.getIndexName(), shardId.getId());
+        int routingHash = Murmur3HashFunction.hash(sessionId);
+        routingHash = 31 * routingHash + indexShard.shardId.hashCode();
+        return indexShard.activeInitializingShardsIt(routingHash);        
+    }
 
     public void testThatOnlyNodesSupportNodeIds() throws InterruptedException, IOException {
         TestThreadPool threadPool = null;

@@ -18,6 +18,7 @@
  */
 
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.Version
 
 apply plugin: 'elasticsearch.standalone-test'
 
@@ -27,7 +28,7 @@ task bwcTest {
   group = 'verification'
 }
 
-for (String version : wireCompatVersions) {
+for (Version version : wireCompatVersions) {
   String baseName = "v${version}"
 
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
@@ -42,7 +43,9 @@ for (String version : wireCompatVersions) {
     numNodes = 2
     clusterName = 'rolling-upgrade'
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-    setting 'http.content_type.required', 'true'
+    if (version.onOrAfter('5.3.0')) {
+      setting 'http.content_type.required', 'true'
+    }
   }
 
   Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")

@@ -46,6 +46,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
@@ -657,7 +658,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
     static String[] indicesOfInterest(ClusterState clusterState, String job) {
         String jobResultIndex = AnomalyDetectorsIndex.getPhysicalIndexFromState(clusterState, job);
-        return new String[]{AnomalyDetectorsIndex.jobStateIndexName(), jobResultIndex, AnomalyDetectorsIndex.ML_META_INDEX};
+        return new String[]{AnomalyDetectorsIndex.jobStateIndexName(), jobResultIndex, MlMetaIndex.INDEX_NAME};
     }
 
     static List<String> verifyIndicesPrimaryShardsAreActive(String jobId, ClusterState clusterState) {

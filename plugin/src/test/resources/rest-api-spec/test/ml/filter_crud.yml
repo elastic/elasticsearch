@@ -1,18 +1,31 @@
 ---
 setup:
+
+  - do:
+      index:
+        index: .ml-meta
+        type: doc
+        id: imposter-filter
+        body: >
+          {
+            "filter_id": "imposter",
+            "items": ["a", "b"],
+            "type": "imposter"
+          }
+
   - do:
       xpack.ml.put_filter:
+        filter_id: filter-foo
         body:  >
           {
-            "id": "filter-foo",
             "items": ["abc", "xyz"]
           }
 
   - do:
       xpack.ml.put_filter:
+        filter_id: filter-foo2
         body:  >
           {
-            "id": "filter-foo2",
             "items": ["123", "lmnop"]
           }
 
@@ -37,7 +50,7 @@ setup:
   - match: { count:   1 }
   - match:
       filters.0:
-        id: "filter-foo"
+        filter_id: "filter-foo"
         items: ["abc", "xyz"]
 
 ---
@@ -49,12 +62,12 @@ setup:
   - match: { count:   2 }
   - match:
       filters.0:
-        id: "filter-foo"
+        filter_id: "filter-foo"
         items: ["abc", "xyz"]
 
   - match:
       filters.1:
-        id: "filter-foo2"
+        filter_id: "filter-foo2"
         items: ["123", "lmnop"]
 
   - do:
@@ -74,24 +87,24 @@ setup:
         from: 0
 
   - do:
-        catch: request
-        xpack.ml.get_filters:
-          filter_id: "filter-foo"
-          size: 1
+      catch: request
+      xpack.ml.get_filters:
+        filter_id: "filter-foo"
+        size: 1
 
   - do:
-        catch: request
-        xpack.ml.get_filters:
-          filter_id: "filter-foo"
-          from: 0
-          size: 1
+      catch: request
+      xpack.ml.get_filters:
+        filter_id: "filter-foo"
+        from: 0
+        size: 1
 ---
 "Test create filter api":
   - do:
       xpack.ml.put_filter:
+        filter_id: filter-foo2
         body:  >
           {
-            "id": "filter-foo2",
             "items": ["abc", "xyz"]
           }
 
@@ -104,16 +117,18 @@ setup:
   - match: { count:   1 }
   - match:
       filters.0:
-        id: "filter-foo2"
+        filter_id: "filter-foo2"
         items: ["abc", "xyz"]
 
 ---
-"Test create filter api without ID":
+"Test create filter api with mismatching body ID":
   - do:
       catch: /illegal_argument_exception/
       xpack.ml.put_filter:
+        filter_id: "uri_id"
         body:  >
           {
+            "filter_id": "body_id",
             "items": ["abc", "xyz"]
           }
 
@@ -168,7 +183,7 @@ setup:
   - match: { count:   1 }
   - match:
       filters.0:
-        id: "filter-foo"
+        filter_id: "filter-foo"
         items: ["abc", "xyz"]
 
   - do:

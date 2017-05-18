@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
@@ -33,16 +32,16 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 import java.io.IOException;
@@ -246,7 +245,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         }
 
         private void getFilter(String filterId, ActionListener<Response> listener) {
-            GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
+            GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filterId);
             transportGetAction.execute(getRequest, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse getDocResponse) {
@@ -257,7 +256,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
                             BytesReference docSource = getDocResponse.getSourceAsBytesRef();
                             XContentParser parser =
                                     XContentFactory.xContent(docSource).createParser(NamedXContentRegistry.EMPTY, docSource);
-                            MlFilter filter = MlFilter.PARSER.apply(parser, null);
+                            MlFilter filter = MlFilter.PARSER.apply(parser, null).build();
                             responseBody = new QueryPage<>(Collections.singletonList(filter), 1, MlFilter.RESULTS_FIELD);
 
                             Response filterResponse = new Response(responseBody);
@@ -281,31 +280,29 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         private void getFilters(PageParams pageParams, ActionListener<Response> listener) {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
                     .from(pageParams.getFrom())
-                    .size(pageParams.getSize());
+                    .size(pageParams.getSize())
+                    .query(QueryBuilders.termQuery(MlFilter.TYPE.getPreferredName(), MlFilter.FILTER_TYPE));
 
-            SearchRequest searchRequest = new SearchRequest(new String[]{AnomalyDetectorsIndex.ML_META_INDEX}, sourceBuilder)
+            SearchRequest searchRequest = new SearchRequest(MlMetaIndex.INDEX_NAME)
                     .indicesOptions(JobProvider.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
-                    .types(MlFilter.TYPE.getPreferredName());
+                    .source(sourceBuilder);
 
             transportSearchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse response) {
-
-                    try {
-                        List<MlFilter> docs = new ArrayList<>();
-                        for (SearchHit hit : response.getHits().getHits()) {
-                            BytesReference docSource = hit.getSourceRef();
-                            XContentParser parser =
-                                    XContentFactory.xContent(docSource).createParser(NamedXContentRegistry.EMPTY, docSource);
-                            docs.add(MlFilter.PARSER.apply(parser, null));
+                    List<MlFilter> docs = new ArrayList<>();
+                    for (SearchHit hit : response.getHits().getHits()) {
+                        BytesReference docSource = hit.getSourceRef();
+                        try (XContentParser parser = XContentFactory.xContent(docSource).createParser(
+                                NamedXContentRegistry.EMPTY, docSource)) {
+                            docs.add(MlFilter.PARSER.apply(parser, null).build());
+                        } catch (IOException e) {
+                            this.onFailure(e);
                         }
-
-                        Response filterResponse = new Response(new QueryPage<>(docs, docs.size(), MlFilter.RESULTS_FIELD));
-                        listener.onResponse(filterResponse);
-
-                    } catch (Exception e) {
-                        this.onFailure(e);
                     }
+
+                    Response filterResponse = new Response(new QueryPage<>(docs, docs.size(), MlFilter.RESULTS_FIELD));
+                    listener.onResponse(filterResponse);
                 }
 
 
@@ -316,6 +313,5 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
             });
         }
     }
-
 }
 

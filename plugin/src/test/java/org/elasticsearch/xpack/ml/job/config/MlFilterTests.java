@@ -32,7 +32,7 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
 
     @Override
     protected MlFilter parseInstance(XContentParser parser) {
-        return MlFilter.PARSER.apply(parser, null);
+        return MlFilter.PARSER.apply(parser, null).build();
     }
 
     public void testNullId() {

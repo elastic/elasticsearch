@@ -30,11 +30,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -179,8 +178,7 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
                         + currentlyUsedBy);
             }
 
-            DeleteRequest deleteRequest = new DeleteRequest(AnomalyDetectorsIndex.ML_META_INDEX,
-                    MlFilter.TYPE.getPreferredName(), filterId);
+            DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filterId);
             BulkRequest bulkRequest = new BulkRequest();
             bulkRequest.add(deleteRequest);
             transportAction.execute(bulkRequest, new ActionListener<BulkResponse>() {

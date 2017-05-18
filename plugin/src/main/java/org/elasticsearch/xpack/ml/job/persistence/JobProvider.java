@@ -52,6 +52,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetInfluencersAction;
@@ -91,8 +92,6 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex.ML_META_INDEX;
 
 public class JobProvider {
     private static final Logger LOGGER = Loggers.getLogger(JobProvider.class);
@@ -259,7 +258,7 @@ public class JobProvider {
                 .add(createDocIdSearch(stateIndex, Quantiles.TYPE.getPreferredName(), Quantiles.documentId(jobId)));
 
         for (String filterId : job.getAnalysisConfig().extractReferencedFilters()) {
-            msearch.add(createDocIdSearch(ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId));
+            msearch.add(createDocIdSearch(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filterId));
         }
 
         msearch.execute(ActionListener.wrap(
@@ -322,7 +321,7 @@ public class JobProvider {
         } else if (Quantiles.TYPE.getPreferredName().equals(type)) {
             paramsBuilder.setQuantiles(parseSearchHit(hit, Quantiles.PARSER, errorHandler));
         } else if (MlFilter.TYPE.getPreferredName().equals(type)) {
-            paramsBuilder.addFilter(parseSearchHit(hit, MlFilter.PARSER, errorHandler));
+            paramsBuilder.addFilter(parseSearchHit(hit, MlFilter.PARSER, errorHandler).build());
         } else {
             errorHandler.accept(new IllegalStateException("Unexpected type [" + type + "]"));
         }

@@ -2,9 +2,15 @@
   "xpack.ml.put_filter": {
     "methods": [ "PUT" ],
     "url": {
-      "path": "/_xpack/ml/filters",
-      "paths": [ "/_xpack/ml/filters" ],
-      "params": {}
+      "path": "/_xpack/ml/filters/{filter_id}",
+      "paths": [ "/_xpack/ml/filters/{filter_id}" ],
+      "parts": {
+        "filter_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the filter to create"
+        }
+      }
     },
     "body": {
       "description" : "The filter details",

@@ -28,6 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
@@ -355,7 +356,7 @@ public class OpenJobActionTests extends ESTestCase {
                                   String... jobIds) {
         List<String> indices = new ArrayList<>();
         indices.add(AnomalyDetectorsIndex.jobStateIndexName());
-        indices.add(AnomalyDetectorsIndex.ML_META_INDEX);
+        indices.add(MlMetaIndex.INDEX_NAME);
         indices.add(Auditor.NOTIFICATIONS_INDEX);
         indices.add(AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT);
         for (String indexName : indices) {

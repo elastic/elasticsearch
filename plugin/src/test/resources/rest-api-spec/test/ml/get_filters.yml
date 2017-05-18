@@ -3,9 +3,10 @@
 
   - do:
       xpack.ml.put_filter:
+        filter_id: filter-foo
         body:  >
           {
-            "id": "filter-foo",
+            "filter_id": "filter-foo",
             "items": ["abc", "xyz"]
           }
 

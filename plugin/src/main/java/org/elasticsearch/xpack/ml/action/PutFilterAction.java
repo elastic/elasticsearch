@@ -18,9 +18,9 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,13 +31,14 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 
 
@@ -62,9 +63,16 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
 
     public static class Request extends MasterNodeReadRequest<Request> implements ToXContent {
 
-        public static Request parseRequest(XContentParser parser) {
-            MlFilter filter = MlFilter.PARSER.apply(parser, null);
-            return new Request(filter);
+        public static Request parseRequest(String filterId, XContentParser parser) {
+            MlFilter.Builder filter = MlFilter.PARSER.apply(parser, null);
+            if (filter.getId() == null) {
+                filter.setId(filterId);
+            } else if (!Strings.isNullOrEmpty(filterId) && !filterId.equals(filter.getId())) {
+                // If we have both URI and body filter ID, they must be identical
+                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(),
+                        filter.getId(), filterId));
+            }
+            return new Request(filter.build());
         }
 
         private MlFilter filter;
@@ -167,12 +175,12 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         protected void doExecute(Request request, ActionListener<Response> listener) {
             MlFilter filter = request.getFilter();
             final String filterId = filter.getId();
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filterId);
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                indexRequest.source(filter.toXContent(builder, ToXContent.EMPTY_PARAMS));
+                Payload.XContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlFilter.INCLUDE_TYPE_KEY, "true"));
+                indexRequest.source(filter.toXContent(builder, params));
             } catch (IOException e) {
-                throw new IllegalStateException(
-                        "Failed to serialise filter with id [" + filter.getId() + "]", e);
+                throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
             }
             BulkRequest bulkRequest = new BulkRequest().add(indexRequest);
 

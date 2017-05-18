@@ -129,10 +129,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     /**
-     * How long the search took in milliseconds.
+     * How long the search took.
      */
-    public long getTookInMillis() {
-        return tookInMillis;
+    public TimeValue getTook() {
+        return new TimeValue(tookInMillis);
     }
 
     /**

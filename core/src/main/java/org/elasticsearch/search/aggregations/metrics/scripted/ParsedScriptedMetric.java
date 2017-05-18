@@ -50,8 +50,8 @@ public class ParsedScriptedMetric extends ParsedAggregation implements ScriptedM
         return builder.field(CommonFields.VALUE.getPreferredName(), aggregation());
     }
 
-    private static final ObjectParser<ParsedScriptedMetric, Void> PARSER = new ObjectParser<>(ParsedScriptedMetric.class.getSimpleName(), true,
-            ParsedScriptedMetric::new);
+    private static final ObjectParser<ParsedScriptedMetric, Void> PARSER =
+            new ObjectParser<>(ParsedScriptedMetric.class.getSimpleName(), true, ParsedScriptedMetric::new);
 
     static {
         declareAggregationFields(PARSER);

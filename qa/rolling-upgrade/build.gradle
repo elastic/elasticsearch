@@ -22,7 +22,8 @@ import org.elasticsearch.gradle.Version
 
 apply plugin: 'elasticsearch.standalone-test'
 
-// dummy task for all bwc tests
+// This is a top level task which we will add dependencies to below.
+// It is a single task that can be used to backcompat tests against all versions.
 task bwcTest {
   description = 'Runs backwards compatibility tests.'
   group = 'verification'

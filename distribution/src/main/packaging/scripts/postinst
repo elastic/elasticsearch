@@ -110,7 +110,6 @@ chown -R elasticsearch:elasticsearch /var/lib/elasticsearch
 chown -R elasticsearch:elasticsearch /var/log/elasticsearch
 chown -R root:elasticsearch /etc/elasticsearch
 chmod 0750 /etc/elasticsearch
-chmod 0750 /etc/elasticsearch/scripts
 
 if [ -f /etc/sysconfig/elasticsearch ]; then
    chmod 0660 /etc/sysconfig/elasticsearch

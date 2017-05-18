@@ -169,7 +169,7 @@ class ClusterFormationTasks {
 
         if (node.config.plugins.isEmpty() == false) {
             if (node.nodeVersion == VersionProperties.elasticsearch) {
-                setup = configureCopyPluginsTask(taskName(prefix, node, 'copyPlugins'), project, setup, node)
+                setup = configureCopyPluginsTask(taskName(prefix, node, 'copyPlugins'), project, setup, node, prefix)
             } else {
                 setup = configureCopyBwcPluginsTask(taskName(prefix, node, 'copyBwcPlugins'), project, setup, node, prefix)
             }
@@ -184,7 +184,7 @@ class ClusterFormationTasks {
         // install plugins
         for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
             String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
-            setup = configureInstallPluginTask(taskName(prefix, node, actionName), project, setup, node, plugin.getValue())
+            setup = configureInstallPluginTask(taskName(prefix, node, actionName), project, setup, node, plugin.getValue(), prefix)
         }
 
         // sets up any extra config files that need to be copied over to the ES instance;
@@ -379,7 +379,7 @@ class ClusterFormationTasks {
      * For each plugin, if the plugin has rest spec apis in its tests, those api files are also copied
      * to the test resources for this project.
      */
-    static Task configureCopyPluginsTask(String name, Project project, Task setup, NodeInfo node) {
+    static Task configureCopyPluginsTask(String name, Project project, Task setup, NodeInfo node, String prefix) {
         Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup)
 
         List<FileCollection> pluginFiles = []
@@ -387,7 +387,7 @@ class ClusterFormationTasks {
 
             Project pluginProject = plugin.getValue()
             verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
-            String configurationName = "_plugin_${pluginProject.path}"
+            String configurationName = "_plugin_${prefix}_${pluginProject.path}"
             Configuration configuration = project.configurations.findByName(configurationName)
             if (configuration == null) {
                 configuration = project.configurations.create(configurationName)
@@ -422,7 +422,7 @@ class ClusterFormationTasks {
         for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
             Project pluginProject = plugin.getValue()
             verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
-            String configurationName = "_plugin_bwc_${pluginProject.path}"
+            String configurationName = "_plugin_bwc_${prefix}_${pluginProject.path}"
             Configuration configuration = project.configurations.findByName(configurationName)
             if (configuration == null) {
                 configuration = project.configurations.create(configurationName)
@@ -457,12 +457,12 @@ class ClusterFormationTasks {
         return installModule
     }
 
-    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Project plugin) {
+    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Project plugin, String prefix) {
         final FileCollection pluginZip;
         if (node.nodeVersion != VersionProperties.elasticsearch) {
-            pluginZip = project.configurations.getByName("_plugin_bwc_${plugin.path}")
+            pluginZip = project.configurations.getByName("_plugin_bwc_${prefix}_${plugin.path}")
         } else {
-            pluginZip = project.configurations.getByName("_plugin_${plugin.path}")
+            pluginZip = project.configurations.getByName("_plugin_${prefix}_${plugin.path}")
         }
         // delay reading the file location until execution time by wrapping in a closure within a GString
         Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"

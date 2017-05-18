@@ -113,8 +113,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
                     ".properties.request.properties.body.enabled";
             assertThat(source.getValue(chainedPath), is(false));
         } else {
-            String path =
-                    "doc.properties.result.properties.input.properties.search.properties.request.properties.body.enabled";
+            String path = "doc.properties.result.properties.input.properties.search.properties.request.properties.body.enabled";
             assertThat(source.getValue(path), is(false));
         }
     }

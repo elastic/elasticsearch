@@ -51,7 +51,7 @@ import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
 public class TriggeredWatchStore extends AbstractComponent {
 
     public static final String INDEX_NAME = ".triggered_watches";
-    public static final String DOC_TYPE = "triggered_watch";
+    public static final String DOC_TYPE = "doc";
 
     private final int scrollSize;
     private final WatcherClientProxy client;
@@ -215,7 +215,6 @@ public class TriggeredWatchStore extends AbstractComponent {
         Collection<TriggeredWatch> triggeredWatches = new ArrayList<>(ids.size());
 
         SearchRequest searchRequest = new SearchRequest(TriggeredWatchStore.INDEX_NAME)
-                .types(TriggeredWatchStore.DOC_TYPE)
                 .scroll(scrollTimeout)
                 .preference(Preference.LOCAL.toString())
                 .source(new SearchSourceBuilder()

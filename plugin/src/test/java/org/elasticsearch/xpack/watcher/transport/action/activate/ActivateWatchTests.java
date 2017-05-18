@@ -136,7 +136,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getWatchResponse, notNullValue());
         assertThat(getWatchResponse.getStatus().state().isActive(), is(true));
 
-        GetResponse getResponse = client().prepareGet(".watches", "watch", "_id").get();
+        GetResponse getResponse = client().prepareGet(".watches", "doc", "_id").get();
         XContentSource source = new XContentSource(getResponse.getSourceAsBytesRef(), XContentType.JSON);
 
         Set<String> filters = Sets.newHashSet(
@@ -156,7 +156,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         // now that we filtered out the watch status state, lets put it back in
-        IndexResponse indexResponse = client().prepareIndex(".watches", "watch", "_id")
+        IndexResponse indexResponse = client().prepareIndex(".watches", "doc", "_id")
                 .setSource(builder.bytes(), XContentType.JSON)
                 .get();
         assertThat(indexResponse.getId(), is("_id"));

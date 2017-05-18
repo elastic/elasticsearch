@@ -49,7 +49,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
-import static org.elasticsearch.xpack.watcher.watch.Watch.DOC_TYPE;
 import static org.elasticsearch.xpack.watcher.watch.Watch.INDEX;
 
 
@@ -215,7 +214,6 @@ public class WatcherService extends AbstractComponent {
         List<Watch> watches = new ArrayList<>();
 
         SearchRequest searchRequest = new SearchRequest(INDEX)
-                .types(DOC_TYPE)
                 .scroll(scrollTimeout)
                 .preference(Preference.ONLY_LOCAL.toString())
                 .source(new SearchSourceBuilder()

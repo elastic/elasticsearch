@@ -310,7 +310,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                             .setCause("Index to test aliases with .watches index")
                             .addAlias(new Alias(Watch.INDEX))
                             .setSettings((Map<String, Object>) parserMap.get("settings"))
-                            .addMapping("watch", (Map<String, Object>) allMappings.get("watch"))
+                            .addMapping("doc", (Map<String, Object>) allMappings.get("doc"))
                             .get();
                     assertAcked(response);
                     ensureGreen(newIndex);
@@ -343,7 +343,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                             .setCause("Index to test aliases with .triggered-watches index")
                             .addAlias(new Alias(TriggeredWatchStore.INDEX_NAME))
                             .setSettings((Map<String, Object>) parserMap.get("settings"))
-                            .addMapping("triggered_watch", (Map<String, Object>) allMappings.get("triggered_watch"))
+                            .addMapping("doc", (Map<String, Object>) allMappings.get("doc"))
                             .get();
                     assertAcked(response);
                     ensureGreen(newIndex);

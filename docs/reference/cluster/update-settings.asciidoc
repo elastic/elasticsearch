@@ -45,6 +45,11 @@ Cluster wide settings can be returned using:
 curl -XGET localhost:9200/_cluster/settings
 --------------------------------------------------
 
+If the same setting is made both in the elasticsearch.yml configuration
+file and as a persistent cluster setting, the persistent cluster file
+setting will take precedence.  For this reason it is preferrable to 
+use the elasticsearch.yml file only for local configurations, and make
+all cluster settings with the settings API.
 
 A list of dynamically updatable settings can be found in the
 <<modules,Modules>> documentation.

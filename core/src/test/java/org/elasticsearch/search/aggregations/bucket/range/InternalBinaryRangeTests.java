@@ -16,80 +16,82 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.search.aggregations.bucket.range;
 
-package org.elasticsearch.search.aggregations.bucket.range.geodistance;
-
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.range.InternalRangeTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoDistance> {
+public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBinaryRange> {
 
-    private List<Tuple<Double, Double>> geoDistanceRanges;
+    private List<Tuple<BytesRef, BytesRef>> ranges;
 
     @Override
-    @Before
     public void setUp() throws Exception {
         super.setUp();
 
-        final int interval = randomFrom(1, 5, 10, 25, 50, 100);
         final int numRanges = randomIntBetween(1, 10);
+        ranges = new ArrayList<>(numRanges);
 
-        List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
         for (int i = 0; i < numRanges; i++) {
-            double from = i * interval;
-            double to = from + interval;
-            listOfRanges.add(Tuple.tuple(from, to));
+            BytesRef[] values = new BytesRef[2];
+            values[0] = new BytesRef(randomAlphaOfLength(15));
+            values[1] = new BytesRef(randomAlphaOfLength(15));
+            Arrays.sort(values);
+            ranges.add(Tuple.tuple(values[0], values[1]));
+        }
+
+        if (randomBoolean()) {
+            ranges.add(Tuple.tuple(null, new BytesRef(randomAlphaOfLength(15))));
         }
         if (randomBoolean()) {
-            // Add some overlapping ranges
-            double max = (double) numRanges * interval;
-            listOfRanges.add(Tuple.tuple(0.0, max));
-            listOfRanges.add(Tuple.tuple(0.0, max / 2));
-            listOfRanges.add(Tuple.tuple(max / 3, max / 3 * 2));
+            ranges.add(Tuple.tuple(new BytesRef(randomAlphaOfLength(15)), null));
         }
-        geoDistanceRanges = Collections.unmodifiableList(listOfRanges);
+        if (randomBoolean()) {
+            ranges.add(Tuple.tuple(null, null));
+        }
     }
 
     @Override
-    protected InternalGeoDistance createTestInstance(String name,
+    protected InternalBinaryRange createTestInstance(String name,
                                                      List<PipelineAggregator> pipelineAggregators,
                                                      Map<String, Object> metaData,
                                                      InternalAggregations aggregations,
                                                      boolean keyed) {
-        final List<InternalGeoDistance.Bucket> buckets = new ArrayList<>();
-        for (int i = 0; i < geoDistanceRanges.size(); ++i) {
-            Tuple<Double, Double> range = geoDistanceRanges.get(i);
-            int docCount = randomIntBetween(0, 1000);
-            double from = range.v1();
-            double to = range.v2();
-            buckets.add(new InternalGeoDistance.Bucket("range_" + i, from, to, docCount, aggregations, keyed));
+        DocValueFormat format = DocValueFormat.RAW;
+        List<InternalBinaryRange.Bucket> buckets = new ArrayList<>();
+
+        int nullKey = randomBoolean() ? randomIntBetween(0, ranges.size() -1) : -1;
+        for (int i = 0; i < ranges.size(); ++i) {
+            final int docCount = randomIntBetween(1, 100);
+            final String key = (i == nullKey) ? null: randomAlphaOfLength(10);
+            buckets.add(new InternalBinaryRange.Bucket(format, keyed, key, ranges.get(i).v1(), ranges.get(i).v2(), docCount, aggregations));
         }
-        return new InternalGeoDistance(name, buckets, keyed, pipelineAggregators, metaData);
+        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators, metaData);
     }
 
     @Override
     protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
-        return ParsedGeoDistance.class;
+        return ParsedBinaryRange.class;
     }
 
     @Override
     protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
-        return InternalGeoDistance.Bucket.class;
+        return InternalBinaryRange.Bucket.class;
     }
 
     @Override
     protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
-        return ParsedGeoDistance.ParsedBucket.class;
+        return ParsedBinaryRange.ParsedBucket.class;
     }
 }

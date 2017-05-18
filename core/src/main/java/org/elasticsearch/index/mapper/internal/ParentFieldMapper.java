@@ -381,6 +381,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
         if (Objects.equals(parentType, fieldMergeWith.parentType) == false) {
             mergeResult.addConflict("The _parent field's type option can't be changed: [" + parentType + "]->[" + fieldMergeWith.parentType + "]");
+            return;
         }
 
         List<String> conflicts = new ArrayList<>();

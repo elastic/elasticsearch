@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.test.NodeInfo
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.Version
 
 import java.nio.charset.StandardCharsets
 
@@ -49,14 +50,25 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
 
 String outputDir = "generated-resources/${project.name}"
 
-task oldClusterTest(type: RestIntegTestTask) {
-    mustRunAfter(precommit)
+// This is a top level task which we will add dependencies to below.
+// It is a single task that can be used to backcompat tests against all versions.
+task bwcTest {
+  description = 'Runs backwards compatibility tests.'
+  group = 'verification'
 }
 
-oldClusterTestCluster {
+for (Version version : wireCompatVersions) {
+  String baseName = "v${version}"
+
+  Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
+    mustRunAfter(precommit)
+  }
+
+  Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
+  configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
     plugin ':x-pack-elasticsearch:plugin'
     distribution = 'zip'
-    bwcVersion = project.wireCompatVersions[-1] // TODO: either randomize, or make this settable with sysprop
+    bwcVersion = version
     numBwcNodes = 2
     numNodes = 2
     clusterName = 'rolling-upgrade'
@@ -66,15 +78,17 @@ oldClusterTestCluster {
     setting 'xpack.ssl.keystore.path', 'testnode.jks'
     setting 'xpack.ssl.keystore.password', 'testnode'
     extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-}
-oldClusterTestRunner {
-  systemProperty 'tests.rest.suite', 'old_cluster'
-}
+  }
 
-task mixedClusterTest(type: RestIntegTestTask) {}
+  Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
+  oldClusterTestRunner.configure {
+    systemProperty 'tests.rest.suite', 'old_cluster'
+  }
 
-mixedClusterTestCluster {
-    dependsOn oldClusterTestRunner, 'oldClusterTestCluster#node1.stop'
+  Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask)
+
+  configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
+    dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
     plugin ':x-pack-elasticsearch:plugin'
     distribution = 'zip'
     clusterName = 'rolling-upgrade'
@@ -84,18 +98,19 @@ mixedClusterTestCluster {
     setting 'xpack.ssl.keystore.path', 'testnode.jks'
     setting 'xpack.ssl.keystore.password', 'testnode'
     extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-}
+  }
 
-mixedClusterTestRunner {
+  Task mixedClusterTestRunner = tasks.getByName("${baseName}#mixedClusterTestRunner")
+  mixedClusterTestRunner.configure {
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.rest.blacklist', 'mixed_cluster/30_kibana_write/*'
-    finalizedBy 'oldClusterTestCluster#node0.stop'
-}
+    finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
+  }
 
-task upgradedClusterTest(type: RestIntegTestTask) {}
+  Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
 
-upgradedClusterTestCluster {
-    dependsOn mixedClusterTestRunner, 'oldClusterTestCluster#node0.stop'
+  configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
+    dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
     plugin ':x-pack-elasticsearch:plugin'
     distribution = 'zip'
     clusterName = 'rolling-upgrade'
@@ -105,20 +120,28 @@ upgradedClusterTestCluster {
     setting 'xpack.ssl.keystore.path', 'testnode.jks'
     setting 'xpack.ssl.keystore.password', 'testnode'
     extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-}
+  }
 
-upgradedClusterTestRunner {
+  Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
+  upgradedClusterTestRunner.configure {
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
-    finalizedBy 'mixedClusterTestCluster#stop'
-}
+    finalizedBy "${baseName}#mixedClusterTestCluster#stop"
+  }
 
-task integTest {
+  Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
     dependsOn = [upgradedClusterTest]
+  }
+
+  bwcTest.dependsOn(versionBwcTest)
 }
 
 test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
+// basic integ tests includes testing bwc against the most recent version
+task integTest {
+  dependsOn = ["v${wireCompatVersions[-1]}#bwcTest"]
+}
 check.dependsOn(integTest)
 
 dependencies {

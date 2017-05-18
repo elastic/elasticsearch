@@ -147,8 +147,6 @@ public class UpdateRequestTests extends ESTestCase {
                 new ResourceWatcherService(baseSettings, null);
         ScriptService scriptService = new ScriptService(
                 baseSettings,
-                environment,
-                watcherService,
                 scriptEngineRegistry,
                 scriptContextRegistry);
         final Settings settings = settings(Version.CURRENT).build();

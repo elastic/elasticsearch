@@ -88,11 +88,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .build();
-        Environment environment = new Environment(baseSettings);
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new TestEngine()));
-        scriptService = new ScriptService(baseSettings, environment,
-                new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry) {
+        scriptService = new ScriptService(baseSettings, scriptEngineRegistry, scriptContextRegistry) {
             @Override
             public CompiledScript compile(Script script, ScriptContext scriptContext) {
                 return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);

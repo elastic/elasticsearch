@@ -197,7 +197,7 @@ POST /sales/_search?size=0
 // CONSOLE
 // TEST[setup:sales]
 
-This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a stored script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -207,7 +207,7 @@ POST /sales/_search?size=0
         "type_promoted_count" : {
             "cardinality" : {
                 "script" : {
-                    "file": "my_script",
+                    "stored": "my_script",
                     "params": {
                         "type_field": "type",
                         "promoted_field": "promoted"
@@ -220,8 +220,6 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:no script]
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ==== Missing value
 

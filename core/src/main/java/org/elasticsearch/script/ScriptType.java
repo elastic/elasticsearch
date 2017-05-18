@@ -49,14 +49,7 @@ public enum ScriptType implements Writeable {
      * (Groovy and others), but can be overridden by the specific {@link ScriptEngine}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    STORED ( 1 , new ParseField("stored", "id") , false ),
-
-    /**
-     * FILE scripts are loaded from disk either on start-up or on-the-fly depending on
-     * user-defined settings.  They will be compiled and cached as soon as they are loaded
-     * from disk.  They are turned on by default as they should always be safe to execute.
-     */
-    FILE ( 2 , new ParseField("file") , true  );
+    STORED ( 1 , new ParseField("stored", "id") , false );
 
     /**
      * Reads an int from the input stream and converts it to a {@link ScriptType}.
@@ -66,15 +59,12 @@ public enum ScriptType implements Writeable {
     public static ScriptType readFrom(StreamInput in) throws IOException {
         int id = in.readVInt();
 
-        if (FILE.id == id) {
-            return FILE;
-        } else if (STORED.id == id) {
+        if (STORED.id == id) {
             return STORED;
         } else if (INLINE.id == id) {
             return INLINE;
         } else {
             throw new IllegalStateException("Error reading ScriptType id [" + id + "] from stream, expected one of [" +
-                FILE.id + " [" + FILE.parseField.getPreferredName() + "], " +
                 STORED.id + " [" + STORED.parseField.getPreferredName() + "], " +
                 INLINE.id + " [" + INLINE.parseField.getPreferredName() + "]]");
         }

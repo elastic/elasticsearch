@@ -196,21 +196,25 @@ public class ElasticsearchAssertions {
     }
 
     public static String formatShardStatus(BroadcastResponse response) {
-        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() + " & "
-                + response.getFailedShards() + " shard failures:";
+        StringBuilder msg = new StringBuilder();
+        msg.append(" Total shards: ").append(response.getTotalShards())
+           .append(" Successful shards: ").append(response.getSuccessfulShards())
+           .append(" & ").append(response.getFailedShards()).append(" shard failures:");
         for (ShardOperationFailedException failure : response.getShardFailures()) {
-            msg += "\n " + failure.toString();
+            msg.append("\n ").append(failure);
         }
-        return msg;
+        return msg.toString();
     }
 
     public static String formatShardStatus(SearchResponse response) {
-        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() + " & "
-                + response.getFailedShards() + " shard failures:";
+        StringBuilder msg = new StringBuilder();
+        msg.append(" Total shards: ").append(response.getTotalShards())
+           .append(" Successful shards: ").append(response.getSuccessfulShards())
+           .append(" & ").append(response.getFailedShards()).append(" shard failures:");
         for (ShardSearchFailure failure : response.getShardFailures()) {
-            msg += "\n " + failure.toString();
+            msg.append("\n ").append(failure);
         }
-        return msg;
+        return msg.toString();
     }
 
     public static void assertNoSearchHits(SearchResponse searchResponse) {

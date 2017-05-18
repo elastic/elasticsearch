@@ -36,13 +36,6 @@ public interface ScriptEngine extends Closeable {
     String getType();
 
     /**
-     * The extension for file scripts in this language.
-     */
-    default String getExtension() {
-        return getType();
-    }
-
-    /**
      * Compiles a script.
      * @param scriptName name of the script. {@code null} if it is anonymous (inline).
      *                                        For a file script, its the file name (with extension).

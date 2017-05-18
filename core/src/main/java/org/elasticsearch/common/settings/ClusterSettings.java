@@ -19,9 +19,6 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.elasticsearch.script.ScriptSecurity;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -89,6 +86,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -303,11 +302,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
-                    ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,
                     ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
                     ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE,
-                    ScriptSecurity.TYPES_ALLOWED_SETTING,
-                    ScriptSecurity.CONTEXTS_ALLOWED_SETTING,
+                    ScriptService.TYPES_ALLOWED_SETTING,
+                    ScriptService.CONTEXTS_ALLOWED_SETTING,
                     IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
                     IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
                     IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
@@ -324,7 +322,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Environment.DEFAULT_PATH_LOGS_SETTING,
                     Environment.PATH_LOGS_SETTING,
                     Environment.PATH_REPO_SETTING,
-                    Environment.PATH_SCRIPTS_SETTING,
                     Environment.PATH_SHARED_DATA_SETTING,
                     Environment.PIDFILE_SETTING,
                     NodeEnvironment.NODE_ID_SEED_SETTING,

@@ -107,6 +107,16 @@ public class VersionUtils {
         return version;
     }
 
+    /** Returns the {@link Version} before the {@link Version#CURRENT} where the minor version is less than the currents minor version. */
+    public static Version getPreviousMinorVersion() {
+        Version version = Version.CURRENT;
+        do {
+            version = getPreviousVersion(version);
+            assert version.before(Version.CURRENT);
+        } while (version.minor == Version.CURRENT.minor);
+        return version;
+    }
+
     /** Returns the oldest {@link Version} */
     public static Version getFirstVersion() {
         return RELEASED_VERSIONS.get(0);

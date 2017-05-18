@@ -278,9 +278,12 @@ public class Version implements Comparable<Version> {
     public Version minimumCompatibilityVersion() {
         final int bwcMajor;
         final int bwcMinor;
-        if (this.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            bwcMajor = major - 1;
-            bwcMinor = 4;
+        if (major == 6) { // we only specialize for current major here
+            bwcMajor = Version.V_5_4_0.major;
+            bwcMinor = Version.V_5_4_0.minor;
+        } else if (major > 6) { // all the future versions are compatible with first minor...
+            bwcMajor = major -1;
+            bwcMinor = 0;
         } else {
             bwcMajor = major;
             bwcMinor = 0;

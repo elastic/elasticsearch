@@ -51,8 +51,6 @@ public class RestIntegTestTask extends DefaultTask {
     boolean includePackaged = false
 
     public RestIntegTestTask() {
-        description = 'Runs rest tests against an elasticsearch cluster.'
-        group = JavaBasePlugin.VERIFICATION_GROUP
         runner = project.tasks.create("${name}Runner", RandomizedTestingTask.class)
         super.dependsOn(runner)
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)

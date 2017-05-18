@@ -72,25 +72,25 @@ class ClusterFormationTasks {
             throw new GradleException("bwcVersion must not be null if numBwcNodes is > 0")
         }
         // this is our current version distribution configuration we use for all kinds of REST tests etc.
-        String distroConfigName = "${prefix}_elasticsearchDistro"
-        Configuration currentDistro = project.configurations.create(distroConfigName)
+        Configuration currentDistro = project.configurations.create("${prefix}_elasticsearchDistro")
+        Configuration bwcDistro = project.configurations.create("${prefix}_elasticsearchBwcDistro")
+        Configuration bwcPlugins = project.configurations.create("${prefix}_elasticsearchBwcPlugins")
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
-        if (config.bwcVersion != null && config.numBwcNodes > 0) {
+        if (config.numBwcNodes > 0) {
+            if (config.bwcVersion == null) {
+                throw new IllegalArgumentException("Must specify bwcVersion when numBwcNodes > 0")
+            }
             // if we have a cluster that has a BWC cluster we also need to configure a dependency on the BWC version
             // this version uses the same distribution etc. and only differs in the version we depend on.
             // from here on everything else works the same as if it's the current version, we fetch the BWC version
             // from mirrors using gradles built-in mechanism etc.
-            project.configurations {
-                elasticsearchBwcDistro
-                elasticsearchBwcPlugins
-            }
-            configureDistributionDependency(project, config.distribution, project.configurations.elasticsearchBwcDistro, config.bwcVersion)
+
+            configureDistributionDependency(project, config.distribution, bwcDistro, config.bwcVersion)
             for (Map.Entry<String, Project> entry : config.plugins.entrySet()) {
-                configureBwcPluginDependency("${prefix}_elasticsearchBwcPlugins", project, entry.getValue(),
-                        project.configurations.elasticsearchBwcPlugins, config.bwcVersion)
+                configureBwcPluginDependency("${prefix}_elasticsearchBwcPlugins", project, entry.getValue(), bwcPlugins, config.bwcVersion)
             }
-            project.configurations.elasticsearchBwcDistro.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
-            project.configurations.elasticsearchBwcPlugins.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
+            bwcDistro.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
+            bwcPlugins.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
         }
         for (int i = 0; i < config.numNodes; i++) {
             // we start N nodes and out of these N nodes there might be M bwc nodes.
@@ -99,7 +99,7 @@ class ClusterFormationTasks {
             Configuration distro = currentDistro
             if (i < config.numBwcNodes) {
                 elasticsearchVersion = config.bwcVersion
-                distro = project.configurations.elasticsearchBwcDistro
+                distro = bwcDistro
             }
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
             nodes.add(node)
@@ -171,7 +171,7 @@ class ClusterFormationTasks {
             if (node.nodeVersion == VersionProperties.elasticsearch) {
                 setup = configureCopyPluginsTask(taskName(prefix, node, 'copyPlugins'), project, setup, node)
             } else {
-                setup = configureCopyBwcPluginsTask(taskName(prefix, node, 'copyBwcPlugins'), project, setup, node)
+                setup = configureCopyBwcPluginsTask(taskName(prefix, node, 'copyBwcPlugins'), project, setup, node, prefix)
             }
         }
 
@@ -417,7 +417,8 @@ class ClusterFormationTasks {
     }
 
     /** Configures task to copy a plugin based on a zip file resolved using dependencies for an older version */
-    static Task configureCopyBwcPluginsTask(String name, Project project, Task setup, NodeInfo node) {
+    static Task configureCopyBwcPluginsTask(String name, Project project, Task setup, NodeInfo node, String prefix) {
+        Configuration bwcPlugins = project.configurations.getByName("${prefix}_elasticsearchBwcPlugins")
         for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
             Project pluginProject = plugin.getValue()
             verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
@@ -428,14 +429,15 @@ class ClusterFormationTasks {
             }
 
             final String depName = pluginProject.extensions.findByName('esplugin').name
-            Dependency dep = project.configurations.elasticsearchBwcPlugins.dependencies.find {
+
+            Dependency dep = bwcPlugins.dependencies.find {
                 it.name == depName
             }
             configuration.dependencies.add(dep)
         }
 
         Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup) {
-            from project.configurations.elasticsearchBwcPlugins
+            from bwcPlugins
             into node.pluginsTmpDir
         }
         return copyPlugins

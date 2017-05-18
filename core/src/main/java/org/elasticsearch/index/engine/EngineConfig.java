@@ -215,7 +215,7 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns a {@link DeletionPolicy} used in the engines
+     * Returns a {@link SnapshotDeletionPolicy} used in the engines
      * {@link org.apache.lucene.index.IndexWriter}.
      */
     public SnapshotDeletionPolicy getDeletionPolicy() {

@@ -314,6 +314,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     @Override
     public final void incRef() {
         refCounter.incRef();
+        if (logger.isTraceEnabled()) {
+            logger.trace("incremented ref counter on {} to [{}]", shardId, refCounter.refCount());
+        }
     }
 
     /**
@@ -331,7 +334,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     @Override
     public final boolean tryIncRef() {
-        return refCounter.tryIncRef();
+        boolean success = refCounter.tryIncRef();
+        if (logger.isTraceEnabled() && success) {
+            logger.trace("incremented ref counter on {} to [{}]", shardId, refCounter.refCount());
+        }
+        return success;
     }
 
     /**
@@ -343,6 +350,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     @Override
     public final void decRef() {
         refCounter.decRef();
+        if (logger.isTraceEnabled()) {
+            logger.debug("decremented ref counter on {} to [{}]", shardId, refCounter.refCount());
+        }
     }
 
     @Override
@@ -1497,6 +1507,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
             directory().sync(Collections.singleton(uuid));
         }
+    }
+
+    @Override
+    public String toString() {
+        return shardId.toString();
     }
 
     /**

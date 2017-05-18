@@ -39,6 +39,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
 
 import java.util.*;
@@ -259,6 +260,10 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 Boolean updatedReadOnly = openSettings.getAsBoolean(IndexMetaData.SETTING_READ_ONLY, null);
+                if (updatedReadOnly == null) {
+                    updatedReadOnly = openSettings.getAsBoolean(EngineConfig.INDEX_USE_AS_PHANTOM, null);
+                }
+
                 if (updatedReadOnly != null) {
                     for (String index : actualIndices) {
                         if (updatedReadOnly) {

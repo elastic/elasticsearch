@@ -76,7 +76,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             null, null, null, null, null,
             fsInfo,
             null, null, null,
-            null);
+            null, null);
     }
 
     @Inject

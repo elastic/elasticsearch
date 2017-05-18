@@ -17,32 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.elasticsearch.index.engine.phantom;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.engine.phantom.PhantomEngineFactory;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
 
-public class InternalEngineFactory implements EngineFactory {
-
-    private final PhantomEngineFactory factory;
-
-    @Inject
-    public InternalEngineFactory(PhantomEngineFactory factory) {
-        this.factory = factory;
-    }
-
-    @Override
-    public Engine newReadWriteEngine(EngineConfig config, boolean skipTranslogRecovery) {
-        return new InternalEngine(config, skipTranslogRecovery);
-    }
+/**
+ * Module creates single manager of phantom engines.
+ * It is expected that this module will be added once
+ * as one of root modules to provide global singleton.
+ *
+ * @author ikuznetsov
+ */
+public class PhantomEnginesModule extends AbstractModule {
 
     @Override
-    public Engine newReadOnlyEngine(EngineConfig config) {
-        return new ShadowEngine(config);
-    }
-
-    @Override
-    public Engine newPhantomEngine(EngineConfig config) {
-        return factory.create(config);
+    protected void configure() {
+        bind(PhantomEnginesManager.class).asEagerSingleton();
+        bind(PhantomEngineFactory.class).toProvider(FactoryProvider.newFactory(PhantomEngineFactory.class, PhantomEngine.class));
     }
 }

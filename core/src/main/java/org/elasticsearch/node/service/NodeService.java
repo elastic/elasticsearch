@@ -32,6 +32,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServer;
+import org.elasticsearch.index.engine.phantom.PhantomEnginesManager;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.MonitorService;
@@ -63,11 +64,13 @@ public class NodeService extends AbstractComponent {
 
     private final Discovery discovery;
 
+    private final PhantomEnginesManager phantomEnginesManager;
+
     @Inject
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
                        TransportService transportService, IndicesService indicesService,
                        PluginsService pluginService, CircuitBreakerService circuitBreakerService,
-                       Version version) {
+                       Version version, PhantomEnginesManager phantomEnginesManager) {
         super(settings);
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -78,6 +81,7 @@ public class NodeService extends AbstractComponent {
         this.version = version;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
+        this.phantomEnginesManager = phantomEnginesManager;
     }
 
     // can not use constructor injection or there will be a circular dependency
@@ -145,13 +149,14 @@ public class NodeService extends AbstractComponent {
                 transportService.stats(),
                 httpServer == null ? null : httpServer.stats(),
                 circuitBreakerService.stats(),
-                scriptService.stats()
+                scriptService.stats(),
+                phantomEnginesManager.stats()
         );
     }
 
     public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool,
                            boolean fs, boolean transport, boolean http, boolean circuitBreaker,
-                           boolean script) {
+                           boolean script, boolean phantom) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(discovery.localNode(), System.currentTimeMillis(),
@@ -164,7 +169,8 @@ public class NodeService extends AbstractComponent {
                 transport ? transportService.stats() : null,
                 http ? (httpServer == null ? null : httpServer.stats()) : null,
                 circuitBreaker ? circuitBreakerService.stats() : null,
-                script ? scriptService.stats() : null
+                script ? scriptService.stats() : null,
+                phantom ? phantomEnginesManager.stats() : null
         );
     }
 }

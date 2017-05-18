@@ -630,6 +630,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    public static View newEmptyView() {
+        return new View(Collections.<TranslogReader>emptyList(), null);
+    }
+
     /**
      * Sync's the translog.
      */
@@ -782,6 +786,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         /** this smallest translog generation in this view */
         public synchronized long minTranslogGeneration() {
             ensureOpen();
+            if (orderedTranslogs.isEmpty()) {
+                return -1;
+            }
             return orderedTranslogs.get(0).getGeneration();
         }
 

@@ -66,16 +66,8 @@ import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.CommitStats;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineClosedException;
-import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.IndexSearcherWrappingService;
-import org.elasticsearch.index.engine.RefreshFailedEngineException;
-import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.engine.phantom.PhantomEngine;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
@@ -84,13 +76,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperForType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
@@ -191,7 +177,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
 
-    private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
+    private ApplySettings applySettings = new ApplySettings();
 
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
@@ -269,7 +255,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         state = IndexShardState.CREATED;
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
         this.flushOnClose = indexSettings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
-        indexSettingsService.addListener(applyRefreshSettings);
+        indexSettingsService.addListener(applySettings);
         this.path = path;
         this.mergePolicyConfig = new MergePolicyConfig(logger, indexSettings);
         /* create engine config */
@@ -303,7 +289,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     /** returns true if this shard supports indexing (i.e., write) operations. */
     public boolean canIndex() {
-        return true;
+        return !engineConfig.isPhantom();
     }
 
     public ShardIndexingService indexingService() {
@@ -663,14 +649,29 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public RefreshStats refreshStats() {
+        Engine engine = currentEngineReference.get();
+        if (engine == null || engine instanceof PhantomEngine) {
+            return new RefreshStats(0, 0);
+        }
         return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()));
     }
 
     public FlushStats flushStats() {
+        Engine engine = currentEngineReference.get();
+        if (engine == null || engine instanceof PhantomEngine) {
+            return new FlushStats(0, 0);
+        }
         return new FlushStats(flushMetric.count(), TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()));
     }
 
     public DocsStats docStats() {
+        Engine engine = currentEngineReference.get();
+        if (engine == null) {
+            return new DocsStats(0, 0);
+        }
+        if (engine instanceof PhantomEngine) {
+            return ((PhantomEngine) engine()).docsStats();
+        }
         try (Engine.Searcher searcher = acquireSearcher("doc_stats")) {
             return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
         }
@@ -703,7 +704,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         } catch (IOException e) {
             throw new ElasticsearchException("io exception while building 'store stats'", e);
         } catch (AlreadyClosedException ex) {
-            return null; // already closed
+//            return null; // already closed
+            return new StoreStats(0, 0);
         }
     }
 
@@ -742,7 +744,11 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public TranslogStats translogStats() {
-        return engine().getTranslog().stats();
+        Engine engine = engine();
+        if (engine instanceof PhantomEngine) { // return itself instead of engine
+            return new TranslogStats(0, 0);
+        }
+        return engine.getTranslog().stats();
     }
 
     public SuggestStats suggestStats() {
@@ -750,6 +756,11 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public CompletionStats completionStats(String... fields) {
+        Engine engine = engineUnsafe();
+        if (engine == null || engine instanceof PhantomEngine) {
+            return new CompletionStats();
+        }
+
         CompletionStats completionStats = new CompletionStats();
         final Engine.Searcher currentSearcher = acquireSearcher("completion_stats");
         try {
@@ -852,7 +863,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void close(String reason, boolean flushEngine) throws IOException {
         synchronized (mutex) {
             try {
-                indexSettingsService.removeListener(applyRefreshSettings);
+                indexSettingsService.removeListener(applySettings);
                 if (state != IndexShardState.CLOSED) {
                     FutureUtils.cancel(refreshScheduledFuture);
                     refreshScheduledFuture = null;
@@ -862,7 +873,10 @@ public class IndexShard extends AbstractIndexShardComponent {
                 changeState(IndexShardState.CLOSED, reason);
                 indexShardOperationCounter.decRef();
             } finally {
-                final Engine engine = this.currentEngineReference.getAndSet(null);
+                final Engine engine;
+                synchronized (mutex) {
+                    engine = this.currentEngineReference.getAndSet(null);
+                }
                 try {
                     if (engine != null && flushEngine && this.flushOnClose) {
                         engine.flushAndClose();
@@ -902,7 +916,9 @@ public class IndexShard extends AbstractIndexShardComponent {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         recoveryState.setStage(RecoveryState.Stage.INDEX);
-        assert currentEngineReference.get() == null;
+        synchronized (mutex) {
+            assert currentEngineReference.get() == null;
+        }
     }
 
     /**
@@ -1135,6 +1151,11 @@ public class IndexShard extends AbstractIndexShardComponent {
             return;
         }
 
+        if (engine instanceof PhantomEngine) {
+            logger.debug("updateBufferSize: phantom engine does not have buffers");
+            return;
+        }
+
         // update engine if it is already started.
         if (preValue.bytes() != shardIndexingBufferSize.bytes()) {
             // so we push changes these changes down to IndexWriter:
@@ -1226,7 +1247,15 @@ public class IndexShard extends AbstractIndexShardComponent {
         storeRecoveryService.recover(this, shouldExist, recoveryListener);
     }
 
-    private class ApplyRefreshSettings implements IndexSettingsService.Listener {
+    public Boolean loadState() {
+        Engine engine = engineUnsafe();
+        if (engine instanceof PhantomEngine) {
+            return ((PhantomEngine) engine).loadState() ? Boolean.TRUE : Boolean.FALSE;
+        }
+        return null;
+    }
+
+    private class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
             boolean change = false;
@@ -1331,7 +1360,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         @Override
         public void run() {
             // we check before if a refresh is needed, if not, we reschedule, otherwise, we fork, refresh, and then reschedule
-            if (!engine().refreshNeeded()) {
+            Engine engine = engineUnsafe();
+            if (engine == null || !engine.refreshNeeded()) {
                 reschedule();
                 return;
             }
@@ -1484,6 +1514,36 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
+    /**
+     * Blocks until engine type will be changed.
+     * Cluster state update will be timed out when
+     * many indices are specified at once to change this.
+     *
+     * @param phantom true - phantom, false - internal
+     */
+    public void switchEngine(boolean phantom) {
+
+        synchronized (mutex) {
+            engineConfig.setPhantom(phantom);
+            engineConfig.setCreate(false); // of course, index should exist
+
+            if (currentEngineReference.get() == null) {
+                return; // closed or recovering shard
+            }
+
+            Engine engine = currentEngineReference.get();
+            try {
+                engine.close();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to close engine", e);
+            }
+
+            currentEngineReference.set(null);
+        }
+
+        createNewEngine(true, engineConfig);
+    }
+
     private void createNewEngine(boolean skipTranslogRecovery, EngineConfig config) {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
@@ -1506,6 +1566,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     protected Engine newEngine(boolean skipTranslogRecovery, EngineConfig config) {
+        if (config.isPhantom()) {
+            return engineFactory.newPhantomEngine(engineConfig);
+        }
         return engineFactory.newReadWriteEngine(config, skipTranslogRecovery);
     }
 
@@ -1649,5 +1712,9 @@ public class IndexShard extends AbstractIndexShardComponent {
                     value, defaultValue, Arrays.toString(Translog.Durabilty.values()));
             return defaultValue;
         }
+    }
+
+    public boolean usesPhantomEngine() {
+        return engineUnsafe() != null && engine() instanceof PhantomEngine;
     }
 }

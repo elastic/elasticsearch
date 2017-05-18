@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.index.engine.phantom.PhantomEnginesManagerStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -77,6 +78,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
     @Nullable
     private ScriptStats scriptStats;
 
+    @Nullable
+    private PhantomEnginesManagerStats phantomEnginesManagerStats;
+
     NodeStats() {
     }
 
@@ -84,7 +88,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
                      @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool,
                      @Nullable FsInfo fs, @Nullable TransportStats transport, @Nullable HttpStats http,
                      @Nullable AllCircuitBreakerStats breaker,
-                     @Nullable ScriptStats scriptStats) {
+                     @Nullable ScriptStats scriptStats, @Nullable PhantomEnginesManagerStats phantomEnginesManagerStats) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -97,6 +101,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         this.http = http;
         this.breaker = breaker;
         this.scriptStats = scriptStats;
+        this.phantomEnginesManagerStats = phantomEnginesManagerStats;
     }
 
     public long getTimestamp() {
@@ -176,6 +181,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         return this.scriptStats;
     }
 
+    @Nullable
+    public PhantomEnginesManagerStats getPhantomEnginesManagerStats() {
+        return phantomEnginesManagerStats;
+    }
+
     public static NodeStats readNodeStats(StreamInput in) throws IOException {
         NodeStats nodeInfo = new NodeStats();
         nodeInfo.readFrom(in);
@@ -212,7 +222,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         }
         breaker = AllCircuitBreakerStats.readOptionalAllCircuitBreakerStats(in);
         scriptStats = in.readOptionalStreamable(new ScriptStats());
-
+        phantomEnginesManagerStats = in.readOptionalStreamable(new PhantomEnginesManagerStats());
     }
 
     @Override
@@ -269,6 +279,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         }
         out.writeOptionalStreamable(breaker);
         out.writeOptionalStreamable(scriptStats);
+        out.writeOptionalStreamable(phantomEnginesManagerStats);
     }
 
     @Override
@@ -318,6 +329,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         }
         if (getScriptStats() != null) {
             getScriptStats().toXContent(builder, params);
+        }
+        if (getPhantomEnginesManagerStats() != null) {
+            getPhantomEnginesManagerStats().toXContent(builder, params);
         }
 
         return builder;

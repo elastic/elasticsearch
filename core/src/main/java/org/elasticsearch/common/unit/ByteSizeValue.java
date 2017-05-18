@@ -232,6 +232,10 @@ public class ByteSizeValue implements Streamable {
         return sizeValue;
     }
 
+    public static ByteSizeValue of(long bytes) {
+        return new ByteSizeValue(bytes);
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         size = in.readVLong();

@@ -29,8 +29,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -72,7 +74,18 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
 
     @Override
     protected ClusterBlockException checkBlock(DeleteIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndices(state, request));
+        String[] indices = indexNameExpressionResolver.concreteIndices(state, request);
+        for (String index : indices) {
+            String value = state.metaData().index(index).getSettings().get(EngineConfig.INDEX_USE_AS_PHANTOM);
+            if (value != null && Booleans.isExplicitTrue(value)) {
+                continue; // allow to delete phantom index
+            }
+            ClusterBlockException exception = state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, index);
+            if (exception != null)
+                return exception;
+        }
+//        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices);
+        return null;
     }
 
     @Override

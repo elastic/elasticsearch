@@ -16,16 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.engine;
+
+package org.elasticsearch.action.admin.indices.stats;
+
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 
 /**
- * Simple Engine Factory
+ * Request message to gather phantom engine's stats on shards.
  */
-public interface EngineFactory {
-
-    Engine newReadWriteEngine(EngineConfig config, boolean skipTranslogRecovery);
-
-    Engine newReadOnlyEngine(EngineConfig config);
-
-    Engine newPhantomEngine(EngineConfig config);
+public class PhantomIndicesStatsRequest extends BroadcastRequest<PhantomIndicesStatsRequest> {
 }

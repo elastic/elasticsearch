@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import com.google.common.base.Function;
+import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.Accountable;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -56,6 +58,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -64,6 +67,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -100,7 +105,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final IndexSettingsService settingsService;
 
     private final NodeEnvironment nodeEnv;
+
     private final IndicesService indicesServices;
+
+    private final ThreadPool threadPool;
 
     private volatile ImmutableMap<Integer, IndexShardInjectorPair> shards = ImmutableMap.of();
 
@@ -125,12 +133,15 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
 
+    private boolean phantom = false;
+
     @Inject
     public IndexService(Injector injector, Index index, NodeEnvironment nodeEnv,
                         AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                         SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache,
                         IndexSettingsService settingsService,
-                        IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache, IndicesService indicesServices) {
+                        IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache,
+                        IndicesService indicesServices, ThreadPool threadPool) {
 
         super(index, settingsService.getSettings());
         this.injector = injector;
@@ -147,11 +158,51 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.pluginsService = injector.getInstance(PluginsService.class);
         this.indicesServices = indicesServices;
         this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
+        this.threadPool = threadPool;
 
         // inject workarounds for cyclic dep
         indexFieldData.setListener(new FieldDataCacheListener(this));
         bitSetFilterCache.setListener(new BitsetCacheListener(this));
         this.nodeEnv = nodeEnv;
+
+        this.phantom = settingsService.getSettings().getAsBoolean(EngineConfig.INDEX_USE_AS_PHANTOM, false);
+        this.settingsService.addListener(new PhantomEngineSettingListener());
+    }
+
+    class PhantomEngineSettingListener implements IndexSettingsService.Listener {
+
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            boolean oldPhantomValue = phantom;
+            final boolean newPhantomValue = settings.getAsBoolean(EngineConfig.INDEX_USE_AS_PHANTOM, false);
+            phantom = newPhantomValue;
+            if (oldPhantomValue != newPhantomValue) {
+                ImmutableCollection<IndexShardInjectorPair> injectorPairs = shards.values();
+
+                if (logger.isDebugEnabled()) {
+                    logger.debug("submitting tasks to switch [{}] shard engines", injectorPairs.size());
+                }
+
+                Executor executor = threadPool.executor(ThreadPool.Names.GENERIC);
+
+                final CountDownLatch latch = new CountDownLatch(injectorPairs.size());
+                for (final IndexShardInjectorPair pair : injectorPairs) {
+                    executor.execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            pair.indexShard.switchEngine(newPhantomValue);
+                            latch.countDown();
+                        }
+                    });
+                }
+
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException("Interrupted while wait for engine switch completion", e);
+                }
+            }
+        }
     }
 
     public int numberOfShards() {

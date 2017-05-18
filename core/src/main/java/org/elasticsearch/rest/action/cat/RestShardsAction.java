@@ -88,6 +88,7 @@ public class RestShardsAction extends AbstractCatAction {
                 .addCell("shard", "default:true;alias:s,sh;desc:shard name")
                 .addCell("prirep", "alias:p,pr,primaryOrReplica;default:true;desc:primary or replica")
                 .addCell("state", "default:true;alias:st;desc:shard state")
+                .addCell("loaded", "default:true;alias:ld;desc:shard loaded (+) into heap or unloaded from it (-)")
                 .addCell("docs", "alias:d,dc;text-align:right;desc:number of docs in shard")
                 .addCell("store", "alias:sto;text-align:right;desc:store size of shard (how much disk it uses)")
                 .addCell("ip", "default:true;desc:ip of node where it lives")
@@ -203,6 +204,16 @@ public class RestShardsAction extends AbstractCatAction {
                 }
             }
             table.addCell(shard.state());
+            if (commonStats != null) {
+                Boolean loadState = commonStats.getLoadState();
+                if (loadState == null) {
+                    table.addCell(null);
+                } else {
+                    table.addCell(loadState ? "  +" : "  -");
+                }
+            } else {
+                table.addCell(null);
+            }
             table.addCell(commonStats == null ? null : commonStats.getDocs().getCount());
             table.addCell(commonStats == null ? null : commonStats.getStore().getSize());
             if (shard.assignedToNode()) {

@@ -69,11 +69,11 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.phantom.PhantomEnginesManager;
 import org.elasticsearch.index.indexing.IndexingSlowLog;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.stats.SearchSlowLog;
@@ -210,6 +210,7 @@ public class ClusterModule extends AbstractModule {
         registerClusterDynamicSetting(TransportService.SETTING_TRACE_LOG_EXCLUDE + ".*", Validator.EMPTY);
         registerClusterDynamicSetting(TransportCloseIndexAction.SETTING_CLUSTER_INDICES_CLOSE_ENABLE, Validator.BOOLEAN);
         registerClusterDynamicSetting(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE, Validator.INTEGER);
+        registerClusterDynamicSetting(PhantomEnginesManager.PHANTOM_INDICES_MAX_HEAP_SIZE, Validator.BYTES_SIZE_OR_PERCENTAGE);
     }
 
     private void registerBuiltinIndexSettings() {
@@ -242,6 +243,7 @@ public class ClusterModule extends AbstractModule {
         registerIndexDynamicSetting(EngineConfig.INDEX_GC_DELETES_SETTING, Validator.TIME);
         registerIndexDynamicSetting(IndexShard.INDEX_FLUSH_ON_CLOSE, Validator.BOOLEAN);
         registerIndexDynamicSetting(EngineConfig.INDEX_VERSION_MAP_SIZE, Validator.BYTES_SIZE_OR_PERCENTAGE);
+        registerIndexDynamicSetting(EngineConfig.INDEX_USE_AS_PHANTOM, Validator.BOOLEAN);
         registerIndexDynamicSetting(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN, Validator.TIME);
         registerIndexDynamicSetting(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO, Validator.TIME);
         registerIndexDynamicSetting(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG, Validator.TIME);

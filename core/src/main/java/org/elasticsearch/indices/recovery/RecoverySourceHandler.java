@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
+import org.elasticsearch.index.engine.phantom.PhantomEngine;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -113,13 +114,21 @@ public class RecoverySourceHandler {
         this.response = new RecoveryResponse();
     }
 
+    private Translog.View getTranslogView(Engine engine) {
+        if (engine instanceof PhantomEngine) {
+            return Translog.newEmptyView();
+        } else {
+            assert engine.getTranslog() != null : "translog must not be null";
+            return engine.getTranslog().newView();
+        }
+    }
+
     /**
      * performs the recovery from the local engine to the target
      */
     public RecoveryResponse recoverToTarget() {
         final Engine engine = shard.engine();
-        assert engine.getTranslog() != null : "translog must not be null";
-        try (Translog.View translogView = engine.getTranslog().newView()) {
+        try (Translog.View translogView = getTranslogView(engine)) {
             logger.trace("captured translog id [{}] for recovery", translogView.minTranslogGeneration());
             final SnapshotIndexCommit phase1Snapshot;
             try {

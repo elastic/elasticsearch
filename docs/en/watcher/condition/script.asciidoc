@@ -24,9 +24,8 @@ This example defines a script as a simple string. This format is actually a
 shortcut for defining an <<condition-script-inline, inline>> script. The
 formal definition of a script is an object that specifies the script type and
 optional language and parameter values. If the `lang` attribute is omitted, the
-language defaults to `painless`. Elasticsearch supports three script types:
-<<condition-script-inline, Inline>>, <<condition-script-file, File>>, and
-<<condition-script-stored, Stored>>.
+language defaults to `painless`. Elasticsearch supports two types of scripts,
+<<condition-script-inline, Inline>> and <<condition-script-stored, Stored>>.
 
 For example, the following snippet shows a formal definition of an `inline`
 script that explicitly specifies the language and defines a single script
@@ -61,38 +60,6 @@ always returns `true`.
 }
 --------------------------------------------------
 
-[[condition-script-file]]
-==== File Scripts
-
-File scripts are scripts that are defined in files stored in the `config/scripts`
-directory. The following snippet shows how to refer to the `my_script.painless`
-file:
-
-[source,js]
---------------------------------------------------
-"condition" : {
-  "script" : {
-    "id" : "my_script"
-  }
-}
---------------------------------------------------
-
-As with <<condition-script-inline, Inline>> scripts, you can also specify the
-script language and parameters:
-
-[source,js]
---------------------------------------------------
-"condition" : {
-  "script" : {
-    "id" : "my_script",
-    "lang" : "javascript",
-    "params" : {
-      "result" : true
-    }
-  }
-}
---------------------------------------------------
-
 [[condition-script-stored]]
 ==== Stored Scripts
 
@@ -108,7 +75,7 @@ in Elasticsearch. The following snippet shows how to refer to a script by its `i
 }
 --------------------------------------------------
 
-As with <<condition-script-file, File>> and <<condition-script-inline, Inline>>
+As with <<condition-script-inline, Inline>>
 scripts, you can also specify the script language and parameters:
 
 [source,js]

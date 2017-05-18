@@ -253,8 +253,8 @@ The execution context defines variables you can use in a script and parameter
 placeholders in a template.
 
 {watcher} uses the Elasticsearch script infrastructure, which supports
-<<inline-templates-scripts,inline>>, <<stored-templates-scripts, stored>>, and
-<<file-templates-scripts, file-based scripts>>. Scripts and templates are compiled
+<<inline-templates-scripts,inline>> and <<stored-templates-scripts, stored>>.
+Scripts and templates are compiled
 and cached by Elasticsearch to optimize recurring execution. Autoloading is also
 supported. For more information, see {ref}/modules-scripting.html[Scripting] and
 {ref}/modules-scripting-using.html[How to use scripts] in the Elasticsearch
@@ -435,33 +435,3 @@ references the `email_notification_subject` template:
 }
 ----------------------------------------------------------------------
 
-[float]
-[[file-templates-scripts]]
-===== File-based Templates and Scripts
-
-If you store templates or scripts in the `$ES_HOME/config/scripts` directory, you
-can reference them by name. Template files must be saved with the extension
-`.mustache`. Script files must be saved with the appropriate file extension, such
-as `.painless`.
-
-NOTE:   The `config/scripts` directory is scanned periodically for changes. New
-        and changed templates and scripts are reloaded and deleted templates and
-        scripts are removed from the preloaded scripts cache. For more information,
-        see {ref}/modules-scripting-using.html#reload-scripts[Automatic Script
-        Reloading] in the Elasticsearch Reference.
-
-To reference a file-based stored or script, you use the formal object definition
-and specify its name in the `file` field. For example, the following snippet
-references the script file `threshold_hits.painless`:
-
-[source,js]
---------------------------------------------------
-"condition" : {
-    "script" : {
-      "id" : "threshold_hits",
-      "params" : {
-        "threshold" : 0
-      }
-    }
-  }
---------------------------------------------------

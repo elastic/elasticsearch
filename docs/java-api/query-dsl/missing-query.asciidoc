@@ -7,7 +7,7 @@ See {ref}/query-dsl-missing-query.html[Missing Query]
 
 [source,java]
 --------------------------------------------------
-QueryBuilder qb = missingQuery("user");         <1>
+QueryBuilder qb = missingQuery("user")         <1>
     .existence(true)                            <2>
     .nullValue(true);                           <3>
 --------------------------------------------------

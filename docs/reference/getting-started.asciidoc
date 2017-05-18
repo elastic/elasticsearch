@@ -451,7 +451,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 --------------------------------------------------
 curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
 {
-  "doc": { "name": "Jane Doe", "age": 20 }
+  "doc": { "name": "Jane Doe", "age": "20" }
 }'
 --------------------------------------------------
 

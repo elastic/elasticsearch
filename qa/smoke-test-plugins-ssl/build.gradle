@@ -237,7 +237,7 @@ ext.expansions = [
 
 processTestResources {
   from(sourceSets.test.resources.srcDirs) {
-    include '**/*.yaml'
+    include '**/*.yml'
     inputs.properties(expansions)
     MavenFilteringHack.filter(it, expansions)
   }

@@ -96,7 +96,7 @@ public class TransportBulkActionTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testDeleteNonExistingDoc() throws Exception {
+    public void testDeleteNonExistingDocDoesNotCreateIndex() throws Exception {
         BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index", "type", "id"));
 
         bulkAction.execute(null, bulkRequest, ActionListener.wrap(response -> {
@@ -111,7 +111,7 @@ public class TransportBulkActionTests extends ESTestCase {
         }));
     }
 
-    public void testDeleteNonExistingDocExternalVersion() throws Exception {
+    public void testDeleteNonExistingDocExternalVersionCreatesIndex() throws Exception {
         BulkRequest bulkRequest = new BulkRequest()
                 .add(new DeleteRequest("index", "type", "id").versionType(VersionType.EXTERNAL).version(0));
 
@@ -122,7 +122,7 @@ public class TransportBulkActionTests extends ESTestCase {
         }));
     }
 
-    public void testDeleteNonExistingDocExternalGteVersion() throws Exception {
+    public void testDeleteNonExistingDocExternalGteVersionCreatesIndex() throws Exception {
         BulkRequest bulkRequest = new BulkRequest()
                 .add(new DeleteRequest("index2", "type", "id").versionType(VersionType.EXTERNAL_GTE).version(0));
 

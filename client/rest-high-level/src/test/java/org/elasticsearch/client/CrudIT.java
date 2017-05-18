@@ -63,21 +63,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
     public void testDelete() throws IOException {
         {
-            // Testing non existing document
-            final XContentType xContentType = randomFrom(XContentType.values());
-            IndexRequest indexRequest = new IndexRequest("index", "type")
-                    .source(XContentBuilder.builder(xContentType.xContent()).startObject().field("test", "test").endObject());
-            execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
-
-            String docId = "does_not_exist";
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
-            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
-            assertEquals("index", deleteResponse.getIndex());
-            assertEquals("type", deleteResponse.getType());
-            assertEquals(docId, deleteResponse.getId());
-            assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
-        }
-        {
             // Testing deletion
             String docId = "id";
             highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")));
@@ -90,6 +75,16 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("type", deleteResponse.getType());
             assertEquals(docId, deleteResponse.getId());
             assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+        }
+        {
+            // Testing non existing document
+            String docId = "does_not_exist";
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals(docId, deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
         }
         {
             // Testing version conflict

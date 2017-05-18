@@ -1,0 +1,89 @@
+{
+    "person" : {
+        "date_detection" : false,
+        "numeric_detection":false,
+        "dynamic_templates":[
+            {
+                "dt_1":{
+                      "match": "*__o*",
+                      "match_mapping_type" : "object",
+                      "options" :{
+                          "a":{"include_in_all":false},
+                          "d":{"dynamic":false},
+                          "e":{"enabled":false},
+                          "p":{"path":"full"}
+                      },
+                      "mapping": {
+                        "path" : "just_name"
+                      }
+                }
+            },
+            {
+                "dt_2":{
+                      "match": "*__d*",
+                      "capture":"(([a-zA-Z0-9]+?)(?:_[a-zA-Z0-9]+)*)__[a-zA-Z0-9]+", 
+                      "options" :{
+                          "n":{"index_name":"{path}.{1}"},
+                          "j":{"index":"no"},
+                          "s":{"store":true},
+                          "a":{"include_in_all":false},
+                          "1":{"boost":1.5}
+                      },
+                      "mapping": {
+                        "type" : "date",
+                        "index_name":"{path}.{2}",
+                        "format":"yyyyMMdd'T'HHmmss.SSS'Z'"				
+                      }
+                }
+            },
+            {
+                "dt_3":{
+                    "match": "*__r*",
+                    "capture":"(([a-zA-Z0-9]+?)(?:_[a-zA-Z0-9]+)*)__[a-zA-Z0-9]+", 
+                    "options" :{
+                        "n":{
+                            "properties":{
+                                "ref":{"type":"string", "index":"not_analyzed", "index_name":"ref"},
+                                "caption":{"type":"string", "index_name":"{path}.{2}"}
+                            }
+                        },
+                        "m":{
+                            "properties":{
+                                "ref":{"type":"string", "index":"not_analyzed", "index_name":"ref"},
+                                "caption":{"type":"string", "index_name":"{path}.{1}"}
+                            }
+                        }
+                    },
+                    "mapping": {
+                        "type" : "object",
+                        "dynamic":"false",
+                        "properties":{
+                            "ref":{"type":"string", "index":"not_analyzed", "index_name":"ref"},
+                            "caption":{"type":"string", "index":"no"}
+                        }
+                    }
+                }
+            },
+            {
+                "dt_4":{
+                      "match": "*__*",
+                      "capture":"(([a-zA-Z0-9]+?)(?:_[a-zA-Z0-9]+)*)__[a-zA-Z0-9]+", 
+                      "options" :{
+                          "s":{"type":"string"},
+                          "l":{"type":"long"},
+                          "m":{"index_name":"{1}"},
+                          "n":{"index_name":"{path}.{2}"},
+                          "i":{"index":"not_analyzed"},
+                          "j":{"index":"no"},
+                          "t":{"store":true},
+                          "a":{"include_in_all":false},
+                          "1":{"boost":1.5}
+                      },
+                      "mapping": {
+                          "index_name":"{path}.{1}"
+                      }
+                }
+            }
+        ]
+    }
+}

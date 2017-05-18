@@ -64,7 +64,7 @@ Sorting tags by parent document' `view_count` field:
     "query": {
         "has_parent" : {
             "parent_type" : "blog",
-            "score" : true,
+            "score_mode" : "score",
             "query" : {
                 "function_score" : {
                     "script_score": {

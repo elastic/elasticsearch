@@ -43,8 +43,9 @@ subprojects {
     approvedLicenses = ['Elasticsearch Confidential']
     additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
-  ext.projectSubstitutions += [
-     "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack-elasticsearch:plugin',
-     "org.elasticsearch.plugin:x-pack:${wireCompatVersions[-1]}": ':x-pack-elasticsearch:plugin:bwc-zip'
-  ]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack-elasticsearch:plugin']
+  if (wireCompatVersions[-1].snapshot) {
+    ext.projectSubstitutions += [
+      "org.elasticsearch.plugin:x-pack:${wireCompatVersions[-1]}": ':x-pack-elasticsearch:plugin:bwc-zip']
+  }
 }

@@ -78,17 +78,6 @@ the delete request will be rejected and a `RoutingMissingException` will be
 thrown instead.
 
 [float]
-[[delete-index-creation]]
-=== Automatic index creation
-
-The delete operation automatically creates an index if it has not been
-created before (check out the <<indices-create-index,create index API>>
-for manually creating an index), and also automatically creates a
-dynamic type mapping for the specific type if it has not been created
-before (check out the <<indices-put-mapping,put mapping>>
-API for manually creating type mapping).
-
-[float]
 [[delete-distributed]]
 === Distributed
 

@@ -52,6 +52,9 @@ Transient cluster settings take precedence over persistent cluster settings,
 which take precedence over settings configured in the `elasticsearch.yml`
 config file.
 
+In case of differing `elasticsearch.yml` settings across nodes in the cluster,
+the settings on the current, elected master are used.
+
 For this reason it is preferrable to  use the `elasticsearch.yml` file only
 for local configurations, and set all cluster-wider settings with the
 `settings` API.

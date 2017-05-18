@@ -438,9 +438,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.remove().index("foo*").alias("foo")).execute().get());
 
-        assertThat(admin().indices().prepareAliasesExist("foo").get().exists(), equalTo(true));
-        assertThat(admin().indices().prepareAliasesExist("foo").setIndices("foo_foo").get().exists(), equalTo(false));
-        assertThat(admin().indices().prepareAliasesExist("foo").setIndices("bar_bar").get().exists(), equalTo(true));
+        assertTrue(admin().indices().prepareAliasesExist("foo").get().exists());
+        assertFalse(admin().indices().prepareAliasesExist("foo").setIndices("foo_foo").get().exists());
+        assertTrue(admin().indices().prepareAliasesExist("foo").setIndices("bar_bar").get().exists());
         expectThrows(IndexNotFoundException.class, () -> admin().indices().prepareAliases()
                 .addAliasAction(AliasActions.remove().index("foo").alias("foo")).execute().actionGet());
     }
@@ -801,6 +801,21 @@ public class IndexAliasesIT extends ESIntegTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
         }
+    }
+
+    // aliases can be added only to indices
+    public void testAddAliasesOnlyToIndices() throws Exception {
+        logger.info("--> creating index [2017-05-20]");
+        assertAcked(prepareCreate("2017-05-20"));
+        ensureGreen();
+
+        logger.info("--> adding [week_20] alias to [2017-05-20]");
+        assertAcked(admin().indices().prepareAliases().addAlias("2017-05-20", "week_20"));
+
+        expectThrows(IndexNotFoundException.class, () -> admin().indices().prepareAliases()
+                .addAliasAction(AliasActions.add().index("week_20").alias("tmp")).execute().actionGet());
+
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("2017-05-20").alias("tmp")).execute().get());
     }
 
     // Before 2.0 alias filters were parsed at alias creation time, in order

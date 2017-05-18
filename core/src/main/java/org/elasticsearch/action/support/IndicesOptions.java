@@ -108,8 +108,8 @@ public class IndicesOptions {
      * @return whether aliases pointing to multiple indices are allowed
      */
     public boolean allowAliasesToMultipleIndices() {
-        //true is default here, for bw comp we keep the first 16 values
-        //in the array same as before + the default value for the new flag
+        // true is default here, for bw comp we keep the first 16 values
+        // in the array same as before + the default value for the new flag
         return (id & FORBID_ALIASES_TO_MULTIPLE_INDICES) == 0;
     }
 
@@ -121,9 +121,11 @@ public class IndicesOptions {
     }
     
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha2_UNRELEASED)) {
             out.write(id);
         } else {
+            // if we are talking to a node that doesn't support the newly added flag (ignoreAliases)
+            // flip to 0 all the bits starting from the 7th
             out.write(id & 0x3f);
         }
     }

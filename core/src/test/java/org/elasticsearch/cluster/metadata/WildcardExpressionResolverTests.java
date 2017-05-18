@@ -135,47 +135,47 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         // when ignoreAliases option is not set, WildcardExpressionResolver resolves the provided
         // expressions against the defined indices and aliases
         IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false);
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
+        IndexNameExpressionResolver.Context indicesAndAliasesContext = new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
 
         // ignoreAliases option is set, WildcardExpressionResolver resolves the provided expressions
         // only against the defined indices
-        IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
-        IndexNameExpressionResolver.Context contextIndices = new IndexNameExpressionResolver.Context(state, ignoreAliasesOptions);
+        IndicesOptions onlyIndicesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
+        IndexNameExpressionResolver.Context onlyIndicesContext = new IndexNameExpressionResolver.Context(state, onlyIndicesOptions);
 
         assertThat(
                 IndexNameExpressionResolver.WildcardExpressionResolver
-                        .matches(context, state.getMetaData(), "*").keySet(),
+                        .matches(indicesAndAliasesContext, state.getMetaData(), "*").keySet(),
                 equalTo(newHashSet("bar_bar", "foo_foo", "foo")));
         assertThat(
                 IndexNameExpressionResolver.WildcardExpressionResolver
-                        .matches(contextIndices, state.getMetaData(), "*").keySet(),
+                        .matches(onlyIndicesContext, state.getMetaData(), "*").keySet(),
                 equalTo(newHashSet("bar_bar", "foo_foo")));
 
         assertThat(
                 IndexNameExpressionResolver.WildcardExpressionResolver
-                        .matches(context, state.getMetaData(), "foo*").keySet(),
+                        .matches(indicesAndAliasesContext, state.getMetaData(), "foo*").keySet(),
                 equalTo(newHashSet("foo", "foo_foo")));
         assertThat(
                 IndexNameExpressionResolver.WildcardExpressionResolver
-                        .matches(contextIndices, state.getMetaData(), "foo*").keySet(),
+                        .matches(onlyIndicesContext, state.getMetaData(), "foo*").keySet(),
                 equalTo(newHashSet("foo_foo")));
 
         assertThat(
                 IndexNameExpressionResolver.WildcardExpressionResolver
-                        .matches(context, state.getMetaData(), "f*o").keySet(),
+                        .matches(indicesAndAliasesContext, state.getMetaData(), "f*o").keySet(),
                 equalTo(newHashSet("foo", "foo_foo")));
         assertThat(
                 IndexNameExpressionResolver.WildcardExpressionResolver
-                        .matches(contextIndices, state.getMetaData(), "f*o").keySet(),
+                        .matches(onlyIndicesContext, state.getMetaData(), "f*o").keySet(),
                 equalTo(newHashSet("foo_foo")));
 
         assertThat(
                 IndexNameExpressionResolver.WildcardExpressionResolver
-                        .matches(context, state.getMetaData(), "foo").keySet(),
+                        .matches(indicesAndAliasesContext, state.getMetaData(), "foo").keySet(),
                 equalTo(newHashSet("foo")));
         assertThat(
                 IndexNameExpressionResolver.WildcardExpressionResolver
-                        .matches(contextIndices, state.getMetaData(), "foo").keySet(),
+                        .matches(onlyIndicesContext, state.getMetaData(), "foo").keySet(),
                 equalTo(newHashSet()));
     }
 

@@ -182,10 +182,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         final Set<Index> concreteIndices = new HashSet<>(expressions.size());
         for (String expression : expressions) {
             AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
-            if (context.getOptions().ignoreAliases() && aliasOrIndex.isAlias()) {
-                aliasOrIndex = null;
-            }
-            if (aliasOrIndex == null) {
+            if (aliasOrIndex == null || (aliasOrIndex.isAlias() && context.getOptions().ignoreAliases())) {
                 if (failNoIndices) {
                     IndexNotFoundException infe = new IndexNotFoundException(expression);
                     infe.setResources("index_expression", expression);
@@ -722,7 +719,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             SortedMap<String,AliasOrIndex> subMap = metaData.getAliasAndIndexLookup().subMap(fromPrefix, toPrefix);
             if (context.getOptions().ignoreAliases()) {
                  return subMap.entrySet().stream()
-                        .filter(p -> !p.getValue().isAlias())
+                        .filter(entry -> entry.getValue().isAlias() == false)
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             }
             return subMap;

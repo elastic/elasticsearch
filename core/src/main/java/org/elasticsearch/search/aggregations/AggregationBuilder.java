@@ -64,6 +64,9 @@ public abstract class AggregationBuilder
     @Override
     public abstract AggregationBuilder setMetaData(Map<String, Object> metaData);
 
+    /** Return any associated metadata with this {@link AggregationBuilder}. */
+    public abstract Map<String, Object> getMetaData();
+
     /** Add a sub aggregation to this builder. */
     public abstract AggregationBuilder subAggregation(AggregationBuilder aggregation);
 

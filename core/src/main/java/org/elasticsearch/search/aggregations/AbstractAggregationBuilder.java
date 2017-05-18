@@ -116,6 +116,11 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     }
 
     @Override
+    public Map<String, Object> getMetaData() {
+        return metaData;
+    }
+
+    @Override
     public final String getWriteableName() {
         // We always use the type of the aggregation as the writeable name
         return getType();

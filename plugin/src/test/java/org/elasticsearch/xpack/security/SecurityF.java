@@ -38,7 +38,6 @@ public class SecurityF {
         Settings.Builder settings = Settings.builder();
         settings.put("http.cors.enabled", "true");
         settings.put("http.cors.allow-origin", "*");
-        settings.put("script.inline", "true");
         settings.put("xpack.security.enabled", "true");
         // Disable Monitoring to prevent cluster activity
         settings.put("xpack.monitoring.enabled", "false");

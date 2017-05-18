@@ -8,6 +8,5 @@ dependencies {
 
 integTestCluster {
   setting 'xpack.security.enabled', 'false'
-  setting 'script.inline', 'true'
   plugin ':x-pack-elasticsearch:plugin'
 }

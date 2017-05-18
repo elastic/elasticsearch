@@ -21,7 +21,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -238,8 +237,6 @@ public final class WatcherTestUtils {
 
     public static ScriptService createScriptService(ThreadPool tp) throws Exception {
         Settings settings = Settings.builder()
-                .put("script.inline", "true")
-                .put("script.indexed", "true")
                 .put("path.home", createTempDir())
                 .build();
         ScriptContextRegistry scriptContextRegistry =
@@ -247,8 +244,8 @@ public final class WatcherTestUtils {
 
         ScriptEngineRegistry scriptEngineRegistry =
                 new ScriptEngineRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        return new ScriptService(settings, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+
+        return new ScriptService(settings, scriptEngineRegistry, scriptContextRegistry);
     }
 
     public static SearchType getRandomSupportedSearchType() {

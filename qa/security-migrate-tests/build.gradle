@@ -7,7 +7,6 @@ dependencies {
 }
 
 integTestCluster {
-  setting 'script.inline', 'true'
   plugin ':x-pack-elasticsearch:plugin'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   [

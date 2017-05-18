@@ -99,8 +99,6 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         return Settings.builder()
                 .put(baseSettings)
                 .put(Environment.PATH_CONF_SETTING.getKey(), config)
-                .put("script.stored", "true")
-                .put("script.inline", "true")
                 .build();
     }
 

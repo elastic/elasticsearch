@@ -146,7 +146,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
                 .put(SecuritySettings.settings(securityEnabled))
-                .put("script.inline", "true")
                 // Disable native ML autodetect_process as the c++ controller won't be available
                 .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 .build();

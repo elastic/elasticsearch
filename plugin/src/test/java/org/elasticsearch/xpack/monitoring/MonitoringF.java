@@ -29,7 +29,6 @@ public class MonitoringF {
 
     public static void main(String[] args) throws Throwable {
         Settings.Builder settings = Settings.builder();
-        settings.put("script.inline", "true");
         settings.put("security.manager.enabled", "false");
         settings.put("cluster.name", MonitoringF.class.getSimpleName());
         settings.put("xpack.monitoring.collection.interval", "1s");

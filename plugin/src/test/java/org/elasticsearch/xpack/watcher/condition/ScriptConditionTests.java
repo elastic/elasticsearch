@@ -29,7 +29,6 @@ import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptMetaData;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
@@ -90,10 +89,8 @@ public class ScriptConditionTests extends ESTestCase {
 
         ScriptEngineRegistry registry = new ScriptEngineRegistry(singleton(engine));
         ScriptContextRegistry contextRegistry = new ScriptContextRegistry(singleton(new ScriptContext.Plugin("xpack", "watch")));
-        ScriptSettings scriptSettings = new ScriptSettings(registry, contextRegistry);
+        scriptService = new ScriptService(Settings.EMPTY, registry, contextRegistry);
 
-
-        scriptService = new ScriptService(Settings.EMPTY, registry, contextRegistry, scriptSettings);
         ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
         clusterState.metaData(MetaData.builder().putCustom(ScriptMetaData.TYPE, new ScriptMetaData.Builder(null).build()));
         ClusterState cs = clusterState.build();

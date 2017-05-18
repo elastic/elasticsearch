@@ -8,7 +8,6 @@ dependencies {
 }
 
 integTestCluster {
-  setting 'script.inline', 'true'
   plugin ':x-pack-elasticsearch:plugin'
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'

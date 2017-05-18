@@ -15,7 +15,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -46,8 +45,7 @@ public class WatcherTemplateIT extends ESTestCase {
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
                 Collections.singleton(new MustacheScriptEngine())
         );
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, registry);
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptEngineRegistry, registry, scriptSettings);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptEngineRegistry, registry);
         engine = new TextTemplateEngine(Settings.EMPTY, scriptService);
     }
 

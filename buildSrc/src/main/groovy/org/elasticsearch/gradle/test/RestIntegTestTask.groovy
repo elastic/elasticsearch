@@ -95,7 +95,6 @@ public class RestIntegTestTask extends DefaultTask {
         // copy the rest spec/tests into the test resources
         RestSpecHack.configureDependencies(project)
         project.afterEvaluate {
-            println "${project.path} -- INCLUDE PACKAGED: ${includePackaged}"
             runner.dependsOn(RestSpecHack.configureTask(project, includePackaged))
         }
         // this must run after all projects have been configured, so we know any project

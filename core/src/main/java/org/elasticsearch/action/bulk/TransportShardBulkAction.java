@@ -427,7 +427,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     ? ReplicaItemExecutionMode.FAILURE // we have a seq no generated with the failure, replicate as no-op
                     : ReplicaItemExecutionMode.NOOP; // no seq no generated, ignore replication
         } else {
-            // TODO: once we know for sure that every operation tha that has been processed on the primary is assigned a seq#
+            // TODO: once we know for sure that every operation that has been processed on the primary is assigned a seq#
             // (i.e., all nodes on the cluster are on v6.0.0 or higher) we can use the existence of a seq# to indicate whether
             // an operation should be processed or be treated as a noop. This means we could remove this method and the
             // ReplicaItemExecutionMode enum and have a simple boolean check for seq != UNASSIGNED_SEQ_NO which will work for

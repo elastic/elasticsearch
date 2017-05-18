@@ -62,6 +62,10 @@
 # use our provided JNA always versus the system one
 -Djna.nosys=true
 
+# turn off a JDK optimization that throws away stack traces for common
+# exceptions because stack traces are important for debugging
+-XX:-OmitStackTraceInFastThrow
+
 # use old-style file permissions on JDK9
 -Djdk.io.permissionsUseCanonicalPath=true
 
@@ -73,7 +77,6 @@
 # log4j 2
 -Dlog4j.shutdownHookEnabled=false
 -Dlog4j2.disable.jmx=true
--Dlog4j.skipJansi=true
 
 ## heap dumps
 

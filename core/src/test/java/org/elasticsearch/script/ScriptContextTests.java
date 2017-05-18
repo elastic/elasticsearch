@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -36,14 +37,16 @@ import static org.hamcrest.Matchers.containsString;
 public class ScriptContextTests extends ESTestCase {
 
     private static final String PLUGIN_NAME = "testplugin";
+    private static final String SCRIPT_PLUGIN_CUSTOM_SETTING = "script." + PLUGIN_NAME + "_custom_globally_disabled_op";
+    private static final String SCRIPT_ENGINE_CUSTOM_SETTING = "script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op";
+
+    private ScriptSettings scriptSettings;
 
     ScriptService makeScriptService() throws Exception {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            // no file watching, so we don't need a ResourceWatcherService
-            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), "false")
-            .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", "false")
-            .put("script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", "false")
+            .put(SCRIPT_PLUGIN_CUSTOM_SETTING, "false")
+            .put(SCRIPT_ENGINE_CUSTOM_SETTING, "false")
             .build();
 
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
@@ -53,8 +56,8 @@ public class ScriptContextTests extends ESTestCase {
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"),
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptService scriptService = new ScriptService(settings, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
 
         ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
         ScriptMetaData smd = empty.metaData().custom(ScriptMetaData.TYPE);
@@ -65,6 +68,8 @@ public class ScriptContextTests extends ESTestCase {
 
         return scriptService;
     }
+
+
 
     public void testCustomGlobalScriptContextSettings() throws Exception {
         ScriptService scriptService = makeScriptService();
@@ -77,6 +82,8 @@ public class ScriptContextTests extends ESTestCase {
                 assertThat(e.getMessage(), containsString("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
             }
         }
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
     }
 
     public void testCustomScriptContextSettings() throws Exception {
@@ -93,6 +100,8 @@ public class ScriptContextTests extends ESTestCase {
         assertNotNull(scriptService.compile(script, ScriptContext.Standard.AGGS));
         assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH));
         assertNotNull(scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_op")));
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
     }
 
     public void testUnknownPluginScriptContext() throws Exception {
@@ -106,6 +115,8 @@ public class ScriptContextTests extends ESTestCase {
                 assertTrue(e.getMessage(), e.getMessage().contains("script context [" + PLUGIN_NAME + "_unknown] not supported"));
             }
         }
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
     }
 
     public void testUnknownCustomScriptContext() throws Exception {
@@ -125,6 +136,7 @@ public class ScriptContextTests extends ESTestCase {
                 assertTrue(e.getMessage(), e.getMessage().contains("script context [test] not supported"));
             }
         }
+        assertSettingDeprecationsAndWarnings(
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
     }
-
 }

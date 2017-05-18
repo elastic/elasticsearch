@@ -20,12 +20,18 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.plugins.Plugin;
 
-import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
+import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.containsString;
@@ -40,6 +46,23 @@ public class ReindexParentChildTests extends ReindexTestCase {
     QueryBuilder findsCountry;
     QueryBuilder findsCity;
     QueryBuilder findsNeighborhood;
+
+    @Override
+    protected boolean ignoreExternalCluster() {
+        return true;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(ParentJoinPlugin.class);
+        return Collections.unmodifiableList(plugins);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
+    }
 
     public void testParentChild() throws Exception {
         createParentChildIndex("source");
@@ -93,6 +116,7 @@ public class ReindexParentChildTests extends ReindexTestCase {
      */
     private void createParentChildIndex(String indexName) throws Exception {
         CreateIndexRequestBuilder create = client().admin().indices().prepareCreate(indexName);
+        create.setSettings("index.mapping.single_type", false);
         create.addMapping("city", "{\"_parent\": {\"type\": \"country\"}}", XContentType.JSON);
         create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}", XContentType.JSON);
         assertAcked(create);

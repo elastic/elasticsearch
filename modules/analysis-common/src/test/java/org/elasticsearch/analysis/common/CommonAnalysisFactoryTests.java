@@ -19,25 +19,35 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.elasticsearch.AnalysisFactoryTestCase;
+import org.apache.lucene.analysis.en.PorterStemFilterFactory;
+import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory;
+import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory;
+import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
+import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
+import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
+import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 
 public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
+    public CommonAnalysisFactoryTests() {
+        super(new CommonAnalysisPlugin());
+    }
+
     @Override
     protected Map<String, Class<?>> getTokenizers() {
-        Map<String, Class<?>> tokenizers = new HashMap<>(super.getTokenizers());
+        Map<String, Class<?>> tokenizers = new TreeMap<>(super.getTokenizers());
         return tokenizers;
     }
 
     @Override
     protected Map<String, Class<?>> getTokenFilters() {
-        Map<String, Class<?>> filters = new HashMap<>(super.getTokenFilters());
+        Map<String, Class<?>> filters = new TreeMap<>(super.getTokenFilters());
         filters.put("asciifolding",          ASCIIFoldingTokenFilterFactory.class);
         filters.put("worddelimiter",         WordDelimiterTokenFilterFactory.class);
         filters.put("worddelimitergraph",    WordDelimiterGraphTokenFilterFactory.class);
@@ -46,7 +56,64 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
 
     @Override
     protected Map<String, Class<?>> getCharFilters() {
-        Map<String, Class<?>> filters = new HashMap<>(super.getCharFilters());
+        Map<String, Class<?>> filters = new TreeMap<>(super.getCharFilters());
+        filters.put("htmlstrip",      HtmlStripCharFilterFactory.class);
+        filters.put("mapping",        MappingCharFilterFactory.class);
+        filters.put("patternreplace", PatternReplaceCharFilterFactory.class);
+
+        // TODO: these charfilters are not yet exposed: useful?
+        // handling of zwnj for persian
+        filters.put("persian",        Void.class);
+        return filters;
+    }
+
+    @Override
+    protected Map<String, Class<?>> getPreConfiguredTokenFilters() {
+        Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenFilters());
+        filters.put("apostrophe", null);
+        filters.put("arabic_normalization", null);
+        filters.put("arabic_stem", null);
+        filters.put("asciifolding", null);
+        filters.put("brazilian_stem", null);
+        filters.put("cjk_bigram", null);
+        filters.put("cjk_width", null);
+        filters.put("classic", null);
+        filters.put("common_grams", null);
+        filters.put("czech_stem", null);
+        filters.put("decimal_digit", null);
+        filters.put("delimited_payload_filter", DelimitedPayloadTokenFilterFactory.class);
+        filters.put("dutch_stem", SnowballPorterFilterFactory.class);
+        filters.put("edge_ngram", null);
+        filters.put("edgeNGram", null);
+        filters.put("elision", null);
+        filters.put("french_stem", SnowballPorterFilterFactory.class);
+        filters.put("german_stem", null);
+        filters.put("hindi_normalization", null);
+        filters.put("indic_normalization", null);
+        filters.put("keyword_repeat", null);
+        filters.put("kstem", null);
+        filters.put("length", null);
+        filters.put("limit", LimitTokenCountFilterFactory.class);
+        filters.put("ngram", null);
+        filters.put("nGram", null);
+        filters.put("persian_normalization", null);
+        filters.put("porter_stem", null);
+        filters.put("reverse", ReverseStringFilterFactory.class);
+        filters.put("russian_stem", SnowballPorterFilterFactory.class);
+        filters.put("scandinavian_normalization", null);
+        filters.put("scandinavian_folding", null);
+        filters.put("shingle", null);
+        filters.put("snowball", SnowballPorterFilterFactory.class);
+        filters.put("sorani_normalization", null);
+        filters.put("stemmer", PorterStemFilterFactory.class);
+        filters.put("stop", null);
+        filters.put("trim", null);
+        filters.put("truncate", null);
+        filters.put("type_as_payload", null);
+        filters.put("unique", Void.class);
+        filters.put("uppercase", null);
+        filters.put("word_delimiter", null);
+        filters.put("word_delimiter_graph", null);
         return filters;
     }
 

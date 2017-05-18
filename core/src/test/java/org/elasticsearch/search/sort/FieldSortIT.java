@@ -176,7 +176,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testTrackScores() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "svalue", "type=keyword").get());
+                .addMapping("type1", "svalue", "type=keyword").get());
         ensureGreen();
         index("test", "type1", jsonBuilder().startObject()
                 .field("id", "1")
@@ -421,7 +421,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testIssue2986() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field1", "type=keyword").get());
+                .addMapping("post", "field1", "type=keyword").get());
 
         client().prepareIndex("test", "post", "1").setSource("{\"field1\":\"value1\"}", XContentType.JSON).execute().actionGet();
         client().prepareIndex("test", "post", "2").setSource("{\"field1\":\"value2\"}", XContentType.JSON).execute().actionGet();
@@ -1356,7 +1356,9 @@ public class FieldSortIT extends ESIntegTestCase {
         SearchHit[] hits = searchResponse.getHits().getHits();
         BytesRef previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
         for (int i = 0; i < hits.length; ++i) {
-            final BytesRef uid = new BytesRef(Uid.createUid(hits[i].getType(), hits[i].getId()));
+            String uidString = Uid.createUid(hits[i].getType(), hits[i].getId());
+            final BytesRef uid = new BytesRef(uidString);
+            assertEquals(uidString, hits[i].getSortValues()[0]);
             assertThat(previous, order == SortOrder.ASC ? lessThan(uid) : greaterThan(uid));
             previous = uid;
         }

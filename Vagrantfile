@@ -56,8 +56,8 @@ Vagrant.configure(2) do |config|
     config.vm.box = "elastic/oraclelinux-7-x86_64"
     rpm_common config
   end
-  config.vm.define "fedora-24" do |config|
-    config.vm.box = "elastic/fedora-24-x86_64"
+  config.vm.define "fedora-25" do |config|
+    config.vm.box = "elastic/fedora-25-x86_64"
     dnf_common config
   end
   config.vm.define "opensuse-13" do |config|
@@ -103,6 +103,12 @@ SOURCE_PROMPT
 # Replace the standard prompt with a consistent one
 source /etc/profile.d/elasticsearch_prompt.sh
 SOURCE_PROMPT
+      SHELL
+      # Creates a file to mark the machine as created by vagrant. Tests check
+      # for this file and refuse to run if it is not present so that they can't
+      # be run unexpectedly.
+      config.vm.provision "markerfile", type: "shell", inline: <<-SHELL
+        touch /etc/is_vagrant_vm
       SHELL
     end
     config.config_procs.push ['2', set_prompt]
@@ -263,7 +269,7 @@ def provision(config,
       echo "==> Installing Gradle"
       curl -sS -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
       unzip /tmp/gradle.zip -d /opt
-      rm -rf /tmp/gradle.zip 
+      rm -rf /tmp/gradle.zip
       ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle
       # make nfs mounted gradle home dir writeable
       chown vagrant:vagrant /home/vagrant/.gradle

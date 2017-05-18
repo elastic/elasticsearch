@@ -474,20 +474,36 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(search("t*"), false);
     }
 
-    public void testCloseApiWildcards() throws Exception {
+    public void testOpenCloseApiWildcards() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
         ensureGreen();
 
+        // if there are no indices to open/close and allow_no_indices=true (default), the open/close is a no-op
         verify(client().admin().indices().prepareClose("bar*"), false);
-        verify(client().admin().indices().prepareClose("bar*"), true);
+        verify(client().admin().indices().prepareClose("bar*"), false);
 
         verify(client().admin().indices().prepareClose("foo*"), false);
-        verify(client().admin().indices().prepareClose("foo*"), true);
-        verify(client().admin().indices().prepareClose("_all"), true);
+        verify(client().admin().indices().prepareClose("foo*"), false);
+        verify(client().admin().indices().prepareClose("_all"), false);
 
         verify(client().admin().indices().prepareOpen("bar*"), false);
         verify(client().admin().indices().prepareOpen("_all"), false);
-        verify(client().admin().indices().prepareOpen("_all"), true);
+        verify(client().admin().indices().prepareOpen("_all"), false);
+
+        // if there are no indices to open/close throw an exception
+        IndicesOptions openIndicesOptions = IndicesOptions.fromOptions(false, false, false, true);
+        IndicesOptions closeIndicesOptions = IndicesOptions.fromOptions(false, false, true, false);
+
+        verify(client().admin().indices().prepareClose("bar*").setIndicesOptions(closeIndicesOptions), false);
+        verify(client().admin().indices().prepareClose("bar*").setIndicesOptions(closeIndicesOptions), true);
+
+        verify(client().admin().indices().prepareClose("foo*").setIndicesOptions(closeIndicesOptions), false);
+        verify(client().admin().indices().prepareClose("foo*").setIndicesOptions(closeIndicesOptions), true);
+        verify(client().admin().indices().prepareClose("_all").setIndicesOptions(closeIndicesOptions), true);
+
+        verify(client().admin().indices().prepareOpen("bar*").setIndicesOptions(openIndicesOptions), false);
+        verify(client().admin().indices().prepareOpen("_all").setIndicesOptions(openIndicesOptions), false);
+        verify(client().admin().indices().prepareOpen("_all").setIndicesOptions(openIndicesOptions), true);
     }
 
     public void testDeleteIndex() throws Exception {
@@ -547,7 +563,9 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=text"), true);
         verify(client().admin().indices().preparePutMapping("_all").setType("type1").setSource("field", "type=text"), true);
 
-        createIndex("foo", "foobar", "bar", "barbaz");
+        for (String index : Arrays.asList("foo", "foobar", "bar", "barbaz")) {
+            assertAcked(prepareCreate(index).setSettings("index.mapping.single_type", false));
+        }
 
         verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=text"), false);
         assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type1"), notNullValue());

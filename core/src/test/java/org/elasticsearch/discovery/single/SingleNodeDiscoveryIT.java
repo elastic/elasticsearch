@@ -85,34 +85,22 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             final UnicastHostsProvider provider =
                     () -> Collections.singletonList(nodeTransport.getLocalNode());
             final CountDownLatch latch = new CountDownLatch(1);
-            final UnicastZenPing unicastZenPing =
-                    new UnicastZenPing(settings, threadPool, pingTransport, provider) {
-                        @Override
-                        protected void finishPingingRound(PingingRound pingingRound) {
-                            latch.countDown();
-                            super.finishPingingRound(pingingRound);
-                        }
-                    };
-            final DiscoveryNodes nodes =
-                    DiscoveryNodes.builder().add(pingTransport.getLocalNode()).build();
+            final DiscoveryNodes nodes = DiscoveryNodes.builder()
+                    .add(nodeTransport.getLocalNode())
+                    .add(pingTransport.getLocalNode())
+                    .localNodeId(pingTransport.getLocalNode().getId())
+                    .build();
             final ClusterName clusterName = new ClusterName(internalCluster().getClusterName());
             final ClusterState state = ClusterState.builder(clusterName).nodes(nodes).build();
-            unicastZenPing.start(new PingContextProvider() {
-                @Override
-                public ClusterState clusterState() {
-                    return state;
-                }
-
-                @Override
-                public DiscoveryNodes nodes() {
-                    return DiscoveryNodes
-                            .builder()
-                            .add(nodeTransport.getLocalNode())
-                            .add(pingTransport.getLocalNode())
-                            .localNodeId(pingTransport.getLocalNode().getId())
-                            .build();
-                }
-            });
+            final UnicastZenPing unicastZenPing =
+                new UnicastZenPing(settings, threadPool, pingTransport, provider, () -> state) {
+                    @Override
+                    protected void finishPingingRound(PingingRound pingingRound) {
+                        latch.countDown();
+                        super.finishPingingRound(pingingRound);
+                    }
+                };
+            unicastZenPing.start();
             closeables.push(unicastZenPing);
             final CompletableFuture<ZenPing.PingCollection> responses = new CompletableFuture<>();
             unicastZenPing.ping(responses::complete, TimeValue.timeValueSeconds(3));

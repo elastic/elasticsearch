@@ -56,6 +56,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -150,8 +151,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static BulkItemResultHolder executeDeleteRequest(final DeleteRequest deleteRequest,
                                                              final BulkItemRequest bulkItemRequest,
-                                                             final IndexShard primary) throws IOException {
-        Engine.DeleteResult deleteResult = executeDeleteRequestOnPrimary(deleteRequest, primary);
+                                                             final IndexShard primary,
+                                                             final MappingUpdatePerformer mappingUpdater) throws Exception {
+        Engine.DeleteResult deleteResult = executeDeleteRequestOnPrimary(deleteRequest, primary, mappingUpdater);
         if (deleteResult.hasFailure()) {
             return new BulkItemResultHolder(null, deleteResult, bulkItemRequest);
         } else {
@@ -241,7 +243,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         requestIndex, updateHelper, nowInMillisSupplier, mappingUpdater);
                 break;
             case DELETE:
-                responseHolder = executeDeleteRequest((DeleteRequest) itemRequest, request.items()[requestIndex], primary);
+                responseHolder = executeDeleteRequest((DeleteRequest) itemRequest, request.items()[requestIndex], primary, mappingUpdater);
                 break;
             default: throw new IllegalStateException("unexpected opType [" + itemRequest.opType() + "] found");
         }
@@ -303,7 +305,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     break;
                 case DELETED:
                     DeleteRequest deleteRequest = translate.action();
-                    result = executeDeleteRequestOnPrimary(deleteRequest, primary);
+                    result = executeDeleteRequestOnPrimary(deleteRequest, primary, mappingUpdater);
                     break;
                 case NOOP:
                     primary.noopUpdate(updateRequest.type());
@@ -413,10 +415,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     static {
-        assert Version.CURRENT.minimumCompatibilityVersion().after(Version.V_5_0_0) == false:
+        assert Version.CURRENT.minimumCompatibilityVersion().after(Version.V_6_0_0_alpha1_UNRELEASED) == false:
                 "Remove logic handling NoOp result from primary response; see TODO in replicaItemExecutionMode" +
                         " as the current minimum compatible version [" +
-                        Version.CURRENT.minimumCompatibilityVersion() + "] is after 5.0";
+                        Version.CURRENT.minimumCompatibilityVersion() + "] is after 6.0";
     }
 
     /**
@@ -609,7 +611,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (mappingUpdateNeeded) {
             try {
                 operation = prepareIndexOperationOnPrimary(request, primary);
-                mappingUpdater.verifyMappings(operation, primary.shardId());
+                mappingUpdater.verifyMappings(operation.parsedDoc().dynamicMappingsUpdate(), primary.shardId());
             } catch (MapperParsingException | IllegalStateException e) {
                 // there was an error in parsing the document that was not because
                 // of pending mapping updates, so return a failure for the result
@@ -623,12 +625,52 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return primary.index(operation);
     }
 
-    private static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary) throws IOException {
+    private static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary,
+            final MappingUpdatePerformer mappingUpdater) throws Exception {
+        boolean mappingUpdateNeeded = false;
+        if (primary.indexSettings().isSingleType()) {
+            // When there is a single type, the unique identifier is only composed of the _id,
+            // so there is no way to differenciate foo#1 from bar#1. This is especially an issue
+            // if a user first deletes foo#1 and then indexes bar#1: since we do not encode the
+            // _type in the uid it might look like we are reindexing the same document, which
+            // would fail if bar#1 is indexed with a lower version than foo#1 was deleted with.
+            // In order to work around this issue, we make deletions create types. This way, we
+            // fail if index and delete operations do not use the same type.
+            try {
+                Mapping update = primary.mapperService().documentMapperWithAutoCreate(request.type()).getMapping();
+                if (update != null) {
+                    mappingUpdateNeeded = true;
+                    mappingUpdater.updateMappings(update, primary.shardId(), request.type());
+                }
+            } catch (MapperParsingException | IllegalArgumentException e) {
+                return new Engine.DeleteResult(e, request.version(), SequenceNumbersService.UNASSIGNED_SEQ_NO, false);
+            }
+        }
+        if (mappingUpdateNeeded) {
+            Mapping update = primary.mapperService().documentMapperWithAutoCreate(request.type()).getMapping();
+            mappingUpdater.verifyMappings(update, primary.shardId());
+        }
         final Engine.Delete delete = primary.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
         return primary.delete(delete);
     }
 
-    private static Engine.DeleteResult executeDeleteRequestOnReplica(DocWriteResponse primaryResponse, DeleteRequest request, IndexShard replica) throws IOException {
+    private static Engine.DeleteResult executeDeleteRequestOnReplica(DocWriteResponse primaryResponse, DeleteRequest request,
+            IndexShard replica) throws Exception {
+        if (replica.indexSettings().isSingleType()) {
+            // We need to wait for the replica to have the mappings
+            Mapping update;
+            try {
+                update = replica.mapperService().documentMapperWithAutoCreate(request.type()).getMapping();
+            } catch (MapperParsingException | IllegalArgumentException e) {
+                return new Engine.DeleteResult(e, request.version(), primaryResponse.getSeqNo(), false);
+            }
+            if (update != null) {
+                final ShardId shardId = replica.shardId();
+                throw new RetryOnReplicaException(shardId,
+                        "Mappings are not available on the replica yet, triggered update: " + update);
+            }
+        }
+
         final VersionType versionType = request.versionType().versionTypeForReplicationAndRecovery();
         final long version = primaryResponse.getVersion();
         assert versionType.validateVersionForWrites(version);
@@ -654,9 +696,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
         }
 
-        public void verifyMappings(final Engine.Index operation,
+        public void verifyMappings(Mapping update,
                                    final ShardId shardId) throws Exception {
-            if (operation.parsedDoc().dynamicMappingsUpdate() != null) {
+            if (update != null) {
                 throw new ReplicationOperation.RetryOnPrimaryException(shardId,
                         "Dynamic mappings are not available on the node that holds the primary yet");
             }

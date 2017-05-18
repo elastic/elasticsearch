@@ -22,7 +22,6 @@ package org.elasticsearch.index.translog;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TwoPhaseCommit;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.index.IndexRequest;
@@ -542,6 +541,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     *  Returns <code>true</code> if an fsync is required to ensure durability of the translogs operations or it's metadata.
+     */
     public boolean syncNeeded() {
         try (ReleasableLock lock = readLock.acquire()) {
             return current.syncNeeded();
@@ -1052,6 +1054,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private static final int FORMAT_SEQ_NO = FORMAT_5_X + 1;
         public static final int SERIALIZATION_FORMAT = FORMAT_SEQ_NO;
 
+        private String type, id;
         private Term uid;
         private long seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
         private long primaryTerm = 0;
@@ -1072,15 +1075,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         public Delete(Engine.Delete delete, Engine.DeleteResult deleteResult) {
-            this(delete.uid(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion(), delete.versionType());
+            this(delete.type(), delete.id(), delete.uid(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion(), delete.versionType());
         }
 
         /** utility for testing */
-        public Delete(Term uid) {
-            this(uid, 0, 0, Versions.MATCH_ANY, VersionType.INTERNAL);
+        public Delete(String type, String id, Term uid) {
+            this(type, id, uid, 0, 0, Versions.MATCH_ANY, VersionType.INTERNAL);
         }
 
-        public Delete(Term uid, long seqNo, long primaryTerm, long version, VersionType versionType) {
+        public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType) {
+            this.type = type;
+            this.id = id;
             this.uid = uid;
             this.seqNo = seqNo;
             this.primaryTerm = primaryTerm;
@@ -1096,6 +1101,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public long estimateSize() {
             return ((uid.field().length() + uid.text().length()) * 2) + 20;
+        }
+
+        public String type() {
+            return type;
+        }
+
+        public String id() {
+            return id;
         }
 
         public Term uid() {

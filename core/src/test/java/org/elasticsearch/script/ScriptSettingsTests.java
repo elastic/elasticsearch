@@ -29,14 +29,29 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptSettingsTests extends ESTestCase {
 
+
+    public static Setting<?>[] buildDeprecatedSettingsArray(ScriptSettings scriptSettings, String... keys) {
+        Setting<?>[] settings = new Setting[keys.length];
+        int count = 0;
+
+        for (Setting<?> setting : scriptSettings.getSettings()) {
+            for (String key : keys) {
+                if (setting.getKey().equals(key)) {
+                    settings[count++] = setting;
+                }
+            }
+        }
+
+        return settings;
+    }
+
     public void testSettingsAreProperlyPropogated() {
         ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
+            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngine()));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         boolean enabled = randomBoolean();
@@ -48,19 +63,15 @@ public class ScriptSettingsTests extends ESTestCase {
                 assertThat(setting.getDefaultRaw(s), equalTo(Boolean.toString(enabled)));
             }
         }
+        assertSettingDeprecationsAndWarnings(buildDeprecatedSettingsArray(scriptSettings, "script.inline"));
     }
 
-    private static class CustomScriptEngineService implements ScriptEngineService {
+    private static class CustomScriptEngine implements ScriptEngine {
 
         public static final String NAME = "custom";
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 

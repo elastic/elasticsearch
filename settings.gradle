@@ -25,6 +25,8 @@ List projects = [
   'test:framework',
   'test:fixtures:example-fixture',
   'test:fixtures:hdfs-fixture',
+  'test:fixtures:krb5kdc-fixture',
+  'test:fixtures:old-elasticsearch',
   'test:logger-usage',
   'modules:aggs-matrix-stats',
   'modules:analysis-common',
@@ -32,8 +34,9 @@ List projects = [
   'modules:lang-expression',
   'modules:lang-mustache',
   'modules:lang-painless',
-  'modules:rank-eval',
+  'modules:parent-join',
   'modules:percolator',
+  'modules:rank-eval',
   'modules:reindex',
   'modules:repository-url',
   'modules:transport-netty4',
@@ -63,6 +66,7 @@ List projects = [
   'qa:evil-tests',
   'qa:multi-cluster-search',
   'qa:no-bootstrap-tests',
+  'qa:reindex-from-old',
   'qa:rolling-upgrade',
   'qa:smoke-test-client',
   'qa:smoke-test-http',
@@ -71,11 +75,20 @@ List projects = [
   'qa:smoke-test-multinode',
   'qa:smoke-test-rank-eval-with-mustache',
   'qa:smoke-test-plugins',
-  'qa:smoke-test-reindex-with-painless',
+  'qa:smoke-test-reindex-with-all-modules',
   'qa:smoke-test-tribe-node',
   'qa:vagrant',
   'qa:wildfly'
 ]
+
+File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
+List<String> examplePlugins = []
+for (File example : examplePluginsDir.listFiles()) {
+  if (example.isDirectory() == false) continue;
+  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
+  projects.add("example-plugins:${example.name}".toString())
+  examplePlugins.add(example.name)
+}
 
 boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
 if (isEclipse) {
@@ -87,6 +100,11 @@ if (isEclipse) {
 include projects.toArray(new String[0])
 
 project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
+project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
+
+for (String example : examplePlugins) {
+  project(":example-plugins:${example}").projectDir = new File(rootProject.projectDir, "plugins/examples/${example}")
+}
 
 if (isEclipse) {
   project(":core").projectDir = new File(rootProject.projectDir, 'core/src/main')

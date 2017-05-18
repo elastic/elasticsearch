@@ -34,17 +34,14 @@ import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -76,12 +73,12 @@ public class UpdateIT extends ESIntegTestCase {
 
     public static class PutFieldValuesScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new PutFieldValuesScriptEngine();
         }
     }
 
-    public static class PutFieldValuesScriptEngine implements ScriptEngineService {
+    public static class PutFieldValuesScriptEngine implements ScriptEngine {
 
         public static final String NAME = "put_values";
 
@@ -91,11 +88,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 
@@ -149,12 +141,12 @@ public class UpdateIT extends ESIntegTestCase {
 
     public static class FieldIncrementScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new FieldIncrementScriptEngine();
         }
     }
 
-    public static class FieldIncrementScriptEngine implements ScriptEngineService {
+    public static class FieldIncrementScriptEngine implements ScriptEngine {
 
         public static final String NAME = "field_inc";
 
@@ -164,11 +156,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 
@@ -215,12 +202,12 @@ public class UpdateIT extends ESIntegTestCase {
 
     public static class ScriptedUpsertScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new ScriptedUpsertScriptEngine();
         }
     }
 
-    public static class ScriptedUpsertScriptEngine implements ScriptEngineService {
+    public static class ScriptedUpsertScriptEngine implements ScriptEngine {
 
         public static final String NAME = "scripted_upsert";
 
@@ -230,11 +217,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 
@@ -282,12 +264,12 @@ public class UpdateIT extends ESIntegTestCase {
 
     public static class ExtractContextInSourceScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new ExtractContextInSourceScriptEngine();
         }
     }
 
-    public static class ExtractContextInSourceScriptEngine implements ScriptEngineService {
+    public static class ExtractContextInSourceScriptEngine implements ScriptEngine {
 
         public static final String NAME = "extract_ctx";
 
@@ -297,11 +279,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 
@@ -491,61 +468,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra").toString(), equalTo("foo"));
     }
-
-    public void testVersionedUpdate() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
-        ensureGreen();
-
-        index("test", "type", "1", "text", "value"); // version is now 1
-
-        assertThrows(client().prepareUpdate(indexOrAlias(), "type", "1")
-                        .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v2"))).setVersion(2)
-                        .execute(),
-                VersionConflictEngineException.class);
-
-        client().prepareUpdate(indexOrAlias(), "type", "1")
-                .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v2"))).setVersion(1).get();
-        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(2L));
-
-        // and again with a higher version..
-        client().prepareUpdate(indexOrAlias(), "type", "1")
-                .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v3"))).setVersion(2).get();
-
-        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(3L));
-
-        // after delete
-        client().prepareDelete("test", "type", "1").get();
-        assertThrows(client().prepareUpdate("test", "type", "1")
-                        .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v2"))).setVersion(3)
-                        .execute(),
-                DocumentMissingException.class);
-
-        // external versioning
-        client().prepareIndex("test", "type", "2").setSource("text", "value").setVersion(10).setVersionType(VersionType.EXTERNAL).get();
-
-        assertThrows(client().prepareUpdate(indexOrAlias(), "type", "2")
-                        .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v2"))).setVersion(2)
-                        .setVersionType(VersionType.EXTERNAL).execute(),
-                ActionRequestValidationException.class);
-
-        GetResponse get = get("test", "type", "2");
-        assertThat(get.getVersion(), equalTo(10L));
-        assertThat((String) get.getSource().get("text"), equalTo("value"));
-
-        // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
-
-        // With internal versions, tt means "if object is there with version X, update it or explode. If it is not there, index.
-        client().prepareUpdate(indexOrAlias(), "type", "3")
-                .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v2")))
-                .setVersion(10).setUpsert("{ \"text\": \"v0\" }", XContentType.JSON).get();
-        get = get("test", "type", "3");
-        assertThat(get.getVersion(), equalTo(1L));
-        assertThat((String) get.getSource().get("text"), equalTo("v0"));
-
-        // retry on conflict is rejected:
-        assertThrows(client().prepareUpdate(indexOrAlias(), "type", "1").setVersion(10).setRetryOnConflict(5), ActionRequestValidationException.class);
-    }
-
+    
     public void testIndexAutoCreation() throws Exception {
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
@@ -728,7 +651,9 @@ public class UpdateIT extends ESIntegTestCase {
     }
 
     public void testContextVariables() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+        assertAcked(prepareCreate("test")
+                        .setSettings("index.mapping.single_type", false)
+                        .addAlias(new Alias("alias"))
                         .addMapping("type1", XContentFactory.jsonBuilder()
                                 .startObject()
                                 .startObject("type1")

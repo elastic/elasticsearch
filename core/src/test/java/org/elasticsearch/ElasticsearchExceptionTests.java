@@ -21,6 +21,7 @@ package org.elasticsearch;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -758,10 +759,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
                 ShardSearchFailure[] shardFailures = new ShardSearchFailure[]{
                         new ShardSearchFailure(new ParsingException(0, 0, "Parsing g", null),
-                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61))),
-                        new ShardSearchFailure(new RepositoryException("repository_g", "Repo"),
-                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62))),
-                        new ShardSearchFailure(new SearchContextMissingException(0L), null)
+                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61), null,
+                                    OriginalIndices.NONE)), new ShardSearchFailure(new RepositoryException("repository_g", "Repo"),
+                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null,
+                                    OriginalIndices.NONE)), new ShardSearchFailure(new SearchContextMissingException(0L), null)
                 };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
 

@@ -54,7 +54,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 // intentionally not writing any docs
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                         NESTED_OBJECT);
                 ReverseNestedAggregationBuilder reverseNestedBuilder
@@ -67,7 +67,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, true, true),
+                Nested nested = search(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 ReverseNested reverseNested = (ReverseNested)
                         ((InternalAggregation)nested).getProperty(REVERSE_AGG_NAME);
@@ -117,7 +117,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 }
                 iw.commit();
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG,
                         NESTED_OBJECT);
                 ReverseNestedAggregationBuilder reverseNestedBuilder
@@ -130,7 +130,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, true, true),
+                Nested nested = search(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 

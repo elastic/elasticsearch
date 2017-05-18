@@ -22,7 +22,6 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -46,7 +45,7 @@ import static java.util.Collections.emptyMap;
  *
  * The function is used to provide the result of the script execution and can return anything.
  */
-public class MockScriptEngine implements ScriptEngineService {
+public class MockScriptEngine implements ScriptEngine {
 
     public static final String NAME = "mockscript";
 
@@ -65,11 +64,6 @@ public class MockScriptEngine implements ScriptEngineService {
     @Override
     public String getType() {
         return type;
-    }
-
-    @Override
-    public String getExtension() {
-        return getType();
     }
 
     @Override
@@ -132,7 +126,7 @@ public class MockScriptEngine implements ScriptEngineService {
             if (vars != null) {
                 context.putAll(vars);
             }
-            return new MockExecutableScript(context, script != null ? script : ctx -> new BytesArray(source));
+            return new MockExecutableScript(context, script != null ? script : ctx -> source);
         }
 
         public SearchScript createSearchScript(Map<String, Object> vars, SearchLookup lookup) {
@@ -184,17 +178,25 @@ public class MockScriptEngine implements ScriptEngineService {
         public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
             LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
 
-            Map<String, Object> ctx = new HashMap<>();
-            ctx.putAll(leafLookup.asMap());
+            Map<String, Object> ctx = new HashMap<>(leafLookup.asMap());
             if (vars != null) {
                 ctx.putAll(vars);
             }
 
-            AbstractSearchScript leafSearchScript = new AbstractSearchScript() {
-
+            return new LeafSearchScript() {
                 @Override
                 public Object run() {
                     return script.apply(ctx);
+                }
+
+                @Override
+                public long runAsLong() {
+                    return ((Number) run()).longValue();
+                }
+
+                @Override
+                public double runAsDouble() {
+                    return ((Number) run()).doubleValue();
                 }
 
                 @Override
@@ -204,12 +206,20 @@ public class MockScriptEngine implements ScriptEngineService {
 
                 @Override
                 public void setScorer(Scorer scorer) {
-                    super.setScorer(scorer);
                     ctx.put("_score", new ScoreAccessor(scorer));
                 }
+
+                @Override
+                public void setDocument(int doc) {
+                    leafLookup.setDocument(doc);
+                }
+
+                @Override
+                public void setSource(Map<String, Object> source) {
+                    leafLookup.source().setSource(source);
+                }
+
             };
-            leafSearchScript.setLookup(leafLookup);
-            return leafSearchScript;
         }
 
         @Override

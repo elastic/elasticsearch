@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
@@ -27,10 +28,13 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +55,11 @@ public final class IngestDocument {
     private final Map<String, Object> ingestMetadata;
 
     public IngestDocument(String index, String type, String id, String routing, String parent, Map<String, Object> source) {
+        this(index, type, id, routing, parent, source, false);
+    }
+
+    public IngestDocument(String index, String type, String id, String routing, String parent, Map<String, Object> source,
+                          boolean newDateFormat) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
@@ -64,7 +73,11 @@ public final class IngestDocument {
         }
 
         this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, new Date());
+        if (newDateFormat) {
+            this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
+        } else {
+            this.ingestMetadata.put(TIMESTAMP, new Date());
+        }
     }
 
     /**
@@ -554,7 +567,7 @@ public final class IngestDocument {
      * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
      */
     public Map<MetaData, String> extractMetadata() {
-        Map<MetaData, String> metadataMap = new HashMap<>();
+        Map<MetaData, String> metadataMap = new EnumMap<>(MetaData.class);
         for (MetaData metaData : MetaData.values()) {
             metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), String.class));
         }
@@ -607,6 +620,9 @@ public final class IngestDocument {
             return value;
         } else if (value instanceof Date) {
             return ((Date) value).clone();
+        } else if (value instanceof ZonedDateTime) {
+            ZonedDateTime zonedDateTime = (ZonedDateTime) value;
+            return ZonedDateTime.of(zonedDateTime.toLocalDate(), zonedDateTime.toLocalTime(), zonedDateTime.getZone());
         } else {
             throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
         }

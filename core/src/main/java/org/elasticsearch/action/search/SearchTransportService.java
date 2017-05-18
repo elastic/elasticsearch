@@ -26,10 +26,9 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -46,6 +45,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TaskAwareTransportRequestHandler;
@@ -62,7 +62,7 @@ import java.util.function.Supplier;
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
  * transport.
  */
-public class SearchTransportService extends AbstractLifecycleComponent {
+public class SearchTransportService extends AbstractComponent {
 
     public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
@@ -77,23 +77,14 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
 
     private final TransportService transportService;
-    private final RemoteClusterService remoteClusterService;
-    private final boolean connectToRemote;
 
-    public SearchTransportService(Settings settings, ClusterSettings clusterSettings, TransportService transportService) {
+    public SearchTransportService(Settings settings, TransportService transportService) {
         super(settings);
-        this.connectToRemote = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
         this.transportService = transportService;
-        this.remoteClusterService = new RemoteClusterService(settings, transportService);
-        if (connectToRemote) {
-            clusterSettings.addAffixUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS, remoteClusterService::updateRemoteCluster,
-                (namespace, value) -> {
-                });
-        }
     }
 
-    public void sendFreeContext(Transport.Connection connection, final long contextId, SearchRequest request) {
-        transportService.sendRequest(connection, FREE_CONTEXT_ACTION_NAME, new SearchFreeContextRequest(request, contextId),
+    public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {
+        transportService.sendRequest(connection, FREE_CONTEXT_ACTION_NAME, new SearchFreeContextRequest(originalIndices, contextId),
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(new ActionListener<SearchFreeContextResponse>() {
                 @Override
                 public void onResponse(SearchFreeContextResponse response) {
@@ -129,7 +120,16 @@ public class SearchTransportService extends AbstractLifecycleComponent {
         // this used to be the QUERY_AND_FETCH which doesn't exists anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
-        if (connection.getVersion().onOrBefore(Version.V_5_3_0_UNRELEASED) && fetchDocuments) {
+        if (connection.getVersion().before(Version.V_5_3_0) && fetchDocuments) {
+            // this is a BWC layer for pre 5.3 indices
+            if (request.scroll() != null) {
+                /**
+                 * This is needed for nodes pre 5.3 when the single shard optimization is used.
+                 * These nodes will set the last emitted doc only if the removed `query_and_fetch` search type is set
+                 * in the request. See {@link SearchType}.
+                 */
+                request.searchType(SearchType.QUERY_AND_FETCH);
+            }
             // TODO this BWC layer can be removed once this is back-ported to 5.3
             transportService.sendChildRequest(connection, QUERY_FETCH_ACTION_NAME, request, task,
                 new ActionListenerResponseHandler<>(listener, supplier));
@@ -183,7 +183,7 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     }
 
     public RemoteClusterService getRemoteClusterService() {
-        return remoteClusterService;
+        return transportService.getRemoteClusterService();
     }
 
     static class ScrollFreeContextRequest extends TransportRequest {
@@ -219,9 +219,9 @@ public class SearchTransportService extends AbstractLifecycleComponent {
         SearchFreeContextRequest() {
         }
 
-        SearchFreeContextRequest(SearchRequest request, long id) {
+        SearchFreeContextRequest(OriginalIndices originalIndices, long id) {
             super(id);
-            this.originalIndices = new OriginalIndices(request);
+            this.originalIndices = originalIndices;
         }
 
         @Override
@@ -398,23 +398,18 @@ public class SearchTransportService extends AbstractLifecycleComponent {
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
     }
 
-    Transport.Connection getConnection(DiscoveryNode node) {
-        return transportService.getConnection(node);
-    }
-
-    @Override
-    protected void doStart() {
-        if (connectToRemote) {
-            // here we start to connect to the remote clusters
-            remoteClusterService.initializeRemoteClusters();
+    /**
+     * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved
+     * against the local cluster.
+     * @param clusterAlias the cluster alias the node should be resolve against
+     * @param node the node to resolve
+     * @return a connection to the given node belonging to the cluster with the provided alias.
+     */
+    Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+        if (clusterAlias == null) {
+            return transportService.getConnection(node);
+        } else {
+            return transportService.getRemoteClusterService().getConnection(node, clusterAlias);
         }
-    }
-
-    @Override
-    protected void doStop() {}
-
-    @Override
-    protected void doClose() throws IOException {
-        remoteClusterService.close();
     }
 }

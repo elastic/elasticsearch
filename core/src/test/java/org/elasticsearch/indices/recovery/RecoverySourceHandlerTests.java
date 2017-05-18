@@ -99,6 +99,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         final StartRecoveryRequest request = new StartRecoveryRequest(
             shardId,
+            null,
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             null,
@@ -155,6 +156,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final long startingSeqNo = randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomIntBetween(0, 16);
         final StartRecoveryRequest request = new StartRecoveryRequest(
             shardId,
+            null,
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             null,
@@ -178,7 +180,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             operations.add(new Translog.Index(index, new Engine.IndexResult(1, i - initialNumberOfDocs, true)));
         }
         operations.add(null);
-        int totalOperations = handler.sendSnapshot(startingSeqNo, new Translog.Snapshot() {
+        RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, new Translog.Snapshot() {
             private int counter = 0;
 
             @Override
@@ -192,9 +194,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
         });
         if (startingSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-            assertThat(totalOperations, equalTo(initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers));
+            assertThat(result.totalOperations, equalTo(initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers));
         } else {
-            assertThat(totalOperations, equalTo(Math.toIntExact(numberOfDocsWithValidSequenceNumbers - startingSeqNo)));
+            assertThat(result.totalOperations, equalTo(Math.toIntExact(numberOfDocsWithValidSequenceNumbers - startingSeqNo)));
         }
     }
 
@@ -213,7 +215,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final BytesReference source = new BytesArray(new byte[] { 1 });
         final ParsedDocument doc =
             new ParsedDocument(versionField, seqID, id, type, null, Arrays.asList(document), source, XContentType.JSON, null);
-        return new Engine.Index(new Term("_uid", doc.uid()), doc);
+        return new Engine.Index(new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())), doc);
     }
 
     public void testHandleCorruptedIndexOnSendSendFiles() throws Throwable {
@@ -223,6 +225,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request =
             new StartRecoveryRequest(
                 shardId,
+                null,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 null,
@@ -292,6 +295,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request =
             new StartRecoveryRequest(
                 shardId,
+                null,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 null,
@@ -358,6 +362,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request =
             new StartRecoveryRequest(
                 shardId,
+                null,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 null,
@@ -398,8 +403,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            void phase2(long startingSeqNo, Translog.Snapshot snapshot) throws IOException {
+            long phase2(long startingSeqNo, Translog.Snapshot snapshot) throws IOException {
                 phase2Called.set(true);
+                return SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }
 
         };
@@ -417,6 +423,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request =
             new StartRecoveryRequest(
                 shardId,
+                null,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 null,
@@ -488,8 +495,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            void phase2(long startingSeqNo, Translog.Snapshot snapshot) throws IOException {
+            long phase2(long startingSeqNo, Translog.Snapshot snapshot) throws IOException {
                 phase2Called.set(true);
+                return SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }
 
         };

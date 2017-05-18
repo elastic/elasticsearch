@@ -777,6 +777,11 @@ public final class MockTransportService extends TransportService {
         public void close() throws IOException {
             connection.close();
         }
+
+        @Override
+        public Object getCacheKey() {
+            return connection.getCacheKey();
+        }
     }
 
     public Transport getOriginalTransport() {
@@ -819,7 +824,7 @@ public final class MockTransportService extends TransportService {
     }
 
     @Override
-    protected void doClose() {
+    protected void doClose() throws IOException {
         super.doClose();
         synchronized (openConnections) {
             assert openConnections.size() == 0 : "still open connections: " + openConnections;

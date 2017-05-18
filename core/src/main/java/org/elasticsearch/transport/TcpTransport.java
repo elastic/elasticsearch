@@ -101,6 +101,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -357,8 +358,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         private final DiscoveryNode node;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final Version version;
+        private final Consumer<Connection> onClose;
 
-        public NodeChannels(DiscoveryNode node, Channel[] channels, ConnectionProfile connectionProfile) {
+        public NodeChannels(DiscoveryNode node, Channel[] channels, ConnectionProfile connectionProfile, Consumer<Connection> onClose) {
             this.node = node;
             this.channels = channels;
             assert channels.length == connectionProfile.getNumConnections() : "expected channels size to be == "
@@ -369,6 +371,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     typeMapping.put(type, handle);
             }
             version = node.getVersion();
+            this.onClose = onClose;
         }
 
         NodeChannels(NodeChannels channels, Version handshakeVersion) {
@@ -376,6 +379,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             this.channels = channels.channels;
             this.typeMapping = channels.typeMapping;
             this.version = handshakeVersion;
+            this.onClose = channels.onClose;
         }
 
         @Override
@@ -407,7 +411,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         @Override
         public synchronized void close() throws IOException {
             if (closed.compareAndSet(false, true)) {
-                closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()));
+                try {
+                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()));
+                } finally {
+                    onClose.accept(this);
+                }
             }
         }
 
@@ -519,8 +527,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
                     connectTimeout : connectionProfile.getHandshakeTimeout();
                 final Version version = executeHandshake(node, channel, handshakeTimeout);
-                transportServiceAdapter.onConnectionOpened(node);
-                nodeChannels = new NodeChannels(nodeChannels, version);// clone the channels - we now have the correct version
+                transportServiceAdapter.onConnectionOpened(nodeChannels);
+                nodeChannels = new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
                 success = true;
                 return nodeChannels;
             } catch (ConnectTransportException e) {
@@ -684,7 +692,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         try {
             hostAddresses = networkService.resolveBindHostAddresses(bindHosts);
         } catch (IOException e) {
-            throw new BindTransportException("Failed to resolve host " + Arrays.toString(bindHosts) + "", e);
+            throw new BindTransportException("Failed to resolve host " + Arrays.toString(bindHosts), e);
         }
         if (logger.isDebugEnabled()) {
             String[] addresses = new String[hostAddresses.length];
@@ -1316,9 +1324,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 }
                 streamIn = compressor.streamInput(streamIn);
             }
-            if (version.isCompatible(getCurrentVersion()) == false) {
+            // for handshakes we are compatible with N-2 since otherwise we can't figure out our initial version
+            // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
+            // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
+            // once the connection is established
+            final Version compatibilityVersion = TransportStatus.isHandshake(status) ? getCurrentVersion().minimumCompatibilityVersion()
+                : getCurrentVersion();
+            if (version.isCompatible(compatibilityVersion) == false) {
                 throw new IllegalStateException("Received message from unsupported version: [" + version
-                    + "] minimal compatible version is: [" + getCurrentVersion().minimumCompatibilityVersion() + "]");
+                    + "] minimal compatible version is: [" + compatibilityVersion.minimumCompatibilityVersion() + "]");
             }
             streamIn = new NamedWriteableAwareStreamInput(streamIn, namedWriteableRegistry);
             streamIn.setVersion(version);

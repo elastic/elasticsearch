@@ -78,10 +78,17 @@ public class RestClearScrollAction extends BaseRestHandler {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if ("scroll_id".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                } else if ("scroll_id".equals(currentFieldName)){
+                    if (token == XContentParser.Token.START_ARRAY) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token.isValue() == false) {
+                                throw new IllegalArgumentException("scroll_id array element should only contain scroll_id");
+                            }
+                            clearScrollRequest.addScrollId(parser.text());
+                        }
+                    } else {
                         if (token.isValue() == false) {
-                            throw new IllegalArgumentException("scroll_id array element should only contain scroll_id");
+                            throw new IllegalArgumentException("scroll_id element should only contain scroll_id");
                         }
                         clearScrollRequest.addScrollId(parser.text());
                     }

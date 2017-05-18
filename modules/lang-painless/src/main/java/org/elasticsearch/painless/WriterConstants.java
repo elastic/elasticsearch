@@ -27,7 +27,6 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
 import java.lang.invoke.CallSite;
-import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -54,8 +53,10 @@ public final class WriterConstants {
 
     public static final String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
     public static final Type CLASS_TYPE        = Type.getObjectType(CLASS_NAME.replace('.', '/'));
+    
+    public static final String CTOR_METHOD_NAME = "<init>";
 
-    public static final Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class, BitSet.class);
+    public static final Method CONSTRUCTOR = getAsmMethod(void.class, CTOR_METHOD_NAME, String.class, String.class, BitSet.class);
     public static final Method CLINIT      = getAsmMethod(void.class, "<clinit>");
 
     // All of these types are caught by the main method and rethrown as ScriptException
@@ -84,11 +85,10 @@ public final class WriterConstants {
     public static final Type UTILITY_TYPE = Type.getType(Utility.class);
     public static final Method STRING_TO_CHAR = getAsmMethod(char.class, "StringTochar", String.class);
     public static final Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
-    
-    public static final Type OBJECT_ARRAY_TYPE = Type.getType("[Ljava/lang/Object;");
+
 
     public static final Type METHOD_HANDLE_TYPE = Type.getType(MethodHandle.class);
-    
+
     public static final Type AUGMENTATION_TYPE = Type.getType(Augmentation.class);
 
     /**
@@ -109,7 +109,6 @@ public final class WriterConstants {
     public static final Type DEF_BOOTSTRAP_DELEGATE_TYPE = Type.getType(DefBootstrap.class);
     public static final Method DEF_BOOTSTRAP_DELEGATE_METHOD = getAsmMethod(CallSite.class, "bootstrap", Definition.class,
             MethodHandles.Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class);
-
 
     public static final Type DEF_UTIL_TYPE = Type.getType(Def.class);
     public static final Method DEF_TO_BOOLEAN         = getAsmMethod(boolean.class, "DefToboolean"       , Object.class);
@@ -132,10 +131,15 @@ public final class WriterConstants {
     /** invokedynamic bootstrap for lambda expression/method references */
     public static final MethodType LAMBDA_BOOTSTRAP_TYPE =
             MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class,
-                                  MethodType.class, Object[].class);
+                                  MethodType.class, MethodType.class, String.class, int.class, String.class, MethodType.class);
     public static final Handle LAMBDA_BOOTSTRAP_HANDLE =
-            new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaMetafactory.class),
-                "altMetafactory", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
+            new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaBootstrap.class),
+                "lambdaBootstrap", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
+    public static final MethodType DELEGATE_BOOTSTRAP_TYPE =
+        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, MethodHandle.class);
+    public static final Handle DELEGATE_BOOTSTRAP_HANDLE =
+        new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaBootstrap.class),
+            "delegateBootstrap", DELEGATE_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
 
     /** dynamic invokedynamic bootstrap for indy string concats (Java 9+) */
     public static final Handle INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
@@ -160,7 +164,7 @@ public final class WriterConstants {
     public static final Type STRING_TYPE = Type.getType(String.class);
     public static final Type STRINGBUILDER_TYPE = Type.getType(StringBuilder.class);
 
-    public static final Method STRINGBUILDER_CONSTRUCTOR    = getAsmMethod(void.class, "<init>");
+    public static final Method STRINGBUILDER_CONSTRUCTOR    = getAsmMethod(void.class, CTOR_METHOD_NAME);
     public static final Method STRINGBUILDER_APPEND_BOOLEAN = getAsmMethod(StringBuilder.class, "append", boolean.class);
     public static final Method STRINGBUILDER_APPEND_CHAR    = getAsmMethod(StringBuilder.class, "append", char.class);
     public static final Method STRINGBUILDER_APPEND_INT     = getAsmMethod(StringBuilder.class, "append", int.class);

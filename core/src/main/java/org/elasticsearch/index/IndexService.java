@@ -28,7 +28,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -105,7 +104,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final SimilarityService similarityService;
     private final EngineFactory engineFactory;
     private final IndexWarmer warmer;
-    private final Consumer<ShardId> globalCheckpointSyncer;
     private volatile Map<Integer, IndexShard> shards = emptyMap();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
@@ -116,44 +114,39 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncTranslogFSync fsyncTask;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
-    private final AsyncGlobalCheckpointTask globalCheckpointTask;
     private final ScriptService scriptService;
-    private final ClusterService clusterService;
     private final Client client;
     private Supplier<Sort> indexSortSupplier;
 
-    public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
-                        NamedXContentRegistry xContentRegistry,
-                        SimilarityService similarityService,
-                        ShardStoreDeleter shardStoreDeleter,
-                        AnalysisRegistry registry,
-                        @Nullable EngineFactory engineFactory,
-                        CircuitBreakerService circuitBreakerService,
-                        BigArrays bigArrays,
-                        ThreadPool threadPool,
-                        ScriptService scriptService,
-                        ClusterService clusterService,
-                        Client client,
-                        QueryCache queryCache,
-                        IndexStore indexStore,
-                        IndexEventListener eventListener,
-                        IndexModule.IndexSearcherWrapperFactory wrapperFactory,
-                        MapperRegistry mapperRegistry,
-                        IndicesFieldDataCache indicesFieldDataCache,
-                        Consumer<ShardId> globalCheckpointSyncer,
-                        List<SearchOperationListener> searchOperationListeners,
-                        List<IndexingOperationListener> indexingOperationListeners) throws IOException {
+    public IndexService(
+            IndexSettings indexSettings,
+            NodeEnvironment nodeEnv,
+            NamedXContentRegistry xContentRegistry,
+            SimilarityService similarityService,
+            ShardStoreDeleter shardStoreDeleter,
+            AnalysisRegistry registry,
+            @Nullable EngineFactory engineFactory,
+            CircuitBreakerService circuitBreakerService,
+            BigArrays bigArrays,
+            ThreadPool threadPool,
+            ScriptService scriptService,
+            Client client,
+            QueryCache queryCache,
+            IndexStore indexStore,
+            IndexEventListener eventListener,
+            IndexModule.IndexSearcherWrapperFactory wrapperFactory,
+            MapperRegistry mapperRegistry,
+            IndicesFieldDataCache indicesFieldDataCache,
+            List<SearchOperationListener> searchOperationListeners,
+            List<IndexingOperationListener> indexingOperationListeners) throws IOException {
         super(indexSettings);
         this.indexSettings = indexSettings;
-        this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
         this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
             mapperRegistry,
             // we parse all percolator queries as they would be parsed on shard 0
-            () -> newQueryShardContext(0, null, () -> {
-                throw new IllegalArgumentException("Percolator queries are not allowed to use the current timestamp");
-            }));
+            () -> newQueryShardContext(0, null, System::currentTimeMillis));
         this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
         if (indexSettings.getIndexSortConfig().hasIndexSort()) {
             // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
@@ -169,7 +162,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
-        this.clusterService = clusterService;
         this.client = client;
         this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
@@ -182,7 +174,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.engineFactory = engineFactory;
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
-        this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         // kick off async ops for the first shard in this index
@@ -272,7 +263,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     }
                 }
             } finally {
-                IOUtils.close(bitsetFilterCache, indexCache, indexFieldData, mapperService, refreshTask, fsyncTask, globalCheckpointTask);
+                IOUtils.close(bitsetFilterCache, indexCache, indexFieldData, mapperService, refreshTask, fsyncTask);
             }
         }
     }
@@ -369,7 +360,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
                 indexCache, mapperService, similarityService, indexFieldData, engineFactory,
                 eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
-                () -> globalCheckpointSyncer.accept(shardId), searchOperationListeners, indexingOperationListeners);
+                    searchOperationListeners, indexingOperationListeners);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
@@ -708,31 +699,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    private void maybeUpdateGlobalCheckpoints() {
-        for (IndexShard shard : this.shards.values()) {
-            if (shard.routingEntry().primary()) {
-                switch (shard.state()) {
-                    case CREATED:
-                    case RECOVERING:
-                    case CLOSED:
-                    case RELOCATED:
-                        continue;
-                    case POST_RECOVERY:
-                    case STARTED:
-                        try {
-                            shard.updateGlobalCheckpointOnPrimary();
-                        } catch (AlreadyClosedException ex) {
-                            // fine - continue, the shard was concurrently closed on us.
-                        }
-                        continue;
-                    default:
-                        throw new IllegalStateException("unknown state: " + shard.state());
-                }
-            }
-        }
-    }
-
-
     abstract static class BaseAsyncTask implements Runnable, Closeable {
         protected final IndexService indexService;
         protected final ThreadPool threadPool;
@@ -877,23 +843,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    final class AsyncGlobalCheckpointTask extends BaseAsyncTask {
-
-        AsyncGlobalCheckpointTask(IndexService indexService) {
-            super(indexService, indexService.getIndexSettings().getGlobalCheckpointInterval());
-        }
-
-        @Override
-        protected void runInternal() {
-            indexService.maybeUpdateGlobalCheckpoints();
-        }
-
-        @Override
-        public String toString() {
-            return "global_checkpoint";
-        }
-    }
-
     AsyncRefreshTask getRefreshTask() { // for tests
         return refreshTask;
     }
@@ -902,7 +851,4 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return fsyncTask;
     }
 
-    AsyncGlobalCheckpointTask getGlobalCheckpointTask() { // for tests
-        return globalCheckpointTask;
-    }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,12 +36,13 @@ public class ScriptSettings {
     private static final Map<ScriptType, Setting<Boolean>> SCRIPT_TYPE_SETTING_MAP;
 
     static {
-        Map<ScriptType, Setting<Boolean>> scriptTypeSettingMap = new HashMap<>();
+        Map<ScriptType, Setting<Boolean>> scriptTypeSettingMap = new EnumMap<>(ScriptType.class);
         for (ScriptType scriptType : ScriptType.values()) {
             scriptTypeSettingMap.put(scriptType, Setting.boolSetting(
                 ScriptModes.sourceKey(scriptType),
                 scriptType.isDefaultEnabled(),
-                Property.NodeScope));
+                Property.NodeScope,
+                Property.Deprecated));
         }
         SCRIPT_TYPE_SETTING_MAP = Collections.unmodifiableMap(scriptTypeSettingMap);
     }
@@ -60,7 +62,7 @@ public class ScriptSettings {
         Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap = new HashMap<>();
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             scriptContextSettingMap.put(scriptContext,
-                    Setting.boolSetting(ScriptModes.operationKey(scriptContext), false, Property.NodeScope));
+                    Setting.boolSetting(ScriptModes.operationKey(scriptContext), false, Property.NodeScope, Property.Deprecated));
         }
         return scriptContextSettingMap;
     }
@@ -71,26 +73,19 @@ public class ScriptSettings {
                                                               ScriptContextRegistry scriptContextRegistry) {
         final List<Setting<Boolean>> scriptModeSettings = new ArrayList<>();
 
-        for (final Class<? extends ScriptEngineService> scriptEngineService : scriptEngineRegistry.getRegisteredScriptEngineServices()) {
-            if (scriptEngineService == NativeScriptEngineService.class) {
-                // native scripts are always enabled, and their settings can not be changed
-                continue;
-            }
+        for (final Class<? extends ScriptEngine> scriptEngineService : scriptEngineRegistry.getRegisteredScriptEngineServices()) {
             final String language = scriptEngineRegistry.getLanguage(scriptEngineService);
             for (final ScriptType scriptType : ScriptType.values()) {
                 // Top level, like "script.engine.groovy.inline"
                 final boolean defaultNonFileScriptMode = scriptEngineRegistry.getDefaultInlineScriptEnableds().get(language);
                 boolean defaultLangAndType = defaultNonFileScriptMode;
                 // Files are treated differently because they are never default-deny
-                if (ScriptType.FILE == scriptType) {
-                    defaultLangAndType = ScriptType.FILE.isDefaultEnabled();
-                }
                 final boolean defaultIfNothingSet = defaultLangAndType;
 
                 Function<Settings, String> defaultLangAndTypeFn = settings -> {
                     final Setting<Boolean> globalTypeSetting = scriptTypeSettingMap.get(scriptType);
                     final Setting<Boolean> langAndTypeSetting = Setting.boolSetting(ScriptModes.getGlobalKey(language, scriptType),
-                            defaultIfNothingSet, Property.NodeScope);
+                            defaultIfNothingSet, Property.NodeScope, Property.Deprecated);
 
                     if (langAndTypeSetting.exists(settings)) {
                         // fine-grained e.g. script.engine.groovy.inline
@@ -105,7 +100,7 @@ public class ScriptSettings {
 
                 // Setting for something like "script.engine.groovy.inline"
                 final Setting<Boolean> langAndTypeSetting = Setting.boolSetting(ScriptModes.getGlobalKey(language, scriptType),
-                        defaultLangAndTypeFn, Property.NodeScope);
+                        defaultLangAndTypeFn, Property.NodeScope, Property.Deprecated);
                 scriptModeSettings.add(langAndTypeSetting);
 
                 for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
@@ -116,7 +111,7 @@ public class ScriptSettings {
                         final Setting<Boolean> globalOpSetting = scriptContextSettingMap.get(scriptContext);
                         final Setting<Boolean> globalTypeSetting = scriptTypeSettingMap.get(scriptType);
                         final Setting<Boolean> langAndTypeAndContextSetting = Setting.boolSetting(langAndTypeAndContextName,
-                                defaultIfNothingSet, Property.NodeScope);
+                                defaultIfNothingSet, Property.NodeScope, Property.Deprecated);
 
                         // fallback logic for script mode settings
                         if (langAndTypeAndContextSetting.exists(settings)) {
@@ -137,7 +132,8 @@ public class ScriptSettings {
                         }
                     };
                     // The actual setting for finest grained script settings
-                    Setting<Boolean> setting = Setting.boolSetting(langAndTypeAndContextName, defaultSettingFn, Property.NodeScope);
+                    Setting<Boolean> setting =
+                        Setting.boolSetting(langAndTypeAndContextName, defaultSettingFn, Property.NodeScope, Property.Deprecated);
                     scriptModeSettings.add(setting);
                 }
             }

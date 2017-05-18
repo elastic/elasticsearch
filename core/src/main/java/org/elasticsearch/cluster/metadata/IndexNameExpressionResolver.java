@@ -29,6 +29,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -48,12 +50,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class IndexNameExpressionResolver extends AbstractComponent {
 
     private final List<ExpressionResolver> expressionResolvers;
     private final DateMathExpressionResolver dateMathExpressionResolver;
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(IndexNameExpressionResolver.class));
 
     public IndexNameExpressionResolver(Settings settings) {
         super(settings);
@@ -158,7 +163,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         if (indexExpressions.length == 1) {
             failNoIndices = options.allowNoIndices() == false;
         }
-
         List<String> expressions = Arrays.asList(indexExpressions);
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             expressions = expressionResolver.resolve(context, expressions);
@@ -268,8 +272,19 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * the index itself - null is returned. Returns <tt>null</tt> if no filtering is required.
      */
     public String[] filteringAliases(ClusterState state, String index, String... expressions) {
+        return indexAliases(state, index, AliasMetaData::filteringRequired, false, expressions);
+    }
+
+    /**
+     * Iterates through the list of indices and selects the effective list of required aliases for the
+     * given index.
+     * <p>Only aliases where the given predicate tests successfully are returned. If the indices list contains a non-required reference to
+     * the index itself - null is returned. Returns <tt>null</tt> if no filtering is required.
+     */
+    public String[] indexAliases(ClusterState state, String index, Predicate<AliasMetaData> requiredAlias, boolean skipIdentity,
+                                 String... expressions) {
         // expand the aliases wildcard
-        List<String> resolvedExpressions = expressions != null ? Arrays.asList(expressions) : Collections.<String>emptyList();
+        List<String> resolvedExpressions = expressions != null ? Arrays.asList(expressions) : Collections.emptyList();
         Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true);
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
@@ -278,54 +293,50 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         if (isAllIndices(resolvedExpressions)) {
             return null;
         }
+        final IndexMetaData indexMetaData = state.metaData().getIndices().get(index);
+        if (indexMetaData == null) {
+            // Shouldn't happen
+            throw new IndexNotFoundException(index);
+        }
         // optimize for the most common single index/alias scenario
         if (resolvedExpressions.size() == 1) {
             String alias = resolvedExpressions.get(0);
-            IndexMetaData indexMetaData = state.metaData().getIndices().get(index);
-            if (indexMetaData == null) {
-                // Shouldn't happen
-                throw new IndexNotFoundException(index);
-            }
+
             AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias);
-            boolean filteringRequired = aliasMetaData != null && aliasMetaData.filteringRequired();
-            if (!filteringRequired) {
+            if (aliasMetaData == null || requiredAlias.test(aliasMetaData) == false) {
                 return null;
             }
             return new String[]{alias};
         }
-        List<String> filteringAliases = null;
+        List<String> aliases = null;
         for (String alias : resolvedExpressions) {
             if (alias.equals(index)) {
-                return null;
+                if (skipIdentity) {
+                    continue;
+                } else {
+                    return null;
+                }
             }
-
-            IndexMetaData indexMetaData = state.metaData().getIndices().get(index);
-            if (indexMetaData == null) {
-                // Shouldn't happen
-                throw new IndexNotFoundException(index);
-            }
-
             AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias);
             // Check that this is an alias for the current index
             // Otherwise - skip it
             if (aliasMetaData != null) {
-                boolean filteringRequired = aliasMetaData.filteringRequired();
-                if (filteringRequired) {
-                    // If filtering required - add it to the list of filters
-                    if (filteringAliases == null) {
-                        filteringAliases = new ArrayList<>();
+                if (requiredAlias.test(aliasMetaData)) {
+                    // If required - add it to the list of aliases
+                    if (aliases == null) {
+                        aliases = new ArrayList<>();
                     }
-                    filteringAliases.add(alias);
+                    aliases.add(alias);
                 } else {
-                    // If not, we have a non filtering alias for this index - no filtering needed
+                    // If not, we have a non required alias for this index - no futher checking needed
                     return null;
                 }
             }
         }
-        if (filteringAliases == null) {
+        if (aliases == null) {
             return null;
         }
-        return filteringAliases.toArray(new String[filteringAliases.size()]);
+        return aliases.toArray(new String[aliases.size()]);
     }
 
     /**
@@ -580,6 +591,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         private Set<String> innerResolve(Context context, List<String> expressions, IndicesOptions options, MetaData metaData) {
             Set<String> result = null;
             boolean wildcardSeen = false;
+            boolean plusSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
                 if (aliasOrIndexExists(metaData, expression)) {
@@ -594,6 +606,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 boolean add = true;
                 if (expression.charAt(0) == '+') {
                     // if its the first, add empty result set
+                    plusSeen = true;
                     if (i == 0) {
                         result = new HashSet<>();
                     }
@@ -640,6 +653,9 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 if (Regex.isSimpleMatchPattern(expression)) {
                     wildcardSeen = true;
                 }
+            }
+            if (plusSeen) {
+              DEPRECATION_LOGGER.deprecated("support for '+' as part of index expressions is deprecated");
             }
             return result;
         }

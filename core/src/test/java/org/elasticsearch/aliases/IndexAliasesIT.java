@@ -63,8 +63,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -188,7 +186,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         logger.info("--> checking single filtering alias search with sort");
-        searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_uid", SortOrder.ASC).get();
+        searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_index", SortOrder.ASC).get();
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         logger.info("--> checking single filtering alias search with global facets");
@@ -203,7 +201,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> checking single filtering alias search with global facets and sort");
         searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
                 .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
-                .addSort("_uid", SortOrder.ASC).get();
+                .addSort("_index", SortOrder.ASC).get();
         assertSearchResponse(searchResponse);
         global = searchResponse.getAggregations().get("global");
         terms = global.getAggregations().get("test");
@@ -212,7 +210,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> checking single filtering alias search with non-global facets");
         searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
                 .addAggregation(AggregationBuilders.terms("test").field("name"))
-                .addSort("_uid", SortOrder.ASC).get();
+                .addSort("_index", SortOrder.ASC).get();
         assertSearchResponse(searchResponse);
         terms = searchResponse.getAggregations().get("test");
         assertThat(terms.getBuckets().size(), equalTo(2));
@@ -822,26 +820,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 assertHitCount(response, i);
             }
         }
-    }
-
-    public void testAliasesFilterWithHasChildQuery() throws Exception {
-        assertAcked(prepareCreate("my-index")
-                        .addMapping("parent")
-                        .addMapping("child", "_parent", "type=parent")
-        );
-        client().prepareIndex("my-index", "parent", "1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("my-index", "child", "2").setSource("{}", XContentType.JSON).setParent("1").get();
-        refresh();
-
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", hasChildQuery("child", matchAllQuery(), ScoreMode.None)));
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", hasParentQuery("parent", matchAllQuery(), false)));
-
-        SearchResponse response = client().prepareSearch("filter1").get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        response = client().prepareSearch("filter2").get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
     }
 
     public void testAliasesWithBlocks() {

@@ -34,7 +34,7 @@ GET my_index/_search
 }
 --------------------------------------------------
 // CONSOLE
-
+// TESTSETUP
 
 [[ip-params]]
 ==== Parameters for `ip` fields
@@ -86,6 +86,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 or
 
@@ -100,6 +101,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 Also beware that colons are special characters to the
 <<query-dsl-query-string-query,`query_string`>> query, so ipv6 addresses will
@@ -108,7 +110,7 @@ searched value:
 
 [source,js]
 --------------------------------------------------
-GET t/_search
+GET my_index/_search
 {
   "query": {
     "query_string" : {
@@ -117,3 +119,4 @@ GET t/_search
   }
 }
 --------------------------------------------------
+// CONSOLE

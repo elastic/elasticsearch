@@ -28,7 +28,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -36,8 +36,8 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -326,7 +326,7 @@ public class AvgIT extends AbstractNumericTestCase {
     @Override
     public void testOrderByEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(terms("terms").field("value").order(Order.compound(Order.aggregation("filter>avg", true)))
+                .addAggregation(terms("terms").field("value").order(BucketOrder.compound(BucketOrder.aggregation("filter>avg", true)))
                         .subAggregation(filter("filter", termQuery("value", 100)).subAggregation(avg("avg").field("value"))))
                 .get();
 
@@ -334,7 +334,7 @@ public class AvgIT extends AbstractNumericTestCase {
 
         Terms terms = searchResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets, notNullValue());
         assertThat(buckets.size(), equalTo(10));
 
@@ -397,7 +397,7 @@ public class AvgIT extends AbstractNumericTestCase {
      */
     public static class ExtractFieldScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new ExtractFieldScriptEngine();
         }
     }
@@ -405,7 +405,7 @@ public class AvgIT extends AbstractNumericTestCase {
     /**
      * This mock script returns the field that is specified by name in the script body
      */
-    public static class ExtractFieldScriptEngine implements ScriptEngineService {
+    public static class ExtractFieldScriptEngine implements ScriptEngine {
 
         public static final String NAME = "extract_field";
 
@@ -415,11 +415,6 @@ public class AvgIT extends AbstractNumericTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 
@@ -502,7 +497,7 @@ public class AvgIT extends AbstractNumericTestCase {
      */
     public static class FieldValueScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings) {
             return new FieldValueScriptEngine();
         }
     }
@@ -510,7 +505,7 @@ public class AvgIT extends AbstractNumericTestCase {
     /**
      * This mock script returns the field value and adds one month to the returned date
      */
-    public static class FieldValueScriptEngine implements ScriptEngineService {
+    public static class FieldValueScriptEngine implements ScriptEngine {
 
         public static final String NAME = "field_value";
 
@@ -520,11 +515,6 @@ public class AvgIT extends AbstractNumericTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 

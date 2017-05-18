@@ -63,7 +63,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -336,7 +336,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
      */
     public void addReleasable(Releasable releasable, Lifetime lifetime) {
         if (clearables == null) {
-            clearables = new HashMap<>();
+            clearables = new EnumMap<>(Lifetime.class);
         }
         List<Releasable> releasables = clearables.get(lifetime);
         if (releasables == null) {

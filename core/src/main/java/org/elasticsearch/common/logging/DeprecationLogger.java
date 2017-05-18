@@ -311,7 +311,7 @@ public class DeprecationLogger {
      * @return the escaped string
      */
     public static String escape(String s) {
-        return s.replaceAll("(\\\\|\")", "\\\\$1");
+        return s.replaceAll("([\"\\\\])", "\\\\$1");
     }
 
 }

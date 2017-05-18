@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices.analysis;
 
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.standard.StandardFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.NamedRegistry;
@@ -69,7 +71,6 @@ import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.GreekAnalyzerProvider;
 import org.elasticsearch.index.analysis.HindiAnalyzerProvider;
 import org.elasticsearch.index.analysis.HindiNormalizationFilterFactory;
-import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
 import org.elasticsearch.index.analysis.HungarianAnalyzerProvider;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.IndicNormalizationFilterFactory;
@@ -89,7 +90,6 @@ import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
 import org.elasticsearch.index.analysis.LithuanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.LowerCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
-import org.elasticsearch.index.analysis.MappingCharFilterFactory;
 import org.elasticsearch.index.analysis.MinHashTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
@@ -97,13 +97,13 @@ import org.elasticsearch.index.analysis.NorwegianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PathHierarchyTokenizerFactory;
 import org.elasticsearch.index.analysis.PatternAnalyzerProvider;
 import org.elasticsearch.index.analysis.PatternCaptureGroupTokenFilterFactory;
-import org.elasticsearch.index.analysis.PatternReplaceCharFilterFactory;
 import org.elasticsearch.index.analysis.PatternReplaceTokenFilterFactory;
 import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.PorterStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.PortugueseAnalyzerProvider;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.ReverseTokenFilterFactory;
 import org.elasticsearch.index.analysis.RomanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.RussianAnalyzerProvider;
@@ -141,10 +141,16 @@ import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
 
 /**
  * Sets up {@link AnalysisRegistry}.
@@ -170,8 +176,11 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
+
+        Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
+
         analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers
-            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry());
+            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry(), preConfiguredTokenFilters);
     }
 
     HunspellService getHunspellService() {
@@ -184,9 +193,6 @@ public final class AnalysisModule {
 
     private NamedRegistry<AnalysisProvider<CharFilterFactory>> setupCharFilters(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<CharFilterFactory>> charFilters = new NamedRegistry<>("char_filter");
-        charFilters.register("html_strip", HtmlStripCharFilterFactory::new);
-        charFilters.register("pattern_replace", requriesAnalysisSettings(PatternReplaceCharFilterFactory::new));
-        charFilters.register("mapping", requriesAnalysisSettings(MappingCharFilterFactory::new));
         charFilters.extractAndRegister(plugins, AnalysisPlugin::getCharFilters);
         return charFilters;
     }
@@ -260,6 +266,25 @@ public final class AnalysisModule {
         tokenFilters.register("fingerprint", FingerprintTokenFilterFactory::new);
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
+    }
+
+    static Map<String, PreConfiguredTokenFilter> setupPreConfiguredTokenFilters(List<AnalysisPlugin> plugins) {
+        NamedRegistry<PreConfiguredTokenFilter> preConfiguredTokenFilters = new NamedRegistry<>("pre-configured token_filter");
+
+        // Add filters available in lucene-core
+        preConfiguredTokenFilters.register("lowercase", PreConfiguredTokenFilter.singleton("lowercase", true, LowerCaseFilter::new));
+        preConfiguredTokenFilters.register("standard", PreConfiguredTokenFilter.singleton("standard", false, StandardFilter::new));
+        /* Note that "stop" is available in lucene-core but it's pre-built
+         * version uses a set of English stop words that are in
+         * lucene-analyzers-common so "stop" is defined in the analysis-common
+         * module. */
+
+        for (AnalysisPlugin plugin: plugins) {
+            for (PreConfiguredTokenFilter filter : plugin.getPreConfiguredTokenFilters()) {
+                preConfiguredTokenFilters.register(filter.getName(), filter);
+            }
+        }
+        return unmodifiableMap(preConfiguredTokenFilters.getRegistry());
     }
 
     private NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {
@@ -340,19 +365,6 @@ public final class AnalysisModule {
         return normalizers;
     }
 
-    private static <T> AnalysisModule.AnalysisProvider<T> requriesAnalysisSettings(AnalysisModule.AnalysisProvider<T> provider) {
-        return new AnalysisModule.AnalysisProvider<T>() {
-            @Override
-            public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
-                return provider.get(indexSettings, environment, name, settings);
-            }
-
-            @Override
-            public boolean requiresAnalysisSettings() {
-                return true;
-            }
-        };
-    }
 
     /**
      * The basic factory interface for analysis components.

@@ -19,13 +19,19 @@
 
 package org.elasticsearch.script;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 
 /**
  * Holds the boolean indicating the enabled mode for each of the different scripting languages available, each script source and each
@@ -38,12 +44,55 @@ public class ScriptModes {
 
     final Map<String, Boolean> scriptEnabled;
 
-    ScriptModes(ScriptSettings scriptSettings, Settings settings) {
+    private static final Setting<List<String>> TYPES_ALLOWED_SETTING =
+        Setting.listSetting("script.types_allowed", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
+    private static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING =
+        Setting.listSetting("script.contexts_allowed", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
+
+    private final Set<String> typesAllowed;
+    private final Set<String> contextsAllowed;
+
+    ScriptModes(ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings, Settings settings) {
         HashMap<String, Boolean> scriptModes = new HashMap<>();
         for (Setting<Boolean> scriptModeSetting : scriptSettings.getScriptLanguageSettings()) {
             scriptModes.put(scriptModeSetting.getKey(), scriptModeSetting.get(settings));
         }
         this.scriptEnabled = Collections.unmodifiableMap(scriptModes);
+
+        typesAllowed = TYPES_ALLOWED_SETTING.exists(settings) ? new HashSet<>() : null;
+
+        if (typesAllowed != null) {
+            for (String settingType : TYPES_ALLOWED_SETTING.get(settings)) {
+                boolean found = false;
+
+                for (ScriptType scriptType : ScriptType.values()) {
+                    if (scriptType.getName().equals(settingType)) {
+                        found = true;
+                        typesAllowed.add(settingType);
+
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    throw new IllegalArgumentException(
+                        "unknown script type [" + settingType + "] found in setting [" + TYPES_ALLOWED_SETTING.getKey() + "].");
+                }
+            }
+        }
+
+        contextsAllowed = CONTEXTS_ALLOWED_SETTING.exists(settings) ? new HashSet<>() : null;
+
+        if (contextsAllowed != null) {
+            for (String settingContext : CONTEXTS_ALLOWED_SETTING.get(settings)) {
+                if (scriptContextRegistry.isSupportedContext(settingContext)) {
+                    contextsAllowed.add(settingContext);
+                } else {
+                    throw new IllegalArgumentException(
+                        "unknown script context [" + settingContext + "] found in setting [" + CONTEXTS_ALLOWED_SETTING.getKey() + "].");
+                }
+            }
+        }
     }
 
     /**
@@ -56,10 +105,14 @@ public class ScriptModes {
      * @return whether scripts are enabled (true) or disabled (false)
      */
     public boolean getScriptEnabled(String lang, ScriptType scriptType, ScriptContext scriptContext) {
-        //native scripts are always enabled as they are static by definition
-        if (NativeScriptEngineService.NAME.equals(lang)) {
-            return true;
+        if (typesAllowed != null && typesAllowed.contains(scriptType.getName()) == false) {
+            throw new IllegalArgumentException("[" + scriptType.getName() + "] scripts cannot be executed");
         }
+
+        if (contextsAllowed != null && contextsAllowed.contains(scriptContext.getKey()) == false) {
+            throw new IllegalArgumentException("[" + scriptContext.getKey() + "] scripts cannot be executed");
+        }
+
         Boolean scriptMode = scriptEnabled.get(getKey(lang, scriptType, scriptContext));
         if (scriptMode == null) {
             throw new IllegalArgumentException("script mode not found for lang [" + lang + "], script_type [" + scriptType + "], operation [" + scriptContext.getKey() + "]");

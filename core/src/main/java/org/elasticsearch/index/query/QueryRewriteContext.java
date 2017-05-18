@@ -30,6 +30,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.template.CompiledTemplate;
 
 import java.util.function.LongSupplier;
 
@@ -68,14 +69,14 @@ public class QueryRewriteContext {
      * Returns the index settings for this context. This might return null if the
      * context has not index scope.
      */
-    public final IndexSettings getIndexSettings() {
+    public IndexSettings getIndexSettings() {
         return indexSettings;
     }
 
     /**
      * Return the MapperService.
      */
-    public final MapperService getMapperService() {
+    public MapperService getMapperService() {
         return mapperService;
     }
 
@@ -104,9 +105,8 @@ public class QueryRewriteContext {
         return nowInMillis.getAsLong();
     }
 
-    public BytesReference getTemplateBytes(Script template) {
-        CompiledScript compiledTemplate = scriptService.compile(template, ScriptContext.Standard.SEARCH);
-        ExecutableScript executable = scriptService.executable(compiledTemplate, template.getParams());
-        return (BytesReference) executable.run();
+    public String getTemplateBytes(Script template) {
+        CompiledTemplate compiledTemplate = scriptService.compileTemplate(template, ScriptContext.Standard.SEARCH);
+        return compiledTemplate.run(template.getParams());
     }
 }

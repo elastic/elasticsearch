@@ -81,7 +81,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSimpleMoreLikeOnLongField() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1", "some_long", "type=long"));
+        assertAcked(prepareCreate("test")
+                .setSettings("index.mapping.single_type", false)
+                .addMapping("type1", "some_long", "type=long"));
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -357,7 +359,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testSimpleMoreLikeThisIdsMultipleTypes() throws Exception {
         logger.info("Creating index test");
         int numOfTypes = randomIntBetween(2, 10);
-        CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test");
+        CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test")
+                .setSettings("index.mapping.single_type", false);
         for (int i = 0; i < numOfTypes; i++) {
             createRequestBuilder.addMapping("type" + i, jsonBuilder().startObject().startObject("type" + i).startObject("properties")
                     .startObject("text").field("type", "text").endObject()
@@ -619,5 +622,19 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
+    }
+
+    public void testWithRouting() throws IOException {
+        client().prepareIndex("index", "type", "1").setRouting("3").setSource("text", "this is a document").get();
+        client().prepareIndex("index", "type", "2").setRouting("1").setSource("text", "this is another document").get();
+        client().prepareIndex("index", "type", "3").setRouting("4").setSource("text", "this is yet another document").get();
+        refresh("index");
+
+        Item item = new Item("index", "type", "2").routing("1");
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(new String[]{"text"}, null, new Item[]{item});
+        moreLikeThisQueryBuilder.minTermFreq(1);
+        moreLikeThisQueryBuilder.minDocFreq(1);
+        SearchResponse searchResponse = client().prepareSearch("index").setQuery(moreLikeThisQueryBuilder).get();
+        assertEquals(2, searchResponse.getHits().totalHits);
     }
 }

@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -113,7 +114,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        createIndex("idx", "high_card_idx");
         IndexRequestBuilder[] lowCardBuilders = new IndexRequestBuilder[NUM_DOCS];
         for (int i = 0; i < lowCardBuilders.length; i++) {
             lowCardBuilders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
@@ -121,12 +122,13 @@ public class LongTermsIT extends AbstractTermsTestCase {
                     .field(SINGLE_VALUED_FIELD_NAME, i)
                     .startArray(MULTI_VALUED_FIELD_NAME).value(i).value(i + 1).endArray()
                     .field("num_tag", i < lowCardBuilders.length / 2 + 1 ? 1 : 0) // used to test order by single-bucket sub agg
+                    .field("constant", 1)
                     .endObject());
         }
-        indexRandom(randomBoolean(), lowCardBuilders);
+        indexRandom(true, lowCardBuilders);
         IndexRequestBuilder[] highCardBuilders = new IndexRequestBuilder[100]; // TODO randomize the size?
         for (int i = 0; i < highCardBuilders.length; i++) {
-           highCardBuilders[i] = client().prepareIndex("idx", "high_card_type").setSource(jsonBuilder()
+           highCardBuilders[i] = client().prepareIndex("high_card_idx", "type").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, i)
                     .startArray(MULTI_VALUED_FIELD_NAME).value(i).value(i + 1).endArray()
@@ -268,7 +270,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
     public void testSizeIsZero() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> client().prepareSearch("idx").setTypes("high_card_type")
+                () -> client().prepareSearch("high_card_idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -279,7 +281,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -317,7 +319,8 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     private void testIncludeExcludeResults(int minDocCount, long[] includes, long[] excludes,
                                            long[] expectedWithCounts, long[] expectedZeroCounts) {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx", "high_card_idx")
+                .setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("_index", "high_card_idx")))
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .includeExclude(new IncludeExclude(includes, excludes))
@@ -355,7 +358,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     private void runTestFieldWithPartitionedFiltering(String field) throws Exception {
         // Find total number of unique terms
-        SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
+        SearchResponse allResponse = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field(field).collectMode(randomFrom(SubAggCollectionMode.values()))).execute().actionGet();
         assertSearchResponse(allResponse);
         Terms terms = allResponse.getAggregations().get("terms");
@@ -367,7 +370,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         final int numPartitions = randomIntBetween(2, 4);
         Set<Number> foundTerms = new HashSet<>();
         for (int partition = 0; partition < numPartitions; partition++) {
-            SearchResponse response = client().prepareSearch("idx").setTypes("type")
+            SearchResponse response = client().prepareSearch("idx")
                     .addAggregation(
                             terms("terms").field(field).includeExclude(new IncludeExclude(partition, numPartitions))
                                     .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -386,12 +389,12 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
 
     public void testSingleValueFieldWithMaxSize() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
+        SearchResponse response = client().prepareSearch("high_card_idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .size(20)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.term(true))) // we need to sort by terms cause we're checking the first 20 values
+                        .order(BucketOrder.key(true))) // we need to sort by terms cause we're checking the first 20 values
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -412,11 +415,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValueFieldOrderedByTermAsc() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.term(true)))
+                        .order(BucketOrder.key(true)))
                 .execute().actionGet();
         assertSearchResponse(response);
 
@@ -436,11 +439,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValueFieldOrderedByTermDesc() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.term(false)))
+                        .order(BucketOrder.key(false)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -461,8 +464,33 @@ public class LongTermsIT extends AbstractTermsTestCase {
         }
     }
 
-    public void testSingleValuedFieldWithSubAggregation() throws Exception {
+    public void testSingleValueFieldOrderedByTieBreaker() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
+            .addAggregation(terms("terms")
+                .field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .order(BucketOrder.aggregation("max_constant", randomBoolean()))
+                .subAggregation(max("max_constant").field("constant")))
+            .execute().actionGet();
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        int i = 0;
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("" + i));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+            i++;
+        }
+    }
+
+    public void testSingleValuedFieldWithSubAggregation() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -496,7 +524,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValuedFieldWithValueScript() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -521,7 +549,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -549,7 +577,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testMultiValuedFieldWithValueScript() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -578,7 +606,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testMultiValuedFieldWithValueScriptNotUnique() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -622,7 +650,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         Script script =
             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
 
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .script(script))
@@ -649,7 +677,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         Script script =
             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']", Collections.emptyMap());
 
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .script(script))
@@ -677,7 +705,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .size(randomIntBetween(1, 5))
@@ -694,7 +722,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -718,7 +746,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmappedWithFormat() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -764,11 +792,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAsc() throws Exception {
         boolean asc = true;
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.aggregation("avg_i", asc))
+                        .order(BucketOrder.aggregation("avg_i", asc))
                         .subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME))
                 ).execute().actionGet();
 
@@ -793,11 +821,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscWithTermsSubAgg() throws Exception {
         boolean asc = true;
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.aggregation("avg_i", asc))
+                        .order(BucketOrder.aggregation("avg_i", asc))
                         .subAggregation(
                                 avg("avg_i").field(SINGLE_VALUED_FIELD_NAME))
                         .subAggregation(
@@ -837,11 +865,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleBucketSubAggregationAsc() throws Exception {
         boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("num_tags")
                         .field("num_tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.aggregation("filter", asc))
+                        .order(BucketOrder.aggregation("filter", asc))
                         .subAggregation(filter("filter", QueryBuilders.matchAllQuery()))
                 ).get();
 
@@ -853,7 +881,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         assertThat(tags.getName(), equalTo("num_tags"));
         assertThat(tags.getBuckets().size(), equalTo(2));
 
-        Iterator<Terms.Bucket> iters = tags.getBuckets().iterator();
+        Iterator<? extends Terms.Bucket> iters = tags.getBuckets().iterator();
 
         Terms.Bucket tag = iters.next();
         assertThat(tag, notNullValue());
@@ -874,11 +902,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySubAggregationAscMultiHierarchyLevels() throws Exception {
         boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("tags")
                         .field("num_tag")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.aggregation("filter1>filter2>max", asc))
+                        .order(BucketOrder.aggregation("filter1>filter2>max", asc))
                 .subAggregation(filter("filter1", QueryBuilders.matchAllQuery()).subAggregation(
                         filter("filter2", QueryBuilders.matchAllQuery())
                                         .subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))))
@@ -892,7 +920,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         assertThat(tags.getName(), equalTo("tags"));
         assertThat(tags.getBuckets().size(), equalTo(2));
 
-        Iterator<Terms.Bucket> iters = tags.getBuckets().iterator();
+        Iterator<? extends Terms.Bucket> iters = tags.getBuckets().iterator();
 
         // the max for "1" is 2
         // the max for "0" is 4
@@ -929,11 +957,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldOrderedByMissingSubAggregation() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
-                client().prepareSearch(index).setTypes("type")
+                client().prepareSearch(index)
                         .addAggregation(terms("terms")
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .order(Terms.Order.aggregation("avg_i", true))
+                                .order(BucketOrder.aggregation("avg_i", true))
                         ).execute().actionGet();
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
@@ -947,11 +975,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldOrderedByNonMetricsOrMultiBucketSubAggregation() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
-                client().prepareSearch(index).setTypes("type")
+                client().prepareSearch(index)
                         .addAggregation(terms("terms")
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .order(Terms.Order.aggregation("num_tags", true))
+                                .order(BucketOrder.aggregation("num_tags", true))
                                 .subAggregation(terms("num_tags").field("num_tags")
                                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                         ).execute().actionGet();
@@ -967,11 +995,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldOrderedByMultiValuedSubAggregationWithUknownMetric() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
-                client().prepareSearch(index).setTypes("type")
+                client().prepareSearch(index)
                         .addAggregation(terms("terms")
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .order(Terms.Order.aggregation("stats.foo", true))
+                                .order(BucketOrder.aggregation("stats.foo", true))
                                 .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
                         ).execute().actionGet();
 
@@ -987,11 +1015,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldOrderedByMultiValuedSubAggregationWithoutMetric() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
-                client().prepareSearch(index).setTypes("type")
+                client().prepareSearch(index)
                         .addAggregation(terms("terms")
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .order(Terms.Order.aggregation("stats", true))
+                                .order(BucketOrder.aggregation("stats", true))
                                 .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
                         ).execute().actionGet();
 
@@ -1006,11 +1034,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationDesc() throws Exception {
         boolean asc = false;
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.aggregation("avg_i", asc))
+                        .order(BucketOrder.aggregation("avg_i", asc))
                         .subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME))
                 ).execute().actionGet();
 
@@ -1038,11 +1066,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValueSubAggregationAsc() throws Exception {
         boolean asc = true;
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.aggregation("stats.avg", asc))
+                        .order(BucketOrder.aggregation("stats.avg", asc))
                         .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
                 ).execute().actionGet();
 
@@ -1068,11 +1096,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValueSubAggregationDesc() throws Exception {
         boolean asc = false;
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.aggregation("stats.avg", asc))
+                        .order(BucketOrder.aggregation("stats.avg", asc))
                         .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
                 ).execute().actionGet();
 
@@ -1098,11 +1126,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValueExtendedStatsAsc() throws Exception {
         boolean asc = true;
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.aggregation("stats.variance", asc))
+                        .order(BucketOrder.aggregation("stats.variance", asc))
                         .subAggregation(extendedStats("stats").field(SINGLE_VALUED_FIELD_NAME))
                 ).execute().actionGet();
 
@@ -1128,47 +1156,47 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAndTermsDesc() throws Exception {
         long[] expectedKeys = new long[] { 1, 2, 4, 3, 7, 6, 5 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", true), Terms.Order.term(false));
+        assertMultiSortResponse(expectedKeys, BucketOrder.aggregation("avg_l", true), BucketOrder.key(false));
     }
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAndTermsAsc() throws Exception {
         long[] expectedKeys = new long[] { 1, 2, 3, 4, 5, 6, 7 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", true), Terms.Order.term(true));
+        assertMultiSortResponse(expectedKeys, BucketOrder.aggregation("avg_l", true), BucketOrder.key(true));
     }
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationDescAndTermsAsc() throws Exception {
         long[] expectedKeys = new long[] { 5, 6, 7, 3, 4, 2, 1 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", false), Terms.Order.term(true));
+        assertMultiSortResponse(expectedKeys, BucketOrder.aggregation("avg_l", false), BucketOrder.key(true));
     }
 
     public void testSingleValuedFieldOrderedByCountAscAndSingleValueSubAggregationAsc() throws Exception {
         long[] expectedKeys = new long[] { 6, 7, 3, 4, 5, 1, 2 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.count(true), Terms.Order.aggregation("avg_l", true));
+        assertMultiSortResponse(expectedKeys, BucketOrder.count(true), BucketOrder.aggregation("avg_l", true));
     }
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscSingleValueSubAggregationAsc() throws Exception {
         long[] expectedKeys = new long[] { 6, 7, 3, 5, 4, 1, 2 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("sum_d", true), Terms.Order.aggregation("avg_l", true));
+        assertMultiSortResponse(expectedKeys, BucketOrder.aggregation("sum_d", true), BucketOrder.aggregation("avg_l", true));
     }
 
     public void testSingleValuedFieldOrderedByThreeCriteria() throws Exception {
         long[] expectedKeys = new long[] { 2, 1, 4, 5, 3, 6, 7 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.count(false),
-                Terms.Order.aggregation("sum_d", false),
-                Terms.Order.aggregation("avg_l", false));
+        assertMultiSortResponse(expectedKeys, BucketOrder.count(false),
+                BucketOrder.aggregation("sum_d", false),
+                BucketOrder.aggregation("avg_l", false));
     }
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAsCompound() throws Exception {
         long[] expectedKeys = new long[] { 1, 2, 3, 4, 5, 6, 7 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", true));
+        assertMultiSortResponse(expectedKeys, BucketOrder.aggregation("avg_l", true));
     }
 
-    private void assertMultiSortResponse(long[] expectedKeys, Terms.Order... order) {
+    private void assertMultiSortResponse(long[] expectedKeys, BucketOrder... order) {
         SearchResponse response = client().prepareSearch("sort_idx").setTypes("multi_sort_type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.compound(order))
+                        .order(BucketOrder.compound(order))
                         .subAggregation(avg("avg_l").field("l"))
                         .subAggregation(sum("sum_d").field("d"))
                 ).execute().actionGet();

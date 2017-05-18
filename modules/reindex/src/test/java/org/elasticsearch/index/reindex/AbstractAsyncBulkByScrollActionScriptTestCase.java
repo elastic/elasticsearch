@@ -20,17 +20,12 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction;
-import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction.OpType;
-import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction.RequestWrapper;
-import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollActionTestCase;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource;
+import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction.OpType;
+import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.junit.Before;
 import org.mockito.Matchers;
@@ -49,8 +44,6 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
                 Response extends BulkByScrollResponse>
         extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
 
-    private static final Script EMPTY_SCRIPT = new Script("");
-
     protected ScriptService scriptService;
 
     @Before
@@ -66,7 +59,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
 
         when(scriptService.executable(any(CompiledScript.class), Matchers.<Map<String, Object>>any()))
                 .thenReturn(executableScript);
-        AbstractAsyncBulkByScrollAction<Request> action = action(scriptService, request().setScript(EMPTY_SCRIPT));
+        AbstractAsyncBulkByScrollAction<Request> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;
     }

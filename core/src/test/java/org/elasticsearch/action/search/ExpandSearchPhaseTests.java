@@ -57,7 +57,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 .collapse(new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))));
             mockSearchPhaseContext.getRequest().source().query(originalQuery);
             mockSearchPhaseContext.searchTransport = new SearchTransportService(
-                Settings.builder().put("search.remote.connect", false).build(), null, null) {
+                Settings.builder().put("search.remote.connect", false).build(), null) {
 
                 @Override
                 void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
@@ -126,7 +126,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
             .collapse(new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))));
         mockSearchPhaseContext.searchTransport = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("search.remote.connect", false).build(), null) {
 
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
@@ -168,7 +168,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
     public void testSkipPhase() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         mockSearchPhaseContext.searchTransport = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("search.remote.connect", false).build(), null) {
 
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
@@ -180,6 +180,37 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             Collections.singletonMap("someField", new SearchHitField("someField", Collections.singletonList(null)))),
             new SearchHit(2, "ID2", new Text("type"),
                 Collections.singletonMap("someField", new SearchHitField("someField", Collections.singletonList(null))))}, 1, 1.0F);
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
+        SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
+        AtomicReference<SearchResponse> reference = new AtomicReference<>();
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, response, r ->
+            new SearchPhase("test") {
+                @Override
+                public void run() throws IOException {
+                    reference.set(r);
+                }
+            }
+        );
+        phase.run();
+        mockSearchPhaseContext.assertNoFailure();
+        assertNotNull(reference.get());
+        assertEquals(1, mockSearchPhaseContext.phasesExecuted.get());
+    }
+
+    public void testSkipExpandCollapseNoHits() throws IOException {
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(
+            Settings.builder().put("search.remote.connect", false).build(), null) {
+
+            @Override
+            void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
+                fail("expand should not try to send empty multi search request");
+            }
+        };
+        mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
+            .collapse(new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))));
+
+        SearchHits hits = new SearchHits(new SearchHit[0], 1, 1.0f);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
         SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
         AtomicReference<SearchResponse> reference = new AtomicReference<>();

@@ -20,6 +20,8 @@
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -34,6 +36,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.MockScriptEngine;
@@ -50,6 +54,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -59,9 +64,11 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.common.xcontent.XContentHelper.update;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -91,6 +98,16 @@ public class UpdateRequestTests extends ESTestCase {
                     return null;
                 });
         scripts.put(
+                "ctx._source.body = \"foo\"",
+                vars -> {
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                    source.put("body", "foo");
+                    return null;
+                });
+        scripts.put(
                 "ctx._timestamp = ctx._now",
                 vars -> {
                     @SuppressWarnings("unchecked")
@@ -106,6 +123,22 @@ public class UpdateRequestTests extends ESTestCase {
                     ctx.put("op", "delete");
                     return null;
                 });
+        scripts.put(
+                "ctx.op = bad",
+                vars -> {
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                    ctx.put("op", "bad");
+                    return null;
+                });
+        scripts.put(
+                "ctx.op = none",
+                vars -> {
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                    ctx.put("op", "none");
+                    return null;
+                });
         scripts.put("return", vars -> null);
         final ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(emptyList());
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts);
@@ -118,8 +151,6 @@ public class UpdateRequestTests extends ESTestCase {
                 new ResourceWatcherService(baseSettings, null);
         ScriptService scriptService = new ScriptService(
                 baseSettings,
-                environment,
-                watcherService,
                 scriptEngineRegistry,
                 scriptContextRegistry,
                 scriptSettings);
@@ -484,5 +515,147 @@ public class UpdateRequestTests extends ESTestCase {
 
         BytesReference finalBytes = toXContent(parsedUpdateRequest, xContentType, humanReadable);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
+    }
+
+    public void testToValidateUpsertRequestAndVersion() {
+        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+        updateRequest.version(1L);
+        updateRequest.doc("{}", XContentType.JSON);
+        updateRequest.upsert(new IndexRequest("index","type", "id"));
+        assertThat(updateRequest.validate().validationErrors(), contains("can't provide both upsert request and a version"));
+    }
+
+    public void testToValidateUpsertRequestWithVersion() {
+        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+        updateRequest.doc("{}", XContentType.JSON);
+        updateRequest.upsert(new IndexRequest("index", "type", "1").version(1L));
+        assertThat(updateRequest.validate().validationErrors(), contains("can't provide version in upsert request"));
+    }
+
+    public void testParentAndRoutingExtraction() throws Exception {
+        GetResult getResult = new GetResult("test", "type", "1", 0, false, null, null);
+        IndexRequest indexRequest = new IndexRequest("test", "type", "1");
+
+        // There is no routing and parent because the document doesn't exist
+        assertNull(UpdateHelper.calculateRouting(getResult, null));
+        assertNull(UpdateHelper.calculateParent(getResult, null));
+
+        // There is no routing and parent the indexing request
+        assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
+        assertNull(UpdateHelper.calculateParent(getResult, indexRequest));
+
+        // Doc exists but has no source or fields
+        getResult = new GetResult("test", "type", "1", 0, true, null, null);
+
+        // There is no routing and parent on either request
+        assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
+        assertNull(UpdateHelper.calculateParent(getResult, indexRequest));
+
+        Map<String, GetField> fields = new HashMap<>();
+        fields.put("_parent", new GetField("_parent", Collections.singletonList("parent1")));
+        fields.put("_routing", new GetField("_routing", Collections.singletonList("routing1")));
+
+        // Doc exists and has the parent and routing fields
+        getResult = new GetResult("test", "type", "1", 0, true, null, fields);
+
+        // Use the get result parent and routing
+        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest), equalTo("routing1"));
+        assertThat(UpdateHelper.calculateParent(getResult, indexRequest), equalTo("parent1"));
+
+        // Index request has overriding parent and routing values
+        indexRequest = new IndexRequest("test", "type", "1").parent("parent2").routing("routing2");
+
+        // Use the request's parent and routing
+        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest), equalTo("routing2"));
+        assertThat(UpdateHelper.calculateParent(getResult, indexRequest), equalTo("parent2"));
+    }
+
+    @SuppressWarnings("deprecated") // VersionType.FORCE is deprecated
+    public void testCalculateUpdateVersion() throws Exception {
+        long randomVersion = randomIntBetween(0, 100);
+        GetResult getResult = new GetResult("test", "type", "1", randomVersion, true, new BytesArray("{}"), null);
+
+        UpdateRequest request = new UpdateRequest("test", "type1", "1");
+        long version = UpdateHelper.calculateUpdateVersion(request, getResult);
+
+        // Use the get result's version
+        assertThat(version, equalTo(randomVersion));
+
+        request = new UpdateRequest("test", "type1", "1").versionType(VersionType.FORCE).version(1337);
+        version = UpdateHelper.calculateUpdateVersion(request, getResult);
+
+        // Use the forced update request version
+        assertThat(version, equalTo(1337L));
+    }
+
+    public void testNoopDetection() throws Exception {
+        ShardId shardId = new ShardId("test", "", 0);
+        GetResult getResult = new GetResult("test", "type", "1", 0, true,
+                new BytesArray("{\"body\": \"foo\"}"),
+                null);
+
+        UpdateRequest request = new UpdateRequest("test", "type1", "1").fromXContent(
+                createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}")));
+
+        UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
+
+        assertThat(result.action(), instanceOf(UpdateResponse.class));
+        assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
+
+        // Try again, with detectNoop turned off
+        result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, false);
+        assertThat(result.action(), instanceOf(IndexRequest.class));
+        assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
+        assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("foo"));
+
+        // Change the request to be a different doc
+        request = new UpdateRequest("test", "type1", "1").fromXContent(
+                createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}")));
+        result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
+
+        assertThat(result.action(), instanceOf(IndexRequest.class));
+        assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
+        assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("bar"));
+
+    }
+
+    public void testUpdateScript() throws Exception {
+        ShardId shardId = new ShardId("test", "", 0);
+        GetResult getResult = new GetResult("test", "type", "1", 0, true,
+                new BytesArray("{\"body\": \"bar\"}"),
+                null);
+
+        UpdateRequest request = new UpdateRequest("test", "type1", "1")
+                .script(mockInlineScript("ctx._source.body = \"foo\""));
+
+        UpdateHelper.Result result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult,
+                ESTestCase::randomNonNegativeLong);
+
+        assertThat(result.action(), instanceOf(IndexRequest.class));
+        assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
+        assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("foo"));
+
+        // Now where the script changes the op to "delete"
+        request = new UpdateRequest("test", "type1", "1").script(mockInlineScript("ctx.op = delete"));
+
+        result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult,
+                ESTestCase::randomNonNegativeLong);
+
+        assertThat(result.action(), instanceOf(DeleteRequest.class));
+        assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.DELETED));
+
+        // We treat everything else as a No-op
+        boolean goodNoop = randomBoolean();
+        if (goodNoop) {
+            request = new UpdateRequest("test", "type1", "1").script(mockInlineScript("ctx.op = none"));
+        } else {
+            request = new UpdateRequest("test", "type1", "1").script(mockInlineScript("ctx.op = bad"));
+        }
+
+        result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult,
+                ESTestCase::randomNonNegativeLong);
+
+        assertThat(result.action(), instanceOf(UpdateResponse.class));
+        assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
     }
 }

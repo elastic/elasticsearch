@@ -42,6 +42,7 @@ would be transformed internally into a document that looks more like this:
   "user.last" :  [ "smith", "white" ]
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 The `user.first` and `user.last` fields are flattened into multi-value fields,
 and the association between `alice` and `white` is lost.  This document would

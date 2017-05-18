@@ -55,6 +55,11 @@ You must set those settings per repository instead. Respectively `account`, `con
 `location_mode`, `chunk_size` and `compress`.
 See {plugins}/repository-azure-usage.html#repository-azure-repository-settings[Azure Repository settings].
 
+==== GCS Repository plugin
+
+* The `service_account` setting has been removed. A service account json credential file must now be
+specified in the <<secure-settings, elasticsearch keystore>>.
+
 ==== EC2 Discovery plugin
 
 * Specifying ec2 signer type has been removed, including `cloud.aws.signer` and `cloud.aws.ec2.signer`.

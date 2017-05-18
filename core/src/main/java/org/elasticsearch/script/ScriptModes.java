@@ -19,11 +19,9 @@
 
 package org.elasticsearch.script;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,6 +42,8 @@ public class ScriptModes {
 
     final Map<String, Boolean> scriptEnabled;
 
+    private static final String NONE = "none";
+
     private static final Setting<List<String>> TYPES_ALLOWED_SETTING =
         Setting.listSetting("script.types_allowed", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
     private static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING =
@@ -59,34 +59,66 @@ public class ScriptModes {
         }
         this.scriptEnabled = Collections.unmodifiableMap(scriptModes);
 
-        typesAllowed = TYPES_ALLOWED_SETTING.exists(settings) ? new HashSet<>() : null;
+        this.typesAllowed = TYPES_ALLOWED_SETTING.exists(settings) ? new HashSet<>() : null;
 
-        if (typesAllowed != null) {
-            for (String settingType : TYPES_ALLOWED_SETTING.get(settings)) {
+        if (this.typesAllowed != null) {
+            List<String> typesAllowedList = TYPES_ALLOWED_SETTING.get(settings);
+
+            if (typesAllowedList.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "must specify at least one script type or none for setting [" + TYPES_ALLOWED_SETTING.getKey() + "].");
+            }
+
+            for (String settingType : typesAllowedList) {
+                if (NONE.equals(settingType)) {
+                    if (typesAllowedList.size() != 1) {
+                        throw new IllegalArgumentException("cannot specify both [" + NONE + "]" +
+                            " and other script types for setting [" + TYPES_ALLOWED_SETTING.getKey() + "].");
+                    } else {
+                        break;
+                    }
+                }
+
                 boolean found = false;
 
                 for (ScriptType scriptType : ScriptType.values()) {
                     if (scriptType.getName().equals(settingType)) {
                         found = true;
-                        typesAllowed.add(settingType);
+                        this.typesAllowed.add(settingType);
 
                         break;
                     }
                 }
 
-                if (!found) {
+                if (found == false) {
                     throw new IllegalArgumentException(
                         "unknown script type [" + settingType + "] found in setting [" + TYPES_ALLOWED_SETTING.getKey() + "].");
                 }
             }
         }
 
-        contextsAllowed = CONTEXTS_ALLOWED_SETTING.exists(settings) ? new HashSet<>() : null;
+        this.contextsAllowed = CONTEXTS_ALLOWED_SETTING.exists(settings) ? new HashSet<>() : null;
 
-        if (contextsAllowed != null) {
-            for (String settingContext : CONTEXTS_ALLOWED_SETTING.get(settings)) {
+        if (this.contextsAllowed != null) {
+            List<String> contextsAllowedList = CONTEXTS_ALLOWED_SETTING.get(settings);
+
+            if (contextsAllowedList.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "must specify at least one script context or none for setting [" + CONTEXTS_ALLOWED_SETTING.getKey() + "].");
+            }
+
+            for (String settingContext : contextsAllowedList) {
+                if (NONE.equals(settingContext)) {
+                    if (contextsAllowedList.size() != 1) {
+                        throw new IllegalArgumentException("cannot specify both [" + NONE + "]" +
+                            " and other script contexts for setting [" + CONTEXTS_ALLOWED_SETTING.getKey() + "].");
+                    } else {
+                        break;
+                    }
+                }
+
                 if (scriptContextRegistry.isSupportedContext(settingContext)) {
-                    contextsAllowed.add(settingContext);
+                    this.contextsAllowed.add(settingContext);
                 } else {
                     throw new IllegalArgumentException(
                         "unknown script context [" + settingContext + "] found in setting [" + CONTEXTS_ALLOWED_SETTING.getKey() + "].");

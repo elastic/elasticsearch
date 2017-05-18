@@ -26,21 +26,13 @@ setup:
 
   - do:
       xpack.security.put_user:
-        username: "file_template_user"
-        body:  >
-            {
-              "password": "changeme",
-              "roles" : [ "file_template_role" ]
-            }
-  - do:
-      xpack.security.put_user:
         username: "terms_template_user"
         body:  >
             {
               "password": "changeme",
               "roles" : [ "terms_template_role" ],
               "metadata": {
-                "groups": [ "inline_template_user", "file_template_user" ]
+                "groups": [ "inline_template_user"]
               }
             }
 
@@ -101,24 +93,6 @@ setup:
             }
 
   - do:
-      xpack.security.put_role:
-        name: "file_template_role"
-        body:  >
-            {
-              "indices": [
-                {
-                  "names": "foobar",
-                  "privileges": ["all"],
-                  "query" : {
-                    "template" : {
-                      "id" : "query"
-                    }
-                  }
-                }
-              ]
-            }
-
-  - do:
       put_template:
         id: "1"
         body: >
@@ -146,15 +120,6 @@ setup:
           {
             "username": "stored_template_user"
           }
-  - do:
-      index:
-        index: foobar
-        type: type
-        id: 3
-        body:  >
-          {
-            "username": "file_template_user"
-          }
 
   - do:
       indices.refresh: {}
@@ -171,10 +136,6 @@ teardown:
         ignore: 404
   - do:
       xpack.security.delete_user:
-        username: "file_template_user"
-        ignore: 404
-  - do:
-      xpack.security.delete_user:
         username: "terms_template_user"
         ignore: 404
   - do:
@@ -184,10 +145,6 @@ teardown:
   - do:
       xpack.security.delete_role:
         name: "stored_template_role"
-        ignore: 404
-  - do:
-      xpack.security.delete_role:
-        name: "file_template_role"
         ignore: 404
   - do:
       xpack.security.delete_role:
@@ -216,17 +173,6 @@ teardown:
   - match: { hits.hits.0._source.username: stored_template_user}
 
 ---
-"Test file template":
-  - do:
-      headers:
-        Authorization: "Basic ZmlsZV90ZW1wbGF0ZV91c2VyOmNoYW5nZW1l"
-      search:
-        index: foobar
-        body: { "query" : { "match_all" : {} } }
-  - match: { hits.total: 1}
-  - match: { hits.hits.0._source.username: file_template_user}
-
----
 "Test terms template":
   - do:
       headers:
@@ -234,6 +180,5 @@ teardown:
       search:
         index: foobar
         body: { "query" : { "match_all" : {} } }
-  - match: { hits.total: 2}
+  - match: { hits.total: 1}
   - match: { hits.hits.0._source.username: inline_template_user}
-  - match: { hits.hits.1._source.username: file_template_user}

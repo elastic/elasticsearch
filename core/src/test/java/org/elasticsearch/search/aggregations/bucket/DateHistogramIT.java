@@ -1162,7 +1162,61 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(bucket.getDocCount(), equalTo(0L));
             }
         }
-        internalCluster().wipeIndices("test12278");
+        internalCluster().wipeIndices(index);
+    }
+
+    /**
+     * Test date histogram aggregation with day interval, offset and
+     * extended bounds (see https://github.com/elastic/elasticsearch/issues/23776)
+     */
+    public void testSingleValueFieldWithExtendedBoundsOffset() throws Exception {
+        String index = "test23776";
+        prepareCreate(index)
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .execute().actionGet();
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(indexDoc(index, DateTime.parse("2016-01-03T08:00:00.000Z"), 1));
+        builders.add(indexDoc(index, DateTime.parse("2016-01-03T08:00:00.000Z"), 2));
+        builders.add(indexDoc(index, DateTime.parse("2016-01-06T08:00:00.000Z"), 3));
+        builders.add(indexDoc(index, DateTime.parse("2016-01-06T08:00:00.000Z"), 4));
+        indexRandom(true, builders);
+        ensureSearchable(index);
+
+        SearchResponse response = null;
+        // retrieve those docs with the same time zone and extended bounds
+        response = client()
+                .prepareSearch(index)
+                .addAggregation(
+                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.days(1)).offset("+6h").minDocCount(0)
+                                .extendedBounds(new ExtendedBounds("2016-01-01T06:00:00Z", "2016-01-08T08:00:00Z"))
+                ).execute().actionGet();
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(8));
+
+        assertEquals("2016-01-01T06:00:00.000Z", buckets.get(0).getKeyAsString());
+        assertEquals(0, buckets.get(0).getDocCount());
+        assertEquals("2016-01-02T06:00:00.000Z", buckets.get(1).getKeyAsString());
+        assertEquals(0, buckets.get(1).getDocCount());
+        assertEquals("2016-01-03T06:00:00.000Z", buckets.get(2).getKeyAsString());
+        assertEquals(2, buckets.get(2).getDocCount());
+        assertEquals("2016-01-04T06:00:00.000Z", buckets.get(3).getKeyAsString());
+        assertEquals(0, buckets.get(3).getDocCount());
+        assertEquals("2016-01-05T06:00:00.000Z", buckets.get(4).getKeyAsString());
+        assertEquals(0, buckets.get(4).getDocCount());
+        assertEquals("2016-01-06T06:00:00.000Z", buckets.get(5).getKeyAsString());
+        assertEquals(2, buckets.get(5).getDocCount());
+        assertEquals("2016-01-07T06:00:00.000Z", buckets.get(6).getKeyAsString());
+        assertEquals(0, buckets.get(6).getDocCount());
+        assertEquals("2016-01-08T06:00:00.000Z", buckets.get(7).getKeyAsString());
+        assertEquals(0, buckets.get(7).getDocCount());
+
+        internalCluster().wipeIndices(index);
     }
 
     public void testSingleValueWithMultipleDateFormatsFromMapping() throws Exception {

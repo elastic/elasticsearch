@@ -1,4 +1,44 @@
 ---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+        wait_for_nodes: 2
+        timeout: 25s
+
+  - do:
+      update:
+        index: ".security"
+        type: "reserved-user"
+        id: "kibana"
+        refresh: true
+        body: >
+          {
+            "doc": {
+              "enabled": true
+            }
+          }
+  - do:
+      xpack.security.clear_cached_realms:
+        realms: "_all"
+---
+teardown:
+  - do:
+      update:
+        index: ".security"
+        type: "reserved-user"
+        id: "kibana"
+        refresh: true
+        body: >
+          {
+            "doc": {
+              "enabled": false
+            }
+          }
+  - do:
+      xpack.security.clear_cached_realms:
+        realms: "_all"
+---
 "Verify kibana user role works in mixed cluster":
   - do:
       headers:
@@ -14,11 +54,6 @@
        Authorization: "Basic a2liYW5hOmNoYW5nZW1l"
      indices.create:
        index: .kibana-foo
-       wait_for_active_shards : all
-       body:
-         settings:
-           index:
-             number_of_replicas: 1
 
   - do:
      headers:

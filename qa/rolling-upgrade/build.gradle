@@ -103,7 +103,6 @@ for (Version version : wireCompatVersions) {
   Task mixedClusterTestRunner = tasks.getByName("${baseName}#mixedClusterTestRunner")
   mixedClusterTestRunner.configure {
     systemProperty 'tests.rest.suite', 'mixed_cluster'
-    systemProperty 'tests.rest.blacklist', 'mixed_cluster/30_kibana_write/*'
     finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
   }
 

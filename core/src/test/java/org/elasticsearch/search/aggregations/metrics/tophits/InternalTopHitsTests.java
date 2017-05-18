@@ -36,7 +36,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +63,6 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     private SortField[] testInstancesSortFields;
 
     @Override
-    @Before
     public void setUp() throws Exception {
         super.setUp();
         testInstancesLookSortedByField = randomBoolean();
@@ -125,11 +123,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         assertEquals(expectedSearchHits.getTotalHits(), actualSearchHits.getTotalHits());
         assertEquals(expectedSearchHits.getMaxScore(), actualSearchHits.getMaxScore(), 0.0f);
 
-        final Comparator<SearchHit> comparator = Comparator.comparing(SearchHit::getId);
         List<SearchHit> expectedHits = Arrays.asList(expectedSearchHits.getHits());
-        expectedHits.sort(comparator);
         List<SearchHit> actualHits = Arrays.asList(actualSearchHits.getHits());
-        actualHits.sort(comparator);
 
         assertEquals(expectedHits.size(), actualHits.size());
         for (int i = 0; i < expectedHits.size(); i++) {

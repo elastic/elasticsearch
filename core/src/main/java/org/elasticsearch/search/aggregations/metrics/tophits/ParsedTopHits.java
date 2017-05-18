@@ -44,8 +44,7 @@ public class ParsedTopHits extends ParsedAggregation implements TopHits {
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        searchHits.toXContent(builder, params);
-        return builder;
+        return searchHits.toXContent(builder, params);
     }
 
     private static ObjectParser<ParsedTopHits, Void> PARSER =

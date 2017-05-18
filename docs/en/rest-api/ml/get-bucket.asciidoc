@@ -33,6 +33,9 @@ This API presents a chronological view of the records, grouped by bucket.
 `anomaly_score`::
   (double) Returns buckets with anomaly scores higher than this value.
 
+`desc`::
+  (boolean) If true, the buckets are sorted in descending order.
+
 `end`::
   (string) Returns buckets with timestamps earlier than this time.
 
@@ -48,6 +51,10 @@ This API presents a chronological view of the records, grouped by bucket.
   (integer) Skips the specified number of buckets.
 `size`:::
   (integer) Specifies the maximum number of buckets to obtain.
+
+`sort`::
+  (string) Specifies the sort field for the requested buckets.
+  By default, the buckets are sorted by the `timestamp` field.
 
 `start`::
   (string) Returns buckets with timestamps after this time.

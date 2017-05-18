@@ -384,7 +384,12 @@ public class JobProvider {
         searchSourceBuilder.query(boolQuery);
         searchSourceBuilder.from(query.getFrom());
         searchSourceBuilder.size(query.getSize());
+        // If not using the default sort field (timestamp) add it as a secondary sort
+        if (Result.TIMESTAMP.getPreferredName().equals(query.getSortField()) == false) {
+            searchSourceBuilder.sort(Result.TIMESTAMP.getPreferredName(), query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
+        }
         searchRequest.source(searchSourceBuilder);
+
 
         MultiSearchRequest mrequest = new MultiSearchRequest();
         mrequest.indicesOptions(addIgnoreUnavailable(mrequest.indicesOptions()));

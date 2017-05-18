@@ -20,7 +20,6 @@ influencers.
 
 `desc`::
   (boolean) If true, the results are sorted in descending order.
-//TBD: Using the "sort" value?
 
 `end`::
   (string) Returns influencers with timestamps earlier than this time.
@@ -40,7 +39,7 @@ influencers.
 
 `sort`::
   (string) Specifies the sort field for the requested influencers.
-//TBD: By default the results are sorted on the influencer score?
+  By default the influencers are sorted by the `influencer_score` value.
 
 `start`::
   (string) Returns influencers with timestamps after this time.

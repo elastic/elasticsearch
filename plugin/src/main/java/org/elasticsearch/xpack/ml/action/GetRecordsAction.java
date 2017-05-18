@@ -98,7 +98,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         private PageParams pageParams = new PageParams();
         private double recordScoreFilter = 0.0;
         private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
-        private boolean descending = false;
+        private boolean descending = true;
 
         Request() {
         }

@@ -42,14 +42,16 @@ public class RestGetRecordsAction extends BaseRestHandler {
             request = new GetRecordsAction.Request(jobId);
             request.setStart(restRequest.param(GetRecordsAction.Request.START.getPreferredName()));
             request.setEnd(restRequest.param(GetRecordsAction.Request.END.getPreferredName()));
-            request.setExcludeInterim(restRequest.paramAsBoolean(GetRecordsAction.Request.EXCLUDE_INTERIM.getPreferredName(), false));
+            request.setExcludeInterim(restRequest.paramAsBoolean(GetRecordsAction.Request.EXCLUDE_INTERIM.getPreferredName(),
+                    request.isExcludeInterim()));
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
             request.setRecordScore(
                     Double.parseDouble(restRequest.param(GetRecordsAction.Request.RECORD_SCORE_FILTER.getPreferredName(), "0.0")));
             request.setSort(restRequest.param(GetRecordsAction.Request.SORT.getPreferredName(),
                     AnomalyRecord.RECORD_SCORE.getPreferredName()));
-            request.setDescending(restRequest.paramAsBoolean(GetRecordsAction.Request.DESCENDING.getPreferredName(), true));
+            request.setDescending(restRequest.paramAsBoolean(GetRecordsAction.Request.DESCENDING.getPreferredName(),
+                    request.isDescending()));
         }
 
         return channel -> client.execute(GetRecordsAction.INSTANCE, request, new RestToXContentListener<>(channel));

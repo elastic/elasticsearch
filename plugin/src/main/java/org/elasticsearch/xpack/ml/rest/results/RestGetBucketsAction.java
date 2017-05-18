@@ -71,6 +71,11 @@ public class RestGetBucketsAction extends BaseRestHandler {
                 request.setAnomalyScore(
                         Double.parseDouble(restRequest.param(GetBucketsAction.Request.ANOMALY_SCORE.getPreferredName(), "0.0")));
             }
+            if (restRequest.hasParam(GetBucketsAction.Request.SORT.getPreferredName())) {
+                request.setSort(restRequest.param(GetBucketsAction.Request.SORT.getPreferredName()));
+            }
+            request.setDescending(restRequest.paramAsBoolean(GetBucketsAction.Request.DESCENDING.getPreferredName(),
+                    request.isDescending()));
 
             // single and multiple bucket options
             request.setExpand(restRequest.paramAsBoolean(GetBucketsAction.Request.EXPAND.getPreferredName(), false));

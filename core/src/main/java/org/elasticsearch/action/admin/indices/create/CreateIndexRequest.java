@@ -552,7 +552,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (int i = 0; i < size; i++) {
             final String type = in.readString();
             String source = in.readString();
-            if (in.getVersion().before(Version.V_5_3_0_UNRELEASED)) {
+            if (in.getVersion().before(Version.V_5_3_0)) {
                 // we do not know the content type that comes from earlier versions so we autodetect and convert
                 source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
             }

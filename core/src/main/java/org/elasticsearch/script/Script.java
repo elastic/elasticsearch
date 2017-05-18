@@ -487,7 +487,7 @@ public final class Script implements ToXContentObject, Writeable {
     public Script(StreamInput in) throws IOException {
         // Version 5.3 allows lang to be an optional parameter for stored scripts and expects
         // options to be null for stored and file scripts.
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             this.type = ScriptType.readFrom(in);
             this.lang = in.readOptionalString();
             this.idOrCode = in.readString();
@@ -498,7 +498,7 @@ public final class Script implements ToXContentObject, Writeable {
         // Version 5.1 to 5.3 (exclusive) requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the read in contents to be in
         // same order as the constructor.
-        } else if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        } else if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             this.type = ScriptType.readFrom(in);
             this.lang = in.readString();
 
@@ -556,7 +556,7 @@ public final class Script implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         // Version 5.3+ allows lang to be an optional parameter for stored scripts and expects
         // options to be null for stored and file scripts.
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             type.writeTo(out);
             out.writeOptionalString(lang);
             out.writeString(idOrCode);
@@ -567,7 +567,7 @@ public final class Script implements ToXContentObject, Writeable {
         // Version 5.1 to 5.3 (exclusive) requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the written out contents to be in
         // same order as the constructor.
-        } else if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        } else if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             type.writeTo(out);
 
             if (lang == null) {

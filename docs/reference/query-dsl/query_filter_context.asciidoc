@@ -47,7 +47,7 @@ conditions are met:
 
 [source,js]
 ------------------------------------
-GET _search
+POST _search
 {
   "query": { <1>
     "bool": { <2>

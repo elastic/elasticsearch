@@ -302,7 +302,7 @@
 
   <!-- unzip core release artifact, install plugin, then start ES -->
   <target name="start-external-cluster-with-plugin" depends="setup-workspace">
-    <install-plugin name="${project.artifactId}" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
+    <install-plugin name="${elasticsearch.plugin.name}" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
     <startup-elasticsearch/>
   </target>
 

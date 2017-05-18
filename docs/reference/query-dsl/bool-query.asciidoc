@@ -12,7 +12,7 @@ occurrence types are:
 |`must` |The clause (query) must appear in matching documents and will
 contribute to the score.
 
-|`filter` |The clause (query) must appear in matching documents. However unlike
+|`filter` |Like `must`. However unlike
 `must` the score of the query will be ignored.
 
 |`should` |The clause (query) should appear in the matching document. In

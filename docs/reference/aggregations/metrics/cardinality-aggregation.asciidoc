@@ -91,7 +91,9 @@ high-cardinality fields as it saves CPU and memory. However, on numeric
 fields, hashing is very fast and storing the original values requires as much
 or less memory than storing the hashes. This is also true on low-cardinality
 string fields, especially given that those have an optimization in order to
-make sure that hashes are computed at most once per unique value per segment.
+make sure that hashes are computed at most once per unique value per segment. 
+Reference client side implementation can be found at https://github.com/elastic/elasticsearch/blob/master/plugins/mapper-murmur3/src/main/java/org/elasticsearch/index/mapper/murmur3/Murmur3FieldMapper.java[`mapper-murmur3 implementation`]
+
 
 ==== Script
 

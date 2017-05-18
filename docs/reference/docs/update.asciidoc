@@ -41,7 +41,7 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 --------------------------------------------------
 
 We can add a tag to the list of tags (note, if the tag exists, it
-will still add it, since its a list):
+will still add it, since it's a list):
 
 [source,js]
 --------------------------------------------------

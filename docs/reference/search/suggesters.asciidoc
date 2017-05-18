@@ -139,7 +139,7 @@ level override the suggest text on the global level.
 === Other suggest example
 
 In the below example we request suggestions for the following suggest
-text: `devloping distibutd saerch engies` on the `title` field with a
+text: `devloping distibutd search engies` on the `title` field with a
 maximum of 3 suggestions per term inside the suggest text. Note that in
 this example we set `size` to `0`. This isn't required, but a
 nice optimization. The suggestions are gather in the `query` phase and
@@ -152,7 +152,7 @@ curl -s -XPOST 'localhost:9200/_search' -d '{
   "size": 0,
   "suggest" : {
     "my-title-suggestions-1" : {
-      "text" : "devloping distibutd saerch engies",
+      "text" : "devloping distibutd search engies",
       "term" : {
         "size" : 3,
         "field" : "title"  

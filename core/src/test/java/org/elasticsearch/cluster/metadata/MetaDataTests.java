@@ -20,10 +20,17 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -46,7 +53,7 @@ public class MetaDataTests extends ESTestCase {
 
 
     @Test
-    public void testMetaDataTemplateUpgrade() throws Exception {
+    public void testMetaDataTemplateSettingsUpgrade() throws Exception {
         MetaData metaData = MetaData.builder()
                 .put(IndexTemplateMetaData.builder("t1").settings(
                         Settings.builder().put("index.translog.interval", 8000))).build();
@@ -54,5 +61,53 @@ public class MetaDataTests extends ESTestCase {
         MetaData newMd = MetaData.addDefaultUnitsIfNeeded(Loggers.getLogger(MetaDataTests.class), metaData);
 
         assertThat(newMd.getTemplates().get("t1").getSettings().get("index.translog.interval"), is("8000ms"));
+    }
+
+    @Test
+    public void testMetaDataTemplateMappingsUpgrade() throws Exception {
+        Map<String, Object> mapping = new HashMap<String, Object>() {{
+            put("obj_field", new HashMap<String, Object>(){{
+                put("properties", new HashMap<String, Object>(){{
+                    put("type", "object");
+                    put("store", Boolean.TRUE);
+                    put("doc_values", Boolean.FALSE);
+                    put("index", "not_indexed");
+                    put("dynamic", Boolean.TRUE);
+                }});
+            }});
+            put("str_field", new HashMap<String, Object>(){{
+                put("properties", new HashMap<String, Object>(){{
+                    put("type", "string");
+                    put("store", Boolean.TRUE);
+                    put("doc_values", Boolean.TRUE);
+                    put("index", "not_indexed");
+                }});
+            }});
+        }};
+        CompressedXContent xContent = new CompressedXContent(
+            XContentFactory.jsonBuilder()
+                .map(mapping)
+                .bytes()
+        );
+        MetaData metaData = MetaData.builder()
+            .put(IndexTemplateMetaData.builder("t2").putMapping("default", xContent))
+            .build();
+
+        MetaData newMd = MetaData.removeInvalidObjectPropertiesIfNeeded(Loggers.getLogger(MetaDataTests.class), metaData);
+        byte[] newMappingBytes = newMd.getTemplates().get("t2").getMappings().get("default").uncompressed();
+        Map<String, Object> newMapping = XContentFactory.xContent(newMappingBytes)
+            .createParser(newMappingBytes)
+            .map();
+
+        // obj_field should have changed
+        assertEquals(new HashMap<String, Object>(){{
+            put("properties", new HashMap<String, Object>(){{
+                put("type", "object");
+                put("dynamic", Boolean.TRUE);
+            }});
+        }}, newMapping.get("obj_field"));
+        // str_field must not have changed
+        assertEquals(mapping.get("str_field"), newMapping.get("str_field"));
+
     }
 }

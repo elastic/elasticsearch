@@ -6,6 +6,11 @@
 The Groovy, JavaScript, and Python scripting languages were deprecated in
 elasticsearch 5.0 and have now been removed. Use painless instead.
 
+==== Native scripts removed
+
+Native scripts have been removed. Instead,
+<<modules-scripting-engine, implement a `ScriptEngine`>>.
+
 ==== Date fields now return dates
 
 `doc.some_date_field.value` now returns ++ReadableDateTime++s instead of

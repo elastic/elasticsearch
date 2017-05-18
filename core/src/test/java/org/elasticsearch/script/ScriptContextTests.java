@@ -45,8 +45,6 @@ public class ScriptContextTests extends ESTestCase {
     ScriptService makeScriptService() throws Exception {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            // no file watching, so we don't need a ResourceWatcherService
-            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), "false")
             .put(SCRIPT_PLUGIN_CUSTOM_SETTING, "false")
             .put(SCRIPT_ENGINE_CUSTOM_SETTING, "false")
             .build();
@@ -59,7 +57,7 @@ public class ScriptContextTests extends ESTestCase {
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        ScriptService scriptService = new ScriptService(settings, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
 
         ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
         ScriptMetaData smd = empty.metaData().custom(ScriptMetaData.TYPE);
@@ -85,8 +83,7 @@ public class ScriptContextTests extends ESTestCase {
             }
         }
         assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING},
-                scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
     }
 
     public void testCustomScriptContextSettings() throws Exception {
@@ -104,8 +101,7 @@ public class ScriptContextTests extends ESTestCase {
         assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH));
         assertNotNull(scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_op")));
         assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING},
-                scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
     }
 
     public void testUnknownPluginScriptContext() throws Exception {
@@ -120,8 +116,7 @@ public class ScriptContextTests extends ESTestCase {
             }
         }
         assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING},
-                scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
     }
 
     public void testUnknownCustomScriptContext() throws Exception {
@@ -142,7 +137,6 @@ public class ScriptContextTests extends ESTestCase {
             }
         }
         assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(new Setting[] {ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING},
-                scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
+            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
     }
 }

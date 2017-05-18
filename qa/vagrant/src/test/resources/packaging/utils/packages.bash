@@ -37,7 +37,6 @@ export_elasticsearch_paths() {
     export ESPLUGINS="$ESHOME/plugins"
     export ESMODULES="$ESHOME/modules"
     export ESCONFIG="/etc/elasticsearch"
-    export ESSCRIPTS="$ESCONFIG/scripts"
     export ESDATA="/var/lib/elasticsearch"
     export ESLOG="/var/log/elasticsearch"
     export ESPIDDIR="/var/run/elasticsearch"
@@ -99,7 +98,6 @@ verify_package_installation() {
     assert_file "$ESCONFIG/elasticsearch.yml" f root elasticsearch 660
     assert_file "$ESCONFIG/jvm.options" f root elasticsearch 660
     assert_file "$ESCONFIG/log4j2.properties" f root elasticsearch 660
-    assert_file "$ESSCRIPTS" d root elasticsearch 750
     assert_file "$ESDATA" d elasticsearch elasticsearch 750
     assert_file "$ESLOG" d elasticsearch elasticsearch 750
     assert_file "$ESPLUGINS" d root root 755

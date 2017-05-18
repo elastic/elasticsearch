@@ -106,9 +106,9 @@ install_jvm_example() {
     config_owner=$(find "$ESCONFIG" -maxdepth 0 -printf "%g")
     # directories should user the user file-creation mask
     assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner 750
-    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner 660
+    assert_file "$ESCONFIG/jvm-example/example.yml" f $config_user $config_owner 660
 
-    run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/jvm-example/example.yaml"
+    run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/jvm-example/example.yml"
     [ $status = 1 ]
     [[ "$output" == *"Permission denied"* ]] || {
         echo "Expected permission denied but found $output:"
@@ -126,7 +126,7 @@ remove_jvm_example() {
 
     assert_file_not_exist "$ESHOME/bin/jvm-example"
     assert_file_exist "$ESCONFIG/jvm-example"
-    assert_file_exist "$ESCONFIG/jvm-example/example.yaml"
+    assert_file_exist "$ESCONFIG/jvm-example/example.yml"
 }
 
 # Install a plugin with a special prefix. For the most part prefixes are just

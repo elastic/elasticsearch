@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -57,7 +58,7 @@ public final class EngineConfig {
     private final ThreadPool threadPool;
     private final Engine.Warmer warmer;
     private final Store store;
-    private final DeletionPolicy deletionPolicy;
+    private final SnapshotDeletionPolicy deletionPolicy;
     private final MergePolicy mergePolicy;
     private final Analyzer analyzer;
     private final Similarity similarity;
@@ -108,7 +109,7 @@ public final class EngineConfig {
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
     public EngineConfig(OpenMode openMode, ShardId shardId, ThreadPool threadPool,
-                        IndexSettings indexSettings, Engine.Warmer warmer, Store store, DeletionPolicy deletionPolicy,
+                        IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
@@ -217,7 +218,7 @@ public final class EngineConfig {
      * Returns a {@link DeletionPolicy} used in the engines
      * {@link org.apache.lucene.index.IndexWriter}.
      */
-    public DeletionPolicy getDeletionPolicy() {
+    public SnapshotDeletionPolicy getDeletionPolicy() {
         return deletionPolicy;
     }
 

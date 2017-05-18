@@ -318,26 +318,18 @@ public class InternalEngine extends Engine {
     private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, LongSupplier globalCheckpointSupplier) throws IOException {
         assert openMode != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        Translog.TranslogGeneration generation = null;
+        String translogUUID = null;
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            generation = loadTranslogIdFromCommit(writer);
+            translogUUID = loadTranslogUUIDFromCommit(writer);
             // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-            if (generation == null) {
-                throw new IllegalStateException("no translog generation present in commit data but translog is expected to exist");
-            }
-            if (generation.translogUUID == null) {
+            if (translogUUID == null) {
                 throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
-        final Translog translog = new Translog(translogConfig, generation, globalCheckpointSupplier);
-        if (generation == null || generation.translogUUID == null) {
+        final Translog translog = new Translog(translogConfig, translogUUID, globalCheckpointSupplier);
+        if (translogUUID == null) {
             assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
                 + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
-            if (generation == null) {
-                logger.debug("no translog ID present in the current generation - creating one");
-            } else if (generation.translogUUID == null) {
-                logger.debug("upgraded translog to pre 2.0 format, associating translog with index - writing translog UUID");
-            }
             boolean success = false;
             try {
                 commitIndexWriter(writer, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
@@ -363,22 +355,18 @@ public class InternalEngine extends Engine {
      * translog id into lucene and returns null.
      */
     @Nullable
-    private Translog.TranslogGeneration loadTranslogIdFromCommit(IndexWriter writer) throws IOException {
+    private String loadTranslogUUIDFromCommit(IndexWriter writer) throws IOException {
         // commit on a just opened writer will commit even if there are no changes done to it
         // we rely on that for the commit data translog id key
         final Map<String, String> commitUserData = commitDataAsMap(writer);
-        if (commitUserData.containsKey("translog_id")) {
-            assert commitUserData.containsKey(Translog.TRANSLOG_UUID_KEY) == false : "legacy commit contains translog UUID";
-            return new Translog.TranslogGeneration(null, Long.parseLong(commitUserData.get("translog_id")));
-        } else if (commitUserData.containsKey(Translog.TRANSLOG_GENERATION_KEY)) {
-            if (commitUserData.containsKey(Translog.TRANSLOG_UUID_KEY) == false) {
-                throw new IllegalStateException("commit doesn't contain translog UUID");
+        if (commitUserData.containsKey(Translog.TRANSLOG_UUID_KEY)) {
+            if (commitUserData.containsKey(Translog.TRANSLOG_GENERATION_KEY) == false) {
+                throw new IllegalStateException("commit doesn't contain translog generation id");
             }
-            final String translogUUID = commitUserData.get(Translog.TRANSLOG_UUID_KEY);
-            final long translogGen = Long.parseLong(commitUserData.get(Translog.TRANSLOG_GENERATION_KEY));
-            return new Translog.TranslogGeneration(translogUUID, translogGen);
+            return commitUserData.get(Translog.TRANSLOG_UUID_KEY);
+        } else {
+            return null;
         }
-        return null;
     }
 
     private SearcherManager createSearcherManager() throws EngineException {
@@ -1264,14 +1252,13 @@ public class InternalEngine extends Engine {
                 if (indexWriter.hasUncommittedChanges() || force) {
                     ensureCanFlush();
                     try {
-                        translog.prepareCommit();
+                        translog.rollGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
-                        final long committedGeneration = commitIndexWriter(indexWriter, translog, null);
+                        commitIndexWriter(indexWriter, translog, null);
                         logger.trace("finished commit for flush");
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush");
-                        // after refresh documents can be retrieved from the index so we can now commit the translog
-                        translog.commit(committedGeneration);
+                        translog.trimUnreferencedReaders();
                     } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
@@ -1776,10 +1763,9 @@ public class InternalEngine extends Engine {
      * @param writer   the index writer to commit
      * @param translog the translog
      * @param syncId   the sync flush ID ({@code null} if not committing a synced flush)
-     * @return the minimum translog generation for the local checkpoint committed with the specified index writer
      * @throws IOException if an I/O exception occurs committing the specfied writer
      */
-    private long commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
+    private void commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
         ensureCanFlush();
         try {
             final long localCheckpoint = seqNoService().getLocalCheckpoint();
@@ -1812,7 +1798,6 @@ public class InternalEngine extends Engine {
             });
 
             writer.commit();
-            return translogGeneration.translogFileGeneration;
         } catch (final Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);

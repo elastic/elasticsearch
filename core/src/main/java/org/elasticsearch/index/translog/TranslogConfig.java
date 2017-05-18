@@ -23,7 +23,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.DeletionPolicy;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.nio.file.Path;
@@ -42,7 +41,7 @@ public final class TranslogConfig {
     private final Path translogPath;
     private final ByteSizeValue bufferSize;
 
-    private final DeletionPolicy deletionPolicy;
+    private final TranslogDeletionPolicy deletionPolicy;
 
     /**
      * Creates a new TranslogConfig instance
@@ -53,11 +52,11 @@ public final class TranslogConfig {
      * @param deletionPolicy
      */
     public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays,
-                          DeletionPolicy deletionPolicy) {
+                          TranslogDeletionPolicy deletionPolicy) {
         this(shardId, translogPath, indexSettings, bigArrays, deletionPolicy, DEFAULT_BUFFER_SIZE);
     }
 
-    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, DeletionPolicy deletionPolicy,
+    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, TranslogDeletionPolicy deletionPolicy,
                    ByteSizeValue bufferSize) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
@@ -102,7 +101,7 @@ public final class TranslogConfig {
         return bufferSize;
     }
 
-    public DeletionPolicy getDeletionPolicy() {
+    public TranslogDeletionPolicy getDeletionPolicy() {
         return deletionPolicy;
     }
 }

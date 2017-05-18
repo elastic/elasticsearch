@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
-public class DeletionPolicy extends SnapshotDeletionPolicy {
+public class DeletionPolicy extends SnapshotDeletionPolicy implements org.elasticsearch.index.translog.TranslogDeletionPolicy {
 
     public DeletionPolicy() {
         super(new KeepOnlyLastCommitDeletionPolicy());
@@ -61,6 +61,7 @@ public class DeletionPolicy extends SnapshotDeletionPolicy {
         super.onInit(commits);
         setLastCommittedTranslogGeneration(commits);
     }
+    @Override
     public synchronized void onTranslogRollover(List<TranslogReader> readers, TranslogWriter currentWriter) {
         lastPersistedGlobalCheckpoint = currentWriter::lastSyncedGlobalCheckpoint;
     }
@@ -86,16 +87,23 @@ public class DeletionPolicy extends SnapshotDeletionPolicy {
         minTranslogGenerationForRecovery = minGen;
     }
 
+    @Override
     public synchronized long acquireTranslogGenForView() {
-       int current = translogRefCounts.getOrDefault(minTranslogGenerationForRecovery, 0);
+        if (lastCommit == null) {
+            throw new IllegalStateException("this instance is not being used by IndexWriter; " +
+                "be sure to use the instance returned from writer.getConfig().getIndexDeletionPolicy()");
+        }
+        int current = translogRefCounts.getOrDefault(minTranslogGenerationForRecovery, 0);
        translogRefCounts.put(minTranslogGenerationForRecovery, current + 1);
        return minTranslogGenerationForRecovery;
     }
 
+    @Override
     public synchronized int pendingViewsCount() {
         return translogRefCounts.size();
     }
 
+    @Override
     public synchronized void releaseTranslogGenView(long translogGen) {
         Integer current = translogRefCounts.get(translogGen);
         if (current == null || current <= 0) {
@@ -108,14 +116,24 @@ public class DeletionPolicy extends SnapshotDeletionPolicy {
         }
     }
 
+    @Override
     public synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter currentWriter) {
+        if (lastCommit == null) {
+            throw new IllegalStateException("this instance is not being used by IndexWriter; " +
+                "be sure to use the instance returned from writer.getConfig().getIndexDeletionPolicy()");
+        }
         // TODO: here we can do things like check for translog size etc.
         long viewRefs = translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
         return Math.min(viewRefs, minTranslogGenerationForRecovery);
     }
 
     /** returns the translog generation that will be used as a basis of a future store/peer recovery */
+    @Override
     public long getMinTranslogGenerationForRecovery() {
+        if (lastCommit == null) {
+            throw new IllegalStateException("this instance is not being used by IndexWriter; " +
+                "be sure to use the instance returned from writer.getConfig().getIndexDeletionPolicy()");
+        }
         return minTranslogGenerationForRecovery;
     }
 }

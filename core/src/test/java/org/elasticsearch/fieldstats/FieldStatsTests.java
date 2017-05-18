@@ -700,7 +700,9 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         for (int i = 0; i <= numDocs; ++i) {
             double lat = GeoTestUtil.nextLatitude();
             double lon = GeoTestUtil.nextLongitude();
-            client().prepareIndex(random().nextBoolean() ? "test" : "test5x", "test").setSource("field_index", lat + "," + lon).get();
+            final String src = lat + "," + lon;
+            client().prepareIndex("test", "test").setSource("field_index", src).get();
+            client().prepareIndex("test5x", "test").setSource("field_index", src).get();
         }
 
         client().admin().indices().prepareRefresh().get();

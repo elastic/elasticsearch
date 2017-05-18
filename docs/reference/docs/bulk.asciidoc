@@ -19,6 +19,10 @@ Python::
 
     See http://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
 
+Ruby::
+
+    See http://www.rubydoc.info/gems/elasticsearch-api/Elasticsearch/API/Actions#bulk-instance_method[Elasticsearch::API::Actions.bulk]
+
 *********************************************
 
 The REST API endpoint is `/_bulk`, and it expects the following JSON

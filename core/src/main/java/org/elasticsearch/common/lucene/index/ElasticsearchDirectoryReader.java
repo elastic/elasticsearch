@@ -107,17 +107,20 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
      * Tries to unwrap the given reader until the first {@link ElasticsearchDirectoryReader} instance is found or <code>null</code> if no instance is found;
      */
     public static ElasticsearchDirectoryReader getElasticsearchDirectoryReader(DirectoryReader reader) {
-        if (reader instanceof FilterDirectoryReader) {
-            if (reader instanceof ElasticsearchDirectoryReader) {
-                return (ElasticsearchDirectoryReader) reader;
-            } else {
-                // We need to use FilterDirectoryReader#getDelegate and not FilterDirectoryReader#unwrap, because
-                // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
-                // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
-                // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
-                return getElasticsearchDirectoryReader(((FilterDirectoryReader) reader).getDelegate());
+        while (true) {
+            if (reader instanceof FilterDirectoryReader) {
+                if (reader instanceof ElasticsearchDirectoryReader) {
+                    return (ElasticsearchDirectoryReader) reader;
+                } else {
+                    // We need to use FilterDirectoryReader#getDelegate and not FilterDirectoryReader#unwrap, because
+                    // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
+                    // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
+                    // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
+                    reader = ((FilterDirectoryReader) reader).getDelegate();
+                    continue;
+                }
             }
+            return null;
         }
-        return null;
     }
 }

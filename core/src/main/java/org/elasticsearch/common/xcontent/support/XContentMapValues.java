@@ -107,36 +107,41 @@ public class XContentMapValues {
 
     @SuppressWarnings({"unchecked"})
     private static Object extractValue(String[] pathElements, int index, Object currentValue) {
-        if (index == pathElements.length) {
-            return currentValue;
-        }
-        if (currentValue == null) {
+        while (true) {
+            if (index == pathElements.length) {
+                return currentValue;
+            }
+            if (currentValue == null) {
+                return null;
+            }
+            if (currentValue instanceof Map) {
+                Map map = (Map) currentValue;
+                String key = pathElements[index];
+                Object mapValue = map.get(key);
+                int nextIndex = index + 1;
+                while (mapValue == null && nextIndex != pathElements.length) {
+                    key += "." + pathElements[nextIndex];
+                    mapValue = map.get(key);
+                    nextIndex++;
+                }
+
+                currentValue = mapValue;
+                index = nextIndex;
+                continue;
+            }
+            if (currentValue instanceof List) {
+                List valueList = (List) currentValue;
+                List newList = new ArrayList(valueList.size());
+                for (Object o : valueList) {
+                    Object listValue = extractValue(pathElements, index, o);
+                    if (listValue != null) {
+                        newList.add(listValue);
+                    }
+                }
+                return newList;
+            }
             return null;
         }
-        if (currentValue instanceof Map) {
-            Map map = (Map) currentValue;
-            String key = pathElements[index];
-            Object mapValue = map.get(key);
-            int nextIndex = index + 1;
-            while (mapValue == null && nextIndex != pathElements.length) {
-                key += "." + pathElements[nextIndex];
-                mapValue = map.get(key);
-                nextIndex++;
-            }
-            return extractValue(pathElements, nextIndex, mapValue);
-        }
-        if (currentValue instanceof List) {
-            List valueList = (List) currentValue;
-            List newList = new ArrayList(valueList.size());
-            for (Object o : valueList) {
-                Object listValue = extractValue(pathElements, index, o);
-                if (listValue != null) {
-                    newList.add(listValue);
-                }
-            }
-            return newList;
-        }
-        return null;
     }
 
     /**

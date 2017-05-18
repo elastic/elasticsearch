@@ -104,31 +104,36 @@ public final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
     }
 
     static PercolateQuery locatePercolatorQuery(Query query) {
-        if (query instanceof PercolateQuery) {
-            return (PercolateQuery) query;
-        } else if (query instanceof BooleanQuery) {
-            for (BooleanClause clause : ((BooleanQuery) query).clauses()) {
-                PercolateQuery result = locatePercolatorQuery(clause.getQuery());
-                if (result != null) {
-                    return result;
+        while (true) {
+            if (query instanceof PercolateQuery) {
+                return (PercolateQuery) query;
+            } else if (query instanceof BooleanQuery) {
+                for (BooleanClause clause : ((BooleanQuery) query).clauses()) {
+                    PercolateQuery result = locatePercolatorQuery(clause.getQuery());
+                    if (result != null) {
+                        return result;
+                    }
                 }
-            }
-        } else if (query instanceof DisjunctionMaxQuery) {
-            for (Query disjunct : ((DisjunctionMaxQuery) query).getDisjuncts()) {
-                PercolateQuery result = locatePercolatorQuery(disjunct);
-                if (result != null) {
-                    return result;
+            } else if (query instanceof DisjunctionMaxQuery) {
+                for (Query disjunct : ((DisjunctionMaxQuery) query).getDisjuncts()) {
+                    PercolateQuery result = locatePercolatorQuery(disjunct);
+                    if (result != null) {
+                        return result;
+                    }
                 }
+            } else if (query instanceof ConstantScoreQuery) {
+                query = ((ConstantScoreQuery) query).getQuery();
+                continue;
+            } else if (query instanceof BoostQuery) {
+                query = ((BoostQuery) query).getQuery();
+                continue;
+            } else if (query instanceof FunctionScoreQuery) {
+                query = ((FunctionScoreQuery) query).getSubQuery();
+                continue;
             }
-        } else if (query instanceof ConstantScoreQuery) {
-            return locatePercolatorQuery(((ConstantScoreQuery) query).getQuery());
-        } else if (query instanceof BoostQuery) {
-            return locatePercolatorQuery(((BoostQuery) query).getQuery());
-        } else if (query instanceof FunctionScoreQuery) {
-            return locatePercolatorQuery(((FunctionScoreQuery) query).getSubQuery());
-        }
 
-        return null;
+            return null;
+        }
     }
 
     private SubSearchContext createSubSearchContext(SearchContext context, LeafReaderContext leafReaderContext, BytesReference source) {

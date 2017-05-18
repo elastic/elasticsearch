@@ -106,12 +106,15 @@ public class Queries {
     }
 
     public static boolean isConstantMatchAllQuery(Query query) {
-        if (query instanceof ConstantScoreQuery) {
-            return isConstantMatchAllQuery(((ConstantScoreQuery) query).getQuery());
-        } else if (query instanceof MatchAllDocsQuery) {
-            return true;
+        while (true) {
+            if (query instanceof ConstantScoreQuery) {
+                query = ((ConstantScoreQuery) query).getQuery();
+                continue;
+            } else if (query instanceof MatchAllDocsQuery) {
+                return true;
+            }
+            return false;
         }
-        return false;
     }
 
     public static Query applyMinimumShouldMatch(BooleanQuery query, @Nullable String minimumShouldMatch) {

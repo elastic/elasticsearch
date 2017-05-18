@@ -4,3 +4,8 @@
 An analyzer of type `simple` that is built using a
 <<analysis-lowercase-tokenizer,Lower
 Case Tokenizer>>.
+
+The simple analyzer splits ((("simple analyzer")))the text on anything that isn't a letter,
+and lowercases the terms. It would produce
++
+    set, the, shape, to, semi, transparent, by, calling, set, trans

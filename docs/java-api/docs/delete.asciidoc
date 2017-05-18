@@ -32,6 +32,5 @@ is executed on a different thread. Here is an example that sets it to
 [source,java]
 --------------------------------------------------
 DeleteResponse response = client.prepareDelete("twitter", "tweet", "1")
-        .setOperationThreaded(false)
         .get();
 --------------------------------------------------

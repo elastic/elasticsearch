@@ -12,6 +12,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -64,6 +65,13 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
             } else {
                 listener.onResponse(new GetWatchResponse(request.getId()));
             }
-        }, listener::onFailure));
+        }, e -> {
+            // special case. This API should not care if the index is missing or not, it should respond with the watch not being found
+            if (e instanceof IndexNotFoundException) {
+                listener.onResponse(new GetWatchResponse(request.getId()));
+            } else {
+                listener.onFailure(e);
+            }
+        }));
     }
 }

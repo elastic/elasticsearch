@@ -1,5 +1,5 @@
 ---
-"Test get watch api with missing watch":
+"Test get watch api with missing watch on existing index":
   - do:
       cluster.health:
           wait_for_status: yellow
@@ -10,6 +10,24 @@
       indices.create:
         index: .watches
         ignore: 400
+
+  - do:
+      catch: missing
+      xpack.watcher.get_watch:
+        id: "missing_watch"
+  - match: { found : false}
+  - match: { _id: "missing_watch" }
+
+---
+"Test get watch api with missing watch on missing index":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      indices.delete:
+        index: .watches*
+        ignore: 404
 
   - do:
       catch: missing

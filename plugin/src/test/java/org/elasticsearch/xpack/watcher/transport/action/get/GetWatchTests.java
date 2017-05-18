@@ -22,7 +22,6 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -55,16 +54,14 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(source, not(hasKey("status")));
     }
 
-    public void testGetNotFoundOnNonExistingIndex() throws Exception {
-        // ensure index/alias is deleted, test infra might have created it automatically
-        try {
-            assertAcked(client().admin().indices().prepareDelete(Watch.INDEX));
-        } catch (IndexNotFoundException e) {}
-        Exception e = expectThrows(Exception.class, () -> watcherClient().getWatch(new GetWatchRequest("_name")).get());
-        assertThat(e.getMessage(), containsString("no such index"));
-    }
-
     public void testGetNotFound() throws Exception {
+        // does not matter if the watch does not exist or the index does not exist, we expect the same response
+        if (randomBoolean()) {
+            try {
+                assertAcked(client().admin().indices().prepareDelete(Watch.INDEX));
+            } catch (IndexNotFoundException e) {}
+        }
+
         GetWatchResponse getResponse = watcherClient().getWatch(new GetWatchRequest("_name")).get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getId(), is("_name"));

@@ -44,7 +44,6 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         Map<String, String> map = new HashMap<>();
         map.put("id", "stored");
         map.put("inline", "inline");
-        map.put("file", "file");
         ingestScriptParamToType = Collections.unmodifiableMap(map);
     }
 
@@ -55,7 +54,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
     public void testFactoryValidationWithDefaultLang() throws Exception {
         Map<String, Object> configMap = new HashMap<>();
-        String randomType = randomFrom("id", "inline", "file");
+        String randomType = randomFrom("id", "inline");
         configMap.put(randomType, "foo");
         ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), configMap);
         assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
@@ -65,7 +64,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
     public void testFactoryValidationWithParams() throws Exception {
         Map<String, Object> configMap = new HashMap<>();
-        String randomType = randomFrom("id", "inline", "file");
+        String randomType = randomFrom("id", "inline");
         Map<String, Object> randomParams = Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10));
         configMap.put(randomType, "foo");
         configMap.put("params", randomParams);
@@ -77,19 +76,13 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
     public void testFactoryValidationForMultipleScriptingTypes() throws Exception {
         Map<String, Object> configMap = new HashMap<>();
-        String randomType = randomFrom("id", "inline", "file");
-        String otherRandomType = randomFrom("id", "inline", "file");
-        while (randomType.equals(otherRandomType)) {
-            otherRandomType = randomFrom("id", "inline", "file");
-        }
-
-        configMap.put(randomType, "foo");
-        configMap.put(otherRandomType, "bar");
+        configMap.put("id", "foo");
+        configMap.put("inline", "bar");
         configMap.put("lang", "mockscript");
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> factory.create(null, randomAlphaOfLength(10), configMap));
-        assertThat(exception.getMessage(), is("Only one of [file], [id], or [inline] may be configured"));
+        assertThat(exception.getMessage(), is("Only one of [id] or [inline] may be configured"));
     }
 
     public void testFactoryValidationAtLeastOneScriptingType() throws Exception {
@@ -99,11 +92,11 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> factory.create(null, randomAlphaOfLength(10), configMap));
 
-        assertThat(exception.getMessage(), is("Need [file], [id], or [inline] parameter to refer to scripts"));
+        assertThat(exception.getMessage(), is("Need [id] or [inline] parameter to refer to scripts"));
     }
 
     public void testFactoryInvalidateWithInvalidCompiledScript() throws Exception {
-        String randomType = randomFrom("inline", "file", "id");
+        String randomType = randomFrom("inline", "id");
         ScriptService mockedScriptService = mock(ScriptService.class);
         ScriptException thrownException = new ScriptException("compile-time exception", new RuntimeException(),
             Collections.emptyList(), "script", "mockscript");

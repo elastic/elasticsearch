@@ -223,7 +223,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                     final String name = stateFile.getFileName().toString();
                     if (name.startsWith("metadata-")) {
                         throw new IllegalStateException("Detected pre 0.19 metadata file please upgrade to a version before "
-                            + Version.CURRENT.minimumCompatibilityVersion()
+                            + Version.CURRENT.minimumIndexCompatibilityVersion()
                             + " first to upgrade state structures - metadata found: [" + stateFile.getParent().toAbsolutePath());
                     }
                 }
@@ -294,7 +294,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation, "shards-*")) {
                     for (Path stateFile : stream) {
                         throw new IllegalStateException("Detected pre 0.19 shard state file please upgrade to a version before "
-                                + Version.CURRENT.minimumCompatibilityVersion()
+                                + Version.CURRENT.minimumIndexCompatibilityVersion()
                                 + " first to upgrade state structures - shard state found: [" + stateFile.getParent().toAbsolutePath());
                     }
                 }

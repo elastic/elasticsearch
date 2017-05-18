@@ -47,6 +47,9 @@ public class DiscoveryNodeFilters {
         Map<String, String> settingsMap = settings.getAsMap();
         for (Map.Entry<String, String> entry : settingsMap.entrySet()) {
             String propertyKey = entry.getKey();
+            if (entry.getValue() == null) {
+                continue; // this setting gets reset
+            }
             if ("_ip".equals(propertyKey) || "_host_ip".equals(propertyKey) || "_publish_ip".equals(propertyKey)) {
                 for (String value : Strings.tokenizeToStringArray(entry.getValue(), ",")) {
                     if (InetAddresses.isInetAddress(value) == false) {

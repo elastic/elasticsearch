@@ -437,7 +437,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (context == null) {
             throw new SearchContextMissingException(id);
         }
-        return context;
+
+        SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
+        try {
+            operationListener.validateSearchContext(context);
+            return context;
+        } catch (Exception e) {
+            processFailure(context, e);
+            throw e;
+        }
     }
 
     final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {

@@ -121,15 +121,15 @@ public final class IfConfig {
             sb.append("inet ");
             sb.append(NetworkAddress.format(address));
             int netmask = 0xFFFFFFFF << (32 - interfaceAddress.getNetworkPrefixLength());
-            sb.append(" netmask:" + NetworkAddress.format(InetAddress.getByAddress(new byte[] {
-                    (byte)(netmask >>> 24),
-                    (byte)(netmask >>> 16 & 0xFF),
-                    (byte)(netmask >>> 8 & 0xFF),
-                    (byte)(netmask & 0xFF)
+            sb.append(" netmask:").append(NetworkAddress.format(InetAddress.getByAddress(new byte[]{
+                (byte) (netmask >>> 24),
+                (byte) (netmask >>> 16 & 0xFF),
+                (byte) (netmask >>> 8 & 0xFF),
+                (byte) (netmask & 0xFF)
             })));
             InetAddress broadcast = interfaceAddress.getBroadcast();
             if (broadcast != null) {
-                sb.append(" broadcast:" + NetworkAddress.format(broadcast));
+                sb.append(" broadcast:").append(NetworkAddress.format(broadcast));
             }
         }
         if (address.isLoopbackAddress()) {
@@ -160,8 +160,8 @@ public final class IfConfig {
         if (nic.isVirtual()) {
             flags.append("VIRTUAL ");
         }
-        flags.append("mtu:" + nic.getMTU());
-        flags.append(" index:" + nic.getIndex());
+        flags.append("mtu:").append(nic.getMTU());
+        flags.append(" index:").append(nic.getIndex());
         return flags.toString();
     }
 }

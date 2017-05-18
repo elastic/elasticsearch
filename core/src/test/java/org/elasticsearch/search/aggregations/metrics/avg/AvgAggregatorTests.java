@@ -113,12 +113,13 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        try (AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-            aggregator.preCollection();
-            indexSearcher.search(query, aggregator);
-            aggregator.postCollection();
-            verify.accept((InternalAvg) aggregator.buildAggregation(0L));
-        }
+
+        AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(query, aggregator);
+        aggregator.postCollection();
+        verify.accept((InternalAvg) aggregator.buildAggregation(0L));
+
         indexReader.close();
         directory.close();
     }

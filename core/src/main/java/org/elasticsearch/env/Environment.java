@@ -55,8 +55,6 @@ public class Environment {
     public static final Setting<String> DEFAULT_PATH_CONF_SETTING = Setting.simpleString("default.path.conf", Property.NodeScope);
     public static final Setting<String> PATH_CONF_SETTING =
             new Setting<>("path.conf", DEFAULT_PATH_CONF_SETTING, Function.identity(), Property.NodeScope);
-    public static final Setting<String> PATH_SCRIPTS_SETTING =
-        Setting.simpleString("path.scripts", Property.NodeScope, Property.Deprecated);
     public static final Setting<List<String>> DEFAULT_PATH_DATA_SETTING =
             Setting.listSetting("default.path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> PATH_DATA_SETTING =
@@ -78,8 +76,6 @@ public class Environment {
     private final Path[] repoFiles;
 
     private final Path configFile;
-
-    private final Path scriptsFile;
 
     private final Path pluginsFile;
 
@@ -114,12 +110,6 @@ public class Environment {
             configFile = PathUtils.get(cleanPath(PATH_CONF_SETTING.get(settings)));
         } else {
             configFile = homeFile.resolve("config");
-        }
-
-        if (PATH_SCRIPTS_SETTING.exists(settings)) {
-            scriptsFile = PathUtils.get(cleanPath(PATH_SCRIPTS_SETTING.get(settings)));
-        } else {
-            scriptsFile = configFile.resolve("scripts");
         }
 
         pluginsFile = homeFile.resolve("plugins");
@@ -281,13 +271,6 @@ public class Environment {
         return configFile;
     }
 
-    /**
-     * Location of on-disk scripts
-     */
-    public Path scriptsFile() {
-        return scriptsFile;
-    }
-
     public Path pluginsFile() {
         return pluginsFile;
     }
@@ -332,7 +315,6 @@ public class Environment {
         assertEquals(actual.dataWithClusterFiles(), expected.dataWithClusterFiles(), "dataWithClusterFiles");
         assertEquals(actual.repoFiles(), expected.repoFiles(), "repoFiles");
         assertEquals(actual.configFile(), expected.configFile(), "configFile");
-        assertEquals(actual.scriptsFile(), expected.scriptsFile(), "scriptsFile");
         assertEquals(actual.pluginsFile(), expected.pluginsFile(), "pluginsFile");
         assertEquals(actual.binFile(), expected.binFile(), "binFile");
         assertEquals(actual.libFile(), expected.libFile(), "libFile");

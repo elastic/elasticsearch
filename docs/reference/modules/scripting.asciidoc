@@ -77,10 +77,6 @@ include::scripting/security.asciidoc[]
 
 include::scripting/painless.asciidoc[]
 
-include::scripting/painless-syntax.asciidoc[]
-
-include::scripting/painless-debugging.asciidoc[]
-
 include::scripting/expression.asciidoc[]
 
 include::scripting/engine.asciidoc[]

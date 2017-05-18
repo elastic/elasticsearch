@@ -67,11 +67,6 @@ public class MockScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public String getExtension() {
-        return getType();
-    }
-
-    @Override
     public Object compile(String name, String source, Map<String, String> params) {
         // Scripts are always resolved using the script's source. For inline scripts, it's easy because they don't have names and the
         // source is always provided. For stored and file scripts, the source of the script must match the key of a predefined script.
@@ -188,11 +183,20 @@ public class MockScriptEngine implements ScriptEngine {
                 ctx.putAll(vars);
             }
 
-            AbstractSearchScript leafSearchScript = new AbstractSearchScript() {
-
+            return new LeafSearchScript() {
                 @Override
                 public Object run() {
                     return script.apply(ctx);
+                }
+
+                @Override
+                public long runAsLong() {
+                    return ((Number) run()).longValue();
+                }
+
+                @Override
+                public double runAsDouble() {
+                    return ((Number) run()).doubleValue();
                 }
 
                 @Override
@@ -202,12 +206,20 @@ public class MockScriptEngine implements ScriptEngine {
 
                 @Override
                 public void setScorer(Scorer scorer) {
-                    super.setScorer(scorer);
                     ctx.put("_score", new ScoreAccessor(scorer));
                 }
+
+                @Override
+                public void setDocument(int doc) {
+                    leafLookup.setDocument(doc);
+                }
+
+                @Override
+                public void setSource(Map<String, Object> source) {
+                    leafLookup.source().setSource(source);
+                }
+
             };
-            leafSearchScript.setLookup(leafLookup);
-            return leafSearchScript;
         }
 
         @Override

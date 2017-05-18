@@ -1324,9 +1324,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 }
                 streamIn = compressor.streamInput(streamIn);
             }
-            if (version.isCompatible(getCurrentVersion()) == false) {
+            // for handshakes we are compatible with N-2 since otherwise we can't figure out our initial version
+            // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
+            // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
+            // once the connection is established
+            final Version compatibilityVersion = TransportStatus.isHandshake(status) ? getCurrentVersion().minimumCompatibilityVersion()
+                : getCurrentVersion();
+            if (version.isCompatible(compatibilityVersion) == false) {
                 throw new IllegalStateException("Received message from unsupported version: [" + version
-                    + "] minimal compatible version is: [" + getCurrentVersion().minimumCompatibilityVersion() + "]");
+                    + "] minimal compatible version is: [" + compatibilityVersion.minimumCompatibilityVersion() + "]");
             }
             streamIn = new NamedWriteableAwareStreamInput(streamIn, namedWriteableRegistry);
             streamIn.setVersion(version);

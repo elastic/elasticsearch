@@ -133,7 +133,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
         headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             metadata.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
         } else {
             for (Iterator<Map.Entry<String, List<String>>> iterator = headers.entrySet().iterator(); iterator.hasNext(); ) {
@@ -284,7 +284,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         out.writeOptionalString(this.getMessage());
         out.writeException(this.getCause());
         writeStackTraces(this, out);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
             out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
         } else {
@@ -985,11 +985,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         STATUS_EXCEPTION(org.elasticsearch.ElasticsearchStatusException.class, org.elasticsearch.ElasticsearchStatusException::new, 145,
             UNKNOWN_VERSION_ADDED),
         TASK_CANCELLED_EXCEPTION(org.elasticsearch.tasks.TaskCancelledException.class,
-            org.elasticsearch.tasks.TaskCancelledException::new, 146, Version.V_5_1_1_UNRELEASED),
+            org.elasticsearch.tasks.TaskCancelledException::new, 146, Version.V_5_1_1),
         SHARD_LOCK_OBTAIN_FAILED_EXCEPTION(org.elasticsearch.env.ShardLockObtainFailedException.class,
                                            org.elasticsearch.env.ShardLockObtainFailedException::new, 147, Version.V_5_0_2),
         UNKNOWN_NAMED_OBJECT_EXCEPTION(org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException.class,
-                org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException::new, 148, Version.V_5_2_0_UNRELEASED);
+                org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException::new, 148, Version.V_5_2_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

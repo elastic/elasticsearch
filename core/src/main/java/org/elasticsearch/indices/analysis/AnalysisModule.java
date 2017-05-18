@@ -278,22 +278,6 @@ public final class AnalysisModule {
          * version uses a set of English stop words that are in
          * lucene-analyzers-common so "stop" is defined in the analysis-common
          * module. */
-        
-        // Add token filters declared in PreBuiltTokenFilters until they have all been migrated
-        for (PreBuiltTokenFilters preBuilt : PreBuiltTokenFilters.values()) {
-            switch (preBuilt) {
-            case LOWERCASE:
-                // This has been migrated but has to stick around until PreBuiltTokenizers is removed.
-                continue;
-            default:
-                if (CachingStrategy.ONE != preBuilt.getCachingStrategy()) {
-                    throw new UnsupportedOperationException("shim not available for " + preBuilt.getCachingStrategy());
-                }
-                String name = preBuilt.name().toLowerCase(Locale.ROOT);
-                preConfiguredTokenFilters.register(name, PreConfiguredTokenFilter.singleton(name, preBuilt.isMultiTermAware(),
-                        tokenStream -> preBuilt.create(tokenStream, Version.CURRENT)));
-            }
-        }
 
         for (AnalysisPlugin plugin: plugins) {
             for (PreConfiguredTokenFilter filter : plugin.getPreConfiguredTokenFilters()) {

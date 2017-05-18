@@ -131,8 +131,7 @@ public class IndexModuleTests extends ESTestCase {
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(emptyList());
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        scriptService = new ScriptService(settings, environment, new ResourceWatcherService(settings, threadPool), scriptEngineRegistry,
-                scriptContextRegistry, scriptSettings);
+        scriptService = new ScriptService(settings, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         nodeEnvironment = new NodeEnvironment(settings, environment);
         mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();

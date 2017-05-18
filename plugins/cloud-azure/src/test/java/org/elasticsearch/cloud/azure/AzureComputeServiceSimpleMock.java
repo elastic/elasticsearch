@@ -19,18 +19,11 @@
 
 package org.elasticsearch.cloud.azure;
 
-import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
-import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
-import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
-import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
-import com.microsoft.windowsazure.management.compute.models.RoleInstance;
+import com.microsoft.windowsazure.Configuration;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceAbstractMock;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
-
-import java.net.InetAddress;
 
 /**
  * Mock Azure API with a single started node
@@ -42,14 +35,22 @@ public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMo
         public String name() {
             return "mock-compute-service";
         }
+
         @Override
         public String description() {
             return "plugs in a mock compute service for testing";
         }
+
         public void onModule(AzureModule azureModule) {
             azureModule.computeServiceImpl = AzureComputeServiceSimpleMock.class;
         }
     }
+
+    static final class Azure {
+        private static final String ENDPOINT = "https://management.core.windows.net/";
+        private static final String AUTH_ENDPOINT = "https://login.windows.net/";
+    }
+
 
     @Inject
     public AzureComputeServiceSimpleMock(Settings settings) {
@@ -57,32 +58,7 @@ public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMo
     }
 
     @Override
-    public HostedServiceGetDetailedResponse getServiceDetails() {
-        HostedServiceGetDetailedResponse response = new HostedServiceGetDetailedResponse();
-        HostedServiceGetDetailedResponse.Deployment deployment = new HostedServiceGetDetailedResponse.Deployment();
-
-        // Fake the deployment
-        deployment.setName("dummy");
-        deployment.setDeploymentSlot(DeploymentSlot.Production);
-        deployment.setStatus(DeploymentStatus.Running);
-
-        // Fake an instance
-        RoleInstance instance = new RoleInstance();
-        instance.setInstanceName("dummy1");
-
-        // Fake the private IP
-        instance.setIPAddress(InetAddress.getLoopbackAddress());
-
-        // Fake the public IP
-        InstanceEndpoint endpoint = new InstanceEndpoint();
-        endpoint.setName("elasticsearch");
-        endpoint.setVirtualIPAddress(InetAddress.getLoopbackAddress());
-        endpoint.setPort(9400);
-        instance.setInstanceEndpoints(CollectionUtils.newSingletonArrayList(endpoint));
-
-        deployment.setRoleInstances(CollectionUtils.newSingletonArrayList(instance));
-        response.setDeployments(CollectionUtils.newSingletonArrayList(deployment));
-
-        return response;
+    public Configuration getConfiguration() {
+        return null;
     }
 }

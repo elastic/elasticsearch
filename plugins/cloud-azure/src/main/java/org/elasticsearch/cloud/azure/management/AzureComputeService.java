@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cloud.azure.management;
 
-import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
+import com.microsoft.windowsazure.Configuration;
 
 /**
  *
@@ -30,21 +30,18 @@ public interface AzureComputeService {
         public static final String API_IMPLEMENTATION = "cloud.azure.management.api.impl";
 
         public static final String SUBSCRIPTION_ID = "cloud.azure.management.subscription.id";
-        public static final String SERVICE_NAME = "cloud.azure.management.cloud.service.name";
+        public static final String RESOURCE_GROUP_NAME = "cloud.azure.management.resourcegroup.name";
 
-        // Keystore settings
-        public static final String KEYSTORE_PATH = "cloud.azure.management.keystore.path";
-        public static final String KEYSTORE_PASSWORD = "cloud.azure.management.keystore.password";
-        public static final String KEYSTORE_TYPE = "cloud.azure.management.keystore.type";
+        public static final String TENANT_ID = "cloud.azure.management.tenant.id";
+        public static final String APP_ID = "cloud.azure.management.app.id";
+        public static final String APP_SECRET = "cloud.azure.management.app.secret";
     }
 
     static public final class Discovery {
         public static final String REFRESH = "discovery.azure.refresh_interval";
-
         public static final String HOST_TYPE = "discovery.azure.host.type";
-        public static final String ENDPOINT_NAME = "discovery.azure.endpoint.name";
-        public static final String DEPLOYMENT_NAME = "discovery.azure.deployment.name";
-        public static final String DEPLOYMENT_SLOT = "discovery.azure.deployment.slot";
+        public static final String DISCOVERY_METHOD = "discovery.azure.method";
     }
-    public HostedServiceGetDetailedResponse getServiceDetails();
+
+    public Configuration getConfiguration();
 }

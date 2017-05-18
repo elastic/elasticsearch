@@ -20,29 +20,33 @@
 package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.cloud.azure.AbstractAzureComputeServiceTestCase;
+import org.elasticsearch.cloud.azure.AzureComputeServiceSimpleMock;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
-import org.elasticsearch.cloud.azure.AzureComputeServiceSimpleMock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
         numDataNodes = 0,
-        transportClientRatio = 0.0,
+        transportClientRatio = 0,
         numClientNodes = 0)
 public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
+
 
     public AzureSimpleTests() {
         super(AzureComputeServiceSimpleMock.TestPlugin.class);
     }
 
+
     @Test
     public void one_node_should_run_using_private_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
+        .put(Management.RESOURCE_GROUP_NAME, "elasticsearch-production")
                 .put(Discovery.HOST_TYPE, "private_ip");
 
         logger.info("--> start one node");
@@ -56,9 +60,8 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
     @Test
     public void one_node_should_run_using_public_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
+                .put(Management.RESOURCE_GROUP_NAME, "elasticsearch-production")
                 .put(Discovery.HOST_TYPE, "public_ip");
-
         logger.info("--> start one node");
         internalCluster().startNode(settings);
         assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
@@ -68,11 +71,11 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
     }
 
     @Test
-    public void one_node_should_run_using_wrong_settings() {
+    public void one_node_should_run_using_wrong_settings() throws IOException {
         Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "do_not_exist");
-
+                .put(Management.RESOURCE_GROUP_NAME, "elasticsearch-production")
+                .put(Discovery.HOST_TYPE, "does_not_exist")
+                .put(Discovery.DISCOVERY_METHOD, "does_not_exist");
         logger.info("--> start one node");
         internalCluster().startNode(settings);
         assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
@@ -80,4 +83,5 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
         // We expect having 1 node as part of the cluster, let's test that
         checkNumberOfNodes(1);
     }
+
 }

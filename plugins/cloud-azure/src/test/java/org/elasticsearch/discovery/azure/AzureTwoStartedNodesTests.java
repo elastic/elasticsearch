@@ -43,7 +43,7 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11533")
     public void two_nodes_should_run_using_private_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
+                .put(Management.RESOURCE_GROUP_NAME, "crate-production")
                 .put(Discovery.HOST_TYPE, "private_ip");
 
         logger.info("--> start first node");
@@ -62,7 +62,7 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11533")
     public void two_nodes_should_run_using_public_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
+                .put(Management.RESOURCE_GROUP_NAME, "crate-production")
                 .put(Discovery.HOST_TYPE, "public_ip");
 
         logger.info("--> start first node");

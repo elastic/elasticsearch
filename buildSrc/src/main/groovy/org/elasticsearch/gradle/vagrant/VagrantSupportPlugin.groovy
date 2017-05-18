@@ -5,6 +5,7 @@ import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.process.ExecResult
+import org.gradle.process.internal.ExecException
 
 /**
  * Global configuration for if Vagrant tasks are supported in this
@@ -15,8 +16,8 @@ class VagrantSupportPlugin implements Plugin<Project> {
     @Override
     void apply(Project project) {
         if (project.rootProject.ext.has('vagrantEnvChecksDone') == false) {
-            Installation vagrantInstallation = getVagrantInstallation(project)
-            Installation virtualBoxInstallation = getVirtualBoxInstallation(project)
+            Map vagrantInstallation = getVagrantInstallation(project)
+            Map virtualBoxInstallation = getVirtualBoxInstallation(project)
 
             project.rootProject.ext.vagrantInstallation = vagrantInstallation
             project.rootProject.ext.virtualBoxInstallation = virtualBoxInstallation
@@ -31,19 +32,10 @@ class VagrantSupportPlugin implements Plugin<Project> {
                     "and requires \$HOME to be set to function properly.")
         }
 
-        project.ext.vagrantInstallation = project.rootProject.ext.vagrantInstallation
-        project.ext.virtualBoxInstallation = project.rootProject.ext.virtualBoxInstallation
-        project.ext.vagrantSupported = project.rootProject.ext.vagrantSupported
-
         addVerifyInstallationTasks(project)
     }
 
-    private Installation getVagrantInstallation(Project project) {
-        // Only do secure fixture support if the regular fixture is supported,
-        // and if vagrant is installed. The ignoreExitValue on exec only matters
-        // in cases where the command can be found and successfully started. In
-        // situations where the vagrant command isn't able to be started at all
-        // (it's not installed) then Gradle still throws ExecException.
+    private Map getVagrantInstallation(Project project) {
         try {
             ByteArrayOutputStream pipe = new ByteArrayOutputStream()
             ExecResult runResult = project.exec {
@@ -54,25 +46,23 @@ class VagrantSupportPlugin implements Plugin<Project> {
             String version = pipe.toString().trim()
             if (runResult.exitValue == 0) {
                 if (version ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/) {
-                    return Installation.supported(version)
+                    return [ 'supported' : true ]
                 } else {
-                    return Installation.unsupported(new InvalidUserDataException(
-                            "Illegal version of vagrant [${version}]. Need [Vagrant 1.8.6+]"))
+                    return [ 'supported' : false,
+                             'info' : "Illegal version of vagrant [${version}]. Need [Vagrant 1.8.6+]" ]
                 }
             } else {
-                Installation.unsupported(new InvalidUserDataException(
-                        "Could not read installed vagrant version:\n" + version))
+                return [ 'supported' : false,
+                         'info' : "Could not read installed vagrant version:\n" + version ]
             }
-        } catch (org.gradle.process.internal.ExecException e) {
-            // Swallow error. Vagrant isn't installed. Let users of plugin decide to throw or not.
-            return Installation.notInstalled(new InvalidUserDataException("Could not find vagrant: " + e.message))
+        } catch (ExecException e) {
+            // Exec still throws this if it cannot find the command, regardless if ignoreExitValue is set.
+            // Swallow error. Vagrant isn't installed. Don't halt the build here.
+            return [ 'supported' : false, 'info' : "Could not find vagrant: " + e.message ]
         }
     }
 
-    private Installation getVirtualBoxInstallation(Project project) {
-        // Also check to see if virtualbox is installed. We need both vagrant
-        // and virtualbox to be installed for the secure environment to be
-        // enabled.
+    private Map getVirtualBoxInstallation(Project project) {
         try {
             ByteArrayOutputStream pipe = new ByteArrayOutputStream()
             ExecResult runResult = project.exec {
@@ -87,22 +77,22 @@ class VagrantSupportPlugin implements Plugin<Project> {
                     int major = Integer.parseInt(versions[0])
                     int minor = Integer.parseInt(versions[1])
                     if ((major < 5) || (major == 5 && minor < 1)) {
-                        return Installation.unsupported(new InvalidUserDataException(
-                                "Illegal version of virtualbox [${version}]. Need [5.1+]"))
+                        return [ 'supported' : false,
+                                 'info' : "Illegal version of virtualbox [${version}]. Need [5.1+]" ]
                     } else {
-                        return Installation.supported(version)
+                        return [ 'supported' : true ]
                     }
                 } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
-                    return Installation.unsupported(new InvalidUserDataException(
-                            "Unable to parse version of virtualbox [${version}]. Required [5.1+]", e))
+                    return [ 'supported' : false,
+                             'info' : "Unable to parse version of virtualbox [${version}]. Required [5.1+]" ]
                 }
             } else {
-                return Installation.unsupported(new InvalidUserDataException(
-                        "Could not read installed virtualbox version:\n" + version))
+                return [ 'supported': false, 'info': "Could not read installed virtualbox version:\n" + version ]
             }
-        } catch (org.gradle.process.internal.ExecException e) {
-            // Swallow error. VirtualBox isn't installed.
-            return Installation.notInstalled(new InvalidUserDataException("Could not find virtualbox: " + e.message))
+        } catch (ExecException e) {
+            // Exec still throws this if it cannot find the command, regardless if ignoreExitValue is set.
+            // Swallow error. VirtualBox isn't installed. Don't halt the build here.
+            return [ 'supported' : false, 'info' : "Could not find virtualbox: " + e.message ]
         }
     }
 
@@ -116,7 +106,9 @@ class VagrantSupportPlugin implements Plugin<Project> {
             description 'Check the Vagrant version'
             group 'Verification'
             doLast {
-                project.vagrantInstallation.verify()
+                if (project.rootProject.vagrantInstallation.supported == false) {
+                    throw new InvalidUserDataException(project.rootProject.vagrantInstallation.info)
+                }
             }
         }
     }
@@ -126,7 +118,9 @@ class VagrantSupportPlugin implements Plugin<Project> {
             description 'Check the Virtualbox version'
             group 'Verification'
             doLast {
-                project.virtualBoxInstallation.verify()
+                if (project.rootProject.virtualBoxInstallation.supported == false) {
+                    throw new InvalidUserDataException(project.rootProject.virtualBoxInstallation.info)
+                }
             }
         }
     }

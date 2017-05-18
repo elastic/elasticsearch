@@ -52,7 +52,7 @@ first!
 --------------------------------------------------
 import static org.elasticsearch.index.query.QueryBuilders.*;
 
-QueryBuilder qb = termQuery("multi", "test");
+QueryBuilder qb = QueryBuilders.termQuery("multi", "test");
 
 SearchResponse scrollResp = client.prepareSearch(test)
         .addSort(SortParseElement.DOC_FIELD_NAME, SortOrder.ASC)

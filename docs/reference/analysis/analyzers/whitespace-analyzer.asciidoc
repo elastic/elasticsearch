@@ -4,3 +4,8 @@
 An analyzer of type `whitespace` that is built using a
 <<analysis-whitespace-tokenizer,Whitespace
 Tokenizer>>.
+
+The whitespace analyzer splits ((("whitespace analyzer")))the text on whitespace. It doesn't
+lowercase. It would produce
++
+    Set, the, shape, to, semi-transparent, by, calling, set_trans(5)

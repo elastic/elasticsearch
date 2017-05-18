@@ -302,7 +302,7 @@ task('verifyVersions') {
     // Limit the listed versions to those that have been released
     Set<String> actualVersions = new TreeSet<>(
       indexCompatVersions
-        .findAll { false == it.snapshot }
+        .findAll { false == it.snapshot && false == it.unreleased }
         .collect { it.toString() })
 
     // Finally, compare!

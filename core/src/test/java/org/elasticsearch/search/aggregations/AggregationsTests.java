@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogramT
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissingTests;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNestedTests;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNestedTests;
+import org.elasticsearch.search.aggregations.bucket.range.InternalBinaryRangeTests;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRangeTests;
 import org.elasticsearch.search.aggregations.bucket.range.date.InternalDateRangeTests;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistanceTests;
@@ -132,6 +133,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new SignificantLongTermsTests());
         aggsTests.add(new SignificantStringTermsTests());
         aggsTests.add(new InternalScriptedMetricTests());
+        aggsTests.add(new InternalBinaryRangeTests());
         return Collections.unmodifiableList(aggsTests);
     }
 

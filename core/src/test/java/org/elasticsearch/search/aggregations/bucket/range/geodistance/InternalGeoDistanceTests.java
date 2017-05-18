@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRangeTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -85,5 +86,15 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
     @Override
     protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
         return ParsedGeoDistance.class;
+    }
+
+    @Override
+    protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
+        return InternalGeoDistance.Bucket.class;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
+        return ParsedGeoDistance.ParsedBucket.class;
     }
 }

@@ -133,10 +133,10 @@ PUT _xpack/watcher/watch/log_errors
 
 [[schedule-scheduler]]
 When you add a watch, {watcher} immediately registers its trigger with the
-appropriate trigger engine. Watches that have a `schedule` trigger are 
-registered with the `scheduler` trigger engine. 
+appropriate trigger engine. Watches that have a `schedule` trigger are
+registered with the `scheduler` trigger engine.
 
-The scheduler tracks time and triggers watches according to their schedules. 
+The scheduler tracks time and triggers watches according to their schedules.
 On each node, that contains one of the `.watches` shards, a scheduler, that is
 bound to the watcher lifecycle runs. Even though all primaries and replicas are
 taken into account, when a watch is triggered, watcher also ensures, that each
@@ -165,12 +165,12 @@ When the {watcher} service is stopped, the scheduler stops with it. Trigger
 engines use a separate thread pool from the one used to execute watches.
 
 When a watch is triggered, {watcher} queues it up for execution. A `watch_record`
-document is created and added to the watch history and the watch's status is set 
+document is created and added to the watch history and the watch's status is set
 to `awaits_execution`.
 
 When execution starts, {watcher} creates a watch execution context for the watch.
-The execution context provides scripts and templates with access to the watch 
-metadata, payload, watch ID, execution time, and trigger information. For more 
+The execution context provides scripts and templates with access to the watch
+metadata, payload, watch ID, execution time, and trigger information. For more
 information, see <<watch-execution-context, Watch Execution Context>>.
 
 During the execution process, {watcher}:
@@ -223,13 +223,13 @@ By default, when you add a watch it is immediately set to the _active_ state,
 registered with the appropriate trigger engine, and executed according
 to its configured trigger.
 
-You can also set a watch to the _inactive_ state. Inactive watches are not 
+You can also set a watch to the _inactive_ state. Inactive watches are not
 registered with a trigger engine and can never be triggered.
 
-To set a watch to the inactive state when you create it, set the 
-<<watcher-api-put-watch-active-state, `active`>> parameter to _inactive_. 
+To set a watch to the inactive state when you create it, set the
+<<watcher-api-put-watch-active-state, `active`>> parameter to _inactive_.
 To deactivate an existing watch, use the <<watcher-api-deactivate-watch, D
-eactivate Watch API>>. To reactivate an inactive watch, use the 
+eactivate Watch API>>. To reactivate an inactive watch, use the
 <<watcher-api-activate-watch, Activate Watch API>>.
 
 NOTE:   You can use the <<watcher-api-execute-watch, Execute Watch API>> to
@@ -255,10 +255,10 @@ placeholders in a template.
 {watcher} uses the Elasticsearch script infrastructure, which supports
 <<inline-templates-scripts,inline>>, <<stored-templates-scripts, stored>>, and
 <<file-templates-scripts, file-based scripts>>. Scripts and templates are compiled
-and cached by Elasticsearch to optimize recurring execution.
-{ref}/modules-scripting-using.html#reload-scripts[Autoloading] is also
-supported. For more information, see {ref}/modules-scripting.html[Scripting]
-in the Elasticsearch Reference.
+and cached by Elasticsearch to optimize recurring execution. Autoloading is also
+supported. For more information, see {ref}/modules-scripting.html[Scripting] and
+{ref}/modules-scripting-using.html[How to use scripts] in the Elasticsearch
+Reference.
 
 [float]
 [[watch-execution-context]]
@@ -409,7 +409,7 @@ The formal object definition for a script would be:
 [[stored-templates-scripts]]
 ===== Stored Templates and Scripts
 
-If you {ref}/modules-scripting-using.html#modules-scripting-stored-scripts[store] 
+If you {ref}/modules-scripting-using.html#modules-scripting-stored-scripts[store]
 your templates and scripts, you can reference them by id.
 
 To reference a stored script or template, you use the formal object definition
@@ -447,7 +447,7 @@ as `.painless`.
 NOTE:   The `config/scripts` directory is scanned periodically for changes. New
         and changed templates and scripts are reloaded and deleted templates and
         scripts are removed from the preloaded scripts cache. For more information,
-        see {ref}/modules-scripting-using.html#reload-scripts[Automatic Script 
+        see {ref}/modules-scripting-using.html#reload-scripts[Automatic Script
         Reloading] in the Elasticsearch Reference.
 
 To reference a file-based stored or script, you use the formal object definition

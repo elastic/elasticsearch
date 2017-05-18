@@ -88,12 +88,16 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 if (licenseState.isAuthAllowed()) {
+                    // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
+                    // ourselves otherwise we wind up using a version newer than what we can actually send
+                    final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
+
                     // Sometimes a system action gets executed like a internal create index request or update mappings request
                     // which means that the user is copied over to system actions so we need to change the user
                     if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
                         securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
                                 new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                        , handler), sender), connection.getVersion());
+                                        , handler), sender), minVersion);
                     } else if (reservedRealmEnabled && connection.getVersion().before(Version.V_5_2_0) &&
                             KibanaUser.NAME.equals(securityContext.getUser().principal())) {
                         final User kibanaUser = securityContext.getUser();
@@ -103,11 +107,11 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                                 new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original),
                                         handler), sender), connection.getVersion());
                     } else if (securityContext.getAuthentication() != null &&
-                            securityContext.getAuthentication().getVersion().equals(connection.getVersion()) == false) {
+                            securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
                         // re-write the authentication since we want the authentication version to match the version of the connection
                         securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
                             new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender),
-                            connection.getVersion());
+                            minVersion);
                     } else {
                         sendWithUser(connection, action, request, options, handler, sender);
                     }

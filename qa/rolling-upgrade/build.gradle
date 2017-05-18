@@ -124,6 +124,18 @@ for (Version version : wireCompatVersions) {
   Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
   upgradedClusterTestRunner.configure {
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
+
+    // migration tests should only run when the original/old cluster nodes where versions < 5.2.0.
+    // this stinks but we do the check here since our rest tests do not support conditionals
+    // otherwise we could check the index created version
+    String versionStr = project.extensions.findByName("${baseName}#oldClusterTestCluster").properties.get('bwcVersion')
+    String[] versionParts = versionStr.split('\\.')
+    if (versionParts[0].equals("5")) {
+        Integer minor = Integer.parseInt(versionParts[1])
+        if (minor >= 2) {
+            systemProperty 'tests.rest.blacklist', '/20_security/Verify default password migration results in upgraded cluster'
+        }
+    }
     // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
     finalizedBy "${baseName}#mixedClusterTestCluster#stop"
   }

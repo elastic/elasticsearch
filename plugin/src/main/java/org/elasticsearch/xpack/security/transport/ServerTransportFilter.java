@@ -123,6 +123,7 @@ public interface ServerTransportFilter {
                 }
             }
 
+            final Version version = transportChannel.getVersion().equals(Version.V_5_4_0) ? Version.CURRENT : transportChannel.getVersion();
             authcService.authenticate(securityAction, request, null, ActionListener.wrap((authentication) -> {
                     if (reservedRealmEnabled && authentication.getVersion().before(Version.V_5_2_0) &&
                         KibanaUser.NAME.equals(authentication.getUser().authenticatedUser().principal())) {
@@ -137,7 +138,7 @@ public interface ServerTransportFilter {
                                         listener.onResponse(null);
                                     });
                             asyncAuthorizer.authorize(authzService);
-                        }, transportChannel.getVersion());
+                        }, version);
                     } else {
                         final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
                                 new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {

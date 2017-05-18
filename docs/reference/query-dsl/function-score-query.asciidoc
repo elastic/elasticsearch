@@ -7,7 +7,7 @@ function is computationally expensive and it is sufficient to compute
 the score on a filtered set of documents.
 
 To use `function_score`, the user has to define a query and one or
-more functions, that compute a new score for each document returned
+more functions, then compute a new score for each document returned
 by the query.
 
 `function_score` can be used with only one function like this:

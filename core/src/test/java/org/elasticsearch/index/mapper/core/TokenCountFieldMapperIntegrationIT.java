@@ -136,6 +136,12 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
                                         .field("format", "doc_values")
                                     .endObject()
                                 .endObject()
+                                .startObject("token_count_without_position_increments")
+                                    .field("type", "token_count")
+                                    .field("analyzer", "english")
+                                    .field("enable_position_increments", false)
+                                    .field("store", true)
+                                .endObject()
                             .endObject()
                         .endObject()
                     .endObject()
@@ -173,6 +179,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     private SearchRequestBuilder prepareSearch() {
         SearchRequestBuilder request = client().prepareSearch("test").setTypes("test");
         request.addField("foo.token_count");
+        request.addField("foo.token_count_without_position_increments");
         if (loadCountedFields) {
             request.addField("foo");
         }
@@ -190,32 +197,38 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         for (SearchHit hit : result.getHits()) {
             String id = hit.id();
             if (id.equals("single")) {
-                assertSearchHit(hit, 4);
+                assertSearchHit(hit, new int[]{4}, new int[]{4});
             } else if (id.equals("bulk1")) {
-                assertSearchHit(hit, 3);
+                assertSearchHit(hit, new int[]{3}, new int[]{3});
             } else if (id.equals("bulk2")) {
-                assertSearchHit(hit, 5);
+                assertSearchHit(hit, new int[]{5}, new int[]{4});
             } else if (id.equals("multi")) {
-                assertSearchHit(hit, 2, 7);
+                assertSearchHit(hit, new int[]{2, 7}, new int[]{2, 7});
             } else if (id.equals("multibulk1")) {
-                assertSearchHit(hit, 1, 8);
+                assertSearchHit(hit, new int[]{1, 8}, new int[]{1, 8});
             } else if (id.equals("multibulk2")) {
-                assertSearchHit(hit, 6, 10);
+                assertSearchHit(hit, new int[]{6, 10}, new int[]{3, 9});
             } else {
                 throw new ElasticsearchException("Unexpected response!");
             }
         }
     }
 
-    private void assertSearchHit(SearchHit hit, int... termCounts) {
+    private void assertSearchHit(SearchHit hit, int[] standardTermCounts, int[] englishTermCounts) {
         assertThat(hit.field("foo.token_count"), not(nullValue()));
-        assertThat(hit.field("foo.token_count").values().size(), equalTo(termCounts.length));
-        for (int i = 0; i < termCounts.length; i++) {
-            assertThat((Integer) hit.field("foo.token_count").values().get(i), equalTo(termCounts[i]));
+        assertThat(hit.field("foo.token_count").values().size(), equalTo(standardTermCounts.length));
+        for (int i = 0; i < standardTermCounts.length; i++) {
+            assertThat((Integer) hit.field("foo.token_count").values().get(i), equalTo(standardTermCounts[i]));
+        }
+
+        assertThat(hit.field("foo.token_count_without_position_increments"), not(nullValue()));
+        assertThat(hit.field("foo.token_count_without_position_increments").values().size(), equalTo(englishTermCounts.length));
+        for (int i = 0; i < englishTermCounts.length; i++) {
+            assertThat((Integer) hit.field("foo.token_count_without_position_increments").values().get(i), equalTo(englishTermCounts[i]));
         }
 
         if (loadCountedFields && storeCountedFields) {
-            assertThat(hit.field("foo").values().size(), equalTo(termCounts.length));
+            assertThat(hit.field("foo").values().size(), equalTo(standardTermCounts.length));
         }
     }
 }

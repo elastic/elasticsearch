@@ -250,6 +250,8 @@ Now let's create an index named "customer" and then list all the indexes again:
 --------------------------------------------------
 curl -XPUT 'localhost:9200/customer?pretty'
 curl 'localhost:9200/_cat/indices?v'
+For Windows command prompt replace ' with "
+curl -XPUT "localhost:9200/customer?pretty"
 --------------------------------------------------
 
 The first command creates the index named "customer" using the PUT verb. We simply append `pretty` to the end of the call to tell it to pretty-print the JSON response (if any).

@@ -149,7 +149,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         timedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
         profileResults = in.readOptionalWriteable(SearchProfileShardResults::new);
-        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
             numReducePhases = in.readVInt();
         } else {
             numReducePhases = 1;
@@ -174,7 +174,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         out.writeBoolean(timedOut);
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileResults);
-        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
             out.writeVInt(numReducePhases);
         }
     }

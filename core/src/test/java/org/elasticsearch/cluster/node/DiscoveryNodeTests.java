@@ -80,6 +80,6 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertEquals(transportAddress.getPort(), serialized.getAddress().getPort());
         assertFalse("if the minimum compatibility version moves past 5.0.3, remove the special casing in DiscoverNode(StreamInput) and " +
                 "the TransportAddress(StreamInput, String) constructor",
-            Version.CURRENT.minimumCompatibilityVersion().onOrAfter(Version.V_5_0_3_UNRELEASED));
+            Version.CURRENT.minimumCompatibilityVersion().after(Version.V_5_0_2));
     }
 }

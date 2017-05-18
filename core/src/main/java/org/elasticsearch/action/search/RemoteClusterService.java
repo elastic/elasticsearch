@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.search;
 
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -54,6 +52,7 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,6 +65,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -141,7 +141,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         } else {
             CountDown countDown = new CountDown(seeds.size());
             Predicate<DiscoveryNode> nodePredicate = (node) -> Version.CURRENT.isCompatible(node.getVersion())
-                && node.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED); // only 5.3 an onwards has the proxy actions for _search
+                && node.getVersion().onOrAfter(Version.V_5_3_0); // only 5.3 an onwards has the proxy actions for _search
             if (REMOTE_NODE_ATTRIBUTE.exists(settings)) {
                 // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for
                 // cross cluster search

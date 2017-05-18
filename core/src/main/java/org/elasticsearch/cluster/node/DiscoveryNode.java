@@ -223,7 +223,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
         this.ephemeralId = in.readString().intern();
         this.hostName = in.readString().intern();
         this.hostAddress = in.readString().intern();
-        if (in.getVersion().onOrAfter(Version.V_5_0_3_UNRELEASED)) {
+        if (in.getVersion().after(Version.V_5_0_2)) {
             this.address = TransportAddressSerializers.addressFromStream(in);
         } else {
             // we need to do this to preserve the host information during pinging and joining of a master. Since the version of the

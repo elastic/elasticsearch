@@ -63,7 +63,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         inRequest.readFrom(in);
 
         assertThat(outRequest.shardId(), equalTo(inRequest.shardId()));
-        if (targetNodeVersion.onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (targetNodeVersion.onOrAfter(Version.V_5_4_0)) {
             assertThat(outRequest.targetAllocationId(), equalTo(inRequest.targetAllocationId()));
         } else {
             assertNull(inRequest.targetAllocationId());

@@ -122,7 +122,7 @@ public class ClientYamlTestClient {
             if (sendBodyAsSourceParam(supportedMethods, contentType)) {
                 logger.debug("sending the request body as source param with GET method");
                 queryStringParams.put("source", EntityUtils.toString(entity));
-                if (esVersion.onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+                if (esVersion.onOrAfter(Version.V_5_3_0)) {
                     queryStringParams.put("source_content_type", contentType);
                 }
                 requestMethod = HttpGet.METHOD_NAME;

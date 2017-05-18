@@ -293,16 +293,23 @@ task('verifyVersions') {
     // Limit the known versions to those that should be wire compatible
     String currentVersion = versions.elasticsearch.minus('-SNAPSHOT')
     int prevMajor = Integer.parseInt(currentVersion.split('\\.')[0]) - 1
+    if (prevMajor == 4) {
+      // 4 didn't exist, it was 2.
+      prevMajor = 2;
+    }
     knownVersions = knownVersions.findAll { Integer.parseInt(it.split('\\.')[0]) >= prevMajor }
 
     // Limit the listed versions to those that have been released
-    Set<String> actualVersions = new TreeSet<>(indexCompatVersions)
-    actualVersions = actualVersions.findAll { false == it.endsWith('-SNAPSHOT') }
+    Set<String> actualVersions = new TreeSet<>(
+      indexCompatVersions
+        .findAll { false == it.snapshot }
+        .collect { it.toString() })
 
     // Finally, compare!
     if (!knownVersions.equals(actualVersions)) {
-      throw new GradleException("out-of-date versions\n" + actualVersions +
-        ", expected\n" + knownVersions + "; update Version.java")
+      throw new GradleException("out-of-date versions\nActual  :" +
+        actualVersions + "\nExpected:" + knownVersions +
+        "; update Version.java")
     }
   }
 }

@@ -77,7 +77,7 @@ can specify the following email account attributes:
   `smtp.*`;; 
   SMTP attributes that enable fine control over the SMTP 
   protocol when sending messages. See 
-  https://javamail.java.net/nonav/docs/api/com/sun/mail/smtp/package-summary.html[com.sun.mail.smtp]
+  https://javaee.github.io/javamail/docs/api/com/sun/mail/smtp/package-summary.html[com.sun.mail.smtp]
   for the full list of SMTP properties you can set. Note that all timeouts 
   (`writetimeout`, `connection_timeout` and `timeout`) default to 2 minutes.
 

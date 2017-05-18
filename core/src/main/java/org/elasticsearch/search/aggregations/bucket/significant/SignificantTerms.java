@@ -40,8 +40,6 @@ public interface SignificantTerms extends MultiBucketsAggregation, Iterable<Sign
         long getSupersetSize();
 
         long getSubsetSize();
-
-        int compareTerm(SignificantTerms.Bucket other);
     }
 
     @Override

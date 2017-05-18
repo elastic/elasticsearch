@@ -1698,7 +1698,7 @@ Renames an existing field. If the field doesn't exist or the new name is already
 [[script-processor]]
 === Script Processor
 
-Allows inline, stored, and file scripts to be executed within ingest pipelines.
+Allows inline and stored scripts to be executed within ingest pipelines.
 
 See <<modules-scripting-using, How to use scripts>> to learn more about writing scripts. The Script Processor
 leverages caching of compiled scripts for improved performance. Since the
@@ -1712,13 +1712,12 @@ caching see <<modules-scripting-using-caching, Script Caching>>.
 |======
 | Name                   | Required  | Default    | Description
 | `lang`                 | no        | "painless" | The scripting language
-| `file`                 | no        | -          | The script file to refer to
 | `id`                   | no        | -          | The stored script id to refer to
 | `inline`               | no        | -          | An inline script to be executed
 | `params`               | no        | -          | Script Parameters
 |======
 
-One of `file`, `id`, `inline` options must be provided in order to properly reference a script to execute.
+One of `id` or `inline` options must be provided in order to properly reference a script to execute.
 
 You can access the current ingest document from within the script context by using the `ctx` variable.
 

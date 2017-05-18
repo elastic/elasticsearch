@@ -105,11 +105,6 @@ public class ScriptModes {
      * @return whether scripts are enabled (true) or disabled (false)
      */
     public boolean getScriptEnabled(String lang, ScriptType scriptType, ScriptContext scriptContext) {
-        //native scripts are always enabled as they are static by definition
-        if (NativeScriptEngine.NAME.equals(lang)) {
-            return true;
-        }
-
         if (typesAllowed != null && typesAllowed.contains(scriptType.getName()) == false) {
             throw new IllegalArgumentException("[" + scriptType.getName() + "] scripts cannot be executed");
         }

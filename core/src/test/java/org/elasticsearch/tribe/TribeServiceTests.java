@@ -65,12 +65,10 @@ public class TribeServiceTests extends ESTestCase {
             .put("node.name", "nodename")
             .put("path.home", "some/path")
             .put("path.conf", "conf/path")
-            .put("path.scripts", "scripts/path")
             .put("path.logs", "logs/path").build();
         Settings clientSettings = TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, Settings.EMPTY);
         assertEquals("some/path", clientSettings.get("path.home"));
         assertEquals("conf/path", clientSettings.get("path.conf"));
-        assertEquals("scripts/path", clientSettings.get("path.scripts"));
         assertEquals("logs/path", clientSettings.get("path.logs"));
 
         Settings tribeSettings = Settings.builder()
@@ -79,7 +77,6 @@ public class TribeServiceTests extends ESTestCase {
             TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, tribeSettings);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Setting [path.home] not allowed in tribe client"));
-        assertSettingDeprecationsAndWarnings(new Setting[] {Environment.PATH_SCRIPTS_SETTING});
     }
 
     public void testPassthroughSettings() {

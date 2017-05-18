@@ -42,33 +42,26 @@ public class ScriptModule {
 
     /**
      * Build from {@linkplain ScriptPlugin}s. Convenient for normal use but not great for tests. See
-     * {@link ScriptModule#ScriptModule(Settings, Environment, ResourceWatcherService, List, List)} for easier use in tests.
+     * {@link ScriptModule#ScriptModule(Settings, List, List)} for easier use in tests.
      */
-    public static ScriptModule create(Settings settings, Environment environment,
-                                      ResourceWatcherService resourceWatcherService, List<ScriptPlugin> scriptPlugins) {
-        Map<String, NativeScriptFactory> factoryMap = scriptPlugins.stream().flatMap(x -> x.getNativeScripts().stream())
-            .collect(Collectors.toMap(NativeScriptFactory::getName, Function.identity()));
-        NativeScriptEngine nativeScriptEngineService = new NativeScriptEngine(settings, factoryMap);
+    public static ScriptModule create(Settings settings, List<ScriptPlugin> scriptPlugins) {
         List<ScriptEngine> scriptEngines = scriptPlugins.stream().map(x -> x.getScriptEngine(settings))
             .filter(Objects::nonNull).collect(Collectors.toList());
-        scriptEngines.add(nativeScriptEngineService);
         List<ScriptContext.Plugin> plugins = scriptPlugins.stream().map(x -> x.getCustomScriptContexts()).filter(Objects::nonNull)
                 .collect(Collectors.toList());
-        return new ScriptModule(settings, environment, resourceWatcherService, scriptEngines, plugins);
+        return new ScriptModule(settings, scriptEngines, plugins);
     }
 
     /**
      * Build {@linkplain ScriptEngine} and {@linkplain ScriptContext.Plugin}.
      */
-    public ScriptModule(Settings settings, Environment environment,
-                        ResourceWatcherService resourceWatcherService, List<ScriptEngine> scriptEngines,
+    public ScriptModule(Settings settings, List<ScriptEngine> scriptEngines,
                         List<ScriptContext.Plugin> customScriptContexts) {
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngines);
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         try {
-            scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry,
-                    scriptSettings);
+            scriptService = new ScriptService(settings, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         } catch (IOException e) {
             throw new RuntimeException("Couldn't setup ScriptService", e);
         }

@@ -449,6 +449,26 @@ Note: Starting vagrant VM outside of the elasticsearch folder requires to
 indicates the folder that contains the Vagrantfile using the VAGRANT_CWD
 environment variable.
 
+== Testing backwards compatibility
+
+Backwards compatibility tests exist to test upgrading from each supported version
+to the current version. To run all backcompat tests use:
+
+-------------------------------------------------
+gradle bwcTest
+-------------------------------------------------
+
+A specific version can be tested as well. For example, to test backcompat with
+version 5.3.2 run:
+
+-------------------------------------------------
+gradle v5.3.2#bwcTest
+-------------------------------------------------
+
+When running `gradle check`, some minimal backcompat checks are run. Which version
+is tested depends on the branch. On master, this will test against the current
+stable branch. On the stable branch, it will test against the latest release
+branch. Finally, on a release branch, it will test against the most recent release.
 
 == Coverage analysis
 

@@ -35,7 +35,7 @@ public class AutodetectResultsParser extends AbstractComponent {
         try {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, in);
             XContentParser.Token token = parser.nextToken();
-            // if start of an array ignore it, we expect an array of buckets
+            // if start of an array ignore it, we expect an array of results
             if (token != XContentParser.Token.START_ARRAY) {
                 throw new ElasticsearchParseException("unexpected token [" + token + "]");
             }

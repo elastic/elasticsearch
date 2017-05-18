@@ -22,6 +22,12 @@ import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 /**
  * Tests for parsing the JSON output of autodetect
  */
@@ -399,4 +405,16 @@ public class AutodetectResultsParserTests extends ESTestCase {
         assertEquals("unexpected token [START_ARRAY]", e.getMessage());
     }
 
+    public void testConsumeAndCloseStream() throws IOException {
+        String json = "some string of data";
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+
+        AutodetectResultsParser.consumeAndCloseStream(inputStream);
+        assertEquals(0, inputStream.available());
+
+        InputStream mockStream = mock(InputStream.class);
+        when(mockStream.read(any())).thenReturn(-1);
+        AutodetectResultsParser.consumeAndCloseStream(mockStream);
+        verify(mockStream, times(1)).close();
+    }
 }

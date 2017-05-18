@@ -90,21 +90,38 @@ public class AutoDetectResultProcessor {
 
     public void process(AutodetectProcess process, boolean isPerPartitionNormalization) {
         Context context = new Context(jobId, isPerPartitionNormalization, persister.bulkPersisterBuilder(jobId));
+
+        // If a function call in this throws for some reason we don't want it
+        // to kill the results reader thread as autodetect will be blocked
+        // trying to write its output.
         try {
             int bucketCount = 0;
             Iterator<AutodetectResult> iterator = process.readAutodetectResults();
             while (iterator.hasNext()) {
-                AutodetectResult result = iterator.next();
-                processResult(context, result);
-                if (result.getBucket() != null) {
-                    bucketCount++;
-                    LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
+                try {
+                    AutodetectResult result = iterator.next();
+                    processResult(context, result);
+                    if (result.getBucket() != null) {
+                        bucketCount++;
+                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
+                    }
+                } catch (Exception e) {
+                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
                 }
             }
-            context.bulkResultsPersister.executeRequest();
+
+            try {
+                context.bulkResultsPersister.executeRequest();
+            } catch (Exception e) {
+                LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
+            }
+
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
-        } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", new Object[] {jobId}), e);
+        }
+        catch (Exception e) {
+            // We should only get here if the iterator throws in which
+            // case parsing the autodetect output has failed.
+            LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", jobId), e);
         } finally {
             try {
                 waitUntilRenormalizerIsIdle();
@@ -208,7 +225,7 @@ public class AutoDetectResultProcessor {
             updateModelSnapshotIdSemaphore.acquire();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.info("[{}] Interrupted acquiring update model snaphot semaphore", jobId);
+            LOGGER.info("[{}] Interrupted acquiring update model snapshot semaphore", jobId);
             return;
         }
 

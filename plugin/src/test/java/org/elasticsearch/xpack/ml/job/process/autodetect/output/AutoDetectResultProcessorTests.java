@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.action.UpdateJobAction;
@@ -34,6 +35,7 @@ import java.util.concurrent.TimeoutException;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -307,5 +309,23 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         processorUnderTest.awaitCompletion();
         assertEquals(0, processorUnderTest.completionLatch.getCount());
         assertEquals(1, processorUnderTest.updateModelSnapshotIdSemaphore.availablePermits());
+    }
+
+    public void testPersisterThrowingDoesntBlockProcessing() {
+        AutodetectResult autodetectResult = mock(AutodetectResult.class);
+        ModelSizeStats modelSizeStats = mock(ModelSizeStats.class);
+        when(autodetectResult.getModelSizeStats()).thenReturn(modelSizeStats);
+
+        @SuppressWarnings("unchecked")
+        Iterator<AutodetectResult> iterator = mock(Iterator.class);
+        when(iterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
+        when(iterator.next()).thenReturn(autodetectResult);
+        AutodetectProcess process = mock(AutodetectProcess.class);
+        when(process.readAutodetectResults()).thenReturn(iterator);
+
+        doThrow(new ElasticsearchException("this test throws")).when(persister).persistModelSizeStats(any());
+
+        processorUnderTest.process(process, randomBoolean());
+        verify(persister, times(2)).persistModelSizeStats(any());
     }
 }

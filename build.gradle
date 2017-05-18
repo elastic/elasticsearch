@@ -24,6 +24,7 @@ import org.eclipse.jgit.lib.RepositoryBuilder
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.Version
 
 // common maven publishing configuration
 subprojects {
@@ -62,11 +63,11 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
 }
 
 // introspect all versions of ES that may be tested agains for backwards compatibility
-String currentVersion = VersionProperties.elasticsearch.minus('-SNAPSHOT')
-int prevMajor = Integer.parseInt(currentVersion.split('\\.')[0]) - 1
+Version currentVersion = Version.fromString(VersionProperties.elasticsearch.minus('-SNAPSHOT'))
+int prevMajor = currentVersion.major - 1
 File versionFile = file('core/src/main/java/org/elasticsearch/Version.java')
 List<String> versionLines = versionFile.readLines('UTF-8')
-List<String> versions = []
+List<Version> versions = []
 // keep track of the previous major version's last minor, so we know where wire compat begins
 int prevMinorIndex = -1 // index in the versions list of the last minor from the prev major
 int lastPrevMinor = -1 // the minor version number from the prev major we most recently seen
@@ -76,9 +77,9 @@ for (String line : versionLines) {
     int major = Integer.parseInt(match.group(1))
     int minor = Integer.parseInt(match.group(2))
     int bugfix = Integer.parseInt(match.group(3))
-    String versionStr = "${major}.${minor}.${bugfix}"
-    if (currentVersion != versionStr) {
-      versions.add(versionStr)
+    Version foundVersion = new Version(major, minor, bugfix, false)
+    if (currentVersion != foundVersion) {
+      versions.add(foundVersion)
     }
     if (major == prevMajor && minor > lastPrevMinor) {
       prevMinorIndex = versions.size() - 1
@@ -86,16 +87,17 @@ for (String line : versionLines) {
     }
   }
 }
-if (versions.toSorted() != versions) {
-  throw new GradleException('Versions.java contains out of order version constants')
+if (versions.toSorted { it.id } != versions) {
+  println "Versions: ${versions}" 
+  throw new GradleException("Versions.java contains out of order version constants")
 }
-if (currentVersion.split('\\.')[2].split('-')[0] == '0') {
+if (currentVersion.bugfix == 0) {
   // If on a release branch, after the initial release of that branch, the bugfix version will
   // be bumped, and will be != 0. On master and N.x branches, we want to test against the
   // unreleased version of closest branch. So for those cases, the version includes -SNAPSHOT,
-  // and the bwc-zip distribution will checkout and build that version. The version parsing
-  // logic above pulls the bugfix version, and then strips off any prerelease version
-  versions[-1] += '-SNAPSHOT'
+  // and the bwc-zip distribution will checkout and build that version.
+  Version last = versions[-1]
+  versions[-1] = new Version(last.major, last.minor, last.bugfix, true)
 }
 
 // injecting groovy property variables into all projects
@@ -154,7 +156,6 @@ subprojects {
     "org.elasticsearch.client:transport:${version}": ':client:transport',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
-    "org.elasticsearch.distribution.zip:elasticsearch:${wireCompatVersions[-1]}": ':distribution:bwc-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
     "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
     "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',
@@ -167,6 +168,11 @@ subprojects {
     "org.elasticsearch.plugin:parent-join-client:${version}": ':modules:parent-join',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
   ]
+  if (wireCompatVersions[-1].snapshot) {
+    // if the most previous version is a snapshot, we need to connect that version to the
+    // bwc-zip project which will checkout and build that snapshot version
+    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${wireCompatVersions[-1]}"] = ':distribution:bwc-zip'
+  }
   project.afterEvaluate {
     configurations.all {
       resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->

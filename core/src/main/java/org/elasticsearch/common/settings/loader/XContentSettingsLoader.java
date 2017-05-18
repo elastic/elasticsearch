@@ -104,7 +104,7 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
             } else if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NULL) {
-                // ignore this
+		        serializeNullValue(settings, sb, path, parser, currentFieldName);
             } else {
                 serializeValue(settings, sb, path, parser, currentFieldName);
 
@@ -127,11 +127,34 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
             } else if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NULL) {
-                // ignore
+                // ignore NULL values in arrays
             } else {
                 serializeValue(settings, sb, path, parser, fieldName + '.' + (counter++));
             }
         }
+    }
+
+    private void serializeNullValue(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String fieldName) throws IOException {
+        sb.setLength(0);
+        for (String pathEle : path) {
+            sb.append(pathEle).append('.');
+        }
+        sb.append(fieldName);
+        String key = sb.toString();
+
+        if (settings.containsKey(key)) {
+            throw new ElasticsearchParseException(
+                "duplicate settings key [{}] found at line number [{}], column number [{}], previous value [{}], current value [{}]",
+                key,
+                parser.getTokenLocation().lineNumber,
+                parser.getTokenLocation().columnNumber,
+                settings.get(key),
+                null
+            );
+        }
+
+        settings.put(key, null);
+
     }
 
     private void serializeValue(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String fieldName) throws IOException {

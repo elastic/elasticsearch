@@ -1097,7 +1097,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
                 "recovery from remote but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID + " is not found in commit";
         } else if (recoveryState().getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE &&
-            indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0)) {
             assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
                 "opening index which was created post 5.5.0 but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
                     + " is not found in commit";

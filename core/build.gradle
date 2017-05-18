@@ -290,7 +290,7 @@ task('verifyVersions') {
     }
     Set<String> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ })
 
-    // Limit the known versions to those that should be wire compatible
+    // Limit the known versions to those that should be index compatible
     String currentVersion = versions.elasticsearch.minus('-SNAPSHOT')
     int prevMajor = Integer.parseInt(currentVersion.split('\\.')[0]) - 1
     if (prevMajor == 4) {
@@ -305,8 +305,10 @@ task('verifyVersions') {
      * as possible after release. */
     Set<String> actualVersions = new TreeSet<>(
       indexCompatVersions
-        .findAll { false == it.unreleased }
+        .findAll { false == it.snapshot }
         .collect { it.toString() })
+
+    // TODO this is almost certainly going to fail on 5.4 when we release 5.5.0
 
     // Finally, compare!
     if (!knownVersions.equals(actualVersions)) {

@@ -2578,7 +2578,7 @@ public class InternalEngineTests extends ESTestCase {
                 for (int i = 0; i < numExtraDocs; i++) {
                     ParsedDocument doc = testParsedDocument("extra" + Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     Term uid;
-                    if (indexMetaData.getCreationVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                    if (indexMetaData.getCreationVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                         uid = new Term(IdFieldMapper.NAME, doc.id());
                     } else {
                         uid = new Term(UidFieldMapper.NAME, Uid.createUid(doc.type(), doc.id()));

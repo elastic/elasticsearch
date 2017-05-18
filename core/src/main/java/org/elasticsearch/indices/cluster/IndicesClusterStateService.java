@@ -555,11 +555,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 Set<String> activeIds = indexShardRoutingTable.activeShards().stream()
                     // filter to shards that track seq# and should be taken into consideration for checkpoint tracking
                     // shards on old nodes will go through a file based recovery which will also transfer seq# information.
-                    .filter(sr -> nodes.get(sr.currentNodeId()).getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED))
+                    .filter(sr -> nodes.get(sr.currentNodeId()).getVersion().onOrAfter(Version.V_6_0_0_alpha1))
                     .map(r -> r.allocationId().getId())
                     .collect(Collectors.toSet());
                 Set<String> initializingIds = indexShardRoutingTable.getAllInitializingShards().stream()
-                    .filter(sr -> nodes.get(sr.currentNodeId()).getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED))
+                    .filter(sr -> nodes.get(sr.currentNodeId()).getVersion().onOrAfter(Version.V_6_0_0_alpha1))
                     .map(r -> r.allocationId().getId())
                     .collect(Collectors.toSet());
                shard.updateAllocationIdsFromMaster(activeIds, initializingIds);

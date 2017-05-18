@@ -415,7 +415,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     static {
-        assert Version.CURRENT.minimumCompatibilityVersion().after(Version.V_6_0_0_alpha1_UNRELEASED) == false:
+        assert Version.CURRENT.minimumCompatibilityVersion().after(Version.V_6_0_0_alpha1) == false:
                 "Remove logic handling NoOp result from primary response; see TODO in replicaItemExecutionMode" +
                         " as the current minimum compatible version [" +
                         Version.CURRENT.minimumCompatibilityVersion() + "] is after 6.0";

@@ -342,7 +342,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
             batchedReduceSize = in.readVInt();
         }
     }
@@ -362,7 +362,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
-        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
             out.writeVInt(batchedReduceSize);
         }
     }

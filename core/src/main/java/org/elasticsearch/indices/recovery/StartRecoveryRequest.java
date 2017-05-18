@@ -103,7 +103,7 @@ public class StartRecoveryRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
             targetAllocationId = in.readString();
         } else {
             targetAllocationId = null;
@@ -119,7 +119,7 @@ public class StartRecoveryRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
             out.writeString(targetAllocationId);
         }
         sourceNode.writeTo(out);

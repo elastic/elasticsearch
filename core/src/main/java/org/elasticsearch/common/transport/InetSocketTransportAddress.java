@@ -58,15 +58,15 @@ public final class InetSocketTransportAddress implements TransportAddress {
     }
 
     /**
-     * Read from a stream and use the {@code hostString} when creating the InetAddress if the input comes from a version prior
-     * {@link Version#V_5_0_3_UNRELEASED} as the hostString was not serialized
+     * Read from a stream and use the {@code hostString} when creating the InetAddress if the input comes from a version on or prior
+     * {@link Version#V_5_0_2} as the hostString was not serialized
      */
     public InetSocketTransportAddress(StreamInput in, String hostString) throws IOException {
         final int len = in.readByte();
         final byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
         in.readFully(a);
         final InetAddress inetAddress;
-        if (in.getVersion().onOrAfter(Version.V_5_0_3_UNRELEASED)) {
+        if (in.getVersion().after(Version.V_5_0_2)) {
             String host = in.readString();
             inetAddress = InetAddress.getByAddress(host, a); // the host string was serialized so we can ignore the passed in value
         } else {
@@ -83,7 +83,7 @@ public final class InetSocketTransportAddress implements TransportAddress {
         byte[] bytes = address().getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
         out.writeByte((byte) bytes.length); // 1 byte
         out.write(bytes, 0, bytes.length);
-        if (out.getVersion().onOrAfter(Version.V_5_0_3_UNRELEASED)) {
+        if (out.getVersion().after(Version.V_5_0_2)) {
             out.writeString(address.getHostString());
         }
         // don't serialize scope ids over the network!!!!

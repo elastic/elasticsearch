@@ -56,7 +56,7 @@ public class ShardStateIT extends ESIntegTestCase {
         // this forces the primary term to propagate to the replicas
         int id = 0;
         while (true) {
-            // find an ID that routes to the right shard, we will only index to shard that saw a primary failure
+            // find an ID that routes to the right shard, we will only index to the shard that saw a primary failure
             final String idAsString = Integer.toString(id);
             final int hash = Math.floorMod(Murmur3HashFunction.hash(idAsString), 2);
             if (hash == shard) {

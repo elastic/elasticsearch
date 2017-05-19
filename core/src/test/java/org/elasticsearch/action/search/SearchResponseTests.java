@@ -49,7 +49,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SearchResponseTests extends ESTestCase {
@@ -104,7 +103,6 @@ public class SearchResponseTests extends ESTestCase {
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, humanReadable);
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             SearchResponse parsed = SearchResponse.fromXContent(parser);
             assertToXContentEquivalent(originalBytes, XContentHelper.toXContent(parsed, xcontentType, params, humanReadable), xcontentType);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
@@ -129,7 +127,6 @@ public class SearchResponseTests extends ESTestCase {
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, randomBoolean());
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             SearchResponse parsed = SearchResponse.fromXContent(parser);
             for (int i = 0; i < parsed.getShardFailures().length; i++) {
                 ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];

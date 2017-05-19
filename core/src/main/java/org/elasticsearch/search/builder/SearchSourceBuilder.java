@@ -32,6 +32,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -69,7 +70,7 @@ import java.util.Objects;
  *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
-public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable {
+public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable, ToXContentObject {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(SearchSourceBuilder.class));
 
@@ -1098,12 +1099,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (from != -1) {
             builder.field(FROM_FIELD.getPreferredName(), from);
         }
@@ -1199,7 +1194,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         if (aggregations != null) {
             builder.field(AGGREGATIONS_FIELD.getPreferredName(), aggregations);
-            }
+        }
 
         if (highlightBuilder != null) {
             builder.field(HIGHLIGHT_FIELD.getPreferredName(), highlightBuilder);
@@ -1232,6 +1227,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (collapse != null) {
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
+        builder.endObject();
+        return builder;
     }
 
     public static class IndexBoost implements Writeable, ToXContent {

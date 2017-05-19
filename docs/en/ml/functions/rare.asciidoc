@@ -40,17 +40,11 @@ This function supports the following properties:
 * `by_field_name` (required)
 * `over_field_name` (optional)
 * `partition_field_name` (optional)
-* `summary_count_field_name` (optional)
 
 For more information about those properties,
 see <<ml-detectorconfig,Detector Configuration Objects>>.
 
-For example, if you use the following function in a detector in your job, it
-detects values that are rare in time. It models status codes that occur over
-time and detects when rare status codes occur compared to the past. For example,
-you can detect status codes in a web
-access log that have never (or rarely) occurred before.
-
+.Example 1: Analyzing status codes with the rare function
 [source,js]
 --------------------------------------------------
 {
@@ -59,16 +53,12 @@ access log that have never (or rarely) occurred before.
 }
 --------------------------------------------------
 
-If you use the following function in a detector in your job, it
-detects values that are rare in a population. It models status code and client
-IP interactions that occur. It defines a rare status code as one that occurs for
-few client IP values compared to the population. It detects client IP values
-that experience one or more distinct rare status codes compared to the
-population. For example in a web access log, a `clientip` that experiences the
-highest number of different rare status codes compared to the population is
-regarded as highly anomalous. This analysis is based on the number of different
-status code values, not the count of occurrences.
+If you use this `rare` function in a detector in your job, it detects values
+that are rare in time. It models status codes that occur over time and detects
+when rare status codes occur compared to the past. For example, you can detect
+status codes in a web access log that have never (or rarely) occurred before.
 
+.Example 2: Analyzing status codes in a population with the rare function
 [source,js]
 --------------------------------------------------
 {
@@ -78,13 +68,20 @@ status code values, not the count of occurrences.
 }
 --------------------------------------------------
 
+If you use this `rare` function in a detector in your job, it detects values
+that are rare in a population. It models status code and client IP interactions
+that occur. It defines a rare status code as one that occurs for few client IP
+values compared to the population. It detects client IP values that experience
+one or more distinct rare status codes compared to the population. For example
+in a web access log, a `clientip` that experiences the highest number of
+different rare status codes compared to the population is regarded as highly
+anomalous. This analysis is based on the number of different status code values,
+not the count of occurrences.
+
 NOTE: To define a status code as rare the {xpackml} features look at the number
 of distinct status codes that occur, not the number of times the status code
 occurs. If a single client IP experiences a single unique status code, this
 is rare, even if it occurs for that client IP in every bucket.
-
-//TBD: Still pertinent? "Here with rare we look at the number of distinct status codes.""
-
 
 [float]
 [[ml-freq-rare]]
@@ -99,21 +96,11 @@ This function supports the following properties:
 * `by_field_name` (required)
 * `over_field_name` (optional)
 * `partition_field_name` (optional)
-* `summary_count_field_name` (optional)
 
 For more information about those properties,
 see <<ml-detectorconfig,Detector Configuration Objects>>.
 
-For example, if you use the following function in a detector in your job, it
-detects values that are frequently rare in a population. It models URI paths and
-client IP interactions that occur. It defines a rare URI path as one that is
-visited by few client IP values compared to the population. It detects the
-client IP values that experience many interactions with rare URI paths compared
-to the population. For example in a web access log, a client IP that visits
-one or more rare URI paths many times compared to the population is regarded as
-highly anomalous. This analysis is based on the count of interactions with rare
-URI paths, not the number of different URI path values.
-
+.Example 3: Analyzing URI values in a population with the freq_rare function
 [source,js]
 --------------------------------------------------
 {
@@ -123,9 +110,17 @@ URI paths, not the number of different URI path values.
 }
 --------------------------------------------------
 
+If you use this `freq_rare` function in a detector in your job, it
+detects values that are frequently rare in a population. It models URI paths and
+client IP interactions that occur. It defines a rare URI path as one that is
+visited by few client IP values compared to the population. It detects the
+client IP values that experience many interactions with rare URI paths compared
+to the population. For example in a web access log, a client IP that visits
+one or more rare URI paths many times compared to the population is regarded as
+highly anomalous. This analysis is based on the count of interactions with rare
+URI paths, not the number of different URI path values.
+
 NOTE: To define a URI path as rare, the analytics consider the number of
 distinct values that occur and not the number of times the URI path occurs.
 If a single client IP visits a single unique URI path, this is rare, even if it
 occurs for that client IP in every bucket.
-
-//TBD: Still pertinent? "Here with freq_rare we look at the number of times interactions have happened.""

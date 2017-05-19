@@ -67,11 +67,6 @@ public class ParsedSignificantLongTerms extends ParsedSignificantTerms {
         }
 
         @Override
-        public int compareTerm(SignificantTerms.Bucket other) {
-            return key.compareTo(((ParsedBucket) other).key);
-        }
-
-        @Override
         protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             builder.field(CommonFields.KEY.getPreferredName(), key);
             if (super.getKeyAsString() != null) {

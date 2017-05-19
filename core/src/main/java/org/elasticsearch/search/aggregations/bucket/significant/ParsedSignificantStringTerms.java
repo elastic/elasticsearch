@@ -68,11 +68,6 @@ public class ParsedSignificantStringTerms extends ParsedSignificantTerms {
         }
 
         @Override
-        public int compareTerm(SignificantTerms.Bucket other) {
-            return key.compareTo(((ParsedBucket) other).key);
-        }
-
-        @Override
         protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             return builder.field(CommonFields.KEY.getPreferredName(), getKey());
         }

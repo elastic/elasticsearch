@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.SortedSetSelector;
@@ -124,5 +125,10 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
     @Override
     public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger, scriptFunction);
+    }
+
+    @Override
+    public MultiDocValues.OrdinalMap getOrdinalMap() {
+        return null;
     }
 }

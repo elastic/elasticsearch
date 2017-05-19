@@ -173,7 +173,8 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
     private static ParentFieldMapper createParentFieldMapper() {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        return new ParentFieldMapper.Builder("parent").type(PARENT_TYPE).build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+        return new ParentFieldMapper.Builder("parent_type")
+            .type(PARENT_TYPE).build(new Mapper.BuilderContext(settings, new ContentPath(0)));
     }
 
     private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalChildren> verify)

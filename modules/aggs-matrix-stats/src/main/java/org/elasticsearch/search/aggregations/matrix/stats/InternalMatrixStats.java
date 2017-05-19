@@ -161,7 +161,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
-        if (results != null) {
+        if (results != null && results.getFieldCounts().keySet().isEmpty() == false) {
             builder.startArray(Fields.FIELDS);
             for (String fieldName : results.getFieldCounts().keySet()) {
                 builder.startObject();

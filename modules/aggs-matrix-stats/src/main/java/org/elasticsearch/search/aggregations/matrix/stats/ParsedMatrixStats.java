@@ -26,19 +26,20 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
 public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats {
 
-    private Map<String, Long> counts;
-    private Map<String, Double> means;
-    private Map<String, Double> variances;
-    private Map<String, Double> skewness;
-    private Map<String, Double> kurtosis;
-    private Map<String, Map<String, Double>> covariances;
-    private Map<String, Map<String, Double>> correlations;
+    private final Map<String, Long> counts = new LinkedHashMap<>();
+    private final Map<String, Double> means = new HashMap<>();
+    private final Map<String, Double> variances = new HashMap<>();
+    private final Map<String, Double> skewness = new HashMap<>();
+    private final Map<String, Double> kurtosis = new HashMap<>();
+    private final Map<String, Map<String, Double>> covariances = new HashMap<>();
+    private final Map<String, Map<String, Double>> correlations = new HashMap<>();
 
     @Override
     public String getType() {
@@ -52,7 +53,7 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
 
     @Override
     public long getFieldCount(String field) {
-        if (counts == null || counts.containsKey(field) == false) {
+        if (counts.containsKey(field) == false) {
             return 0;
         }
         return counts.get(field);
@@ -60,58 +61,43 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
 
     @Override
     public double getMean(String field) {
-        if (means == null) {
-            return Double.NaN;
-        }
         return checkedGet(means, field);
     }
 
     @Override
     public double getVariance(String field) {
-        if (variances == null) {
-            return Double.NaN;
-        }
         return checkedGet(variances, field);
     }
 
     @Override
     public double getSkewness(String field) {
-        if (skewness == null) {
-            return Double.NaN;
-        }
         return checkedGet(skewness, field);
     }
 
     @Override
     public double getKurtosis(String field) {
-        if (kurtosis == null) {
-            return Double.NaN;
-        }
         return checkedGet(kurtosis, field);
     }
 
     @Override
     public double getCovariance(String fieldX, String fieldY) {
-        if (covariances == null) {
-            return Double.NaN;
+        if (fieldX.equals(fieldY)) {
+            return checkedGet(variances, fieldX);
         }
-        return checkedGet(checkedGet(covariances, fieldX), fieldY);
+        return MatrixStatsResults.getValFromUpperTriangularMatrix(covariances, fieldX, fieldY);
     }
 
     @Override
     public double getCorrelation(String fieldX, String fieldY) {
-        if (correlations == null) {
-            return Double.NaN;
-        }
-        if (fieldX != null && fieldX.equals(fieldY)) {
+        if (fieldX.equals(fieldY)) {
             return 1.0;
         }
-        return checkedGet(checkedGet(correlations, fieldX), fieldY);
+        return MatrixStatsResults.getValFromUpperTriangularMatrix(correlations, fieldX, fieldY);
     }
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        if (counts != null) {
+        if (counts != null && counts.isEmpty() == false) {
             builder.startArray(InternalMatrixStats.Fields.FIELDS);
             for (String fieldName : counts.keySet()) {
                 builder.startObject();
@@ -163,15 +149,6 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
     static {
         declareAggregationFields(PARSER);
         PARSER.declareObjectArray((matrixStats, results) -> {
-            int size = results.size();
-            matrixStats.counts = new LinkedHashMap<>(size);
-            matrixStats.means = new LinkedHashMap<>(size);
-            matrixStats.variances = new LinkedHashMap<>(size);
-            matrixStats.skewness = new LinkedHashMap<>(size);
-            matrixStats.kurtosis = new LinkedHashMap<>(size);
-            matrixStats.covariances = new LinkedHashMap<>(size);
-            matrixStats.correlations = new LinkedHashMap<>(size);
-
             for (ParsedMatrixStatsResult result : results) {
                 final String fieldName = result.name;
                 matrixStats.counts.put(fieldName, result.count);

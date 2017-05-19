@@ -37,16 +37,15 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class IndexShardOperationsLockTests extends ESTestCase {
+public class IndexShardOperationPermitsTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
-    private IndexShardOperationsLock block;
+    private IndexShardOperationPermits permits;
 
     @BeforeClass
     public static void setupThreadPool() {
@@ -61,13 +60,13 @@ public class IndexShardOperationsLockTests extends ESTestCase {
 
     @Before
     public void createIndexShardOperationsLock() {
-         block = new IndexShardOperationsLock(new ShardId("blubb", "id", 0), logger, threadPool);
+         permits = new IndexShardOperationPermits(new ShardId("blubb", "id", 0), logger, threadPool);
     }
 
     @After
     public void checkNoInflightOperations() {
-        assertThat(block.semaphore.availablePermits(), equalTo(Integer.MAX_VALUE));
-        assertThat(block.getActiveOperationsCount(), equalTo(0));
+        assertThat(permits.semaphore.availablePermits(), equalTo(Integer.MAX_VALUE));
+        assertThat(permits.getActiveOperationsCount(), equalTo(0));
     }
 
     public void testAllOperationsInvoked() throws InterruptedException, TimeoutException, ExecutionException {
@@ -87,7 +86,7 @@ public class IndexShardOperationsLockTests extends ESTestCase {
             Thread thread = new Thread() {
                 public void run() {
                     latch.countDown();
-                    block.acquire(future, ThreadPool.Names.GENERIC, true);
+                    permits.acquire(future, ThreadPool.Names.GENERIC, true);
                 }
             };
             futures.add(future);
@@ -123,29 +122,29 @@ public class IndexShardOperationsLockTests extends ESTestCase {
 
     public void testOperationsInvokedImmediatelyIfNoBlock() throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
-        block.acquire(future, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future, ThreadPool.Names.GENERIC, true);
         assertTrue(future.isDone());
         future.get().close();
     }
 
     public void testOperationsIfClosed() throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
-        block.close();
-        block.acquire(future, ThreadPool.Names.GENERIC, true);
+        permits.close();
+        permits.acquire(future, ThreadPool.Names.GENERIC, true);
         ExecutionException exception = expectThrows(ExecutionException.class, future::get);
         assertThat(exception.getCause(), instanceOf(IndexShardClosedException.class));
     }
 
     public void testBlockIfClosed() throws ExecutionException, InterruptedException {
-        block.close();
-        expectThrows(IndexShardClosedException.class, () -> block.blockOperations(randomInt(10), TimeUnit.MINUTES,
+        permits.close();
+        expectThrows(IndexShardClosedException.class, () -> permits.blockOperations(randomInt(10), TimeUnit.MINUTES,
             () -> { throw new IllegalArgumentException("fake error"); }));
     }
 
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
         try (Releasable releasable = blockAndWait()) {
-            block.acquire(future, ThreadPool.Names.GENERIC, true);
+            permits.acquire(future, ThreadPool.Names.GENERIC, true);
             assertFalse(future.isDone());
         }
         future.get(1, TimeUnit.HOURS).close();
@@ -192,8 +191,8 @@ public class IndexShardOperationsLockTests extends ESTestCase {
                 context.putHeader("foo", "bar");
                 context.putTransient("bar", "baz");
                 // test both with and without a executor name
-                block.acquire(future, ThreadPool.Names.GENERIC, true);
-                block.acquire(future2, null, true);
+                permits.acquire(future, ThreadPool.Names.GENERIC, true);
+                permits.acquire(future2, null, true);
             }
             assertFalse(future.isDone());
         }
@@ -209,7 +208,7 @@ public class IndexShardOperationsLockTests extends ESTestCase {
         IndexShardClosedException exception = new IndexShardClosedException(new ShardId("blubb", "id", 0));
         threadPool.generic().execute(() -> {
                 try {
-                    block.blockOperations(1, TimeUnit.MINUTES, () -> {
+                    permits.blockOperations(1, TimeUnit.MINUTES, () -> {
                         try {
                             blockAcquired.countDown();
                             releaseBlock.await();
@@ -241,31 +240,31 @@ public class IndexShardOperationsLockTests extends ESTestCase {
 
     public void testActiveOperationsCount() throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> future1 = new PlainActionFuture<>();
-        block.acquire(future1, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future1, ThreadPool.Names.GENERIC, true);
         assertTrue(future1.isDone());
-        assertThat(block.getActiveOperationsCount(), equalTo(1));
+        assertThat(permits.getActiveOperationsCount(), equalTo(1));
 
         PlainActionFuture<Releasable> future2 = new PlainActionFuture<>();
-        block.acquire(future2, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future2, ThreadPool.Names.GENERIC, true);
         assertTrue(future2.isDone());
-        assertThat(block.getActiveOperationsCount(), equalTo(2));
+        assertThat(permits.getActiveOperationsCount(), equalTo(2));
 
         future1.get().close();
-        assertThat(block.getActiveOperationsCount(), equalTo(1));
+        assertThat(permits.getActiveOperationsCount(), equalTo(1));
         future1.get().close(); // check idempotence
-        assertThat(block.getActiveOperationsCount(), equalTo(1));
+        assertThat(permits.getActiveOperationsCount(), equalTo(1));
         future2.get().close();
-        assertThat(block.getActiveOperationsCount(), equalTo(0));
+        assertThat(permits.getActiveOperationsCount(), equalTo(0));
 
         try (Releasable releasable = blockAndWait()) {
-            assertThat(block.getActiveOperationsCount(), equalTo(0));
+            assertThat(permits.getActiveOperationsCount(), equalTo(0));
         }
 
         PlainActionFuture<Releasable> future3 = new PlainActionFuture<>();
-        block.acquire(future3, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future3, ThreadPool.Names.GENERIC, true);
         assertTrue(future3.isDone());
-        assertThat(block.getActiveOperationsCount(), equalTo(1));
+        assertThat(permits.getActiveOperationsCount(), equalTo(1));
         future3.get().close();
-        assertThat(block.getActiveOperationsCount(), equalTo(0));
+        assertThat(permits.getActiveOperationsCount(), equalTo(0));
     }
 }

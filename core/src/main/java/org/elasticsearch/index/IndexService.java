@@ -612,11 +612,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 rescheduleFsyncTask(durability);
             }
         }
-
-        // update primary terms
-        for (final IndexShard shard : this.shards.values()) {
-            shard.updatePrimaryTerm(metadata.primaryTerm(shard.shardId().id()));
-        }
     }
 
     private void rescheduleFsyncTask(Translog.Durability durability) {

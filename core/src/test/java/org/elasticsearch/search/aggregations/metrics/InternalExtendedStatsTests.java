@@ -37,6 +37,7 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
 
     @Override
     public void setUp() throws Exception {
+        super.setUp();
         this.sigma = randomDoubleBetween(0, 10, true);
     }
 

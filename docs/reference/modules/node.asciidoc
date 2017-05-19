@@ -320,7 +320,7 @@ IMPORTANT: Do not set use the `node.ml` and `xpack.ml.enabled` settings unless
 X-Pack is installed. Otherwise, the node fails to start.
 
 
-[style="float",role=""]
+[float]
 == Node data path settings
 
 [float]
@@ -365,7 +365,7 @@ path. To allow for more than one node (e.g., on your development machine), use t
 WARNING: Never run different node types (i.e. master, data) from the same data directory. This can
 lead to unexpected data loss.
 
-[float, role=""]
+[float]
 == Other node settings
 
 More node settings can be found in <<modules,Modules>>.  Of particular note are

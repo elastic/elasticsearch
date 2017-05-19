@@ -671,7 +671,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         BulkRequest bulkRequest = requestRef.get();
 
         assertEquals(RestStatus.OK, bulkResponse.status());
-        assertTrue(bulkResponse.getTookInMillis() > 0);
+        assertTrue(bulkResponse.getTook().getMillis() > 0);
         assertEquals(nbItems, bulkResponse.getItems().length);
         assertNull(error.get());
 

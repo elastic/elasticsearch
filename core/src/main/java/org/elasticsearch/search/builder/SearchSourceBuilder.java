@@ -1099,12 +1099,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (from != -1) {
             builder.field(FROM_FIELD.getPreferredName(), from);
         }
@@ -1233,6 +1227,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (collapse != null) {
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
+        builder.endObject();
+        return builder;
     }
 
     public static class IndexBoost implements Writeable, ToXContent {

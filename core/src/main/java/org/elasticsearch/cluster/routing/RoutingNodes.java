@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -66,6 +67,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
 
+    private final Map<String, Version> nodesToVersions = new HashMap<>();
+
     private final UnassignedShards unassignedShards = new UnassignedShards(this);
 
     private final Map<ShardId, List<ShardRouting>> assignedShards = new HashMap<>();
@@ -93,6 +96,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // fill in the nodeToShards with the "live" nodes
         for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
             nodesToShards.put(cursor.value.getId(), new LinkedHashMap<>()); // LinkedHashMap to preserve order
+            nodesToVersions.put(cursor.value.getId(), cursor.value.getVersion());
         }
 
         // fill in the inverse of node -> shards allocated
@@ -319,14 +323,26 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /**
      * Returns one active replica shard for the given shard id or <code>null</code> if
      * no active replica is found.
+     *
+     * Since replicas could possibly be on nodes with a newer version of ES than
+     * the primary is, this will return replicas on the lowest version of ES.
      */
     public ShardRouting activeReplica(ShardId shardId) {
+        Version lowestVersionSeen = null;
+        ShardRouting candidate = null;
         for (ShardRouting shardRouting : assignedShards(shardId)) {
             if (!shardRouting.primary() && shardRouting.active()) {
-                return shardRouting;
+                Version replicaNodeVersion = nodesToVersions.get(shardRouting.currentNodeId());
+                if (replicaNodeVersion == null && candidate == null) {
+                    // Only use this replica if there are no other candidates
+                    candidate = shardRouting;
+                } else if (lowestVersionSeen == null || replicaNodeVersion.before(lowestVersionSeen)) {
+                    lowestVersionSeen = replicaNodeVersion;
+                    candidate = shardRouting;
+                }
             }
         }
-        return null;
+        return candidate;
     }
 
     /**

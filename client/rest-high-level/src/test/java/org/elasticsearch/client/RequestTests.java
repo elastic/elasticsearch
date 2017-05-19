@@ -657,7 +657,7 @@ public class RequestTests extends ESTestCase {
         }
 
         SearchSourceBuilder searchSourceBuilder = null;
-        if (randomBoolean()) {
+        if (frequently()) {
             searchSourceBuilder = new SearchSourceBuilder();
             if (randomBoolean()) {
                 searchSourceBuilder.size(randomIntBetween(0, Integer.MAX_VALUE));

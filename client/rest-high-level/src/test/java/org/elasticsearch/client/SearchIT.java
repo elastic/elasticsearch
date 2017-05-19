@@ -67,14 +67,10 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void testSearchNoQuery() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
         assertNull(searchResponse.getAggregations());
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
-        assertEquals(0, searchResponse.getFailedShards());
-        assertEquals(5, searchResponse.getSuccessfulShards());
-        assertEquals(5, searchResponse.getTotalShards());
-        assertEquals(0, searchResponse.getShardFailures().length);
         assertEquals(5, searchResponse.getHits().totalHits);
         assertEquals(5, searchResponse.getHits().getHits().length);
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
@@ -93,14 +89,10 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
         assertNull(searchResponse.getAggregations());
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
-        assertEquals(0, searchResponse.getFailedShards());
-        assertEquals(5, searchResponse.getSuccessfulShards());
-        assertEquals(5, searchResponse.getTotalShards());
-        assertEquals(0, searchResponse.getShardFailures().length);
         assertEquals(1, searchResponse.getHits().totalHits);
         assertEquals(1, searchResponse.getHits().getHits().length);
         assertThat(searchResponse.getHits().getMaxScore(), greaterThan(0f));
@@ -122,15 +114,9 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
-
+        assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
-        assertEquals(0, searchResponse.getFailedShards());
-        assertEquals(5, searchResponse.getSuccessfulShards());
-        assertEquals(5, searchResponse.getTotalShards());
-        assertEquals(0, searchResponse.getShardFailures().length);
-        assertEquals(5, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
         Terms termsAgg = searchResponse.getAggregations().get("agg1");
@@ -163,13 +149,10 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
-        assertEquals(0, searchResponse.getFailedShards());
-        assertEquals(5, searchResponse.getSuccessfulShards());
-        assertEquals(5, searchResponse.getTotalShards());
-        assertEquals(0, searchResponse.getShardFailures().length);
         assertEquals(5, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
@@ -197,13 +180,9 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchRequest.source(searchSourceBuilder);
 
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
         assertNull(searchResponse.getAggregations());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
-        assertEquals(0, searchResponse.getFailedShards());
-        assertEquals(5, searchResponse.getSuccessfulShards());
-        assertEquals(5, searchResponse.getTotalShards());
-        assertEquals(0, searchResponse.getShardFailures().length);
         assertEquals(0, searchResponse.getHits().totalHits);
         assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(0, searchResponse.getHits().getHits().length);
@@ -222,5 +201,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                         .or(equalTo("value3")).or(equalTo("value4")).or(equalTo("value5")));
             }
         }
+    }
+
+    private static void assertSearchHeader(SearchResponse searchResponse) {
+        assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
+        assertEquals(0, searchResponse.getFailedShards());
+        assertThat(searchResponse.getTotalShards(), greaterThan(0));
+        assertEquals(searchResponse.getTotalShards(), searchResponse.getSuccessfulShards());
+        assertEquals(0, searchResponse.getShardFailures().length);
     }
 }

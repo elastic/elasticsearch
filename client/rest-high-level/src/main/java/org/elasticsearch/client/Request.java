@@ -63,7 +63,7 @@ import java.util.StringJoiner;
 
 final class Request {
 
-    private static final XContentType CONTENT_TYPE = XContentType.JSON;
+    private static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
     final String method;
     final String endpoint;
@@ -333,7 +333,7 @@ final class Request {
         }
         HttpEntity entity = null;
         if (searchRequest.source() != null) {
-            entity = createEntity(searchRequest.source(), CONTENT_TYPE);
+            entity = createEntity(searchRequest.source(), REQUEST_BODY_CONTENT_TYPE);
         }
         return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), entity);
     }

@@ -569,7 +569,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testNamedXContents() {
-        List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getNamedXContents();
+        List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
         assertEquals(43, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {

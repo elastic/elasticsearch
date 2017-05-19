@@ -173,7 +173,7 @@ public class RestHighLevelClient {
      */
     protected RestHighLevelClient(RestClient restClient, List<NamedXContentRegistry.Entry> namedXContentEntries) {
         this.client = Objects.requireNonNull(restClient);
-        this.registry = new NamedXContentRegistry(Stream.of(getNamedXContents().stream(), namedXContentEntries.stream())
+        this.registry = new NamedXContentRegistry(Stream.of(getDefaultNamedXContents().stream(), namedXContentEntries.stream())
                 .flatMap(Function.identity()).collect(toList()));
     }
 
@@ -309,7 +309,7 @@ public class RestHighLevelClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
      */
     public SearchResponse search(SearchRequest searchRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, Collections.emptySet(), headers);
+        return performRequestAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, emptySet(), headers);
     }
 
     /**
@@ -318,8 +318,7 @@ public class RestHighLevelClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
      */
     public void searchAsync(SearchRequest searchRequest, ActionListener<SearchResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, listener,
-                Collections.emptySet(), headers);
+        performRequestAsyncAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, listener, emptySet(), headers);
     }
 
     private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
@@ -473,7 +472,7 @@ public class RestHighLevelClient {
         return response.getStatusLine().getStatusCode() == 200;
     }
 
-    static List<NamedXContentRegistry.Entry> getNamedXContents() {
+    static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();
         map.put(CardinalityAggregationBuilder.NAME, (p, c) -> ParsedCardinality.fromXContent(p, (String) c));
         map.put(InternalHDRPercentiles.NAME, (p, c) -> ParsedHDRPercentiles.fromXContent(p, (String) c));
@@ -519,11 +518,11 @@ public class RestHighLevelClient {
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("term"),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(TermSuggestion.NAME),
                 (parser, context) -> TermSuggestion.fromXContent(parser, (String)context)));
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("phrase"),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(PhraseSuggestion.NAME),
                 (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("completion"),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestion.NAME),
                 (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
         return entries;
     }

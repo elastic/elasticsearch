@@ -82,9 +82,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                         query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
                     }
                 }
-                if (query.fieldName().equals(DATE_RANGE_FIELD_NAME)) {
-                    query.relation(RandomPicks.randomFrom(random(), ShapeRelation.values()).getRelationName());
-                }
                 break;
             case 2:
             default:
@@ -99,6 +96,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         }
         if (randomBoolean()) {
             query.to(null);
+        }
+        if (query.fieldName().equals(INT_RANGE_FIELD_NAME) || query.fieldName().equals(DATE_RANGE_FIELD_NAME)) {
+            query.relation(RandomPicks.randomFrom(random(), ShapeRelation.values()).getRelationName());
         }
         return query;
     }

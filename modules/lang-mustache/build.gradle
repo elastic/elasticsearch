@@ -28,8 +28,5 @@ dependencies {
 }
 
 integTestCluster {
-  setting 'script.inline', 'true'
-  setting 'script.stored', 'true'
   setting 'script.max_compilations_per_minute', '1000'
-  setting 'path.scripts', "${project.buildDir}/resources/test/templates"
 }

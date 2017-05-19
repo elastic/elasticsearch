@@ -338,7 +338,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         Map<String, Object> parameters = new HashMap<>();
         parameters.put("param1", 5);
         scriptQuery(new Script(
-                ScriptType.FILE,                                     // <1>
+                ScriptType.STORED,                                   // <1>
                 "painless",                                          // <2>
                 "myscript",                                          // <3>
                 singletonMap("param1", 5)));                         // <4>

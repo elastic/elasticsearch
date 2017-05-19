@@ -5,7 +5,7 @@
 
   - do:
       put_script:
-        lang: "1"
+        id: "1"
         body: { "script": {"lang": "painless", "code": "_score * doc['myParent.weight'].value" } }
   - match: { acknowledged: true }
 
@@ -37,11 +37,11 @@
   - do:
       catch: request
       put_script:
-        lang: "1"
+        id: "1"
         body: { "script": {"lang": "painless", "code": "_score * foo bar + doc['myParent.weight'].value"} }
 
   - do:
       catch: /compile error/
       put_script:
-        lang: "1"
+        id: "1"
         body: { "script": {"lang": "painless", "code": "_score * foo bar + doc['myParent.weight'].value"} }

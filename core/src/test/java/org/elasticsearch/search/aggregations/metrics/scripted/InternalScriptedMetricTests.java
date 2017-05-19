@@ -28,7 +28,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -67,9 +66,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
      */
     @Override
     protected ScriptService mockScriptService() {
-        Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .build();
         // mock script always retuns the size of the input aggs list as result
         @SuppressWarnings("unchecked")
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
@@ -78,10 +74,8 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
                 }));
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(scriptEngine));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         try {
-            return new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry,
-                    scriptSettings);
+            return new ScriptService(Settings.EMPTY, scriptEngineRegistry, scriptContextRegistry);
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         }

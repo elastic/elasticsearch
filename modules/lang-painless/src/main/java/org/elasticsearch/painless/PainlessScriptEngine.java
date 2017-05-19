@@ -94,15 +94,6 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
     }
 
     /**
-     * Get the extension(s) for the language.
-     * @return Always contains only the single extension of the language.
-     */
-    @Override
-    public String getExtension() {
-        return NAME;
-    }
-
-    /**
      * When a script is anonymous (inline), we give it this name.
      */
     static final String INLINE_NAME = "<inline>";

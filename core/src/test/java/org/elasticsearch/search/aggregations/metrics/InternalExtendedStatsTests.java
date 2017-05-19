@@ -27,16 +27,16 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExte
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ParsedExtendedStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
 
 public class InternalExtendedStatsTests extends InternalAggregationTestCase<InternalExtendedStats> {
-    protected double sigma;
 
-    @Before
-    public void randomSigma() {
+    private double sigma;
+
+    @Override
+    public void setUp() throws Exception {
         this.sigma = randomDoubleBetween(0, 10, true);
     }
 

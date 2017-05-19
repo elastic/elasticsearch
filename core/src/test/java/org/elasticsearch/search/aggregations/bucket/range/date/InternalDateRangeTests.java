@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalRangeTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,7 +42,6 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
     private List<Tuple<Double, Double>> dateRanges;
 
     @Override
-    @Before
     public void setUp() throws Exception {
         super.setUp();
         format = randomNumericDocValueFormat();

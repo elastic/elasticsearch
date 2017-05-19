@@ -151,4 +151,15 @@ public class VersionUtilsTests extends ESTestCase {
                 TestAlphaBranch.V_6_0_0_alpha2), released);
         assertEquals(Arrays.asList(TestAlphaBranch.V_5_3_2, TestAlphaBranch.V_5_4_0), unreleased);
     }
+
+    /**
+     * Test that the released inference logic produces expected "unreleased"
+     * versions. This test will fail every time we create a new version
+     * constant and it should be upgraded by hand. Take this opportunity to
+     * make sure that it lines up with reality.
+     */
+    public void testUnreleaseCurrent() {
+        List<Version> unreleased = VersionUtils.resolveReleasedVersions(Version.CURRENT, Version.class).v2();
+        assertEquals(Arrays.asList(Version.V_5_4_1, Version.V_5_5_0), unreleased);
+    }
 }

@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
@@ -32,7 +31,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
@@ -921,9 +919,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // That can be done out of mutex, since the engine can be closed half way.
                 Engine engine = getEngineOrNull();
                 if (engine == null) {
-                    try (Lock ignored = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-                        return store.getMetadata(null);
-                    }
+                    return store.getMetadata(null, true);
                 }
             }
             indexCommit = deletionPolicy.snapshot();

@@ -45,7 +45,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
@@ -64,7 +63,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.common.xcontent.XContentHelper.update;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -145,15 +143,12 @@ public class UpdateRequestTests extends ESTestCase {
         final ScriptEngineRegistry scriptEngineRegistry =
                 new ScriptEngineRegistry(singletonList(engine));
 
-        final ScriptSettings scriptSettings =
-                new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         final ResourceWatcherService watcherService =
                 new ResourceWatcherService(baseSettings, null);
         ScriptService scriptService = new ScriptService(
                 baseSettings,
                 scriptEngineRegistry,
-                scriptContextRegistry,
-                scriptSettings);
+                scriptContextRegistry);
         final Settings settings = settings(Version.CURRENT).build();
 
         updateHelper = new UpdateHelper(settings, scriptService);

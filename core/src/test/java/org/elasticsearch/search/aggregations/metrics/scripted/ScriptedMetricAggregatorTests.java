@@ -38,7 +38,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.junit.BeforeClass;
@@ -201,10 +200,9 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS);
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(scriptEngine));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ScriptService scriptService;
         try {
-            scriptService =  new ScriptService(Settings.EMPTY, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+            scriptService =  new ScriptService(Settings.EMPTY, scriptEngineRegistry, scriptContextRegistry);
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         }

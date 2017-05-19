@@ -19,18 +19,15 @@
 
 package org.elasticsearch.ingest;
 
-import java.util.Arrays;
-import java.util.Collections;
-
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+
+import java.util.Collections;
 
 public abstract class AbstractScriptTestCase extends ESTestCase {
 
@@ -38,11 +35,9 @@ public abstract class AbstractScriptTestCase extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(new MustacheScriptEngine()));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new MustacheScriptEngine()));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptEngineRegistry, scriptContextRegistry);
         templateService = new InternalTemplateService(scriptService);
     }
 

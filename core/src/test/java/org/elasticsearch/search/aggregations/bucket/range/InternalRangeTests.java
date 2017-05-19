@@ -43,7 +43,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
         format = randomNumericDocValueFormat();
 
         final int interval = randomFrom(1, 5, 10, 25, 50, 100);
-        final int numRanges = 1;//randomIntBetween(1, 10);
+        final int numRanges = randomIntBetween(1, 10);
 
         List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
         for (int i = 0; i < numRanges; i++) {

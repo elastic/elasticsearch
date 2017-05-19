@@ -93,7 +93,8 @@ security of the Elasticsearch deployment.
 
 By default all script types are allowed to be executed.  This can be modified using the
 setting `script.allowed_types`.  Only the types specified as part of the setting will be
-allowed to be executed.
+allowed to be executed.  To specify no types are allowed, set `scripts.allowed_types` to
+be `none`.
 
 [source,yaml]
 ----
@@ -108,7 +109,8 @@ script.allowed_types: inline <1>
 
 By default all script contexts are allowed to be executed.  This can be modified using the
 setting `script.allowed_contexts`.  Only the contexts specified as part of the setting will
-be allowed to be executed.
+be allowed to be executed.  To specify no contexts are allowed, set `scripts.allowed_contexts`
+to be `none`.
 
 [source,yaml]
 ----
@@ -116,105 +118,3 @@ script.allowed_contexts: search, update <1>
 ----
 <1> This will allow only search and update scripts to be executed but not
 aggs or plugin scripts (or any other contexts).
-
-[[deprecated-script=settings]]
-[float]
-=== Deprecated script settings
-
-The following settings have all been deprecated and will be removed in 6.0:
-
- * <<security-script-source>>
- * <<security-script-context>>
- * <<security-script-fine>>
-
-Use the following instead:
-
- * <<allowed-script-types-setting>>
- * <<allowed-script-contexts-setting>>
-
-[[security-script-source]]
-[float]
-=== Script source settings
-
-Which scripts Elasticsearch will execute where is controlled by settings
-starting with `scripts.`. The simplest settings allow scripts to be enabled
-or disabled based on where they are stored. For example:
-
-[source,yaml]
------------------------------------
-script.inline: false  <1>
-script.stored: false  <2>
------------------------------------
-<1> Refuse to run scripts provided inline in the API.
-<2> Refuse to run scripts stored using the API.
-
-NOTE: These settings override the defaults mentioned
-<<modules-scripting-security-do-no-weaken, above>>. Recreating the defaults
-requires more fine grained settings described <<security-script-fine, below>>.
-
-[[security-script-context]]
-[float]
-=== Script context settings
-
-Scripting may also be enabled or disabled in different contexts in the
-Elasticsearch API. The supported contexts are:
-
-[horizontal]
-`aggs`::    Aggregations
-`search`::  Search api, Percolator API and Suggester API
-`update`::  Update api
-`plugin`::  Any plugin that makes use of scripts under the generic `plugin` category
-
-Plugins can also define custom operations that they use scripts for instead
-of using the generic `plugin` category. Those operations can be referred to
-in the following form: `${pluginName}_${operation}`.
-
-The following example disables scripting for `update` and `plugin` operations,
-regardless of the script source or language. Scripts can still be executed
-as part of `aggregations`, `search` and plugins execution though, as the above
-defaults still get applied.
-
-[source,yaml]
------------------------------------
-script.update: false
-script.plugin: false
------------------------------------
-
-[[security-script-fine]]
-[float]
-=== Fine-grained script settings
-
-First, the high-level script settings described above are applied in order
-(context settings have precedence over source settings). Then fine-grained
-settings which include the script language take precedence over any high-level
-settings. They have two forms:
-
-[source,yaml]
-------------------------
-script.engine.{lang}.{inline|stored}.{context}: true|false
-------------------------
-
-And
-
-[source,yaml]
-------------------------
-script.engine.{lang}.{inline|stored}: true|false
-------------------------
-
-For example:
-
-[source,yaml]
------------------------------------
-script.inline: false <1>
-script.stored: false <1>
-
-script.engine.painless.inline:          true <2>
-script.engine.painless.stored.search:   true <3>
-script.engine.painless.stored.aggs:     true <3>
-
-script.engine.mustache.stored.search:   true <4>
------------------------------------
-<1> Disable all scripting from any source.
-<2> Allow inline Painless scripts for all operations.
-<3> Allow stored Painless scripts to be used for search and aggregations.
-<4> Allow stored Mustache templates to be used for search.

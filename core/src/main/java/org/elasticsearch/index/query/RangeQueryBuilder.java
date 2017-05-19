@@ -495,9 +495,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
                 query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,
                         timeZone, getForceDateParser(), context);
-            } else if (mapper instanceof RangeFieldMapper.RangeFieldType && mapper.typeName() == RangeFieldMapper.RangeType.DATE.name) {
+            } else if (mapper instanceof RangeFieldMapper.RangeFieldType) {
                 DateMathParser forcedDateParser = null;
-                if (this.format != null) {
+                if (mapper.typeName() == RangeFieldMapper.RangeType.DATE.name && this.format != null) {
                     forcedDateParser = new DateMathParser(this.format);
                 }
                 query = ((RangeFieldMapper.RangeFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,

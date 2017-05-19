@@ -69,6 +69,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         authzService = mock(AuthorizationService.class);
         channel = mock(TransportChannel.class);
         when(channel.getProfileName()).thenReturn(TransportSettings.DEFAULT_PROFILE);
+        when(channel.getVersion()).thenReturn(Version.CURRENT);
         failDestructiveOperations = randomBoolean();
         Settings settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), failDestructiveOperations).build();

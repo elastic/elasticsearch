@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,7 +36,6 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
     private List<String> keys;
 
     @Override
-    @Before
     public void setUp() throws Exception {
         super.setUp();
         keyed = randomBoolean();

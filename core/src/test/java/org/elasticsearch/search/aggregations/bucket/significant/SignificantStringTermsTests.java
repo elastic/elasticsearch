@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHSc
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -43,7 +42,6 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
     private SignificanceHeuristic significanceHeuristic;
 
     @Override
-    @Before
     public void setUp() throws Exception {
         super.setUp();
         significanceHeuristic = randomSignificanceHeuristic();

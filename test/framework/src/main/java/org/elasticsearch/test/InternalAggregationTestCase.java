@@ -297,18 +297,11 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     public final void testFromXContent() throws IOException {
         final T aggregation = createTestInstance();
-
-        //norelease Remove this assumption when all aggregations can be parsed back.
-        assumeTrue("This test does not support the aggregation type yet",
-                getNamedXContents().stream().filter(entry -> entry.name.match(aggregation.getType())).count() > 0);
-
         final Aggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean());
         assertFromXContent(aggregation, (ParsedAggregation) parsedAggregation);
     }
 
-    //norelease TODO make abstract
-    protected void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException {
-    }
+    protected abstract void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException;
 
     @SuppressWarnings("unchecked")
     protected <P extends ParsedAggregation> P parseAndAssert(final InternalAggregation aggregation,

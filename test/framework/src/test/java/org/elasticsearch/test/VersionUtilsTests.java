@@ -162,4 +162,6 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> unreleased = VersionUtils.resolveReleasedVersions(Version.CURRENT, Version.class).v2();
         assertEquals(Arrays.asList(Version.V_5_4_1, Version.V_5_5_0), unreleased);
     }
+
+    // TODO add a test that compares gradle and VersionUtils.java in a followup
 }

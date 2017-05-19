@@ -664,7 +664,7 @@ With the task id you can look up the task directly:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/taskId:1
+GET /_tasks/nodeId:taskId
 --------------------------------------------------
 // CONSOLE
 // TEST[catch:missing]
@@ -685,7 +685,7 @@ Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id:1/_cancel
+POST _tasks/node_id:task_id/_cancel
 --------------------------------------------------
 // CONSOLE
 
@@ -704,7 +704,7 @@ the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _reindex/task_id:1/_rethrottle?requests_per_second=-1
+POST _reindex/node_id:task_id/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
 

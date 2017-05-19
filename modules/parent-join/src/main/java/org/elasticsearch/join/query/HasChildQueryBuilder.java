@@ -34,9 +34,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -48,7 +49,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -324,9 +324,10 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter(context));
 
-        final ParentChildIndexFieldData parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
+        final MappedFieldType parentFieldType = parentDocMapper.parentFieldMapper().getParentJoinFieldType();
+        final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(parentFieldType);
         return new LateParsingQuery(parentDocMapper.typeFilter(context), innerQuery, minChildren(), maxChildren(),
-                                    parentType, scoreMode, parentChildIndexFieldData, context.getSearchSimilarity());
+            parentType, scoreMode, fieldData, context.getSearchSimilarity());
     }
 
     /**
@@ -347,19 +348,19 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         private final int maxChildren;
         private final String parentType;
         private final ScoreMode scoreMode;
-        private final ParentChildIndexFieldData parentChildIndexFieldData;
+        private final SortedSetDVOrdinalsIndexFieldData fieldDataJoin;
         private final Similarity similarity;
 
         LateParsingQuery(Query toQuery, Query innerQuery, int minChildren, int maxChildren,
-                         String parentType, ScoreMode scoreMode, ParentChildIndexFieldData parentChildIndexFieldData,
-                         Similarity similarity) {
+                         String parentType, ScoreMode scoreMode,
+                         SortedSetDVOrdinalsIndexFieldData fieldData, Similarity similarity) {
             this.toQuery = toQuery;
             this.innerQuery = innerQuery;
             this.minChildren = minChildren;
             this.maxChildren = maxChildren;
             this.parentType = parentType;
             this.scoreMode = scoreMode;
-            this.parentChildIndexFieldData = parentChildIndexFieldData;
+            this.fieldDataJoin = fieldData;
             this.similarity = similarity;
         }
 
@@ -374,10 +375,10 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 IndexSearcher indexSearcher = new IndexSearcher(reader);
                 indexSearcher.setQueryCache(null);
                 indexSearcher.setSimilarity(similarity);
-                IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal((DirectoryReader) reader);
-                MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);
+                IndexOrdinalsFieldData indexParentChildFieldData = fieldDataJoin.loadGlobal((DirectoryReader) reader);
+                MultiDocValues.OrdinalMap ordinalMap = indexParentChildFieldData.getOrdinalMap();
                 return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode,
-                        ordinalMap, minChildren, maxChildren);
+                    ordinalMap, minChildren, maxChildren);
             } else {
                 if (reader.leaves().isEmpty() && reader.numDocs() == 0) {
                     // asserting reader passes down a MultiReader during rewrite which makes this
@@ -387,7 +388,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     return new MatchNoDocsQuery();
                 }
                 throw new IllegalStateException("can't load global ordinals for reader of type: " +
-                        reader.getClass() + " must be a DirectoryReader");
+                    reader.getClass() + " must be a DirectoryReader");
             }
         }
 

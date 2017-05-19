@@ -26,11 +26,11 @@ group = 'org.elasticsearch.client'
 dependencies {
   compile "org.elasticsearch:elasticsearch:${version}"
   compile "org.elasticsearch.client:rest:${version}"
+  compile "org.elasticsearch.plugin:parent-join-client:${version}"
+  compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
 
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "org.elasticsearch.test:framework:${version}"
-  // for parent/child testing
-  testCompile "org.elasticsearch.plugin:parent-join-client:${version}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"

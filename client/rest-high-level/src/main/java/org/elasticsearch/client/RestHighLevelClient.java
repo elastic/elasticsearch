@@ -46,6 +46,8 @@ import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
+import org.elasticsearch.join.aggregations.ParsedChildren;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -87,6 +89,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.matrix.stats.ParsedMatrixStats;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.ParsedAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
@@ -515,6 +519,8 @@ public class RestHighLevelClient {
         map.put(SignificantLongTerms.NAME, (p, c) -> ParsedSignificantLongTerms.fromXContent(p, (String) c));
         map.put(SignificantStringTerms.NAME, (p, c) -> ParsedSignificantStringTerms.fromXContent(p, (String) c));
         map.put(ScriptedMetricAggregationBuilder.NAME, (p, c) -> ParsedScriptedMetric.fromXContent(p, (String) c));
+        map.put(ChildrenAggregationBuilder.NAME, (p, c) -> ParsedChildren.fromXContent(p, (String) c));
+        map.put(MatrixStatsAggregationBuilder.NAME, (p, c) -> ParsedMatrixStats.fromXContent(p, (String) c));
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());

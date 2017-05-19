@@ -117,7 +117,7 @@ Closure setAwsCreds = {
       break;
     } catch (AmazonServiceException e) {
       if (e.getStatusCode() != 403 || retries == 0) {
-        throw new GradleException('Could not access ml-cpp artifacts. Timed out after 60 attempts', e)
+        throw new GradleException('Could not access ml-cpp artifacts. Timed out after 60 seconds', e)
       }
     }
     sleep(500)
@@ -279,6 +279,10 @@ forbiddenPatterns {
 task extractNativeLicenses(type: Copy) {
   into "${buildDir}"
   include 'platform/licenses/**'
+  // This is to reduce the risk of credentials used to access the native bundle not
+  // having propagated throughout AWS by the time it's downloaded; the time needed
+  // to compile the Java is extra time during which the propagation can take place
+  shouldRunAfter compileJava
 }
 
 // TODO: standardize packaging config for plugins

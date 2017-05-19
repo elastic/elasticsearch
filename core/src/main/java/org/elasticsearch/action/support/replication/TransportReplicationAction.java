@@ -177,8 +177,8 @@ public abstract class TransportReplicationAction<
             Request shardRequest, IndexShard primary) throws Exception;
 
     /**
-     * Synchronous replica operation on nodes with replica copies. This is done under the lock form
-     * {@link IndexShard#acquireReplicaOperationPermit(long, ActionListener, String)}
+     * Synchronously execute the specified replica operation. This is done under a permit from
+     * {@link IndexShard#acquireReplicaOperationPermit(long, ActionListener, String)}.
      *
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on

@@ -133,6 +133,9 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         assertTrue(parsedAggregation instanceof ParsedMatrixStats);
         ParsedMatrixStats actual = (ParsedMatrixStats) parsedAggregation;
 
+        //norelease add parsing logic for doc count and enable this test once elastic/elasticsearch#24776 is merged
+        //assertEquals(expected.getDocCount(), actual.getDocCount());
+
         for (String field : fields) {
             assertEquals(expected.getFieldCount(field), actual.getFieldCount(field));
             assertEquals(expected.getMean(field), actual.getMean(field), 0.0);

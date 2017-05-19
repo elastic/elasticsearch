@@ -57,19 +57,20 @@ public class VersionUtils {
         List<Version> versions = new ArrayList<>(fields.length);
         for (final Field field : fields) {
             final int mod = field.getModifiers();
-            if (Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
-                if (field.getType() != Version.class) {
-                    continue;
-                }
-                assert field.getName().matches("(V(_\\d+)+(_(alpha|beta|rc)\\d+)?|CURRENT)") : field.getName();
-                if (false == VERSION_NAME.matcher(field.getName()).matches()) {
-                    continue;
-                }
-                try {
-                    versions.add(((Version) field.get(null)));
-                } catch (final IllegalAccessException e) {
-                    throw new RuntimeException(e);
-                }
+            if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
+                continue;
+            }
+            if (field.getType() != Version.class) {
+                continue;
+            }
+            assert field.getName().matches("(V(_\\d+)+(_(alpha|beta|rc)\\d+)?|CURRENT)") : field.getName();
+            if (false == VERSION_NAME.matcher(field.getName()).matches()) {
+                continue;
+            }
+            try {
+                versions.add(((Version) field.get(null)));
+            } catch (final IllegalAccessException e) {
+                throw new RuntimeException(e);
             }
         }
         Collections.sort(versions);

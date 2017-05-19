@@ -222,7 +222,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     public static SearchResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
         XContentParser.Token token;
         String currentFieldName = null;
         SearchHits hits = null;

@@ -1859,8 +1859,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false);
     }
 
-    private final AtomicLong pendingPrimaryTerm = new AtomicLong();
-
     /**
      * Acquire a replica operation permit whenever the shard is ready for indexing (see
      * {@link #acquirePrimaryOperationPermit(ActionListener, String)}). If the given primary term is lower than then one in

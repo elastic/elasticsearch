@@ -106,7 +106,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             Property.NodeScope);
     public static final Setting<Boolean> MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING =
             Setting.boolSetting("discovery.zen.master_election.ignore_non_master_pings", false, Property.NodeScope);
-    public static final Setting<Integer> MAX_PENDING_CLUSTER_STATES =
+    public static final Setting<Integer> MAX_PENDING_CLUSTER_STATES_SETTING =
         Setting.intSetting("discovery.zen.publish.max_pending_cluster_states", 25, 1, Property.NodeScope);
 
     public static final String DISCOVERY_REJOIN_ACTION_NAME = "internal:discovery/zen/rejoin";
@@ -203,7 +203,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.masterFD.addListener(new MasterNodeFailureListener());
         this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterName);
         this.nodesFD.addListener(new NodeFaultDetectionListener());
-        this.pendingStatesQueue = new PendingClusterStatesQueue(logger, MAX_PENDING_CLUSTER_STATES.get(settings));
+        this.pendingStatesQueue = new PendingClusterStatesQueue(logger, MAX_PENDING_CLUSTER_STATES_SETTING.get(settings));
 
         this.publishClusterState =
                 new PublishClusterStateAction(

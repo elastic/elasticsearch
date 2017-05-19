@@ -74,7 +74,8 @@ public class PublishClusterStateAction extends AbstractComponent {
     public interface IncomingClusterStateListener {
 
         /**
-         * called when a new incoming cluster state has been received
+         * called when a new incoming cluster state has been received.
+         * Should validate the incoming state and throw an exception if it's not a valid successor state.
          */
         void onIncomingClusterState(ClusterState incomingState);
 

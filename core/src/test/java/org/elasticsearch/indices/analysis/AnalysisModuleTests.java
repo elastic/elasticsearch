@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -37,12 +36,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
+import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -57,7 +56,6 @@ import org.hamcrest.MatcherAssert;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -164,18 +162,6 @@ public class AnalysisModuleTests extends ESTestCase {
         assertEquals(org.apache.lucene.util.Version.fromBits(3,6,0), indexAnalyzers.get("custom7").analyzer().getVersion());
     }
 
-    private void assertTokenFilter(String name, Class<?> clazz) throws IOException {
-        Settings settings = Settings.builder()
-                               .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                               .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
-        TokenFilterFactory tokenFilter = analysis.tokenFilter.get(name);
-        Tokenizer tokenizer = new WhitespaceTokenizer();
-        tokenizer.setReader(new StringReader("foo bar"));
-        TokenStream stream = tokenFilter.create(tokenizer);
-        assertThat(stream, instanceOf(clazz));
-    }
-
     private void testSimpleConfiguration(Settings settings) throws IOException {
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(settings);
         Analyzer analyzer = indexAnalyzers.get("custom1").analyzer();
@@ -269,27 +255,6 @@ public class AnalysisModuleTests extends ESTestCase {
      * and that do not vary based on version at all.
      */
     public void testPluginPreConfiguredTokenFilters() throws IOException {
-        // Simple token filter that appends text to the term
-        final class AppendTokenFilter extends TokenFilter {
-            private final CharTermAttribute term = addAttribute(CharTermAttribute.class);
-            private final char[] appendMe;
-
-            protected AppendTokenFilter(TokenStream input, String appendMe) {
-                super(input);
-                this.appendMe = appendMe.toCharArray();
-            }
-
-            @Override
-            public boolean incrementToken() throws IOException {
-                if (false == input.incrementToken()) {
-                    return false;
-                }
-                term.resizeBuffer(term.length() + appendMe.length);
-                System.arraycopy(appendMe, 0, term.buffer(), term.length(), appendMe.length);
-                term.setLength(term.length() + appendMe.length);
-                return true;
-            }
-        }
         boolean noVersionSupportsMultiTerm = randomBoolean();
         boolean luceneVersionSupportsMultiTerm = randomBoolean();
         boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
@@ -329,6 +294,82 @@ public class AnalysisModuleTests extends ESTestCase {
                 analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString());
     }
 
+    /**
+     * Tests that plugins can register pre-configured token filters that vary in behavior based on Elasticsearch version, Lucene version,
+     * and that do not vary based on version at all.
+     */
+    public void testPluginPreConfiguredTokenizers() throws IOException {
+        boolean noVersionSupportsMultiTerm = randomBoolean();
+        boolean luceneVersionSupportsMultiTerm = randomBoolean();
+        boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
+
+        // Simple tokenizer that always spits out a single token with some preconfigured characters
+        final class FixedTokenizer extends Tokenizer {
+            private final CharTermAttribute term = addAttribute(CharTermAttribute.class);
+            private final char[] chars;
+            private boolean read = false;
+
+            protected FixedTokenizer(String chars) {
+                this.chars = chars.toCharArray();
+            }
+
+            @Override
+            public boolean incrementToken() throws IOException {
+                if (read) {
+                    return false;
+                }
+                clearAttributes();
+                read = true;
+                term.resizeBuffer(chars.length);
+                System.arraycopy(chars, 0, term.buffer(), 0, chars.length);
+                term.setLength(chars.length);
+                return true;
+            }
+
+            @Override
+            public void reset() throws IOException {
+                super.reset();
+                read = false;
+            }
+        }
+        AnalysisRegistry registry = new AnalysisModule(new Environment(emptyNodeSettings), singletonList(new AnalysisPlugin() {
+            @Override
+            public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
+                return Arrays.asList(
+                        PreConfiguredTokenizer.singleton("no_version", () -> new FixedTokenizer("no_version"),
+                                noVersionSupportsMultiTerm ? () -> AppendTokenFilter.factoryForSuffix("no_version") : null),
+                        PreConfiguredTokenizer.luceneVersion("lucene_version",
+                                luceneVersion -> new FixedTokenizer(luceneVersion.toString()),
+                                luceneVersionSupportsMultiTerm ?
+                                        luceneVersion -> AppendTokenFilter.factoryForSuffix(luceneVersion.toString()) : null),
+                        PreConfiguredTokenizer.elasticsearchVersion("elasticsearch_version",
+                                esVersion -> new FixedTokenizer(esVersion.toString()),
+                                elasticsearchVersionSupportsMultiTerm ?
+                                        esVersion -> AppendTokenFilter.factoryForSuffix(esVersion.toString()) : null)
+                        );
+            }
+        })).getAnalysisRegistry();
+
+        Version version = VersionUtils.randomVersion(random());
+        IndexAnalyzers analyzers = getIndexAnalyzers(registry, Settings.builder()
+                .put("index.analysis.analyzer.no_version.tokenizer", "no_version")
+                .put("index.analysis.analyzer.lucene_version.tokenizer", "lucene_version")
+                .put("index.analysis.analyzer.elasticsearch_version.tokenizer", "elasticsearch_version")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .build());
+        assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] {"no_version"});
+        assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] {version.luceneVersion.toString()});
+        assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] {version.toString()});
+
+        // These are current broken by https://github.com/elastic/elasticsearch/issues/24752
+//        assertEquals("test" + (noVersionSupportsMultiTerm ? "no_version" : ""),
+//                analyzers.get("no_version").normalize("", "test").utf8ToString());
+//        assertEquals("test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
+//                analyzers.get("lucene_version").normalize("", "test").utf8ToString());
+//        assertEquals("test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
+//                analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString());
+    }
+
     public void testRegisterHunspellDictionary() throws Exception {
         Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -349,4 +390,41 @@ public class AnalysisModuleTests extends ESTestCase {
         }));
         assertSame(dictionary, module.getHunspellService().getDictionary("foo"));
     }
+
+    // Simple token filter that appends text to the term
+    private static class AppendTokenFilter extends TokenFilter {
+        public static TokenFilterFactory factoryForSuffix(String suffix) {
+            return new TokenFilterFactory() {
+                @Override
+                public String name() {
+                    return suffix;
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    return new AppendTokenFilter(tokenStream, suffix);
+                }
+            };
+        }
+
+        private final CharTermAttribute term = addAttribute(CharTermAttribute.class);
+        private final char[] appendMe;
+
+        protected AppendTokenFilter(TokenStream input, String appendMe) {
+            super(input);
+            this.appendMe = appendMe.toCharArray();
+        }
+
+        @Override
+        public boolean incrementToken() throws IOException {
+            if (false == input.incrementToken()) {
+                return false;
+            }
+            term.resizeBuffer(term.length() + appendMe.length);
+            System.arraycopy(appendMe, 0, term.buffer(), term.length(), appendMe.length);
+            term.setLength(term.length() + appendMe.length);
+            return true;
+        }
+    }
+
 }

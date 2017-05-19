@@ -93,8 +93,11 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
             });
     }
 
-    // public for use in tests
-    public ClusterState updateAliasesInClusterState(ClusterState currentState, Iterable<AliasAction> actions) {
+    /**
+     * Updates the given cluster state with the requested {@link AliasAction}s to perform
+     * and returns a new cluster state.
+     */
+    public final ClusterState updateAliasesInClusterState(ClusterState currentState, Iterable<AliasAction> actions) {
         List<Index> indicesToClose = new ArrayList<>();
         Map<String, IndexService> indices = new HashMap<>();
         try {

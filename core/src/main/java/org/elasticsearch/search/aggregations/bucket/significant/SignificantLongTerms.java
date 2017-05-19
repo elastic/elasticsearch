@@ -77,11 +77,6 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
         }
 
         @Override
-        public int compareTerm(SignificantTerms.Bucket other) {
-            return Long.compare(term, ((Number) other.getKey()).longValue());
-        }
-
-        @Override
         public String getKeyAsString() {
             return format.format(term);
         }

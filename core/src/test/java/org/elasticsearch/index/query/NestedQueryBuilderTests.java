@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -109,6 +111,20 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
             assertEquals(innerHits.sort().sort.getSort().length, 1);
             assertEquals(innerHits.sort().sort.getSort()[0].getField(), INT_FIELD_NAME);
+        }
+    }
+
+    /**
+     * Test (de)serialization on all previous released versions
+     */
+    public void testSerializationBWC() throws IOException {
+        for (Version version : VersionUtils.allReleasedVersions()) {
+            NestedQueryBuilder testQuery = createTestQueryBuilder();
+            if (version.before(Version.V_5_2_0_UNRELEASED) && testQuery.innerHit() != null) {
+                // ignore unmapped for inner_hits has been added on 5.2
+                testQuery.innerHit().setIgnoreUnmapped(false);
+            }
+            assertSerialization(testQuery, version);
         }
     }
 

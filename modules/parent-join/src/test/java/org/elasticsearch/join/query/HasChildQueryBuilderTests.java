@@ -57,6 +57,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -159,6 +160,20 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
             assertEquals(innerHits.sort().sort.getSort().length, 1);
             assertEquals(innerHits.sort().sort.getSort()[0].getField(), STRING_FIELD_NAME_2);
+        }
+    }
+
+    /**
+     * Test (de)serialization on all previous released versions
+     */
+    public void testSerializationBWC() throws IOException {
+        for (Version version : VersionUtils.allReleasedVersions()) {
+            HasChildQueryBuilder testQuery = createTestQueryBuilder();
+            if (version.before(Version.V_5_2_0_UNRELEASED) && testQuery.innerHit() != null) {
+                // ignore unmapped for inner_hits has been added on 5.2
+                testQuery.innerHit().setIgnoreUnmapped(false);
+            }
+            assertSerialization(testQuery, version);
         }
     }
 

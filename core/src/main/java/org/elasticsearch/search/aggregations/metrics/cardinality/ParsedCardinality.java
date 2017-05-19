@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
@@ -33,10 +32,7 @@ public class ParsedCardinality extends ParsedAggregation implements Cardinality 
 
     @Override
     public String getValueAsString() {
-        // InternalCardinality doesn't print "value_as_string", but you can get a formatted value using
-        // getValueAsString(). That method uses the raw formatter so we also use it here.
-        //norelease is it worth doing Double.toString(value) and removing the dependency to DocValueFormat.RAW ?
-        return DocValueFormat.RAW.format((double) cardinalityValue);
+        return Double.toString((double) cardinalityValue);
     }
 
     @Override

@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,7 +38,6 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
     private List<Tuple<Double, Double>> ranges;
 
     @Override
-    @Before
     public void setUp() throws Exception {
         super.setUp();
         format = randomNumericDocValueFormat();

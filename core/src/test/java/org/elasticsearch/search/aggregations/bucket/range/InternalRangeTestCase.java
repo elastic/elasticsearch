@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestC
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -37,7 +36,6 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
     private boolean keyed;
 
     @Override
-    @Before
     public void setUp() throws Exception {
         super.setUp();
         keyed = randomBoolean();

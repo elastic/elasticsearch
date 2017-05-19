@@ -22,6 +22,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -53,7 +54,20 @@ public class ShardStateIT extends ESIntegTestCase {
         ensureYellow();
 
         // this forces the primary term to propagate to the replicas
-        client().index(new IndexRequest("test", "type", "1").source("{ \"f\": \"1\"}", XContentType.JSON)).get();
+        int id = 0;
+        while (true) {
+            // find an ID that routes to the right shard, we will only index to shard that saw a primary failure
+            final String idAsString = Integer.toString(id);
+            final int hash = Math.floorMod(Murmur3HashFunction.hash(idAsString), 2);
+            if (hash == shard) {
+                client()
+                        .index(new IndexRequest("test", "type", idAsString).source("{ \"f\": \"" + idAsString + "\"}", XContentType.JSON))
+                        .get();
+                break;
+            } else {
+                id++;
+            }
+        }
 
         final long term0 = shard == 0 ? 2 : 1;
         final long term1 = shard == 1 ? 2 : 1;

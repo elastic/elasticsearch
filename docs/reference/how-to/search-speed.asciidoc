@@ -310,3 +310,32 @@ setting.
 WARNING: Loading data into the filesystem cache eagerly on too many indices or
 too many files will make search _slower_ if the filesystem cache is not large
 enough to hold all the data. Use with caution.
+
+[float]
+=== Map identifiers as `keyword`
+
+When you have numeric identifiers in your documents, it is tempting to map them
+as numbers, which is consistent with their json type. However, the way that
+Elasticsearch indexes numbers optimizes for `range` queries while `keyword`
+fields are better at `term` queries. Since identifiers are never used in `range`
+queries, they should be mapped as a `keyword`.
+
+[float]
+=== Use index sorting to speed up conjunctions
+
+<<index-modules-index-sorting,Index sorting>> can be useful in order to
+organize Lucene doc ids (not to be conflated with `_id`) in a way that makes
+conjunctions (a AND b AND ...) more efficient. In order to be efficient,
+conjunctions rely on the fact that if any clause does not match, then the
+entire conjunction does not match. By using index sorting, we can put
+documents that do not match together, which will help skip efficiently over
+large ranges of doc IDs that do not match the conjunction.
+
+This trick only works with low-cardinality fields. A rule of thumb is that
+you should sort first on fields that both have a low cardinality and are
+frequently used for filtering. The sort order (`asc` or `desc`) does not
+matter as we only care about putting values that would match the same clauses
+close to each other.
+
+For instance if you were indexing cars for sale, it might be interesting to
+sort by fuel type, body type, make, year of registration and finally mileage.

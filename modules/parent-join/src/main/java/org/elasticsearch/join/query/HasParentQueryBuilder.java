@@ -30,8 +30,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -176,15 +177,12 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         }
 
         Set<String> childTypes = new HashSet<>();
-        ParentChildIndexFieldData parentChildIndexFieldData = null;
         for (DocumentMapper documentMapper : context.getMapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper.active() && type.equals(parentFieldMapper.type())) {
                 childTypes.add(documentMapper.type());
-                parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
             }
         }
-
         if (childTypes.isEmpty()) {
             throw new QueryShardException(context, "[" + NAME + "] no child types found for type [" + type + "]");
         }
@@ -204,14 +202,17 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter(context));
+
+        final MappedFieldType parentType = parentDocMapper.parentFieldMapper().getParentJoinFieldType();
+        final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(parentType);
         return new HasChildQueryBuilder.LateParsingQuery(childrenQuery,
-                                                         innerQuery,
-                                                         HasChildQueryBuilder.DEFAULT_MIN_CHILDREN,
-                                                         HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
-                                                         type,
-                                                         score ? ScoreMode.Max : ScoreMode.None,
-                                                         parentChildIndexFieldData,
-                                                         context.getSearchSimilarity());
+            innerQuery,
+            HasChildQueryBuilder.DEFAULT_MIN_CHILDREN,
+            HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
+            type,
+            score ? ScoreMode.Max : ScoreMode.None,
+            fieldData,
+            context.getSearchSimilarity());
     }
 
     @Override

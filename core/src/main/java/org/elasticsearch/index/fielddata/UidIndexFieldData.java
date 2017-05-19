@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -97,6 +98,11 @@ public final class UidIndexFieldData implements IndexOrdinalsFieldData {
     @Override
     public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         return new UidIndexFieldData(index, type, idFieldData.localGlobalDirect(indexReader));
+    }
+
+    @Override
+    public MultiDocValues.OrdinalMap getOrdinalMap() {
+        return idFieldData.getOrdinalMap();
     }
 
     static final class UidAtomicFieldData implements AtomicOrdinalsFieldData {

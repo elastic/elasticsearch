@@ -1498,6 +1498,52 @@ public class IndexShardTests extends IndexShardTestCase {
         }
     }
 
+    /**
+     * here we are simulating the scenario that happens when we do async shard fetching from GatewaySerivce while we are finishing
+     * a recovery and concurrently clean files. This should always be possible without any exception. Yet there was a bug where IndexShard
+     * acquired the index writer lock before it called into the store that has it's own locking for metadata reads
+     */
+    public void testReadSnapshotConcurrently() throws IOException, InterruptedException {
+        IndexShard indexShard = newStartedShard();
+        indexDoc(indexShard, "doc", "0", "{\"foo\" : \"bar\"}");
+        if (randomBoolean()) {
+            indexShard.refresh("test");
+        }
+        indexDoc(indexShard, "doc", "1", "{\"foo\" : \"bar\"}");
+        indexShard.flush(new FlushRequest());
+        closeShards(indexShard);
+
+        final IndexShard newShard = reinitShard(indexShard);
+        Store.MetadataSnapshot storeFileMetaDatas = newShard.snapshotStoreMetadata();
+        assertTrue("at least 2 files, commit and data: " +storeFileMetaDatas.toString(), storeFileMetaDatas.size() > 1);
+        AtomicBoolean stop = new AtomicBoolean(false);
+        CountDownLatch latch = new CountDownLatch(1);
+        expectThrows(AlreadyClosedException.class, () -> newShard.getEngine()); // no engine
+        Thread thread = new Thread(() -> {
+            latch.countDown();
+            while(stop.get() == false){
+                try {
+                    Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
+                    assertEquals(0, storeFileMetaDatas.recoveryDiff(readMeta).different.size());
+                    assertEquals(0, storeFileMetaDatas.recoveryDiff(readMeta).missing.size());
+                    assertEquals(storeFileMetaDatas.size(), storeFileMetaDatas.recoveryDiff(readMeta).identical.size());
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        });
+        thread.start();
+        latch.await();
+
+        int iters = iterations(10, 100);
+        for (int i = 0; i < iters; i++) {
+            newShard.store().cleanupAndVerify("test", storeFileMetaDatas);
+        }
+        assertTrue(stop.compareAndSet(false, true));
+        thread.join();
+        closeShards(newShard);
+    }
+
     /** A dummy repository for testing which just needs restore overridden */
     private abstract static class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
         private final String indexName;

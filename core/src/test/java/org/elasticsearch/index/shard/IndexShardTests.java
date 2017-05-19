@@ -124,6 +124,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -474,18 +475,20 @@ public class IndexShardTests extends IndexShardTestCase {
         final AtomicLong counter = new AtomicLong();
         final AtomicReference<Exception> onFailure = new AtomicReference<>();
 
-        final Function<Boolean, Runnable> function = b -> () -> {
+        final LongFunction<Runnable> function = increment -> () -> {
+            assert increment > 0;
             try {
                 barrier.await();
             } catch (final BrokenBarrierException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
             indexShard.acquireReplicaOperationPermit(
-                    primaryTerm + 1 + (b ? 1 : 0),
+                    primaryTerm + increment,
                     new ActionListener<Releasable>() {
                         @Override
                         public void onResponse(Releasable releasable) {
                             counter.incrementAndGet();
+                            assertThat(indexShard.getPrimaryTerm(), equalTo(primaryTerm + increment));
                             latch.countDown();
                             releasable.close();
                         }
@@ -499,8 +502,10 @@ public class IndexShardTests extends IndexShardTestCase {
                     ThreadPool.Names.INDEX);
         };
 
-        final Thread first = new Thread(function.apply(randomBoolean()));
-        final Thread second = new Thread(function.apply(randomBoolean()));
+        final long firstIncrement = 1 + (randomBoolean() ? 0 : 1);
+        final long secondIncrement = 1 + (randomBoolean() ? 0 : 1);
+        final Thread first = new Thread(function.apply(firstIncrement));
+        final Thread second = new Thread(function.apply(secondIncrement));
 
         first.start();
         second.start();
@@ -526,6 +531,8 @@ public class IndexShardTests extends IndexShardTestCase {
         } else {
             assertThat(counter.get(), equalTo(2L));
         }
+
+        assertThat(indexShard.getPrimaryTerm(), equalTo(primaryTerm + Math.max(firstIncrement, secondIncrement)));
 
         closeShards(indexShard);
     }

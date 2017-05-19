@@ -1876,45 +1876,43 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final long operationPrimaryTerm, final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay) {
         verifyNotClosed();
         verifyReplicationTarget();
-        if (operationPrimaryTerm > primaryTerm
-                && pendingPrimaryTerm.accumulateAndGet(operationPrimaryTerm, Math::max) == operationPrimaryTerm) {
-            try {
-                indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
-                    if (operationPrimaryTerm > primaryTerm) {
-                        primaryTerm = operationPrimaryTerm;
+        if (operationPrimaryTerm > primaryTerm) {
+            synchronized (mutex) {
+                if (operationPrimaryTerm > primaryTerm) {
+                    try {
+                        indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+                            assert operationPrimaryTerm > primaryTerm;
+                            primaryTerm = operationPrimaryTerm;
+                        });
+                    } catch (final InterruptedException | TimeoutException e) {
+                        onPermitAcquired.onFailure(e);
+                        return;
                     }
-                });
-            } catch (final InterruptedException | TimeoutException e) {
-                onPermitAcquired.onFailure(e);
+                }
             }
         }
 
-        final long currentPrimaryTerm = primaryTerm;
-        if (operationPrimaryTerm == currentPrimaryTerm) {
-            indexShardOperationPermits.acquire(
-                    new ActionListener<Releasable>() {
-                        @Override
-                        public void onResponse(final Releasable releasable) {
-                            assert operationPrimaryTerm <= primaryTerm
-                                    : "operation primary term [" + operationPrimaryTerm + "] should be at most [" + primaryTerm + "]";
-                            if (operationPrimaryTerm < primaryTerm) {
-                                releasable.close();
-                                onOperationPrimaryTermIsTooOld(shardId, operationPrimaryTerm, primaryTerm, onPermitAcquired);
-                            } else {
-                                onPermitAcquired.onResponse(releasable);
-                            }
+        assert operationPrimaryTerm <= primaryTerm
+                : "operation primary term [" + operationPrimaryTerm + "] should be at most [" + primaryTerm + "]";
+        indexShardOperationPermits.acquire(
+                new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(final Releasable releasable) {
+                        if (operationPrimaryTerm < primaryTerm) {
+                            releasable.close();
+                            onOperationPrimaryTermIsTooOld(shardId, operationPrimaryTerm, primaryTerm, onPermitAcquired);
+                        } else {
+                            onPermitAcquired.onResponse(releasable);
                         }
+                    }
 
-                        @Override
-                        public void onFailure(final Exception e) {
-                            onPermitAcquired.onFailure(e);
-                        }
-                    },
-                    executorOnDelay,
-                    true);
-        } else {
-            onOperationPrimaryTermIsTooOld(shardId, operationPrimaryTerm, currentPrimaryTerm, onPermitAcquired);
-        }
+                    @Override
+                    public void onFailure(final Exception e) {
+                        onPermitAcquired.onFailure(e);
+                    }
+                },
+                executorOnDelay,
+                true);
     }
 
     private static void onOperationPrimaryTermIsTooOld(

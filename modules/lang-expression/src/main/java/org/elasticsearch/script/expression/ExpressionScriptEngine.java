@@ -255,9 +255,4 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
 
     @Override
     public void close() {}
-
-    @Override
-    public boolean isInlineScriptEnabled() {
-        return true;
-    }
 }

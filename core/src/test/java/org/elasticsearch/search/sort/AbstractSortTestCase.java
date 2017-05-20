@@ -54,7 +54,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptServiceTests.TestEngine;
 import org.elasticsearch.script.ScriptType;
@@ -62,7 +62,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -89,8 +88,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .build();
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new TestEngine()));
-        scriptService = new ScriptService(baseSettings, scriptEngineRegistry, scriptContextRegistry) {
+        ScriptEngine engine = new TestEngine();
+        scriptService = new ScriptService(baseSettings, Collections.singletonMap(engine.getType(), engine), scriptContextRegistry) {
             @Override
             public CompiledScript compile(Script script, ScriptContext scriptContext) {
                 return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);

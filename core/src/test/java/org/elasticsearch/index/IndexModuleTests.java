@@ -68,7 +68,6 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -78,14 +77,12 @@ import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 public class IndexModuleTests extends ESTestCase {
@@ -128,9 +125,8 @@ public class IndexModuleTests extends ESTestCase {
         threadPool = new TestThreadPool("test");
         circuitBreakerService = new NoneCircuitBreakerService();
         bigArrays = new BigArrays(settings, circuitBreakerService);
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(emptyList());
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        scriptService = new ScriptService(settings, scriptEngineRegistry, scriptContextRegistry);
+        scriptService = new ScriptService(settings, Collections.emptyMap(), scriptContextRegistry);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         nodeEnvironment = new NodeEnvironment(settings, environment);
         mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();

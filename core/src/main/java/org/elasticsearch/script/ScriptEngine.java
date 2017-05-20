@@ -48,11 +48,4 @@ public interface ScriptEngine extends Closeable {
     ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);
 
     SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars);
-
-    /**
-     * Returns <code>true</code> if this scripting engine can safely accept inline scripts by default. The default is <code>false</code>
-     */
-    default boolean isInlineScriptEnabled() {
-        return false;
-    }
 }

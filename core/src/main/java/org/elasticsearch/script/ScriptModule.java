@@ -24,7 +24,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ScriptPlugin;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -52,12 +55,24 @@ public class ScriptModule {
     public ScriptModule(Settings settings, List<ScriptEngine> scriptEngines,
                         List<ScriptContext.Plugin> customScriptContexts) {
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngines);
+        Map<String, ScriptEngine> enginesByName = getEnginesByName(scriptEngines);
         try {
-            scriptService = new ScriptService(settings, scriptEngineRegistry, scriptContextRegistry);
+            scriptService = new ScriptService(settings, enginesByName, scriptContextRegistry);
         } catch (IOException e) {
             throw new RuntimeException("Couldn't setup ScriptService", e);
         }
+    }
+
+    private Map<String, ScriptEngine> getEnginesByName(List<ScriptEngine> engines) {
+        Map<String, ScriptEngine> enginesByName = new HashMap<>();
+        for (ScriptEngine engine : engines) {
+            ScriptEngine existing = enginesByName.put(engine.getType(), engine);
+            if (existing != null) {
+                throw new IllegalArgumentException("scripting language [" + engine.getType() + "] defined for engine [" +
+                    existing.getClass().getName() + "] and [" + engine.getClass().getName());
+            }
+        }
+        return Collections.unmodifiableMap(enginesByName);
     }
 
     /**

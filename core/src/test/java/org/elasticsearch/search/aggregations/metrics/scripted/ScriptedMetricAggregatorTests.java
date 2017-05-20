@@ -27,7 +27,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -36,7 +35,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -198,11 +197,11 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     protected QueryShardContext queryShardContextMock(MapperService mapperService, final MappedFieldType[] fieldTypes,
             CircuitBreakerService circuitBreakerService) {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS);
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(scriptEngine));
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptService scriptService;
         try {
-            scriptService =  new ScriptService(Settings.EMPTY, scriptEngineRegistry, scriptContextRegistry);
+            scriptService =  new ScriptService(Settings.EMPTY, engines, scriptContextRegistry);
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         }

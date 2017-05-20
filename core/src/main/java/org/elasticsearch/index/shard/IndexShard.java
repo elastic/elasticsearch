@@ -1879,8 +1879,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                             assert operationPrimaryTerm > primaryTerm;
                             primaryTerm = operationPrimaryTerm;
+                            getEngine().getTranslog().rollGeneration();
                         });
-                    } catch (final InterruptedException | TimeoutException e) {
+                    } catch (final InterruptedException | TimeoutException | IOException e) {
                         onPermitAcquired.onFailure(e);
                         return;
                     }

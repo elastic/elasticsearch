@@ -39,6 +39,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
@@ -71,6 +73,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> synchronized(this)
     private final Object syncLock = new Object();
 
+    private final Map<Long, BytesReference> seenSequenceNumbers;
+
     private TranslogWriter(
         final ChannelFactory channelFactory,
         final ShardId shardId,
@@ -90,6 +94,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         assert initialCheckpoint.maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED : initialCheckpoint.maxSeqNo;
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
+        boolean assertionsEnabled = false;
+        assert assertionsEnabled = true;
+        if (assertionsEnabled) {
+            seenSequenceNumbers = new HashMap<>();
+        } else {
+            seenSequenceNumbers = null;
+        }
     }
 
     static int getHeaderLength(String translogUUID) {
@@ -195,7 +206,19 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
         operationCounter++;
 
+        assert assertSeqNoNotSeen(seqNo, data);
+
         return new Translog.Location(generation, offset, data.length());
+    }
+
+    private boolean assertSeqNoNotSeen(long seqNo, BytesReference data) {
+        if (seenSequenceNumbers.containsKey(seqNo)) {
+            final BytesReference previous = seenSequenceNumbers.get(seqNo);
+            assert previous.equals(data) :
+              "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. ";
+        }
+        seenSequenceNumbers.put(seqNo, data);
+        return true;
     }
 
     /**

@@ -1896,7 +1896,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     public void onResponse(final Releasable releasable) {
                         if (operationPrimaryTerm < primaryTerm) {
                             releasable.close();
-                            onOperationPrimaryTermIsTooOld(shardId, operationPrimaryTerm, primaryTerm, onPermitAcquired);
+                            final String message = String.format(
+                                    Locale.ROOT,
+                                    "%s operation primary term [%d] is too old (current [%d])",
+                                    shardId,
+                                    operationPrimaryTerm,
+                                    primaryTerm);
+                            onPermitAcquired.onFailure(new IllegalStateException(message));
                         } else {
                             onPermitAcquired.onResponse(releasable);
                         }
@@ -1909,20 +1915,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 },
                 executorOnDelay,
                 true);
-    }
-
-    private static void onOperationPrimaryTermIsTooOld(
-            final ShardId shardId,
-            final long operationPrimaryTerm,
-            final long primaryTerm,
-            final ActionListener<Releasable> onPermitAcquired) {
-        final String message = String.format(
-                Locale.ROOT,
-                "%s operation primary term [%d] is too old (current [%d])",
-                shardId,
-                operationPrimaryTerm,
-                primaryTerm);
-        onPermitAcquired.onFailure(new IllegalStateException(message));
     }
 
     public int getActiveOperationsCount() {

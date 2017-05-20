@@ -16,15 +16,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
@@ -241,11 +238,7 @@ public final class WatcherTestUtils {
                 .build();
         ScriptContextRegistry scriptContextRegistry =
                 new ScriptContextRegistry(Collections.singletonList(new ScriptContext.Plugin("xpack", "watch")));
-
-        ScriptEngineRegistry scriptEngineRegistry =
-                new ScriptEngineRegistry(Collections.emptyList());
-
-        return new ScriptService(settings, scriptEngineRegistry, scriptContextRegistry);
+        return new ScriptService(settings, Collections.emptyMap(), scriptContextRegistry);
     }
 
     public static SearchType getRandomSupportedSearchType() {

@@ -93,11 +93,6 @@ public class LatchScriptEngine implements ScriptEngine {
         return new Script(ScriptType.INLINE, NAME, "", Collections.emptyMap());
     }
 
-    @Override
-    public boolean isInlineScriptEnabled() {
-        return true;
-    }
-
     public static class LatchScriptPlugin extends Plugin implements ScriptPlugin {
 
         @Override

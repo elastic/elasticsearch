@@ -46,9 +46,4 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
         // We always return the script's source as it is
         return new MockCompiledScript(name, params, script, null);
     }
-
-    @Override
-    public boolean isInlineScriptEnabled() {
-        return true;
-    }
 }

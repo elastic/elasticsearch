@@ -10,18 +10,15 @@ import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -36,17 +33,16 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class WatcherTemplateIT extends ESTestCase {
 
-    private TextTemplateEngine engine;
+    private TextTemplateEngine textTemplateEngine;
 
     @Before
     public void init() throws Exception {
         ScriptContextRegistry registry = new ScriptContextRegistry(Collections.singletonList(new ScriptContext.Plugin("xpack", "watch")));
 
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
-                Collections.singleton(new MustacheScriptEngine())
-        );
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptEngineRegistry, registry);
-        engine = new TextTemplateEngine(Settings.EMPTY, scriptService);
+        MustacheScriptEngine engine = new MustacheScriptEngine();
+        Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, registry);
+        textTemplateEngine = new TextTemplateEngine(Settings.EMPTY, scriptService);
     }
 
     public void testEscaping() throws Exception {
@@ -91,7 +87,7 @@ public class WatcherTemplateIT extends ESTestCase {
 
             Map<String, Object> dataMap = new HashMap<>();
             dataMap.put("data", unescaped.toString());
-            String renderedTemplate = engine.render(new TextTemplate(template), dataMap);
+            String renderedTemplate = textTemplateEngine.render(new TextTemplate(template), dataMap);
             assertThat(renderedTemplate, notNullValue());
 
             if (contentType == XContentType.JSON) {
@@ -116,7 +112,7 @@ public class WatcherTemplateIT extends ESTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
-            String result = engine.render(new TextTemplate(template), vars);
+            String result = textTemplateEngine.render(new TextTemplate(template), vars);
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                             + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
                         result);
@@ -127,7 +123,7 @@ public class WatcherTemplateIT extends ESTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
-            String result = engine.render(new TextTemplate(template), vars);
+            String result = textTemplateEngine.render(new TextTemplate(template), vars);
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                             + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
                     result);
@@ -151,7 +147,7 @@ public class WatcherTemplateIT extends ESTestCase {
 
         vars.put("test_var1", var1Writer.toString());
         vars.put("test_var2", var2Writer.toString());
-        String s1 = engine.render(new TextTemplate(template), vars);
+        String s1 = textTemplateEngine.render(new TextTemplate(template), vars);
         String s2 =  prefix + " " + var1Writer.toString() + " " + var2Writer.toString();
         assertThat(s1, equalTo(s2));
     }

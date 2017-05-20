@@ -132,11 +132,6 @@ public class UpdateIT extends ESIntegTestCase {
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
-        }
     }
 
     public static class FieldIncrementScriptPlugin extends Plugin implements ScriptPlugin {
@@ -192,11 +187,6 @@ public class UpdateIT extends ESIntegTestCase {
         @Override
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
         }
     }
 
@@ -254,12 +244,6 @@ public class UpdateIT extends ESIntegTestCase {
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
-        }
-
     }
 
     public static class ExtractContextInSourceScriptPlugin extends Plugin implements ScriptPlugin {
@@ -316,11 +300,6 @@ public class UpdateIT extends ESIntegTestCase {
         @Override
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
         }
     }
 

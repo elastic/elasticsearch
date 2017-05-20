@@ -22,11 +22,9 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -72,10 +70,9 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
                 Collections.singletonMap(REDUCE_SCRIPT_NAME, script -> {
                     return ((List<Object>) script.get("_aggs")).size();
                 }));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(scriptEngine));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         try {
-            return new ScriptService(Settings.EMPTY, scriptEngineRegistry, scriptContextRegistry);
+            return new ScriptService(Settings.EMPTY, Collections.singletonMap(scriptEngine.getType(), scriptEngine), scriptContextRegistry);
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         }

@@ -142,9 +142,4 @@ public final class MustacheScriptEngine implements ScriptEngine {
             return writer.toString();
         }
     }
-
-    @Override
-    public boolean isInlineScriptEnabled() {
-        return true;
-    }
 }

@@ -43,12 +43,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -60,7 +58,6 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
@@ -140,14 +137,10 @@ public class UpdateRequestTests extends ESTestCase {
         scripts.put("return", vars -> null);
         final ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(emptyList());
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts);
-        final ScriptEngineRegistry scriptEngineRegistry =
-                new ScriptEngineRegistry(singletonList(engine));
 
-        final ResourceWatcherService watcherService =
-                new ResourceWatcherService(baseSettings, null);
         ScriptService scriptService = new ScriptService(
                 baseSettings,
-                scriptEngineRegistry,
+                Collections.singletonMap(engine.getType(), engine),
                 scriptContextRegistry);
         final Settings settings = settings(Version.CURRENT).build();
 

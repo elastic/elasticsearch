@@ -491,11 +491,6 @@ public class SumIT extends AbstractNumericTestCase {
                 }
             };
         }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
-        }
     }
 
     /**
@@ -596,11 +591,6 @@ public class SumIT extends AbstractNumericTestCase {
                     return false;
                 }
             };
-        }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
         }
     }
 }

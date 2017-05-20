@@ -1059,11 +1059,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException("search script not supported");
         }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
-        }
     }
 
     public void testPhraseSuggesterCollate() throws InterruptedException, ExecutionException, IOException {

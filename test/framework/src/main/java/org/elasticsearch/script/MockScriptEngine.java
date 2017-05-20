@@ -94,12 +94,6 @@ public class MockScriptEngine implements ScriptEngine {
     public void close() throws IOException {
     }
 
-    @Override
-    public boolean isInlineScriptEnabled() {
-        return true;
-    }
-
-
     public class MockCompiledScript {
 
         private final String name;

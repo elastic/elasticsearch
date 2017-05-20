@@ -96,11 +96,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private double scriptsPerMinCounter;
     private double compilesAllowedPerNano;
 
-    public ScriptService(Settings settings, ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry) throws IOException {
+    public ScriptService(Settings settings, Map<String, ScriptEngine> engines, ScriptContextRegistry scriptContextRegistry) throws IOException {
         super(settings);
 
         Objects.requireNonNull(settings);
-        Objects.requireNonNull(scriptEngineRegistry);
+        this.engines = Objects.requireNonNull(engines);
         Objects.requireNonNull(scriptContextRegistry);
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
@@ -191,8 +191,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
-
-        this.engines = scriptEngineRegistry.getRegisteredLanguages();
 
         this.lastInlineCompileTime = System.nanoTime();
         this.setMaxCompilationsPerMinute(SCRIPT_MAX_COMPILATIONS_PER_MINUTE.get(settings));

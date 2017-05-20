@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
@@ -26,7 +28,9 @@ import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -87,6 +91,12 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index").getQueries().size(), equalTo(1));
         assertThat(permissions.getIndexPermissions("_index").getQueries(), equalTo(query));
 
+        assertThat(permissions.getIndexPermissions("_alias"), notNullValue());
+        assertTrue(permissions.getIndexPermissions("_alias").getFieldPermissions().grantsAccessTo("_field"));
+        assertTrue(permissions.getIndexPermissions("_alias").getFieldPermissions().hasFieldLevelSecurity());
+        assertThat(permissions.getIndexPermissions("_alias").getQueries().size(), equalTo(1));
+        assertThat(permissions.getIndexPermissions("_alias").getQueries(), equalTo(query));
+
         // match all fields
         String[] allFields = randomFrom(new String[]{"*"}, new String[]{"foo", "*"},
         new String[]{randomAlphaOfLengthBetween(1, 10), "*"});
@@ -97,6 +107,46 @@ public class IndicesPermissionTests extends ESTestCase {
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getQueries().size(), equalTo(1));
         assertThat(permissions.getIndexPermissions("_index").getQueries(), equalTo(query));
+
+        assertThat(permissions.getIndexPermissions("_alias"), notNullValue());
+        assertFalse(permissions.getIndexPermissions("_alias").getFieldPermissions().hasFieldLevelSecurity());
+        assertThat(permissions.getIndexPermissions("_alias").getQueries().size(), equalTo(1));
+        assertThat(permissions.getIndexPermissions("_alias").getQueries(), equalTo(query));
+
+        IndexMetaData.Builder imbBuilder1 = IndexMetaData.builder("_index_1")
+                .settings(Settings.builder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                )
+                .putAlias(AliasMetaData.builder("_alias"));
+        md = MetaData.builder(md).put(imbBuilder1).build();
+
+
+        // match all fields with more than one permission
+        Set<BytesReference> fooQuery = Collections.singleton(new BytesArray("{foo}"));
+        allFields = randomFrom(new String[]{"*"}, new String[]{"foo", "*"},
+                new String[]{randomAlphaOfLengthBetween(1, 10), "*"});
+        role = Role.builder("_role")
+                .add(new FieldPermissions(fieldPermissionDef(allFields, null)), fooQuery, IndexPrivilege.ALL, "_alias")
+                .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, "_alias").build();
+        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), md, fieldPermissionsCache);
+        Set<BytesReference> bothQueries = Sets.union(fooQuery, query);
+        assertThat(permissions.getIndexPermissions("_index"), notNullValue());
+        assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
+        assertThat(permissions.getIndexPermissions("_index").getQueries().size(), equalTo(2));
+        assertThat(permissions.getIndexPermissions("_index").getQueries(), equalTo(bothQueries));
+
+        assertThat(permissions.getIndexPermissions("_index_1"), notNullValue());
+        assertFalse(permissions.getIndexPermissions("_index_1").getFieldPermissions().hasFieldLevelSecurity());
+        assertThat(permissions.getIndexPermissions("_index_1").getQueries().size(), equalTo(2));
+        assertThat(permissions.getIndexPermissions("_index_1").getQueries(), equalTo(bothQueries));
+
+        assertThat(permissions.getIndexPermissions("_alias"), notNullValue());
+        assertFalse(permissions.getIndexPermissions("_alias").getFieldPermissions().hasFieldLevelSecurity());
+        assertThat(permissions.getIndexPermissions("_alias").getQueries().size(), equalTo(2));
+        assertThat(permissions.getIndexPermissions("_alias").getQueries(), equalTo(bothQueries));
+
     }
 
     public void testAuthorizeMultipleGroupsMixedDls() {

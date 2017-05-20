@@ -35,7 +35,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request extends I
         if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return;
         }
-        IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationService.INDICES_PERMISSIONS_KEY);
+        final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationService.INDICES_PERMISSIONS_KEY);
         for (String index : request.indices()) {
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
             if (indexAccessControl != null) {

@@ -118,9 +118,11 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
                     granted = true;
                     for (String index : concreteIndices) {
                         Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());
+                        fieldPermissionsByIndex.put(indexOrAlias, fieldPermissions);
                         fieldPermissions.add(group.getFieldPermissions());
                         DocumentLevelPermissions permissions =
                                 roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
+                        roleQueriesByIndex.putIfAbsent(indexOrAlias, permissions);
                         if (group.hasQuery()) {
                             permissions.addAll(group.getQuery());
                         } else {
@@ -136,6 +138,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             if (concreteIndices.isEmpty()) {
                 grantedBuilder.put(indexOrAlias, granted);
             } else {
+                grantedBuilder.put(indexOrAlias, granted);
                 for (String concreteIndex : concreteIndices) {
                     grantedBuilder.put(concreteIndex, granted);
                 }

@@ -85,5 +85,22 @@ public class IndicesAccessControl {
         public Set<BytesReference> getQueries() {
             return queries;
         }
+
+        @Override
+        public String toString() {
+            return "IndexAccessControl{" +
+                    "granted=" + granted +
+                    ", fieldPermissions=" + fieldPermissions +
+                    ", queries=" + queries +
+                    '}';
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "IndicesAccessControl{" +
+                "granted=" + granted +
+                ", indexPermissions=" + indexPermissions +
+                '}';
     }
 }

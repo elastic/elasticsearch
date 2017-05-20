@@ -212,12 +212,15 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     private boolean assertSeqNoNotSeen(long seqNo, BytesReference data) {
-        if (seenSequenceNumbers.containsKey(seqNo)) {
+        if (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+            // nothing to do
+        } else if (seenSequenceNumbers.containsKey(seqNo)) {
             final BytesReference previous = seenSequenceNumbers.get(seqNo);
             assert previous.equals(data) :
               "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. ";
+        } else {
+            seenSequenceNumbers.put(seqNo, data);
         }
-        seenSequenceNumbers.put(seqNo, data);
         return true;
     }
 

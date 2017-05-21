@@ -1064,7 +1064,7 @@ public class IndexShardTests extends IndexShardTestCase {
         test = otherShard.prepareIndexOnReplica(
             SourceToParse.source(shard.shardId().getIndexName(), test.type(), test.id(), test.source(),
                 XContentType.JSON),
-            1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            1, 1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         otherShard.index(test);
 
         final ShardRouting primaryShardRouting = shard.routingEntry();

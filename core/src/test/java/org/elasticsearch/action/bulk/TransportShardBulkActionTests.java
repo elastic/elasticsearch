@@ -631,7 +631,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         IndexMetaData metaData = indexMetaData();
         IndexShard shard = newStartedShard(false);
 
-        DocWriteResponse primaryResponse = new IndexResponse(shardId, "index", "id", 1, 17, 1, randomBoolean());
+        DocWriteResponse primaryResponse = new IndexResponse(shardId, "index", "id", 17, shard.getPrimaryTerm(), 1, randomBoolean());
         IndexRequest request = new IndexRequest("index", "type", "id")
                 .source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 

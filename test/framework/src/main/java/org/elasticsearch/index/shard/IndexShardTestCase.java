@@ -489,7 +489,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             index = shard.prepareIndexOnReplica(
                 SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source),
                     xContentType),
-                shard.seqNoStats().getMaxSeqNo() + 1, shard.getPrimaryTerm(),
+                shard.seqNoStats().getMaxSeqNo() + 1, shard.getPrimaryTerm(), 0,
                 VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         }
         shard.index(index);

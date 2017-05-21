@@ -207,7 +207,9 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testSearchCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.search(null, new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
+        Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
+        CompiledScript compile = scriptService.compile(script, randomFrom(contexts.values()));
+        scriptService.search(null, compile, script.getParams());
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 

@@ -24,6 +24,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -211,15 +212,20 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return new Translog.Location(generation, offset, data.length());
     }
 
-    private boolean assertSeqNoNotSeen(long seqNo, BytesReference data) {
+    private boolean assertSeqNoNotSeen(long seqNo, BytesReference data) throws IOException {
         if (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
             // nothing to do
         } else if (seenSequenceNumbers.containsKey(seqNo)) {
             final BytesReference previous = seenSequenceNumbers.get(seqNo);
-            assert previous.equals(data) :
-              "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. ";
+            if (previous.equals(data) == false) {
+                Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
+                Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.streamInput()));
+                throw new AssertionError(
+                    "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
+                        "prvOp [" + prvOp + "], newOp [" + newOp + "]");
+            }
         } else {
-            seenSequenceNumbers.put(seqNo, data);
+            seenSequenceNumbers.put(seqNo, new BytesArray(data.toBytesRef(), true));
         }
         return true;
     }

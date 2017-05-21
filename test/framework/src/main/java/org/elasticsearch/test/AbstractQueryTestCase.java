@@ -1086,7 +1086,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             if (scriptPlugins == null || scriptPlugins.isEmpty()) {
                 return newTestScriptModule();
             }
-            return ScriptModule.create(Settings.EMPTY, scriptPlugins);
+            return new ScriptModule(Settings.EMPTY, scriptPlugins);
         }
     }
 }

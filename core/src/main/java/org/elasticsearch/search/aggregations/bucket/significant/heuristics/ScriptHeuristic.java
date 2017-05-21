@@ -93,13 +93,13 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
-        CompiledScript compiledScript = context.scriptService().compile(script, ScriptContext.Standard.AGGS);
+        CompiledScript compiledScript = context.scriptService().compile(script, ScriptContext.AGGS);
         return new ExecutableScriptHeuristic(script, context.scriptService().executable(compiledScript, script.getParams()));
     }
 
     @Override
     public SignificanceHeuristic rewrite(SearchContext context) {
-        return new ExecutableScriptHeuristic(script, context.getQueryShardContext().getExecutableScript(script, ScriptContext.Standard.AGGS));
+        return new ExecutableScriptHeuristic(script, context.getQueryShardContext().getExecutableScript(script, ScriptContext.AGGS));
     }
 
 

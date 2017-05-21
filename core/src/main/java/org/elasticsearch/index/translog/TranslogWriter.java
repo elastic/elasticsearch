@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -74,7 +75,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> synchronized(this)
     private final Object syncLock = new Object();
 
-    private final Map<Long, BytesReference> seenSequenceNumbers;
+    private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
     private TranslogWriter(
         final ChannelFactory channelFactory,
@@ -216,16 +217,17 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         if (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
             // nothing to do
         } else if (seenSequenceNumbers.containsKey(seqNo)) {
-            final BytesReference previous = seenSequenceNumbers.get(seqNo);
-            if (previous.equals(data) == false) {
+            final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
+            if (previous.v1().equals(data) == false) {
                 Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
-                Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.streamInput()));
+                Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput()));
                 throw new AssertionError(
                     "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
-                        "prvOp [" + prvOp + "], newOp [" + newOp + "]");
+                        "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());
             }
         } else {
-            seenSequenceNumbers.put(seqNo, new BytesArray(data.toBytesRef(), true));
+            seenSequenceNumbers.put(seqNo,
+                new Tuple<>(new BytesArray(data.toBytesRef(), true), new RuntimeException("stack capture previous op")));
         }
         return true;
     }

@@ -338,13 +338,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager.processData(jobTask, createInputStream(""), randomFrom(XContentType.values()), mock(DataLoadParams.class),
                 (dataCounts1, e) -> {
                 });
-
+        verify(manager).setJobState(any(), eq(JobState.OPENED));
         // job is created
         assertEquals(1, manager.numberOfOpenJobs());
         expectThrows(ElasticsearchException.class, () -> manager.closeJob(jobTask, false, null));
         assertEquals(0, manager.numberOfOpenJobs());
 
-        verify(manager).setJobState(any(), eq(JobState.OPENED));
         verify(manager).setJobState(any(), eq(JobState.FAILED));
     }
 

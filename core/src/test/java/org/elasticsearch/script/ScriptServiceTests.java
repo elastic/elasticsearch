@@ -146,7 +146,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testAllowSomeScriptTypeSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.types_allowed", "inline");
+        builder.put("script.allowed_types", "inline");
         buildScriptService(builder.build());
 
         assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.SEARCH);
@@ -155,7 +155,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testAllowSomeScriptContextSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.contexts_allowed", "search, aggs");
+        builder.put("script.allowed_contexts", "search, aggs");
         buildScriptService(builder.build());
 
         assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.SEARCH);
@@ -165,7 +165,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testAllowNoScriptTypeSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.types_allowed", "none");
+        builder.put("script.allowed_types", "none");
         buildScriptService(builder.build());
 
         assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.SEARCH);
@@ -174,7 +174,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testAllowNoScriptContextSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.contexts_allowed", "none");
+        builder.put("script.allowed_contexts", "none");
         buildScriptService(builder.build());
 
         assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.SEARCH);

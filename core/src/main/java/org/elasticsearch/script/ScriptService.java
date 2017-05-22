@@ -509,14 +509,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     /**
-     * Compiles (or retrieves from cache) and executes the provided search script
-     */
-    public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext) {
-        CompiledScript compiledScript = compile(script, scriptContext);
-        return search(lookup, compiledScript, script.getParams());
-    }
-
-    /**
      * Binds provided parameters to a compiled script returning a
      * {@link SearchScript} ready for execution
      */

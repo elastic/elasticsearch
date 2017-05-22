@@ -39,7 +39,7 @@ public class ScriptContextTests extends ESTestCase {
     ScriptService makeScriptService() throws Exception {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put("script.contexts_allowed", "search, aggs, testplugin_custom_op")
+            .put("script.allowed_contexts", "search, aggs, testplugin_custom_op")
             .build();
 
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));

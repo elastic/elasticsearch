@@ -74,9 +74,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public static final String ALLOW_NONE = "none";
 
     public static final Setting<List<String>> TYPES_ALLOWED_SETTING =
-        Setting.listSetting("script.types_allowed", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
+        Setting.listSetting("script.allowed_types", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
     public static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING =
-        Setting.listSetting("script.contexts_allowed", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
+        Setting.listSetting("script.allowed_contexts", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
 
     private final Set<String> typesAllowed;
     private final Set<String> contextsAllowed;

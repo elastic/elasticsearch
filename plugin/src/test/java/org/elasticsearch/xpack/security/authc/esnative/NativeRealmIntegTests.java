@@ -101,6 +101,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/pull/1507")
     public void testDeletingNonexistingUserAndRole() throws Exception {
         SecurityClient c = securityClient();
         DeleteUserResponse resp = c.prepareDeleteUser("joe").get();

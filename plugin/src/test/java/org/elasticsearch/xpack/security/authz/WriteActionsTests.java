@@ -54,6 +54,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
                 BulkAction.NAME + "[s]");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1511")
     public void testDelete() {
         createIndex("test1", "index1");
         client().prepareIndex("test1", "type", "id").setSource("field", "value").get();

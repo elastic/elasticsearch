@@ -151,7 +151,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     public void testSerializationBWC() throws IOException {
         for (Version version : VersionUtils.allReleasedVersions()) {
             HasParentQueryBuilder testQuery = createTestQueryBuilder();
-            if (version.before(Version.V_5_2_0_UNRELEASED) && testQuery.innerHit() != null) {
+            if (version.before(Version.V_5_2_0) && testQuery.innerHit() != null) {
                 // ignore unmapped for inner_hits has been added on 5.2
                 testQuery.innerHit().setIgnoreUnmapped(false);
             }

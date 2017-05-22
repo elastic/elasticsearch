@@ -126,7 +126,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
      */
     public InnerHitBuilder(StreamInput in) throws IOException {
         name = in.readOptionalString();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_6_0_0_alpha2_UNRELEASED)) {
             in.readOptionalString();
             in.readOptionalString();
         }
@@ -156,7 +156,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             }
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_6_0_0_alpha2_UNRELEASED)) {
             /**
              * this is needed for BWC with nodes pre 5.5
              */
@@ -168,8 +168,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            throw new IOException("Invalid output version, must >= " + Version.V_6_0_0_alpha1_UNRELEASED.toString());
+        if (out.getVersion().before(Version.V_6_0_0_alpha2_UNRELEASED)) {
+            throw new IOException("Invalid output version, must >= " + Version.V_6_0_0_alpha2_UNRELEASED.toString());
         }
         out.writeOptionalString(name);
         out.writeBoolean(ignoreUnmapped);
@@ -207,8 +207,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
      * Should only be used to send nested inner hits to nodes pre 5.5.
      */
     protected void writeToNestedBWC(StreamOutput out, QueryBuilder query, String nestedPath) throws IOException {
-        assert out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED) :
-            "invalid output version, must be < " + Version.V_6_0_0_alpha1_UNRELEASED.toString();
+        assert out.getVersion().before(Version.V_6_0_0_alpha2_UNRELEASED) :
+            "invalid output version, must be < " + Version.V_6_0_0_alpha2_UNRELEASED.toString();
         writeToBWC(out, query, nestedPath, null);
     }
 
@@ -217,8 +217,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
      * Should only be used to send collapsing inner hits to nodes pre 5.5.
      */
     public void writeToCollapseBWC(StreamOutput out) throws IOException {
-        assert out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED) :
-            "invalid output version, must be < " + Version.V_6_0_0_alpha1_UNRELEASED.toString();
+        assert out.getVersion().before(Version.V_6_0_0_alpha2_UNRELEASED) :
+            "invalid output version, must be < " + Version.V_6_0_0_alpha2_UNRELEASED.toString();
         writeToBWC(out, new MatchAllQueryBuilder(), null, null);
     }
 
@@ -227,8 +227,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
      * Should only be used to send hasParent or hasChild inner hits to nodes pre 5.5.
      */
     public void writeToParentChildBWC(StreamOutput out, QueryBuilder query, String parentChildPath) throws IOException {
-        assert(out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) :
-            "invalid output version, must be < " + Version.V_6_0_0_alpha1_UNRELEASED.toString();
+        assert(out.getVersion().before(Version.V_6_0_0_alpha2_UNRELEASED)) :
+            "invalid output version, must be < " + Version.V_6_0_0_alpha2_UNRELEASED.toString();
         writeToBWC(out, query, null, parentChildPath);
     }
 
@@ -237,7 +237,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                             String nestedPath,
                             String parentChildPath) throws IOException {
         out.writeOptionalString(name);
-        if (nestedPath == null) {
+        if (nestedPath != null) {
             out.writeOptionalString(nestedPath);
             out.writeOptionalString(null);
         } else {
@@ -261,8 +261,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             Iterator<ScriptField> iterator = scriptFields.stream()
                 .sorted(Comparator.comparing(ScriptField::fieldName)).iterator();
             while (iterator.hasNext()) {
-                iterator.next()
-                    .writeTo(out);
+                iterator.next().writeTo(out);
             }
         }
         out.writeOptionalWriteable(fetchSourceContext);

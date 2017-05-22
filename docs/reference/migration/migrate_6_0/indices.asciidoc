@@ -44,3 +44,9 @@ The default value of the `allow_no_indices` option for the Open/Close index API
 has been changed from `false` to `true` so it is aligned with the behaviour of the
 Delete index API. As a result, Open/Close index API don't return an error by
 default when a provided wildcard expression doesn't match any closed/open index.
+
+==== Delete a document
+
+Delete a document from non-existing index has been modified to not create the index.
+However if an external versioning is used the index will be created and the document
+will be marked for deletion. 

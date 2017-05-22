@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -54,7 +55,6 @@ public class WriteActionsTests extends SecurityIntegTestCase {
                 BulkAction.NAME + "[s]");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1511")
     public void testDelete() {
         createIndex("test1", "index1");
         client().prepareIndex("test1", "type", "id").setSource("field", "value").get();
@@ -62,9 +62,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
         assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("index1", "type", "id")::get, BulkAction.NAME + "[s]");
 
-        assertEquals(RestStatus.NOT_FOUND, client().prepareDelete("test4", "type", "id").get().status());
-
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("missing", "type", "id")::get, BulkAction.NAME + "[s]");
+        expectThrows(IndexNotFoundException.class, () -> client().prepareDelete("test4", "type", "id").get());
     }
 
     public void testUpdate() {

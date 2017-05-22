@@ -333,7 +333,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             assertEquals(aggregation.getMetaData(), parsedAggregation.getMetaData());
 
             assertTrue(parsedAggregation instanceof ParsedAggregation);
-            assertEquals(aggregation.getType(), ((ParsedAggregation) parsedAggregation).getType());
+            assertEquals(aggregation.getType(), parsedAggregation.getType());
         }
 
         BytesReference parsedBytes = toXContent(parsedAggregation, xContentType, params, humanReadable);

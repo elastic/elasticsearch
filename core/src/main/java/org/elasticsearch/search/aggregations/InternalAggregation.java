@@ -169,11 +169,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
         return pipelineAggregators;
     }
 
-    /**
-     * Returns a string representing the type of the aggregation. This type is added to
-     * the aggregation name in the response, so that it can later be used by REST clients
-     * to determine the internal type of the aggregation.
-     */
+    @Override
     public String getType() {
         return getWriteableName();
     }

@@ -122,7 +122,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         assertTrue(expected instanceof InternalAggregation);
         assertEquals(expected.getName(), actual.getName());
         assertEquals(expected.getMetaData(), actual.getMetaData());
-        assertEquals(((InternalAggregation) expected).getType(), ((ParsedAggregation) actual).getType());
+        assertEquals(expected.getType(), actual.getType());
     }
 
     protected void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {

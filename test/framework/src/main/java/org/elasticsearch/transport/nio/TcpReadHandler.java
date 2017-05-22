@@ -44,8 +44,4 @@ public class TcpReadHandler {
     public void handleException(NioSocketChannel channel, Exception e) {
         transport.exceptionCaught(channel, e);
     }
-
-    public void handlePing(NioSocketChannel channel, String profileName) {
-
-    }
 }

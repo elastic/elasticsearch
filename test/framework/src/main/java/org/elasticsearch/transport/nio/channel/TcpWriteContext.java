@@ -31,8 +31,6 @@ import java.util.LinkedList;
 
 public class TcpWriteContext implements WriteContext {
 
-    private static final ClosedChannelException CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
-
     private final NioSocketChannel channel;
     private final LinkedList<WriteOperation> queued = new LinkedList<>();
 
@@ -43,7 +41,7 @@ public class TcpWriteContext implements WriteContext {
     @Override
     public void sendMessage(BytesReference reference, ActionListener<NioChannel> listener) {
         if (channel.isWritable() == false) {
-            listener.onFailure(CLOSED_CHANNEL_EXCEPTION);
+            listener.onFailure(new ClosedChannelException());
             return;
         }
 
@@ -60,13 +58,13 @@ public class TcpWriteContext implements WriteContext {
 
     @Override
     public void queueWriteOperations(WriteOperation writeOperation) {
-        assert channel.getSelector().isOnCurrentThread();
+        assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to queue writes";
         queued.add(writeOperation);
     }
 
     @Override
     public void flushChannel() throws IOException {
-        assert channel.getSelector().isOnCurrentThread();
+        assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to flush writes";
         if (queued.size() == 1) {
             singleFlush(queued.pop());
         } else {
@@ -76,7 +74,7 @@ public class TcpWriteContext implements WriteContext {
 
     @Override
     public boolean hasQueuedWriteOps() {
-        assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to queue writes";
+        assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to access queued writes";
         return queued.isEmpty() == false;
     }
 

@@ -56,8 +56,8 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     static final int CLOSING = 2;
     static final int CLOSED = 3;
 
-    protected final S socketChannel;
-    protected final AtomicInteger state = new AtomicInteger(UNREGISTERED);
+    final S socketChannel;
+    final AtomicInteger state = new AtomicInteger(UNREGISTERED);
 
     private final InetSocketAddress localAddress;
     private final String profile;
@@ -180,6 +180,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         return socketChannel;
     }
 
+    // Package visibility for testing
     void setSelectionKey(SelectionKey selectionKey) {
         this.selectionKey = selectionKey;
     }

@@ -83,6 +83,6 @@ public class AcceptorEventHandler extends EventHandler {
      * @param exception that was thrown
      */
     public void genericServerChannelException(NioServerSocketChannel channel, Exception exception) {
-        logger.trace("event handling exception", exception);
+        logger.debug("event handling exception", exception);
     }
 }

@@ -69,10 +69,10 @@ public class TcpReadContext implements ReadContext {
         if (buffers.length == 1) {
             bytesRead = channel.read(buffers[0]);
         } else {
+            // The buffers are bounded by Integer.MAX_VALUE
             bytesRead = (int) channel.vectorizedRead(buffers);
         }
 
-        // The buffers are bounded by Integer.MAX_VALUE
         if (bytesRead == -1) {
             return bytesRead;
         }

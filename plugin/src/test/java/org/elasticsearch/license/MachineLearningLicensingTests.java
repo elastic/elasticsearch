@@ -183,7 +183,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         String jobId = "testautoclosejobwithdatafeed";
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
-        createIndex(jobId + "-data");
+        String datafeedIndex = jobId + "-data";
+        createIndex(datafeedIndex);
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             // put job
@@ -194,7 +195,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             // put datafeed
             PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
             new MachineLearningClient(client).putDatafeed(
-                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))), putDatafeedListener);
+                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId,
+                            Collections.singletonList(datafeedIndex))), putDatafeedListener);
             PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
             assertNotNull(putDatafeedResponse);
             // open job
@@ -281,7 +283,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         String jobId = "testmachinelearningstartdatafeedactionrestricted";
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
-        createIndex(jobId + "-data");
+        String datafeedIndex = jobId + "-data";
+        createIndex(datafeedIndex);
         // test that license restricted apis do now work
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
@@ -291,7 +294,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             assertNotNull(putJobResponse);
             PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
             new MachineLearningClient(client).putDatafeed(
-                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))), putDatafeedListener);
+                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId,
+                            Collections.singletonList(datafeedIndex))), putDatafeedListener);
             PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
             assertNotNull(putDatafeedResponse);
             PlainActionFuture<OpenJobAction.Response> openJobListener = PlainActionFuture.newFuture();
@@ -351,7 +355,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         String jobId = "testmachinelearningstopdatafeedactionnotrestricted";
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
-        createIndex(jobId + "-data");
+        String datafeedIndex = jobId + "-data";
+        createIndex(datafeedIndex);
         // test that license restricted apis do now work
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
@@ -361,7 +366,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             assertNotNull(putJobResponse);
             PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
             new MachineLearningClient(client).putDatafeed(
-                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))), putDatafeedListener);
+                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(datafeedIndex))), putDatafeedListener);
             PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
             assertNotNull(putDatafeedResponse);
             PlainActionFuture<OpenJobAction.Response> openJobListener = PlainActionFuture.newFuture();

@@ -186,15 +186,15 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         QueryShardContext queryShardContext = context.getQueryShardContext();
         Function<Map<String, Object>, ExecutableScript> executableInitScript;
         if (initScript != null) {
-            executableInitScript = queryShardContext.getLazyExecutableScript(initScript, ScriptContext.Standard.AGGS);
+            executableInitScript = queryShardContext.getLazyExecutableScript(initScript, ScriptContext.AGGS);
         } else {
             executableInitScript = (p) -> null;
         }
         Function<Map<String, Object>, SearchScript> searchMapScript = queryShardContext.getLazySearchScript(mapScript,
-            ScriptContext.Standard.AGGS);
+            ScriptContext.AGGS);
         Function<Map<String, Object>, ExecutableScript> executableCombineScript;
         if (combineScript != null) {
-            executableCombineScript = queryShardContext.getLazyExecutableScript(combineScript, ScriptContext.Standard.AGGS);
+            executableCombineScript = queryShardContext.getLazyExecutableScript(combineScript, ScriptContext.AGGS);
         } else {
             executableCombineScript = (p) -> null;
         }

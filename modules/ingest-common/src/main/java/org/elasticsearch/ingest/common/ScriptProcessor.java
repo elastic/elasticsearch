@@ -70,7 +70,7 @@ public final class ScriptProcessor extends AbstractProcessor {
      */
     @Override
     public void execute(IngestDocument document) {
-        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.INGEST);
+        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.INGEST);
         ExecutableScript executableScript = scriptService.executable(compiledScript, script.getParams());
         executableScript.setNextVar("ctx",  document.getSourceAndMetadata());
         executableScript.run();
@@ -134,7 +134,7 @@ public final class ScriptProcessor extends AbstractProcessor {
 
             // verify script is able to be compiled before successfully creating processor.
             try {
-                scriptService.compile(script, ScriptContext.Standard.INGEST);
+                scriptService.compile(script, ScriptContext.INGEST);
             } catch (ScriptException e) {
                 throw newConfigurationException(TYPE, processorTag, scriptPropertyUsed, e);
             }

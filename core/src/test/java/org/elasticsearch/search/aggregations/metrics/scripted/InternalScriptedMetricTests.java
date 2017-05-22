@@ -19,20 +19,18 @@
 
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -114,15 +112,8 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         // mock script always retuns the size of the input aggs list as result
         @SuppressWarnings("unchecked")
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
-                Collections.singletonMap(REDUCE_SCRIPT_NAME, script -> {
-                    return ((List<Object>) script.get("_aggs")).size();
-                }));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        try {
-            return new ScriptService(Settings.EMPTY, Collections.singletonMap(scriptEngine.getType(), scriptEngine), scriptContextRegistry);
-        } catch (IOException e) {
-            throw new ElasticsearchException(e);
-        }
+                Collections.singletonMap(REDUCE_SCRIPT_NAME, script -> ((List<Object>) script.get("_aggs")).size()));
+        return new ScriptService(Settings.EMPTY, Collections.singletonMap(scriptEngine.getType(), scriptEngine), ScriptContext.BUILTINS);
     }
 
     @Override

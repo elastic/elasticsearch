@@ -19,87 +19,35 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.Strings;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Context of an operation that uses scripts as part of its execution.
+ * A holder for information about a context in which a script is compiled and run.
  */
-public interface ScriptContext {
+public final class ScriptContext {
 
-    /**
-     * @return the name of the operation
-     */
-    String getKey();
+    public static final ScriptContext AGGS = new ScriptContext("aggs");
+    public static final ScriptContext SEARCH = new ScriptContext("search");
+    public static final ScriptContext UPDATE = new ScriptContext("update");
+    public static final ScriptContext INGEST = new ScriptContext("ingest");
 
-    /**
-     * Standard operations that make use of scripts as part of their execution.
-     * Note that the suggest api is considered part of search for simplicity, as well as the percolate api.
-     */
-    enum Standard implements ScriptContext {
-
-        AGGS("aggs"), SEARCH("search"), UPDATE("update"), INGEST("ingest");
-
-        private final String key;
-
-        Standard(String key) {
-            this.key = key;
-        }
-
-        @Override
-        public String getKey() {
-            return key;
-        }
-
-        @Override
-        public String toString() {
-            return getKey();
-        }
+    public static final Map<String, ScriptContext> BUILTINS;
+    static {
+        Map<String, ScriptContext> builtins = new HashMap<>();
+        builtins.put(AGGS.name, AGGS);
+        builtins.put(SEARCH.name, SEARCH);
+        builtins.put(UPDATE.name, UPDATE);
+        builtins.put(INGEST.name, INGEST);
+        BUILTINS = Collections.unmodifiableMap(builtins);
     }
 
-    /**
-     * Custom operation exposed via plugin, which makes use of scripts as part of its execution
-     */
-    final class Plugin implements ScriptContext {
+    /** A unique identifier for this context. */
+    public final String name;
 
-        private final String pluginName;
-        private final String operation;
-        private final String key;
-
-        /**
-         * Creates a new custom scripts based operation exposed via plugin.
-         * The name of the plugin combined with the operation name can be used to enable/disable scripts via fine-grained settings.
-         *
-         * @param pluginName the name of the plugin
-         * @param operation the name of the operation
-         */
-        public Plugin(String pluginName, String operation) {
-            if (Strings.hasLength(pluginName) == false) {
-                throw new IllegalArgumentException("plugin name cannot be empty when registering a custom script context");
-            }
-            if (Strings.hasLength(operation) == false) {
-                throw new IllegalArgumentException("operation name cannot be empty when registering a custom script context");
-            }
-            this.pluginName = pluginName;
-            this.operation = operation;
-            this.key = pluginName + "_" + operation;
-        }
-
-        public String getPluginName() {
-            return pluginName;
-        }
-
-        public String getOperation() {
-            return operation;
-        }
-
-        @Override
-        public String getKey() {
-            return key;
-        }
-
-        @Override
-        public String toString() {
-            return getKey();
-        }
+    // pkg private ctor, only created by script module
+    public ScriptContext(String name) {
+        this.name = name;
     }
 }

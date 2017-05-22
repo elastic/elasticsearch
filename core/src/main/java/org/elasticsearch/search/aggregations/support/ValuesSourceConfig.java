@@ -120,7 +120,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         if (script == null) {
             return null;
         } else {
-            return context.getSearchScript(script, ScriptContext.Standard.AGGS);
+            return context.getSearchScript(script, ScriptContext.AGGS);
         }
     }
 

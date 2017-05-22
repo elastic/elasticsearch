@@ -242,7 +242,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH);
+        final SearchScript searchScript = context.getSearchScript(script, ScriptContext.SEARCH);
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {

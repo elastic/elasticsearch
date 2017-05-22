@@ -19,17 +19,14 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.ScriptPlugin;
-
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
+
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.ScriptPlugin;
 
 /**
  * Manages building {@link ScriptService}.
@@ -37,42 +34,26 @@ import java.util.stream.Collectors;
 public class ScriptModule {
     private final ScriptService scriptService;
 
-    /**
-     * Build from {@linkplain ScriptPlugin}s. Convenient for normal use but not great for tests. See
-     * {@link ScriptModule#ScriptModule(Settings, List, List)} for easier use in tests.
-     */
-    public static ScriptModule create(Settings settings, List<ScriptPlugin> scriptPlugins) {
-        List<ScriptEngine> scriptEngines = scriptPlugins.stream().map(x -> x.getScriptEngine(settings))
-            .filter(Objects::nonNull).collect(Collectors.toList());
-        List<ScriptContext.Plugin> plugins = scriptPlugins.stream().map(x -> x.getCustomScriptContexts()).filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        return new ScriptModule(settings, scriptEngines, plugins);
-    }
-
-    /**
-     * Build {@linkplain ScriptEngine} and {@linkplain ScriptContext.Plugin}.
-     */
-    public ScriptModule(Settings settings, List<ScriptEngine> scriptEngines,
-                        List<ScriptContext.Plugin> customScriptContexts) {
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
-        Map<String, ScriptEngine> enginesByName = getEnginesByName(scriptEngines);
-        try {
-            scriptService = new ScriptService(settings, enginesByName, scriptContextRegistry);
-        } catch (IOException e) {
-            throw new RuntimeException("Couldn't setup ScriptService", e);
-        }
-    }
-
-    private Map<String, ScriptEngine> getEnginesByName(List<ScriptEngine> engines) {
-        Map<String, ScriptEngine> enginesByName = new HashMap<>();
-        for (ScriptEngine engine : engines) {
-            ScriptEngine existing = enginesByName.put(engine.getType(), engine);
-            if (existing != null) {
-                throw new IllegalArgumentException("scripting language [" + engine.getType() + "] defined for engine [" +
-                    existing.getClass().getName() + "] and [" + engine.getClass().getName());
+    public ScriptModule(Settings settings, List<ScriptPlugin> scriptPlugins) {
+        Map<String, ScriptEngine> engines = new HashMap<>();
+        Map<String, ScriptContext> contexts = new HashMap<>(ScriptContext.BUILTINS);
+        for (ScriptPlugin plugin : scriptPlugins) {
+            for (ScriptContext context : plugin.getContexts()) {
+                ScriptContext oldContext = contexts.put(context.name, context);
+                if (oldContext != null) {
+                    throw new IllegalArgumentException("Context name [" + context.name + "] defined twice");
+                }
+            }
+            ScriptEngine engine = plugin.getScriptEngine(settings);
+            if (engine != null) {
+                ScriptEngine existing = engines.put(engine.getType(), engine);
+                if (existing != null) {
+                    throw new IllegalArgumentException("scripting language [" + engine.getType() + "] defined for engine [" +
+                        existing.getClass().getName() + "] and [" + engine.getClass().getName());
+                }
             }
         }
-        return Collections.unmodifiableMap(enginesByName);
+        scriptService = new ScriptService(settings, Collections.unmodifiableMap(engines), Collections.unmodifiableMap(contexts));
     }
 
     /**

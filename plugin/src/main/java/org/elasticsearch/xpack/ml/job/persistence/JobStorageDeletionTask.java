@@ -109,7 +109,16 @@ public class JobStorageDeletionTask extends Task {
 
     private void deleteQuantiles(String jobId, Client client, ActionListener<DeleteResponse> finishedHandler) {
         client.prepareDelete(AnomalyDetectorsIndex.jobStateIndexName(), Quantiles.TYPE.getPreferredName(), Quantiles.documentId(jobId))
-                .execute(finishedHandler);
+                .execute(ActionListener.wrap(
+                        finishedHandler::onResponse,
+                        e -> {
+                            // It's not a problem for us if the index wasn't found - it's equivalent to document not found
+                            if (e instanceof IndexNotFoundException) {
+                                finishedHandler.onResponse(new DeleteResponse());
+                            } else {
+                                finishedHandler.onFailure(e);
+                            }
+                        }));
     }
 
     private void deleteModelState(String jobId, Client client, ActionListener<BulkResponse> listener) {

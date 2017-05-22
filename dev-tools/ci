@@ -29,7 +29,13 @@ case $key in
         GRADLE_CLI_ARGS=(
             "--info"
             "-Pvagrant.boxes=all"
-            ":x-pack:qa:vagrant:packagingTest"
+            "packagingTest"
+        )
+        ;;
+    bwcTest)
+        GRADLE_CLI_ARGS=(
+            "--info"
+            "bwcTest"
         )
         ;;
     check)

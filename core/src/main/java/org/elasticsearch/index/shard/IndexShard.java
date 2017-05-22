@@ -1879,7 +1879,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (operationPrimaryTerm > primaryTerm) {
                     try {
                         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
-                            assert operationPrimaryTerm > primaryTerm;
+                            assert operationPrimaryTerm > primaryTerm :
+                                "shard term already update.  op term [" + operationPrimaryTerm + "], shardTerm [" + primaryTerm + "]";
                             primaryTerm = operationPrimaryTerm;
                             getEngine().getTranslog().rollGeneration();
                         });

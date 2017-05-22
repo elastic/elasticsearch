@@ -208,12 +208,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
         operationCounter++;
 
-        assert assertSeqNoNotSeen(seqNo, data);
+        assert assertNoSeqNumberConflict(seqNo, data);
 
         return new Translog.Location(generation, offset, data.length());
     }
 
-    private boolean assertSeqNoNotSeen(long seqNo, BytesReference data) throws IOException {
+    private synchronized boolean assertNoSeqNumberConflict(long seqNo, BytesReference data) throws IOException {
         if (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
             // nothing to do
         } else if (seenSequenceNumbers.containsKey(seqNo)) {

@@ -531,10 +531,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * Execute the given {@link IndexRequest} on a replica shard, throwing a
      * {@link RetryOnReplicaException} if the operation needs to be re-tried.
      */
-    private static Engine.IndexResult executeIndexRequestOnReplica(
-        DocWriteResponse primaryResponse,
-        IndexRequest request,
-        long primaryTerm, IndexShard replica) throws IOException {
+    private static Engine.IndexResult executeIndexRequestOnReplica(DocWriteResponse primaryResponse, IndexRequest request,
+                                                                   long primaryTerm, IndexShard replica) throws IOException {
 
         final Engine.Index operation;
         try {

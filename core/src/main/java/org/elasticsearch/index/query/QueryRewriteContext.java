@@ -106,7 +106,7 @@ public class QueryRewriteContext {
     }
 
     public String getTemplateBytes(Script template) {
-        CompiledTemplate compiledTemplate = scriptService.compileTemplate(template, ScriptContext.Standard.SEARCH);
+        CompiledTemplate compiledTemplate = scriptService.compileTemplate(template, ScriptContext.SEARCH);
         return compiledTemplate.run(template.getParams());
     }
 }

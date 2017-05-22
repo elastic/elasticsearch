@@ -37,13 +37,12 @@ public interface ScriptEngine extends Closeable {
 
     /**
      * Compiles a script.
-     * @param scriptName name of the script. {@code null} if it is anonymous (inline).
-     *                                        For a file script, its the file name (with extension).
-     *                                        For a stored script, its the identifier.
-     * @param scriptSource actual source of the script
+     * @param name the name of the script. {@code null} if it is anonymous (inline). For a stored script, its the identifier.
+     * @param code actual source of the script
      * @param params compile-time parameters (such as flags to the compiler)
+     * @return an opaque compiled script which may be cached and later passed to
      */
-    Object compile(String scriptName, String scriptSource, Map<String, String> params);
+    Object compile(String name, String code, Map<String, String> params);
 
     ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);
 

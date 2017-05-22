@@ -366,7 +366,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             assertNotNull(putJobResponse);
             PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
             new MachineLearningClient(client).putDatafeed(
-                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(datafeedIndex))), putDatafeedListener);
+                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId,
+                            Collections.singletonList(datafeedIndex))), putDatafeedListener);
             PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
             assertNotNull(putDatafeedResponse);
             PlainActionFuture<OpenJobAction.Response> openJobListener = PlainActionFuture.newFuture();
@@ -394,7 +395,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
                 // the stop datafeed due to invalid license happens async, so check if the datafeed turns into stopped state:
                 assertBusy(() -> {
                     GetDatafeedsStatsAction.Response response =
-                            new MachineLearningClient(client).getDatafeedsStats(new GetDatafeedsStatsAction.Request(datafeedId)).actionGet();
+                            new MachineLearningClient(client)
+                                    .getDatafeedsStats(new GetDatafeedsStatsAction.Request(datafeedId)).actionGet();
                     assertEquals(DatafeedState.STOPPED, response.getResponse().results().get(0).getDatafeedState());
                 });
             } else {
@@ -482,7 +484,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             assertNotNull(putJobResponse);
             PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
             new MachineLearningClient(client).putDatafeed(
-                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))), putDatafeedListener);
+                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId,
+                            Collections.singletonList(jobId))), putDatafeedListener);
             PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
             assertNotNull(putDatafeedResponse);
         }

@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -57,7 +58,6 @@ import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -344,7 +344,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
                 List<String> openJobs = new ArrayList<>();
                 List<String> closingJobs = new ArrayList<>();
-                resolveAndValidateJobId(request.getJobId(), state, openJobs, closingJobs);
+                resolveAndValidateJobId(request.getJobId(), state, openJobs, closingJobs, request.isForce());
                 request.setOpenJobIds(openJobs.toArray(new String[0]));
                 request.setClosingJobIds(closingJobs.toArray(new String[0]));
                 if (request.openJobIds.length == 0 && request.closingJobIds.length == 0) {
@@ -432,10 +432,11 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         private void forceCloseJob(ClusterState currentState, Request request, ActionListener<Response> listener) {
             PersistentTasksCustomMetaData tasks = currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
-            final int numberOfJobs = request.openJobIds.length;
+            final int numberOfJobs = request.openJobIds.length + request.closingJobIds.length;
             final AtomicInteger counter = new AtomicInteger();
             final AtomicArray<Exception> failures = new AtomicArray<>(numberOfJobs);
-            for (String jobId : request.openJobIds) {
+
+            for (String jobId : ArrayUtils.concat(request.openJobIds, request.closingJobIds)) {
                 PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
                 if (jobTask != null) {
                     auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
@@ -560,14 +561,16 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
      * Expand the {@code jobId} parameter and add the job Id the the list arguments
      * depending on job state.
      *
-     * Opened or failed jobs are added to {@code openJobs} and closing jobs added to
-     * {@code closingJobs}
+     * Opened jobs are added to {@code openJobs} and closing jobs added to {@code closingJobs}. Failed jobs are added 
+     * to {@code openJobs} if allowFailed is set otherwise an exception is thrown.
      * @param jobId The job Id. If jobId == {@link Job#ALL} then expand the job list.
      * @param state Cluster state
      * @param openJobs Opened or failed jobs are added to this list
      * @param closingJobs Closing jobs are added to this list
+     * @param allowFailed Whether failed jobs are allowed, if yes, they are added to {@code openJobs}
      */
-    static void resolveAndValidateJobId(String jobId, ClusterState state, List<String> openJobs, List<String> closingJobs) {
+    static void resolveAndValidateJobId(String jobId, ClusterState state, List<String> openJobs, List<String> closingJobs,
+            boolean allowFailed) {
         MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
         PersistentTasksCustomMetaData tasksMetaData = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
@@ -575,26 +578,40 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             return;
         }
 
+        List<String> failedJobs = new ArrayList<>();
+
         Consumer<String> jobIdProcessor = id -> {
             validateJobAndTaskState(id, mlMetadata, tasksMetaData);
             Job job = mlMetadata.getJobs().get(id);
             if (job.isDeleted()) {
                 return;
             }
-            addJobAccordingToState(id, tasksMetaData, openJobs, closingJobs);
+            addJobAccordingToState(id, tasksMetaData, openJobs, closingJobs, failedJobs);
         };
 
         if (!Job.ALL.equals(jobId)) {
             jobIdProcessor.accept(jobId);
+
+            if (allowFailed == false && failedJobs.size() > 0) {
+                throw ExceptionsHelper.conflictStatusException("cannot close job [{}] because it failed, use force close", jobId);
+            }
+
         } else {
             for (Map.Entry<String, Job> jobEntry : mlMetadata.getJobs().entrySet()) {
                 jobIdProcessor.accept(jobEntry.getKey());
             }
+
+            if (allowFailed == false && failedJobs.size() > 0) {
+                throw ExceptionsHelper.conflictStatusException("one or more jobs have state failed, use force close");
+            }
         }
+
+        // allowFailed == true
+        openJobs.addAll(failedJobs);
     }
 
     private static void addJobAccordingToState(String jobId, PersistentTasksCustomMetaData tasksMetaData,
-            List<String> openJobs, List<String> closingJobs) {
+            List<String> openJobs, List<String> closingJobs, List<String> failedJobs) {
 
         JobState jobState = MlMetadata.getJobState(jobId, tasksMetaData);
         switch (jobState) {
@@ -602,6 +619,8 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 closingJobs.add(jobId);
                 break;
             case FAILED:
+                failedJobs.add(jobId);
+                break;
             case OPENED:
                 openJobs.add(jobId);
                 break;

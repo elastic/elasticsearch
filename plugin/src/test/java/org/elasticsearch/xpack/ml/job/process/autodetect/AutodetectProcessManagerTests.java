@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +48,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -320,6 +320,32 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         Exception[] holder = new Exception[1];
         manager.flushJob(jobTask, params, e -> holder[0] = e);
         assertEquals("[foo] exception while flushing job", holder[0].getMessage());
+    }
+
+    public void testCloseThrows() throws IOException {
+        AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
+        AutodetectProcessManager manager = createManager(communicator);
+
+        // let the communicator throw, simulating a problem with the underlying
+        // autodetect, e.g. a crash
+        doThrow(Exception.class).when(communicator).close(anyBoolean(), anyString());
+
+        // create a jobtask
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        manager.openJob(jobTask, false, e -> {
+        });
+        manager.processData(jobTask, createInputStream(""), randomFrom(XContentType.values()), mock(DataLoadParams.class),
+                (dataCounts1, e) -> {
+                });
+
+        // job is created
+        assertEquals(1, manager.numberOfOpenJobs());
+        expectThrows(ElasticsearchException.class, () -> manager.closeJob(jobTask, false, null));
+        assertEquals(0, manager.numberOfOpenJobs());
+
+        verify(manager).setJobState(any(), eq(JobState.OPENED));
+        verify(manager).setJobState(any(), eq(JobState.FAILED));
     }
 
     public void testwriteUpdateProcessMessage() throws IOException {

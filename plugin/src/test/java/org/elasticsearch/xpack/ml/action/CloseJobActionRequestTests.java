@@ -138,9 +138,12 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         List<String> openJobs = new ArrayList<>();
         List<String> closingJobs = new ArrayList<>();
 
-        CloseJobAction.resolveAndValidateJobId("_all", cs1, openJobs, closingJobs);
+        CloseJobAction.resolveAndValidateJobId("_all", cs1, openJobs, closingJobs, true);
         assertEquals(Arrays.asList("job_id_1", "job_id_2", "job_id_3"), openJobs);
         assertEquals(Arrays.asList("job_id_4"), closingJobs);
+
+        expectThrows(ElasticsearchStatusException.class,
+                () -> CloseJobAction.resolveAndValidateJobId("_all", cs1, openJobs, closingJobs, false));
     }
 
     public void testResolve_givenJobId() {
@@ -158,7 +161,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         List<String> openJobs = new ArrayList<>();
         List<String> closingJobs = new ArrayList<>();
 
-        CloseJobAction.resolveAndValidateJobId("job_id_1", cs1, openJobs, closingJobs);
+        CloseJobAction.resolveAndValidateJobId("job_id_1", cs1, openJobs, closingJobs, false);
         assertEquals(Arrays.asList("job_id_1"), openJobs);
         assertEquals(Collections.emptyList(), closingJobs);
 
@@ -169,9 +172,33 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
 
         openJobs.clear();
         closingJobs.clear();
-        CloseJobAction.resolveAndValidateJobId("job_id_1", cs1, openJobs, closingJobs);
+        CloseJobAction.resolveAndValidateJobId("job_id_1", cs1, openJobs, closingJobs, false);
         assertEquals(Collections.emptyList(), openJobs);
         assertEquals(Collections.emptyList(), closingJobs);
+    }
+
+    public void testResolve_givenJobIdFailed() {
+        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
+        mlBuilder.putJob(BaseMlIntegTestCase.createFareQuoteJob("job_id_failed").build(new Date()), false);
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        addJobTask("job_id_failed", null, JobState.FAILED, tasksBuilder);
+
+        ClusterState cs1 = ClusterState.builder(new ClusterName("_name")).metaData(new MetaData.Builder()
+                .putCustom(MlMetadata.TYPE, mlBuilder.build()).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())).build();
+
+        List<String> openJobs = new ArrayList<>();
+        List<String> closingJobs = new ArrayList<>();
+
+        CloseJobAction.resolveAndValidateJobId("job_id_failed", cs1, openJobs, closingJobs, true);
+        assertEquals(Arrays.asList("job_id_failed"), openJobs);
+        assertEquals(Collections.emptyList(), closingJobs);
+
+        openJobs.clear();
+        closingJobs.clear();
+
+        expectThrows(ElasticsearchStatusException.class,
+                () -> CloseJobAction.resolveAndValidateJobId("job_id_failed", cs1, openJobs, closingJobs, false));
     }
 
     public void testResolve_withSpecificJobIds() {
@@ -193,19 +220,19 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         List<String> openJobs = new ArrayList<>();
         List<String> closingJobs = new ArrayList<>();
 
-        CloseJobAction.resolveAndValidateJobId("_all", cs1, openJobs, closingJobs);
+        CloseJobAction.resolveAndValidateJobId("_all", cs1, openJobs, closingJobs, false);
         assertEquals(Arrays.asList("job_id_open"), openJobs);
         assertEquals(Arrays.asList("job_id_closing"), closingJobs);
         openJobs.clear();
         closingJobs.clear();
 
-        CloseJobAction.resolveAndValidateJobId("job_id_closing", cs1, openJobs, closingJobs);
+        CloseJobAction.resolveAndValidateJobId("job_id_closing", cs1, openJobs, closingJobs, false);
         assertEquals(Collections.emptyList(), openJobs);
         assertEquals(Arrays.asList("job_id_closing"), closingJobs);
         openJobs.clear();
         closingJobs.clear();
 
-        CloseJobAction.resolveAndValidateJobId("job_id_open", cs1, openJobs, closingJobs);
+        CloseJobAction.resolveAndValidateJobId("job_id_open", cs1, openJobs, closingJobs, false);
         assertEquals(Arrays.asList("job_id_open"), openJobs);
         assertEquals(Collections.emptyList(), closingJobs);
         openJobs.clear();

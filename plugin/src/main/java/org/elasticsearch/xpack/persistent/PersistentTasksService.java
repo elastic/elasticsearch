@@ -167,7 +167,7 @@ public class PersistentTasksService extends AbstractComponent {
                 public void onTimeout(TimeValue timeout) {
                     listener.onFailure(new IllegalStateException("timed out after " + timeout));
                 }
-            }, clusterState -> predicate.test(clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE)));
+            }, clusterState -> predicate.test(clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE)), timeout);
         }
     }
 

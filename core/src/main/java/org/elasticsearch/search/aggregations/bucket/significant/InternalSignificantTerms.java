@@ -44,8 +44,8 @@ import java.util.Objects;
 public abstract class InternalSignificantTerms<A extends InternalSignificantTerms<A, B>, B extends InternalSignificantTerms.Bucket<B>>
         extends InternalMultiBucketAggregation<A, B> implements SignificantTerms, ToXContent {
 
-    private static final String SCORE = "score";
-    private static final String BG_COUNT = "bg_count";
+    public static final String SCORE = "score";
+    public static final String BG_COUNT = "bg_count";
 
     @SuppressWarnings("PMD.ConstructorCallsOverridableMethod")
     public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket

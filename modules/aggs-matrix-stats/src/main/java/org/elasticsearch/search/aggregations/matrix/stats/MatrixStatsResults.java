@@ -162,7 +162,7 @@ class MatrixStatsResults implements Writeable {
     }
 
     /** return the value for two fields in an upper triangular matrix, regardless of row col location. */
-    private double getValFromUpperTriangularMatrix(Map<String, HashMap<String, Double>> map, String fieldX, String fieldY) {
+    static <M extends Map<String, Double>> double getValFromUpperTriangularMatrix(Map<String, M> map, String fieldX, String fieldY) {
         // for the co-value to exist, one of the two (or both) fields has to be a row key
         if (map.containsKey(fieldX) == false && map.containsKey(fieldY) == false) {
             throw new IllegalArgumentException("neither field " + fieldX + " nor " + fieldY + " exist");

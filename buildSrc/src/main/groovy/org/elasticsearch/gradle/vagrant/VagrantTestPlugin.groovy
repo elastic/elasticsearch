@@ -86,13 +86,42 @@ class VagrantTestPlugin implements Plugin<Project> {
         new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
             xml = new XmlParser().parse(s)
         }
-        Set<String> versions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /[25]\.\d\.\d/ })
+
+        final String versionAsString = (String)project.version;
+        final List<Integer> current = parse(versionAsString.substring(0, versionAsString.indexOf("-SNAPSHOT")))
+        final Set<String> versions =
+                new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /[25]\.\d\.\d/ && compare(parse(it), current) < 0})
         if (versions.isEmpty() == false) {
-            return versions;
+            return versions
         }
 
         // If no version is found, we run the tests with the current version
-        return Collections.singleton(project.version);
+        return Collections.singleton(project.version)
+    }
+
+    private static List<Integer> parse(final String value) {
+        final List<Integer> version = new ArrayList<Integer>()
+        final String[] components = value.split("\\.")
+        for (final String component : components) {
+            version.add(Integer.valueOf(component))
+        }
+        return version
+    }
+
+    private static int compare(final List<Integer> left, final List<Integer> right) {
+        // lexicographically compare two lists, treating missing entries as zeros
+        final int len = Math.max(left.size(), right.size())
+        for (int i = 0; i < len; i++) {
+            final int l = (i < left.size()) ? left.get(i) : 0
+            final int r = (i < right.size()) ? right.get(i) : 0
+            if (l < r) {
+                return -1
+            }
+            if (r < l) {
+                return 1
+            }
+        }
+        return 0
     }
 
     private static File getVersionsFile(Project project) {

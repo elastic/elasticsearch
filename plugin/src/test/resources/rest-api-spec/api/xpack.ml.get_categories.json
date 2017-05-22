@@ -14,7 +14,7 @@
           "description": "The name of the job"
         },
         "category_id": {
-          "type" : "string",
+          "type" : "long",
           "description" : "The identifier of the category definition of interest"
         }
       },

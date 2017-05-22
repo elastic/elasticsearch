@@ -23,6 +23,7 @@ setup:
             "job_id" : "update-model-snapshot",
             "timestamp": "2016-06-02T00:00:00Z",
             "snapshot_id": "snapshot-1",
+            "snapshot_doc_count": 3,
             "retain": false
           }
 
@@ -37,6 +38,7 @@ setup:
             "timestamp": "2016-06-01T00:00:00Z",
             "snapshot_id": "snapshot-2",
             "description": "snapshot 2 description",
+            "snapshot_doc_count": 2,
             "retain": true
           }
 

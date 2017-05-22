@@ -38,8 +38,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -377,7 +375,6 @@ public class JobProvider {
                 .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE));
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         SearchRequest searchRequest = new SearchRequest(indexName);
-        searchRequest.types(Result.TYPE.getPreferredName());
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.sort(sortBuilder);
         searchSourceBuilder.query(boolQuery);
@@ -569,7 +566,7 @@ public class JobProvider {
      * @param from  Skip the first N categories. This parameter is for paging
      * @param size  Take only this number of categories
      */
-    public void categoryDefinitions(String jobId, String categoryId, Integer from, Integer size,
+    public void categoryDefinitions(String jobId, Long categoryId, Integer from, Integer size,
                                     Consumer<QueryPage<CategoryDefinition>> handler,
                                     Consumer<Exception> errorHandler, Client client) {
         if (categoryId != null && (from != null || size != null)) {
@@ -584,13 +581,10 @@ public class JobProvider {
         searchRequest.indicesOptions(addIgnoreUnavailable(searchRequest.indicesOptions()));
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         if (categoryId != null) {
-            String documentId = CategoryDefinition.documentId(jobId, categoryId);
-            String uid = Uid.createUid(CategoryDefinition.TYPE.getPreferredName(), documentId);
-            sourceBuilder.query(QueryBuilders.termQuery(UidFieldMapper.NAME, uid));
-            searchRequest.routing(documentId);
+            sourceBuilder.query(QueryBuilders.termQuery(CategoryDefinition.CATEGORY_ID.getPreferredName(), categoryId));
         } else if (from != null && size != null) {
-            searchRequest.types(CategoryDefinition.TYPE.getPreferredName());
             sourceBuilder.from(from).size(size)
+                    .query(QueryBuilders.existsQuery(CategoryDefinition.CATEGORY_ID.getPreferredName()))
                     .sort(new FieldSortBuilder(CategoryDefinition.CATEGORY_ID.getPreferredName()).order(SortOrder.ASC));
         } else {
             throw new IllegalStateException("Both categoryId and pageParams are not specified");
@@ -812,6 +806,10 @@ public class JobProvider {
             sortField = ModelSnapshot.TIMESTAMP.getPreferredName();
         }
 
+        QueryBuilder finalQuery = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.existsQuery(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName()))
+                .must(qb);
+
         FieldSortBuilder sb = new FieldSortBuilder(sortField)
                 .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
 
@@ -821,10 +819,9 @@ public class JobProvider {
 
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.indicesOptions(addIgnoreUnavailable(searchRequest.indicesOptions()));
-        searchRequest.types(ModelSnapshot.TYPE.getPreferredName());
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.sort(sb);
-        sourceBuilder.query(qb);
+        sourceBuilder.query(finalQuery);
         sourceBuilder.from(from);
         sourceBuilder.size(size);
         searchRequest.source(sourceBuilder);

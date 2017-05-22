@@ -73,7 +73,8 @@ setup:
             "snapshot_id": "active-snapshot",
             "description": "second",
             "latest_record_time_stamp": "2016-06-01T00:00:00Z",
-            "latest_result_time_stamp": "2016-06-01T00:00:00Z"
+            "latest_result_time_stamp": "2016-06-01T00:00:00Z",
+            "snapshot_doc_count": 3
           }
 
   - do:

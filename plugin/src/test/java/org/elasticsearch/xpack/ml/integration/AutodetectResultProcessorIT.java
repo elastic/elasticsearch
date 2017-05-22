@@ -146,8 +146,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
         assertResultsAreSame(influencers, persistedInfluencers);
 
-        QueryPage<CategoryDefinition> persistedDefinition =
-                getCategoryDefinition(Long.toString(categoryDefinition.getCategoryId()));
+        QueryPage<CategoryDefinition> persistedDefinition = getCategoryDefinition(categoryDefinition.getCategoryId());
         assertEquals(1, persistedDefinition.count());
         assertEquals(categoryDefinition, persistedDefinition.results().get(0));
 
@@ -422,7 +421,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         return resultHolder.get();
     }
 
-    private QueryPage<CategoryDefinition> getCategoryDefinition(String categoryId) throws Exception {
+    private QueryPage<CategoryDefinition> getCategoryDefinition(long categoryId) throws Exception {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<CategoryDefinition>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);

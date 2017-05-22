@@ -621,7 +621,7 @@ public class JobProviderTests extends ESTestCase {
         String terms = "the terms and conditions are not valid here";
 
         Map<String, Object> source = new HashMap<>();
-        String categoryId = String.valueOf(source.hashCode());
+        long categoryId = source.hashCode();
         source.put("job_id", "foo");
         source.put("category_id", categoryId);
         source.put("terms", terms);

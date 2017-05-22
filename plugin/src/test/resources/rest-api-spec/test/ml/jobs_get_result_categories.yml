@@ -85,21 +85,21 @@ setup:
       catch: request
       xpack.ml.get_categories:
         job_id: "jobs-get-result-categories"
-        category_id: "1"
+        category_id: 1
         from: 0
 
   - do:
       catch: request
       xpack.ml.get_categories:
         job_id: "jobs-get-result-categories"
-        category_id: "1"
+        category_id: 1
         size: 1
 
   - do:
       catch: request
       xpack.ml.get_categories:
         job_id: "jobs-get-result-categories"
-        category_id: "1"
+        category_id: 1
         from: 0
         size: 1
 
@@ -109,7 +109,7 @@ setup:
       catch: request
       xpack.ml.get_categories:
         job_id: "jobs-get-result-categories"
-        category_id: "1"
+        category_id: 1
         body:
           from: 0
 
@@ -117,7 +117,7 @@ setup:
       catch: request
       xpack.ml.get_categories:
         job_id: "jobs-get-result-categories"
-        category_id: "1"
+        category_id: 1
         body:
           size: 1
 
@@ -125,7 +125,7 @@ setup:
       catch: request
       xpack.ml.get_categories:
         job_id: "jobs-get-result-categories"
-        category_id: "1"
+        category_id: 1
         body:
           from: 0
           size: 1

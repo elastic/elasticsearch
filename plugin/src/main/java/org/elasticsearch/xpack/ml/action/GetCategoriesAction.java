@@ -28,12 +28,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.action.util.PageParams;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
-import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -71,7 +71,7 @@ Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesA
 
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
-            PARSER.declareString(Request::setCategoryId, CATEGORY_ID);
+            PARSER.declareLong(Request::setCategoryId, CATEGORY_ID);
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
         }
 
@@ -84,7 +84,7 @@ Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesA
         }
 
         private String jobId;
-        private String categoryId;
+        private Long categoryId;
         private PageParams pageParams;
 
         public Request(String jobId) {
@@ -94,20 +94,12 @@ Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesA
         Request() {
         }
 
-        public String getCategoryId() {
-            return categoryId;
-        }
-
-        public void setCategoryId(String categoryId) {
+        public void setCategoryId(Long categoryId) {
             if (pageParams != null) {
                 throw new IllegalArgumentException("Param [" + CATEGORY_ID.getPreferredName() + "] is incompatible with ["
                         + PageParams.FROM.getPreferredName() + ", " + PageParams.SIZE.getPreferredName() + "].");
             }
             this.categoryId = ExceptionsHelper.requireNonNull(categoryId, CATEGORY_ID.getPreferredName());
-        }
-
-        public PageParams getPageParams() {
-            return pageParams;
         }
 
         public void setPageParams(PageParams pageParams) {
@@ -133,7 +125,7 @@ Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesA
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
-            categoryId = in.readOptionalString();
+            categoryId = in.readOptionalLong();
             pageParams = in.readOptionalWriteable(PageParams::new);
         }
 
@@ -141,7 +133,7 @@ Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesA
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            out.writeOptionalString(categoryId);
+            out.writeOptionalLong(categoryId);
             out.writeOptionalWriteable(pageParams);
         }
 

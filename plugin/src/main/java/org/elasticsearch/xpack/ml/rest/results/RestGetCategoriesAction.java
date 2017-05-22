@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.results;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -17,8 +16,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction.Request;
-import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
+import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 
@@ -43,23 +42,24 @@ public class RestGetCategoriesAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request;
         String jobId = restRequest.param(Job.ID.getPreferredName());
-        String categoryId = restRequest.param(Request.CATEGORY_ID.getPreferredName());
+        Long categoryId = restRequest.hasParam(Request.CATEGORY_ID.getPreferredName()) ? Long.parseLong(
+                restRequest.param(Request.CATEGORY_ID.getPreferredName())) : null;
         BytesReference bodyBytes = restRequest.content();
 
         if (bodyBytes != null && bodyBytes.length() > 0) {
             XContentParser parser = restRequest.contentParser();
             request = GetCategoriesAction.Request.parseRequest(jobId, parser);
-            if (!Strings.isNullOrEmpty(categoryId)) {
+            if (categoryId != null) {
                 request.setCategoryId(categoryId);
             }
         } else {
             request = new Request(jobId);
-            if (!Strings.isNullOrEmpty(categoryId)) {
+            if (categoryId != null) {
                 request.setCategoryId(categoryId);
             }
             if (restRequest.hasParam(Request.FROM.getPreferredName())
                     || restRequest.hasParam(Request.SIZE.getPreferredName())
-                    || Strings.isNullOrEmpty(categoryId)){
+                    || categoryId == null){
 
                 request.setPageParams(new PageParams(
                         restRequest.paramAsInt(Request.FROM.getPreferredName(), 0),

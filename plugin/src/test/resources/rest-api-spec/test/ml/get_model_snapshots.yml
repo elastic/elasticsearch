@@ -18,14 +18,26 @@ setup:
         index:  .ml-anomalies-get-model-snapshots
         type:   model_snapshot
         id:     "get-model-snapshots-1"
-        body:   { "job_id": "get-model-snapshots", "snapshot_id": "1", "timestamp": "2016-06-02T00:00:00Z" }
+        body:  >
+          {
+            "job_id": "get-model-snapshots",
+            "snapshot_id": "1",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "snapshot_doc_count": 1
+          }
 
   - do:
       index:
         index:  .ml-anomalies-get-model-snapshots
         type:   model_snapshot
         id:     "get-model-snapshots-2"
-        body:   { "job_id": "get-model-snapshots", "snapshot_id": "2", "timestamp": "2016-06-01T00:00:00Z" }
+        body:  >
+          {
+            "job_id": "get-model-snapshots",
+            "snapshot_id": "2",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "snapshot_doc_count": 2
+          }
 
   - do:
       indices.refresh:

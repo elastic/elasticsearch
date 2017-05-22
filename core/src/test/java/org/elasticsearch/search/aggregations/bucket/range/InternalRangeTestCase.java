@@ -20,33 +20,39 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.test.InternalAggregationTestCase;
-import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public abstract class InternalRangeTestCase<T extends InternalAggregation & Range> extends InternalAggregationTestCase<T> {
+public abstract class InternalRangeTestCase<T extends InternalAggregation & Range> extends InternalMultiBucketAggregationTestCase<T> {
 
     private boolean keyed;
 
     @Override
-    @Before
     public void setUp() throws Exception {
         super.setUp();
         keyed = randomBoolean();
     }
 
     @Override
-    protected T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return createTestInstance(name, pipelineAggregators, metaData, keyed);
+    protected T createTestInstance(String name,
+                                   List<PipelineAggregator> pipelineAggregators,
+                                   Map<String, Object> metaData,
+                                   InternalAggregations aggregations) {
+        return createTestInstance(name, pipelineAggregators, metaData, aggregations, keyed);
     }
 
     protected abstract T createTestInstance(String name,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData,
+                                            InternalAggregations aggregations,
                                             boolean keyed);
     @Override
     protected void assertReduced(T reduced, List<T> inputs) {
@@ -65,4 +71,29 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
         }
         assertEquals(expectedCounts, actualCounts);
     }
+
+    @Override
+    protected final void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
+        super.assertBucket(expected, actual, checkOrder);
+
+        Class<?> internalBucketClass = internalRangeBucketClass();
+        assertNotNull("Internal bucket class must not be null", internalBucketClass);
+        assertTrue(internalBucketClass.isInstance(expected));
+
+        Class<?> parsedBucketClass = parsedRangeBucketClass();
+        assertNotNull("Parsed bucket class must not be null", parsedBucketClass);
+        assertTrue(parsedBucketClass.isInstance(actual));
+
+        Range.Bucket expectedRange = (Range.Bucket) expected;
+        Range.Bucket actualRange = (Range.Bucket) actual;
+
+        assertEquals(expectedRange.getFrom(), actualRange.getFrom());
+        assertEquals(expectedRange.getFromAsString(), actualRange.getFromAsString());
+        assertEquals(expectedRange.getTo(), actualRange.getTo());
+        assertEquals(expectedRange.getToAsString(), actualRange.getToAsString());
+    }
+
+    protected abstract Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass();
+
+    protected abstract Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass();
 }

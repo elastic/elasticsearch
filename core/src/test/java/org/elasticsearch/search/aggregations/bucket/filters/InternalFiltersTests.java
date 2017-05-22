@@ -21,39 +21,44 @@ package org.elasticsearch.search.aggregations.bucket.filters;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.test.InternalAggregationTestCase;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class InternalFiltersTests extends InternalAggregationTestCase<InternalFilters> {
+public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase<InternalFilters> {
 
     private boolean keyed;
-    private final List<String> keys = new ArrayList<>();
+    private List<String> keys;
 
     @Override
-    @Before
     public void setUp() throws Exception {
         super.setUp();
         keyed = randomBoolean();
-        int numKeys = randomIntBetween(1,10);
-        for (int i = 0; i < numKeys; i++) {
-            keys.add(randomAlphaOfLength(5));
+        keys = new ArrayList<>();
+        int numBuckets = randomIntBetween(1, 5);
+        for (int i = 0; i < numBuckets; i++) {
+            if (keyed) {
+                keys.add(randomAlphaOfLength(5));
+            } else {
+                // this is what the FiltersAggregationBuilder ctor does when not providing KeyedFilter
+                keys.add(String.valueOf(i));
+            }
         }
-
     }
 
     @Override
-    protected InternalFilters createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalFilters createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+            InternalAggregations aggregations) {
         final List<InternalFilters.InternalBucket> buckets = new ArrayList<>();
         for (int i = 0; i < keys.size(); ++i) {
             String key = keys.get(i);
             int docCount = randomIntBetween(0, 1000);
-            buckets.add( new InternalFilters.InternalBucket(key, docCount, InternalAggregations.EMPTY, keyed));
+            buckets.add(new InternalFilters.InternalBucket(key, docCount, aggregations, keyed));
         }
         return new InternalFilters(name, buckets, keyed, pipelineAggregators, metaData);
     }
@@ -78,6 +83,11 @@ public class InternalFiltersTests extends InternalAggregationTestCase<InternalFi
     @Override
     protected Reader<InternalFilters> instanceReader() {
         return InternalFilters::new;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedFilters.class;
     }
 
 }

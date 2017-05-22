@@ -57,14 +57,6 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
         return metadata;
     }
 
-    /**
-     * Returns a string representing the type of the aggregation. This type is added to
-     * the aggregation name in the response, so that it can later be used by REST clients
-     * to determine the internal type of the aggregation.
-     */
-    //TODO it may make sense to move getType to the Aggregation interface given that we are duplicating it in both implementations
-    public abstract String getType();
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         // Concatenates the type and the name of the aggregation (ex: top_hits#foo)

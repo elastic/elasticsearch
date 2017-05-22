@@ -40,6 +40,13 @@ public interface Aggregation extends ToXContent {
     String getName();
 
     /**
+     * @return a string representing the type of the aggregation. This type is added to
+     * the aggregation name in the response, so that it can later be used by clients
+     * to determine type of the aggregation and parse it into the proper object.
+     */
+    String getType();
+
+    /**
      * Get the optional byte array metadata that was set on the aggregation
      */
     Map<String, Object> getMetaData();

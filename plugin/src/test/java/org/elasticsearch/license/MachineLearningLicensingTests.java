@@ -51,6 +51,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
     }
 
     public void testMachineLearningPutJobActionRestricted() throws Exception {
+        String jobId = "testmachinelearningputjobactionrestricted";
         // Pick a license that does not allow machine learning
         License.OperationMode mode = randomInvalidLicenseType();
         enableLicensing(mode);
@@ -59,7 +60,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<PutJobAction.Response> listener = PlainActionFuture. newFuture();
-            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob("foo")), listener);
+            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob(jobId)), listener);
             listener.actionGet();
             fail("put job action should not be enabled!");
         } catch (ElasticsearchSecurityException e) {
@@ -76,20 +77,20 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<PutJobAction.Response> listener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob("foo")), listener);
+            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob(jobId)), listener);
             PutJobAction.Response response = listener.actionGet();
             assertNotNull(response);
         }
     }
 
     public void testMachineLearningOpenJobActionRestricted() throws Exception {
-
+        String jobId = "testmachinelearningopenjobactionrestricted";
         assertMLAllowed(true);
         // test that license restricted apis do now work
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob("foo")), putJobListener);
+            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob(jobId)), putJobListener);
             PutJobAction.Response response = putJobListener.actionGet();
             assertNotNull(response);
         }
@@ -102,7 +103,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<OpenJobAction.Response> listener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).openJob(new OpenJobAction.Request("foo"), listener);
+            new MachineLearningClient(client).openJob(new OpenJobAction.Request(jobId), listener);
             listener.actionGet();
             fail("open job action should not be enabled!");
         } catch (ElasticsearchSecurityException e) {
@@ -118,7 +119,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
 
         // now that the license is invalid, the job should get closed:
         assertBusy(() -> {
-            JobState jobState = getJobStats("foo").getState();
+            JobState jobState = getJobStats(jobId).getState();
             assertEquals(JobState.CLOSED, jobState);
         });
 
@@ -126,20 +127,21 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<OpenJobAction.Response> listener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).openJob(new OpenJobAction.Request("foo"), listener);
+            new MachineLearningClient(client).openJob(new OpenJobAction.Request(jobId), listener);
             OpenJobAction.Response response = listener.actionGet();
             assertNotNull(response);
         }
     }
 
     public void testMachineLearningPutDatafeedActionRestricted() throws Exception {
-
+        String jobId = "testmachinelearningputdatafeedactionrestricted";
+        String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         // test that license restricted apis do now work
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob("foo")), putJobListener);
+            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob(jobId)), putJobListener);
             PutJobAction.Response putJobResponse = putJobListener.actionGet();
             assertNotNull(putJobResponse);
         }
@@ -153,7 +155,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<PutDatafeedAction.Response> listener = PlainActionFuture.newFuture();
             new MachineLearningClient(client).putDatafeed(
-                    new PutDatafeedAction.Request(createDatafeed("foobar", "foo", Collections.singletonList("foo"))), listener);
+                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))), listener);
             listener.actionGet();
             fail("put datafeed action should not be enabled!");
         } catch (ElasticsearchSecurityException e) {
@@ -171,36 +173,38 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<PutDatafeedAction.Response> listener = PlainActionFuture.newFuture();
             new MachineLearningClient(client).putDatafeed(
-                    new PutDatafeedAction.Request(createDatafeed("foobar", "foo", Collections.singletonList("foo"))), listener);
+                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))), listener);
             PutDatafeedAction.Response response = listener.actionGet();
             assertNotNull(response);
         }
     }
 
     public void testAutoCloseJobWithDatafeed() throws Exception {
+        String jobId = "testautoclosejobwithdatafeed";
+        String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
-        createIndex("foo");
+        createIndex(jobId + "-data");
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             // put job
             PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob("foo")), putJobListener);
+            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob(jobId)), putJobListener);
             PutJobAction.Response putJobResponse = putJobListener.actionGet();
             assertNotNull(putJobResponse);
             // put datafeed
             PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
             new MachineLearningClient(client).putDatafeed(
-                    new PutDatafeedAction.Request(createDatafeed("foobar", "foo", Collections.singletonList("foo"))), putDatafeedListener);
+                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))), putDatafeedListener);
             PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
             assertNotNull(putDatafeedResponse);
             // open job
             PlainActionFuture<OpenJobAction.Response> openJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).openJob(new OpenJobAction.Request("foo"), openJobListener);
+            new MachineLearningClient(client).openJob(new OpenJobAction.Request(jobId), openJobListener);
             OpenJobAction.Response openJobResponse = openJobListener.actionGet();
             assertNotNull(openJobResponse);
             // start datafeed
             PlainActionFuture<StartDatafeedAction.Response> listener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).startDatafeed(new StartDatafeedAction.Request("foobar", 0L), listener);
+            new MachineLearningClient(client).startDatafeed(new StartDatafeedAction.Request(datafeedId, 0L), listener);
             listener.actionGet();
         }
 
@@ -213,10 +217,10 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
 
         // now that the license is invalid, the job should be closed and datafeed stopped:
         assertBusy(() -> {
-            JobState jobState = getJobStats("foo").getState();
+            JobState jobState = getJobStats(jobId).getState();
             assertEquals(JobState.CLOSED, jobState);
 
-            DatafeedState datafeedState = getDatafeedStats("foobar").getDatafeedState();
+            DatafeedState datafeedState = getDatafeedStats(datafeedId).getDatafeedState();
             assertEquals(DatafeedState.STOPPED, datafeedState);
 
             ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -231,20 +235,20 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             // open job
             PlainActionFuture<OpenJobAction.Response> openJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).openJob(new OpenJobAction.Request("foo"), openJobListener);
+            new MachineLearningClient(client).openJob(new OpenJobAction.Request(jobId), openJobListener);
             OpenJobAction.Response openJobResponse = openJobListener.actionGet();
             assertNotNull(openJobResponse);
             // start datafeed
             PlainActionFuture<StartDatafeedAction.Response> listener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).startDatafeed(new StartDatafeedAction.Request("foobar", 0L), listener);
+            new MachineLearningClient(client).startDatafeed(new StartDatafeedAction.Request(datafeedId, 0L), listener);
             listener.actionGet();
         }
 
         assertBusy(() -> {
-            JobState jobState = getJobStats("foo").getState();
+            JobState jobState = getJobStats(jobId).getState();
             assertEquals(JobState.OPENED, jobState);
 
-            DatafeedState datafeedState = getDatafeedStats("foobar").getDatafeedState();
+            DatafeedState datafeedState = getDatafeedStats(datafeedId).getDatafeedState();
             assertEquals(DatafeedState.STARTED, datafeedState);
 
             ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -261,10 +265,10 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
 
         // now that the license is invalid, the job should be closed and datafeed stopped:
         assertBusy(() -> {
-            JobState jobState = getJobStats("foo").getState();
+            JobState jobState = getJobStats(jobId).getState();
             assertEquals(JobState.CLOSED, jobState);
 
-            DatafeedState datafeedState = getDatafeedStats("foobar").getDatafeedState();
+            DatafeedState datafeedState = getDatafeedStats(datafeedId).getDatafeedState();
             assertEquals(DatafeedState.STOPPED, datafeedState);
 
             ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -274,23 +278,24 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
     }
 
     public void testMachineLearningStartDatafeedActionRestricted() throws Exception {
-
+        String jobId = "testmachinelearningstartdatafeedactionrestricted";
+        String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
-        createIndex("foo");
+        createIndex(jobId + "-data");
         // test that license restricted apis do now work
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob("foo")), putJobListener);
+            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob(jobId)), putJobListener);
             PutJobAction.Response putJobResponse = putJobListener.actionGet();
             assertNotNull(putJobResponse);
             PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
             new MachineLearningClient(client).putDatafeed(
-                    new PutDatafeedAction.Request(createDatafeed("foobar", "foo", Collections.singletonList("foo"))), putDatafeedListener);
+                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))), putDatafeedListener);
             PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
             assertNotNull(putDatafeedResponse);
             PlainActionFuture<OpenJobAction.Response> openJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).openJob(new OpenJobAction.Request("foo"), openJobListener);
+            new MachineLearningClient(client).openJob(new OpenJobAction.Request(jobId), openJobListener);
             OpenJobAction.Response openJobResponse = openJobListener.actionGet();
             assertNotNull(openJobResponse);
         }
@@ -302,7 +307,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
 
         // now that the license is invalid, the job should get closed:
         assertBusy(() -> {
-            JobState jobState = getJobStats("foo").getState();
+            JobState jobState = getJobStats(jobId).getState();
             assertEquals(JobState.CLOSED, jobState);
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
@@ -313,7 +318,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<StartDatafeedAction.Response> listener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).startDatafeed(new StartDatafeedAction.Request("foobar", 0L), listener);
+            new MachineLearningClient(client).startDatafeed(new StartDatafeedAction.Request(datafeedId, 0L), listener);
             listener.actionGet();
             fail("start datafeed action should not be enabled!");
         } catch (ElasticsearchSecurityException e) {
@@ -331,39 +336,40 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             // re-open job now that the license is valid again
             PlainActionFuture<OpenJobAction.Response> openJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).openJob(new OpenJobAction.Request("foo"), openJobListener);
+            new MachineLearningClient(client).openJob(new OpenJobAction.Request(jobId), openJobListener);
             OpenJobAction.Response openJobResponse = openJobListener.actionGet();
             assertNotNull(openJobResponse);
 
             PlainActionFuture<StartDatafeedAction.Response> listener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).startDatafeed(new StartDatafeedAction.Request("foobar", 0L), listener);
+            new MachineLearningClient(client).startDatafeed(new StartDatafeedAction.Request(datafeedId, 0L), listener);
             StartDatafeedAction.Response response = listener.actionGet();
             assertNotNull(response);
         }
     }
 
     public void testMachineLearningStopDatafeedActionNotRestricted() throws Exception {
-
+        String jobId = "testmachinelearningstopdatafeedactionnotrestricted";
+        String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
-        createIndex("foo");
+        createIndex(jobId + "-data");
         // test that license restricted apis do now work
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob("foo")), putJobListener);
+            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob(jobId)), putJobListener);
             PutJobAction.Response putJobResponse = putJobListener.actionGet();
             assertNotNull(putJobResponse);
             PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
             new MachineLearningClient(client).putDatafeed(
-                    new PutDatafeedAction.Request(createDatafeed("foobar", "foo", Collections.singletonList("foo"))), putDatafeedListener);
+                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))), putDatafeedListener);
             PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
             assertNotNull(putDatafeedResponse);
             PlainActionFuture<OpenJobAction.Response> openJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).openJob(new OpenJobAction.Request("foo"), openJobListener);
+            new MachineLearningClient(client).openJob(new OpenJobAction.Request(jobId), openJobListener);
             OpenJobAction.Response openJobResponse = openJobListener.actionGet();
             assertNotNull(openJobResponse);
             PlainActionFuture<StartDatafeedAction.Response> startDatafeedListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).startDatafeed(new StartDatafeedAction.Request("foobar", 0L), startDatafeedListener);
+            new MachineLearningClient(client).startDatafeed(new StartDatafeedAction.Request(datafeedId, 0L), startDatafeedListener);
             StartDatafeedAction.Response startDatafeedResponse = startDatafeedListener.actionGet();
             assertNotNull(startDatafeedResponse);
         }
@@ -378,12 +384,12 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<StopDatafeedAction.Response> listener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).stopDatafeed(new StopDatafeedAction.Request("foobar"), listener);
+            new MachineLearningClient(client).stopDatafeed(new StopDatafeedAction.Request(datafeedId), listener);
             if (invalidLicense) {
                 // the stop datafeed due to invalid license happens async, so check if the datafeed turns into stopped state:
                 assertBusy(() -> {
                     GetDatafeedsStatsAction.Response response =
-                            new MachineLearningClient(client).getDatafeedsStats(new GetDatafeedsStatsAction.Request("foobar")).actionGet();
+                            new MachineLearningClient(client).getDatafeedsStats(new GetDatafeedsStatsAction.Request(datafeedId)).actionGet();
                     assertEquals(DatafeedState.STOPPED, response.getResponse().results().get(0).getDatafeedState());
                 });
             } else {
@@ -393,17 +399,17 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
     }
 
     public void testMachineLearningCloseJobActionNotRestricted() throws Exception {
-
+        String jobId = "testmachinelearningclosejobactionnotrestricted";
         assertMLAllowed(true);
         // test that license restricted apis do now work
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob("foo")), putJobListener);
+            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob(jobId)), putJobListener);
             PutJobAction.Response putJobResponse = putJobListener.actionGet();
             assertNotNull(putJobResponse);
             PlainActionFuture<OpenJobAction.Response> openJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).openJob(new OpenJobAction.Request("foo"), openJobListener);
+            new MachineLearningClient(client).openJob(new OpenJobAction.Request(jobId), openJobListener);
             OpenJobAction.Response openJobResponse = openJobListener.actionGet();
             assertNotNull(openJobResponse);
         }
@@ -418,13 +424,13 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<CloseJobAction.Response> listener = PlainActionFuture.newFuture();
-            CloseJobAction.Request request = new CloseJobAction.Request("foo");
+            CloseJobAction.Request request = new CloseJobAction.Request(jobId);
             request.setCloseTimeout(TimeValue.timeValueSeconds(20));
             if (invalidLicense) {
                 // the close due to invalid license happens async, so check if the job turns into closed state:
                 assertBusy(() -> {
                     GetJobsStatsAction.Response response =
-                            new MachineLearningClient(client).getJobsStats(new GetJobsStatsAction.Request("foo")).actionGet();
+                            new MachineLearningClient(client).getJobsStats(new GetJobsStatsAction.Request(jobId)).actionGet();
                     assertEquals(JobState.CLOSED, response.getResponse().results().get(0).getState());
                 });
             } else {
@@ -435,13 +441,13 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
     }
 
     public void testMachineLearningDeleteJobActionNotRestricted() throws Exception {
-
+        String jobId = "testmachinelearningclosejobactionnotrestricted";
         assertMLAllowed(true);
         // test that license restricted apis do now work
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob("foo")), putJobListener);
+            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob(jobId)), putJobListener);
             PutJobAction.Response putJobResponse = putJobListener.actionGet();
             assertNotNull(putJobResponse);
         }
@@ -453,24 +459,25 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<DeleteJobAction.Response> listener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).deleteJob(new DeleteJobAction.Request("foo"), listener);
+            new MachineLearningClient(client).deleteJob(new DeleteJobAction.Request(jobId), listener);
             listener.actionGet();
         }
     }
 
     public void testMachineLearningDeleteDatafeedActionNotRestricted() throws Exception {
-
+        String jobId = "testmachinelearningdeletedatafeedactionnotrestricted";
+        String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         // test that license restricted apis do now work
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob("foo")), putJobListener);
+            new MachineLearningClient(client).putJob(new PutJobAction.Request(createJob(jobId)), putJobListener);
             PutJobAction.Response putJobResponse = putJobListener.actionGet();
             assertNotNull(putJobResponse);
             PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
             new MachineLearningClient(client).putDatafeed(
-                    new PutDatafeedAction.Request(createDatafeed("foobar", "foo", Collections.singletonList("foo"))), putDatafeedListener);
+                    new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))), putDatafeedListener);
             PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
             assertNotNull(putDatafeedResponse);
         }
@@ -482,7 +489,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainActionFuture<DeleteDatafeedAction.Response> listener = PlainActionFuture.newFuture();
-            new MachineLearningClient(client).deleteDatafeed(new DeleteDatafeedAction.Request("foobar"), listener);
+            new MachineLearningClient(client).deleteDatafeed(new DeleteDatafeedAction.Request(datafeedId), listener);
             listener.actionGet();
         }
     }

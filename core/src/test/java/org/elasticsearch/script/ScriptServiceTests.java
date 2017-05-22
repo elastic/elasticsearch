@@ -261,7 +261,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testAllowNoScriptTypeSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.types_allowed", "");
+        builder.put("script.types_allowed", "none");
         buildScriptService(builder.build());
 
         assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
@@ -270,7 +270,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testAllowNoScriptContextSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.contexts_allowed", "");
+        builder.put("script.contexts_allowed", "none");
         buildScriptService(builder.build());
 
         assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);

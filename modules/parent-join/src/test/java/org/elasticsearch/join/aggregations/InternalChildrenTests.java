@@ -20,7 +20,7 @@
 package org.elasticsearch.join.aggregations;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 

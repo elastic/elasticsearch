@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.List;
 import java.util.Map;

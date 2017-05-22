@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

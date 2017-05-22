@@ -20,13 +20,13 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.List;
 import java.util.Map;
 
-public class InternalSimpleValueTests extends InternalAggregationTestCase<InternalSimpleValue>{
+public class InternalSimpleValueTests extends InternalAggregationTestCase<InternalSimpleValue> {
 
     @Override
     protected InternalSimpleValue createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,

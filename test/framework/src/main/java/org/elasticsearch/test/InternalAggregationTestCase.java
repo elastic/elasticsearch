@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations;
+package org.elasticsearch.test;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,6 +29,9 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -92,7 +95,6 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extend
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ParsedExtendedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.derivative.ParsedDerivative;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -152,7 +154,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
 
-    protected final T createTestInstance() {
+    public final T createTestInstance() {
         String name = randomAlphaOfLength(5);
         List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
         // TODO populate pipelineAggregators

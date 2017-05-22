@@ -20,11 +20,10 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

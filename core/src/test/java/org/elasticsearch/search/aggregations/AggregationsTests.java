@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
@@ -59,6 +58,7 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.I
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.InternalExtendedStatsBucketTests;
 import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivativeTests;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.After;
 import org.junit.Before;

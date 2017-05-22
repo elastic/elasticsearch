@@ -25,6 +25,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -52,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -298,8 +300,8 @@ public class SearchTransformTests extends ESIntegTestCase {
     public static class CustomScriptContextPlugin extends Plugin implements ScriptPlugin {
 
         @Override
-        public ScriptContext.Plugin getCustomScriptContexts() {
-            return new ScriptContext.Plugin("xpack", "watch");
+        public List<ScriptContext> getContexts() {
+            return Collections.singletonList(Watcher.SCRIPT_CONTEXT);
         }
     }
 }

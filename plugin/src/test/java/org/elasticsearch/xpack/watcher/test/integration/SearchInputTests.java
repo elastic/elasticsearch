@@ -20,6 +20,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -43,6 +44,8 @@ import org.joda.time.DateTime;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -169,8 +172,8 @@ public class SearchInputTests extends ESIntegTestCase {
     public static class CustomScriptContextPlugin extends Plugin implements ScriptPlugin {
 
         @Override
-        public ScriptContext.Plugin getCustomScriptContexts() {
-            return new ScriptContext.Plugin("xpack", "watch");
+        public List<ScriptContext> getContexts() {
+            return Collections.singletonList(Watcher.SCRIPT_CONTEXT);
         }
     }
 }

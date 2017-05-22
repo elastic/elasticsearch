@@ -46,6 +46,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -333,8 +334,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     }
 
     @Override
-    public ScriptContext.Plugin getCustomScriptContexts() {
-        return watcher.getCustomScriptContexts();
+    public List<ScriptContext> getContexts() {
+        return Collections.singletonList(Watcher.SCRIPT_CONTEXT);
     }
 
     @Override

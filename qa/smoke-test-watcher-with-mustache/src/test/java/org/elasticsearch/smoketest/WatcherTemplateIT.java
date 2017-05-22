@@ -11,13 +11,13 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -37,11 +37,10 @@ public class WatcherTemplateIT extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        ScriptContextRegistry registry = new ScriptContextRegistry(Collections.singletonList(new ScriptContext.Plugin("xpack", "watch")));
-
         MustacheScriptEngine engine = new MustacheScriptEngine();
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, registry);
+        Map<String, ScriptContext> contexts = Collections.singletonMap(Watcher.SCRIPT_CONTEXT.name, Watcher.SCRIPT_CONTEXT);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
         textTemplateEngine = new TextTemplateEngine(Settings.EMPTY, scriptService);
     }
 

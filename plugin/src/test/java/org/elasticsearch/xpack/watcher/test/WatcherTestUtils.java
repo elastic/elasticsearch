@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -33,6 +32,7 @@ import org.elasticsearch.xpack.notification.email.EmailService;
 import org.elasticsearch.xpack.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
 import org.elasticsearch.xpack.notification.email.Profile;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
@@ -236,9 +236,9 @@ public final class WatcherTestUtils {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
                 .build();
-        ScriptContextRegistry scriptContextRegistry =
-                new ScriptContextRegistry(Collections.singletonList(new ScriptContext.Plugin("xpack", "watch")));
-        return new ScriptService(settings, Collections.emptyMap(), scriptContextRegistry);
+        Map<String, ScriptContext> contexts = new HashMap<>(ScriptContext.BUILTINS);
+        contexts.put(Watcher.SCRIPT_CONTEXT.name, Watcher.SCRIPT_CONTEXT);
+        return new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
     }
 
     public static SearchType getRandomSupportedSearchType() {

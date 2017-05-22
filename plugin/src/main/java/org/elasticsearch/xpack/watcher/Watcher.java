@@ -37,6 +37,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -171,7 +172,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
-public class Watcher implements ActionPlugin, ScriptPlugin {
+public class Watcher implements ActionPlugin {
 
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
             new Setting<>("index.xpack.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
@@ -180,8 +181,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
 
-    private static final ScriptContext.Plugin SCRIPT_PLUGIN = new ScriptContext.Plugin("xpack", "watch");
-    public static final ScriptContext SCRIPT_CONTEXT = SCRIPT_PLUGIN::getKey;
+    public static final ScriptContext SCRIPT_CONTEXT = new ScriptContext("xpack");
 
     private static final Logger logger = Loggers.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
@@ -428,12 +428,6 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
                 new RestExecuteWatchAction(settings, restController),
                 new RestHijackOperationAction(settings, restController));
     }
-
-    @Override
-    public ScriptContext.Plugin getCustomScriptContexts() {
-        return SCRIPT_PLUGIN;
-    }
-
 
     public void onIndexModule(IndexModule module) {
         if (enabled == false || transportClient) {

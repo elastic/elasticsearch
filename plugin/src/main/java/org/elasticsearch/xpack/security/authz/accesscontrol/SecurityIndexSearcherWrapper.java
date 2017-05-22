@@ -276,7 +276,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 params.put("_user", userModel);
                 // Always enforce mustache script lang:
                 script = new Script(script.getType(), "mustache", script.getIdOrCode(), script.getOptions(), params);
-                CompiledTemplate compiledTemplate = scriptService.compileTemplate(script, ScriptContext.Standard.SEARCH);
+                CompiledTemplate compiledTemplate = scriptService.compileTemplate(script, ScriptContext.SEARCH);
                 return compiledTemplate.run(script.getParams());
             } else {
                 return querySource;

@@ -21,8 +21,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptMetaData;
@@ -30,6 +28,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -45,7 +44,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
@@ -85,8 +83,8 @@ public class ScriptConditionTests extends ESTestCase {
         });
 
         ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);
-        ScriptContextRegistry contextRegistry = new ScriptContextRegistry(singleton(new ScriptContext.Plugin("xpack", "watch")));
-        scriptService = new ScriptService(Settings.EMPTY, Collections.singletonMap(engine.getType(), engine), contextRegistry);
+        scriptService = new ScriptService(Settings.EMPTY, Collections.singletonMap(engine.getType(), engine),
+            Collections.singletonMap(Watcher.SCRIPT_CONTEXT.name, Watcher.SCRIPT_CONTEXT));
 
         ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
         clusterState.metaData(MetaData.builder().putCustom(ScriptMetaData.TYPE, new ScriptMetaData.Builder(null).build()));

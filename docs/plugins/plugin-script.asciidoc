@@ -13,7 +13,7 @@ Run the following command to get usage instructions:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin -h
+sudo ./bin/elasticsearch-plugin -h
 -----------------------------------
 
 [IMPORTANT]
@@ -39,7 +39,7 @@ Core Elasticsearch plugins can be installed as follows:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install [plugin_name]
+sudo ./bin/elasticsearch-plugin install [plugin_name]
 -----------------------------------
 
 For instance, to install the core <<analysis-icu,ICU plugin>>, just run the
@@ -47,7 +47,7 @@ following command:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install analysis-icu
+sudo ./bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
 This command will install the version of the plugin that matches your
@@ -60,7 +60,7 @@ A plugin can also be downloaded directly from a custom location by specifying th
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install [url] <1>
+sudo ./bin/elasticsearch-plugin install [url] <1>
 -----------------------------------
 <1> must be a valid URL, the plugin name is determined from its descriptor.
 
@@ -68,7 +68,7 @@ For instance, to install a plugin from your local file system, you could run:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install file:///path/to/plugin.zip
+sudo ./bin/elasticsearch-plugin install file:///path/to/plugin.zip
 -----------------------------------
 
 The plugin script will refuse to talk to an HTTPS URL with an untrusted
@@ -90,7 +90,7 @@ A list of the currently loaded plugins can be retrieved with the `list` option:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin list
+sudo ./bin/elasticsearch-plugin list
 -----------------------------------
 
 Alternatively, use the {ref}/cluster-nodes-info.html[node-info API] to find
@@ -104,7 +104,7 @@ Plugins can be removed manually, by deleting the appropriate directory under
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin remove [pluginname]
+sudo ./bin/elasticsearch-plugin remove [pluginname]
 -----------------------------------
 
 After a Java plugin has been removed, you will need to restart the node to complete the removal process.
@@ -141,7 +141,7 @@ mode can be forced by specifying `-b` or `--batch` as follows:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install --batch [pluginname]
+sudo ./bin/elasticsearch-plugin install --batch [pluginname]
 -----------------------------------
 
 [float]
@@ -153,7 +153,7 @@ can do this as follows:
 
 [source,sh]
 ---------------------
-sudo bin/elasticsearch-plugin -Epath.conf=/path/to/custom/config/dir install <plugin name>
+sudo ./bin/elasticsearch-plugin -Epath.conf=/path/to/custom/config/dir install <plugin name>
 ---------------------
 
 You can also set the `CONF_DIR` environment variable to the custom config

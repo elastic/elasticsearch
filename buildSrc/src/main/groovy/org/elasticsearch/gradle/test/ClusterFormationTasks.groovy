@@ -657,11 +657,11 @@ class ClusterFormationTasks {
             standardOutput = new ByteArrayOutputStream()
             doLast {
                 String out = standardOutput.toString()
-                if (out.contains("${pid} org.elasticsearch.bootstrap.Elasticsearch") == false) {
+                if (out.contains("${ext.pid} org.elasticsearch.bootstrap.Elasticsearch") == false) {
                     logger.error('jps -l')
                     logger.error(out)
-                    logger.error("pid file: ${pidFile}")
-                    logger.error("pid: ${pid}")
+                    logger.error("pid file: ${node.pidFile}")
+                    logger.error("pid: ${ext.pid}")
                     throw new GradleException("jps -l did not report any process with org.elasticsearch.bootstrap.Elasticsearch\n" +
                             "Did you run gradle clean? Maybe an old pid file is still lying around.")
                 } else {

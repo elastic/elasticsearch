@@ -344,10 +344,5 @@ public class ValueCountIT extends ESIntegTestCase {
                 }
             };
         }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
-        }
     }
 }

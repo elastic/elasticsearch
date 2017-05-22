@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class ScriptContextTests extends ESTestCase {
 
@@ -42,13 +43,13 @@ public class ScriptContextTests extends ESTestCase {
             .build();
 
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(scriptEngine));
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         List<ScriptContext.Plugin> customContexts = Arrays.asList(
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"),
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"),
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
-        ScriptService scriptService = new ScriptService(settings, scriptEngineRegistry, scriptContextRegistry);
+        ScriptService scriptService = new ScriptService(settings, engines, scriptContextRegistry);
 
         ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
         ScriptMetaData smd = empty.metaData().custom(ScriptMetaData.TYPE);

@@ -264,9 +264,4 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
     private int getNextStatement(String scriptSource, int offset) {
         return Math.min(scriptSource.length(), offset + 25);
     }
-
-    @Override
-    public boolean isInlineScriptEnabled() {
-        return true;
-    }
 }

@@ -54,8 +54,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     private ScriptEngine scriptEngine;
     private ScriptEngine dangerousScriptEngine;
-    private Map<String, ScriptEngine> scriptEnginesByLangMap;
-    private ScriptEngineRegistry scriptEngineRegistry;
+    private Map<String, ScriptEngine> engines;
     private ScriptContextRegistry scriptContextRegistry;
     private ScriptContext[] scriptContexts;
     private ScriptService scriptService;
@@ -77,7 +76,6 @@ public class ScriptServiceTests extends ESTestCase {
                 .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 10000)
                 .build();
         scriptEngine = new TestEngine();
-        dangerousScriptEngine = new TestDangerousEngine();
         TestEngine defaultScriptServiceEngine = new TestEngine(Script.DEFAULT_SCRIPT_LANG) {};
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
@@ -95,8 +93,9 @@ public class ScriptServiceTests extends ESTestCase {
             String context = plugin + "_" + operation;
             contexts.put(context, new ScriptContext.Plugin(plugin, operation));
         }
-        scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(scriptEngine, dangerousScriptEngine,
-                defaultScriptServiceEngine));
+        engines = new HashMap<>();
+        engines.put(scriptEngine.getType(), scriptEngine);
+        engines.put(defaultScriptServiceEngine.getType(), defaultScriptServiceEngine);
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
         logger.info("--> setup script service");
@@ -104,7 +103,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
-        scriptService = new ScriptService(finalSettings, scriptEngineRegistry, scriptContextRegistry) {
+        scriptService = new ScriptService(finalSettings, engines, scriptContextRegistry) {
             @Override
             StoredScriptSource getScriptFromClusterState(String id, String lang) {
                 //mock the script that gets retrieved from an index
@@ -245,7 +244,9 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testSearchCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.search(null, new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
+        Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
+        CompiledScript compile = scriptService.compile(script, randomFrom(scriptContexts));
+        scriptService.search(null, compile, script.getParams());
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -387,40 +388,6 @@ public class ScriptServiceTests extends ESTestCase {
         @Override
         public void close() {
 
-        }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
-        }
-    }
-
-    public static class TestDangerousEngine implements ScriptEngine {
-
-        public static final String NAME = "dtest";
-
-        @Override
-        public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-            return "compiled_" + scriptSource;
-        }
-
-        @Override
-        public ExecutableScript executable(final CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
-            return null;
-        }
-
-        @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-            return null;
-        }
-
-        @Override
-        public void close() {
         }
     }
 }

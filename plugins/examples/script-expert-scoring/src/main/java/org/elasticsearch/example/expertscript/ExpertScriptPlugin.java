@@ -134,11 +134,6 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         }
 
         @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
-        }
-
-        @Override
         public void close() {}
     }
     // end::expert_engine

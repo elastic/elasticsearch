@@ -46,11 +46,11 @@ class ClusterConfiguration {
     int transportPort = 0
 
     /**
-     * An override of the data directory. This may only be used with a single node.
-     * The value is lazily evaluated at runtime as a String path.
+     * An override of the data directory. Input is the node number and output
+     * is the override data directory.
      */
     @Input
-    Object dataDir = null
+    Closure<String> dataDir = null
 
     /** Optional override of the cluster name. */
     @Input

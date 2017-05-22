@@ -252,6 +252,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     }
 
     void assertIndexSanity(String indexName, Version indexCreated) {
+        // NOTE: this has been ported to FullClusterRestartIT
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices(indexName).get();
         assertEquals(1, getIndexResponse.indices().length);
         assertEquals(indexName, getIndexResponse.indices()[0]);

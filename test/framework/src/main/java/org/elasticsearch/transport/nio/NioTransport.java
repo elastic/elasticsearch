@@ -64,10 +64,10 @@ public class NioTransport extends TcpTransport<NioChannel> {
     public static final Setting<Integer> NIO_WORKER_COUNT =
         new Setting<>("transport.nio.worker_count",
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
-            (s) -> Setting.parseInt(s, 1, "transport.nio.worker_count"), Setting.Property.NodeScope, Setting.Property.Shared);
+            (s) -> Setting.parseInt(s, 1, "transport.nio.worker_count"), Setting.Property.NodeScope);
 
     public static final Setting<Integer> NIO_ACCEPTOR_COUNT =
-        intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope, Setting.Property.Shared);
+        intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
 
     private final TcpReadHandler tcpReadHandler = new TcpReadHandler(this);
     private final BigArrays bigArrays;
@@ -140,7 +140,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
         if (connected == false) {
             throw new ElasticsearchException("client is shutdown");
         }
-        return new NodeChannels(node, channels, profile);
+        return new NodeChannels(node, channels, profile, transportServiceAdapter::onConnectionClosed);
     }
 
     @Override

@@ -1,8 +1,5 @@
 ---
 "Verify user and role in upgraded cluster":
-  - skip:
-      version: "5.0.0 - "
-      reason: https://github.com/elastic/x-pack-elasticsearch/issues/1529
   - do:
       headers:
         Authorization: "Basic bmF0aXZlX3VzZXI6Y2hhbmdlbWU="
@@ -27,6 +24,9 @@
 
 ---
 "Verify default password migration results in upgraded cluster":
+  - skip:
+      version: "5.0.0 - "
+      reason: https://github.com/elastic/x-pack-elasticsearch/issues/1529
   - do:
       headers:
         Authorization: "Basic bmF0aXZlX3VzZXI6Y2hhbmdlbWU="

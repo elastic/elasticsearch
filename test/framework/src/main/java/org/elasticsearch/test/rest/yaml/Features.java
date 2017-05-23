@@ -41,7 +41,7 @@ public final class Features {
             "headers",
             "stash_in_key",
             "stash_in_path",
-            "stash_path_magic_key",
+            "stash_path_replace",
             "warnings",
             "yaml"));
 

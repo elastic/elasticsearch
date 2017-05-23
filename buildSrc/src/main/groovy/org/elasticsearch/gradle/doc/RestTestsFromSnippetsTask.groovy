@@ -169,7 +169,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 current.println("      features: ")
                 current.println("        - stash_in_key")
                 current.println("        - stash_in_path")
-                current.println("        - stash_path_magic_key")
+                current.println("        - stash_path_replace")
                 current.println("        - warnings")
             }
             if (test.skipTest) {

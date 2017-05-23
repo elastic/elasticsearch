@@ -44,16 +44,12 @@ public enum ShapeRelation implements Writeable {
     }
 
     public static ShapeRelation readFromStream(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown ShapeRelation ordinal [" + ordinal + "]");
-        }
-        return values()[ordinal];
+        return in.readEnum(ShapeRelation.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(ordinal());
+        out.writeEnum(this);
     }
 
     public static ShapeRelation getRelationByName(String name) {

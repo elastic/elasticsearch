@@ -30,11 +30,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesMethod;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -474,7 +474,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                                                 .method(PercentilesMethod.HDR)
                                                 .numberOfSignificantValueDigits(sigDigits)
                                                 .percentiles(99))
-                                .order(Order.aggregation("percentiles", "99", asc))).execute().actionGet();
+                                .order(BucketOrder.aggregation("percentiles", "99", asc))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -497,7 +497,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        terms("terms").field("value").order(Terms.Order.compound(Terms.Order.aggregation("filter>percentiles.99", true)))
+                        terms("terms").field("value").order(BucketOrder.compound(BucketOrder.aggregation("filter>percentiles.99", true)))
                                 .subAggregation(filter("filter", termQuery("value", 100))
                                         .subAggregation(percentiles("percentiles").method(PercentilesMethod.HDR).field("value"))))
                 .get();
@@ -506,7 +506,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
 
         Terms terms = searchResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets, notNullValue());
         assertThat(buckets.size(), equalTo(10));
 

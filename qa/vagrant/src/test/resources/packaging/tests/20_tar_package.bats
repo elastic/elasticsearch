@@ -104,10 +104,6 @@ setup() {
 # Check that Elasticsearch is working
 ##################################
 @test "[TAR] test elasticsearch" {
-    # Install scripts used to test script filters and search templates before
-    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
-    # them.
-    install_elasticsearch_test_scripts
     start_elasticsearch_service
     run_elasticsearch_tests
     stop_elasticsearch_service

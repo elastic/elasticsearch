@@ -149,8 +149,10 @@ final class BootstrapChecks {
 
         if (!errors.isEmpty()) {
             final List<String> messages = new ArrayList<>(1 + errors.size());
-            messages.add("bootstrap checks failed");
-            messages.addAll(errors);
+            messages.add("[" + errors.size() + "] bootstrap checks failed");
+            for (int i = 0; i < errors.size(); i++) {
+                messages.add("[" + (i + 1) + "]: " + errors.get(i));
+            }
             final NodeValidationException ne = new NodeValidationException(String.join("\n", messages));
             errors.stream().map(IllegalStateException::new).forEach(ne::addSuppressed);
             throw ne;
@@ -313,11 +315,11 @@ final class BootstrapChecks {
     static class MaxNumberOfThreadsCheck implements BootstrapCheck {
 
         // this should be plenty for machines up to 256 cores
-        private final long maxNumberOfThreadsThreshold = 1 << 12;
+        private static final long MAX_NUMBER_OF_THREADS_THRESHOLD = 1 << 12;
 
         @Override
         public boolean check() {
-            return getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < maxNumberOfThreadsThreshold;
+            return getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD;
         }
 
         @Override
@@ -327,7 +329,7 @@ final class BootstrapChecks {
                 "max number of threads [%d] for user [%s] is too low, increase to at least [%d]",
                 getMaxNumberOfThreads(),
                 BootstrapInfo.getSystemProperties().get("user.name"),
-                maxNumberOfThreadsThreshold);
+                MAX_NUMBER_OF_THREADS_THRESHOLD);
         }
 
         // visible for testing
@@ -367,11 +369,11 @@ final class BootstrapChecks {
 
     static class MaxMapCountCheck implements BootstrapCheck {
 
-        private final long limit = 1 << 18;
+        private static final long LIMIT = 1 << 18;
 
         @Override
         public boolean check() {
-            return getMaxMapCount() != -1 && getMaxMapCount() < limit;
+            return getMaxMapCount() != -1 && getMaxMapCount() < LIMIT;
         }
 
         @Override
@@ -380,7 +382,7 @@ final class BootstrapChecks {
                     Locale.ROOT,
                     "max virtual memory areas vm.max_map_count [%d] is too low, increase to at least [%d]",
                     getMaxMapCount(),
-                    limit);
+                    LIMIT);
         }
 
         // visible for testing

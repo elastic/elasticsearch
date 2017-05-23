@@ -54,16 +54,12 @@ public enum Operator implements Writeable {
     }
 
     public static Operator readFromStream(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown Operator ordinal [" + ordinal + "]");
-        }
-        return values()[ordinal];
+        return in.readEnum(Operator.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(this.ordinal());
+        out.writeEnum(this);
     }
 
     public static Operator fromString(String op) {

@@ -103,6 +103,30 @@ public class ScopedSettingsTests extends ESTestCase {
         assertNull(target.build().getAsInt("archived.foo.bar", null));
     }
 
+    public void testResetSettingWithIPValidator() {
+        Settings currentSettings = Settings.builder().put("index.routing.allocation.require._ip", "192.168.0.1,127.0.0.1")
+            .put("index.some.dyn.setting", 1)
+            .build();
+        Setting<Integer> dynamicSetting = Setting.intSetting("index.some.dyn.setting", 1, Property.Dynamic, Property.IndexScope);
+
+        IndexScopedSettings settings = new IndexScopedSettings(currentSettings,
+            new HashSet<>(Arrays.asList(dynamicSetting, IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING)));
+        Settings s = IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(currentSettings);
+        assertEquals(1, s.size());
+        assertEquals("192.168.0.1,127.0.0.1", s.get("_ip"));
+        Settings.Builder builder = Settings.builder();
+        Settings updates = Settings.builder().putNull("index.routing.allocation.require._ip")
+            .put("index.some.dyn.setting", 1).build();
+        settings.validate(updates);
+        settings.updateDynamicSettings(updates,
+            Settings.builder().put(currentSettings), builder, "node");
+        currentSettings = builder.build();
+        s = IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(currentSettings);
+        assertEquals(0, s.size());
+        assertEquals(1, dynamicSetting.get(currentSettings).intValue());
+        assertEquals(1, currentSettings.size());
+    }
+
     public void testAddConsumer() {
         Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);

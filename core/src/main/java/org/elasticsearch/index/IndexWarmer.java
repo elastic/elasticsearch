@@ -54,9 +54,8 @@ public final class IndexWarmer extends AbstractComponent {
         ArrayList<Listener> list = new ArrayList<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
         list.add(new FieldDataWarmer(executor));
-        for (Listener listener : listeners) {
-            list.add(listener);
-        }
+
+        Collections.addAll(list, listeners);
         this.listeners = Collections.unmodifiableList(list);
     }
 

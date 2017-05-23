@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptEngine;
 
 import java.util.Arrays;
 import java.util.List;
@@ -40,8 +40,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin {
     }
 
     @Override
-    public ScriptEngineService getScriptEngineService(Settings settings) {
-        return new PainlessScriptEngineService(settings);
+    public ScriptEngine getScriptEngine(Settings settings) {
+        return new PainlessScriptEngine(settings);
     }
 
     @Override

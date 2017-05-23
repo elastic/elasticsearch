@@ -109,7 +109,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
         "grades_stats" : { 
             "extended_stats" : { 
                 "script" : {
-                    "file": "my_script",
+                    "stored": "my_script",
                     "params": {
                         "field": "grade"
                     }
@@ -119,8 +119,6 @@ This will interpret the `script` parameter as an `inline` script with the `painl
     }
 }
 --------------------------------------------------
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ===== Value Script
 

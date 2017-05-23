@@ -45,5 +45,4 @@ thirdPartyAudit.excludes = [
 integTestCluster {
   setting 'cloud.azure.storage.my_account_test.account', 'cloudazureresource'
   setting 'cloud.azure.storage.my_account_test.key', 'abcdefgh'
-  setting 'script.stored', 'true'
 }

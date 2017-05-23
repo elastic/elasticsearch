@@ -28,13 +28,17 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 /**
@@ -85,6 +89,20 @@ public interface AnalysisPlugin {
      */
     default Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         return emptyMap();
+    }
+
+    /**
+     * Override to add additional pre-configured {@link TokenFilter}s.
+     */
+    default List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
+        return emptyList();
+    }
+
+    /**
+     * Override to add additional pre-configured {@link Tokenizer}.
+     */
+    default List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
+        return emptyList();
     }
 
     /**

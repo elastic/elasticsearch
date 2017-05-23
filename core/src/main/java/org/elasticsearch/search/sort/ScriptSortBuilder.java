@@ -242,7 +242,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH);
+        final SearchScript searchScript = context.getSearchScript(script, ScriptContext.SEARCH);
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {
@@ -350,18 +350,14 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
+            out.writeEnum(this);
         }
 
         /**
          * Read from a stream.
          */
         static ScriptSortType readFromStream(final StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown ScriptSortType ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(ScriptSortType.class);
         }
 
         public static ScriptSortType fromString(final String str) {

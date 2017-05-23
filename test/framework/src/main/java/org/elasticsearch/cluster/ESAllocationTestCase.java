@@ -205,7 +205,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     protected static class DelayedShardsMockGatewayAllocator extends GatewayAllocator {
 
         public DelayedShardsMockGatewayAllocator() {
-            super(Settings.EMPTY, null, null);
+            super(Settings.EMPTY);
         }
 
         @Override

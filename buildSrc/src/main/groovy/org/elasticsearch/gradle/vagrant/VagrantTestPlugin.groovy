@@ -17,7 +17,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             'centos-6',
             'centos-7',
             'debian-8',
-            'fedora-24',
+            'fedora-25',
             'oel-6',
             'oel-7',
             'opensuse-13',
@@ -82,29 +82,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
     }
 
-    private static Set<String> listVersions(Project project) {
-        Node xml
-        new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-            xml = new XmlParser().parse(s)
-        }
-        Set<String> versions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /[5]\.\d\.\d/ })
-        if (versions.isEmpty() == false) {
-            return versions;
-        }
-
-        // If no version is found, we run the tests with the current version
-        return Collections.singleton(project.version);
-    }
-
-    private static File getVersionsFile(Project project) {
-        File versions = new File(project.projectDir, 'versions');
-        if (versions.exists() == false) {
-            // Use the elasticsearch's versions file from project :qa:vagrant
-            versions = project.project(":qa:vagrant").file('versions')
-        }
-        return versions
-    }
-
     private static void configureBatsRepositories(Project project) {
         RepositoryHandler repos = project.repositories
 
@@ -140,8 +117,7 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         String upgradeFromVersion = System.getProperty("tests.packaging.upgradeVersion");
         if (upgradeFromVersion == null) {
-            List<String> availableVersions = getVersionsFile(project).readLines('UTF-8')
-            upgradeFromVersion = availableVersions[new Random(seed).nextInt(availableVersions.size())]
+            upgradeFromVersion = project.indexCompatVersions[new Random(seed).nextInt(project.indexCompatVersions.size())]
         }
 
         DISTRIBUTION_ARCHIVES.each {
@@ -186,7 +162,6 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         Task createBatsDirsTask = project.tasks.create('createBatsDirs')
         createBatsDirsTask.outputs.dir batsDir
-        createBatsDirsTask.dependsOn project.tasks.vagrantVerifyVersions
         createBatsDirsTask.doLast {
             batsDir.mkdirs()
         }
@@ -250,32 +225,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         Task vagrantSetUpTask = project.tasks.create('setupBats')
         vagrantSetUpTask.dependsOn 'vagrantCheckVersion'
         vagrantSetUpTask.dependsOn copyBatsTests, copyBatsUtils, copyBatsArchives, createVersionFile, createUpgradeFromFile
-    }
-
-    private static void createUpdateVersionsTask(Project project) {
-        project.tasks.create('vagrantUpdateVersions') {
-            description 'Update file containing options for the\n    "starting" version in the "upgrade from" packaging tests.'
-            group 'Verification'
-            doLast {
-                File versions = getVersionsFile(project)
-                versions.setText(listVersions(project).join('\n') + '\n', 'UTF-8')
-            }
-        }
-    }
-
-    private static void createVerifyVersionsTask(Project project) {
-        project.tasks.create('vagrantVerifyVersions') {
-            description 'Update file containing options for the\n    "starting" version in the "upgrade from" packaging tests.'
-            group 'Verification'
-            doLast {
-                Set<String> versions = listVersions(project)
-                Set<String> actualVersions = new TreeSet<>(getVersionsFile(project).readLines('UTF-8'))
-                if (!versions.equals(actualVersions)) {
-                    throw new GradleException("out-of-date versions " + actualVersions +
-                            ", expected " + versions + "; run gradle vagrantUpdateVersions")
-                }
-            }
-        }
     }
 
     private static void createCheckVagrantVersionTask(Project project) {
@@ -342,8 +291,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         createCleanTask(project)
         createStopTask(project)
         createSmokeTestTask(project)
-        createUpdateVersionsTask(project)
-        createVerifyVersionsTask(project)
         createCheckVagrantVersionTask(project)
         createCheckVirtualBoxVersionTask(project)
         createPrepareVagrantTestEnvTask(project)
@@ -391,21 +338,23 @@ class VagrantTestPlugin implements Plugin<Project> {
 
             // always add a halt task for all boxes, so clean makes sure they are all shutdown
             Task halt = project.tasks.create("vagrant${boxTask}#halt", VagrantCommandTask) {
+                command 'halt'
                 boxName box
                 environmentVars vagrantEnvVars
-                args 'halt', box
             }
             stop.dependsOn(halt)
 
             Task update = project.tasks.create("vagrant${boxTask}#update", VagrantCommandTask) {
+                command 'box'
+                subcommand 'update'
                 boxName box
                 environmentVars vagrantEnvVars
-                args 'box', 'update', box
                 dependsOn vagrantCheckVersion, virtualboxCheckVersion
             }
             update.mustRunAfter(setupBats)
 
             Task up = project.tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
+                command 'up'
                 boxName box
                 environmentVars vagrantEnvVars
                 /* Its important that we try to reprovision the box even if it already
@@ -418,7 +367,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                   vagrant's default but its possible to change that default and folks do.
                   But the boxes that we use are unlikely to work properly with other
                   virtualization providers. Thus the lock. */
-                args 'up', box, '--provision', '--provider', 'virtualbox'
+                args '--provision', '--provider', 'virtualbox'
                 /* It'd be possible to check if the box is already up here and output
                   SKIPPED but that would require running vagrant status which is slow! */
                 dependsOn update
@@ -434,11 +383,11 @@ class VagrantTestPlugin implements Plugin<Project> {
             vagrantSmokeTest.dependsOn(smoke)
 
             Task packaging = project.tasks.create("vagrant${boxTask}#packagingTest", BatsOverVagrantTask) {
+                remoteCommand BATS_TEST_COMMAND
                 boxName box
                 environmentVars vagrantEnvVars
                 dependsOn up, setupBats
                 finalizedBy halt
-                command BATS_TEST_COMMAND
             }
 
             TaskExecutionAdapter packagingReproListener = new TaskExecutionAdapter() {
@@ -461,11 +410,12 @@ class VagrantTestPlugin implements Plugin<Project> {
             }
 
             Task platform = project.tasks.create("vagrant${boxTask}#platformTest", VagrantCommandTask) {
+                command 'ssh'
                 boxName box
                 environmentVars vagrantEnvVars
                 dependsOn up
                 finalizedBy halt
-                args 'ssh', boxName, '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.extensions.esvagrant.formattedTestSeed}"
+                args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.extensions.esvagrant.formattedTestSeed}"
             }
             TaskExecutionAdapter platformReproListener = new TaskExecutionAdapter() {
                 @Override

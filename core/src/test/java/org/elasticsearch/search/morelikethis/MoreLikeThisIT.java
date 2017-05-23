@@ -623,4 +623,18 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertSearchResponse(response);
         assertHitCount(response, 1);
     }
+
+    public void testWithRouting() throws IOException {
+        client().prepareIndex("index", "type", "1").setRouting("3").setSource("text", "this is a document").get();
+        client().prepareIndex("index", "type", "2").setRouting("1").setSource("text", "this is another document").get();
+        client().prepareIndex("index", "type", "3").setRouting("4").setSource("text", "this is yet another document").get();
+        refresh("index");
+
+        Item item = new Item("index", "type", "2").routing("1");
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(new String[]{"text"}, null, new Item[]{item});
+        moreLikeThisQueryBuilder.minTermFreq(1);
+        moreLikeThisQueryBuilder.minDocFreq(1);
+        SearchResponse searchResponse = client().prepareSearch("index").setQuery(moreLikeThisQueryBuilder).get();
+        assertEquals(2, searchResponse.getHits().totalHits);
+    }
 }

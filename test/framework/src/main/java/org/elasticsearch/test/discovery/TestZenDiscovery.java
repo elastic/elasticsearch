@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -59,10 +60,11 @@ public class TestZenDiscovery extends ZenDiscovery {
         public Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                                   MasterService masterService, ClusterApplier clusterApplier,
-                                                                  ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider) {
+                                                                  ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider,
+                                                                  AllocationService allocationService) {
             return Collections.singletonMap("test-zen",
                 () -> new TestZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, masterService,
-                    clusterApplier, clusterSettings, hostsProvider));
+                    clusterApplier, clusterSettings, hostsProvider, allocationService));
         }
 
         @Override
@@ -78,16 +80,17 @@ public class TestZenDiscovery extends ZenDiscovery {
 
     private TestZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                              NamedWriteableRegistry namedWriteableRegistry, MasterService masterService,
-                             ClusterApplier clusterApplier, ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider) {
+                             ClusterApplier clusterApplier, ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider,
+                             AllocationService allocationService) {
         super(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier, clusterSettings,
-            hostsProvider);
+            hostsProvider, allocationService);
     }
 
     @Override
     protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                                  UnicastHostsProvider hostsProvider) {
         if (USE_MOCK_PINGS.get(settings)) {
-            return new MockZenPing(settings);
+            return new MockZenPing(settings, this);
         } else {
             return super.newZenPing(settings, threadPool, transportService, hostsProvider);
         }

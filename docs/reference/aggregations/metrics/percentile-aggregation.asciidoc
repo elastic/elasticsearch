@@ -187,7 +187,7 @@ a script to convert them on-the-fly:
 script to generate values which percentiles are calculated on
 <2> Scripting supports parameterized input just like any other script
 
-This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a stored script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -196,7 +196,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
         "load_time_outlier" : {
             "percentiles" : {
                 "script" : {
-                    "file": "my_script",
+                    "stored": "my_script",
                     "params" : {
                         "timeUnit" : 1000
                     }
@@ -206,8 +206,6 @@ This will interpret the `script` parameter as an `inline` script with the `painl
     }
 }
 --------------------------------------------------
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 [[search-aggregations-metrics-percentile-aggregation-approximation]]
 ==== Percentiles are (usually) approximate

@@ -504,16 +504,12 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         NONE, SCORE;
 
         public static Order readFromStream(StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown Order ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(Order.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.ordinal());
+            out.writeEnum(this);
         }
 
         public static Order fromString(String order) {
@@ -533,16 +529,12 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         CHARS, WORD, SENTENCE;
 
         public static BoundaryScannerType readFromStream(StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown BoundaryScannerType ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(BoundaryScannerType.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.ordinal());
+            out.writeEnum(this);
         }
 
         public static BoundaryScannerType fromString(String boundaryScannerType) {

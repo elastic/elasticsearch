@@ -21,70 +21,74 @@ import java.util.regex.Matcher
 import org.elasticsearch.gradle.LoggedExec
 
 /**
- * This is a dummy project which does a local worktree checkout of the previous
- * major version's stable branch, and builds a snapshot. This allows backcompat
- * tests in the next major version to test against the next unreleased minor
- * version, without relying on snapshots.
+ * This is a dummy project which does a local checkout of the previous
+ * wire compat version's branch, and builds a snapshot. This allows backcompat
+ * tests to test against the next unreleased version, closest to this version,
+ * without relying on snapshots.
  */
 
-apply plugin: 'distribution'
+String bwcVersion = wireCompatVersions[-1]
+if (bwcVersion.endsWith('-SNAPSHOT')) {
+  apply plugin: 'distribution'
 
-File checkoutDir = file("${buildDir}/bwc/checkout-5.x")
-task createClone(type: LoggedExec) {
-  onlyIf { checkoutDir.exists() == false }
-  commandLine = ['git', 'clone', rootDir, checkoutDir]
-}
+  def (String major, String minor, String bugfix) = bwcVersion.split('\\.')
+  String bwcBranch = bugfix == '0-SNAPSHOT' ? "${major}.x" : "${major}.${minor}"
+  File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
+  task createClone(type: LoggedExec) {
+    onlyIf { checkoutDir.exists() == false }
+    commandLine = ['git', 'clone', rootDir, checkoutDir]
+  }
 
-// we use regular Exec here to ensure we always get output, regardless of logging level
-task findUpstream(type: Exec) {
-  dependsOn createClone
-  workingDir = checkoutDir
-  commandLine = ['git', 'remote', '-v']
-  ignoreExitValue = true
-  ByteArrayOutputStream output = new ByteArrayOutputStream()
-  standardOutput = output
-  doLast {
-    if (execResult.exitValue != 0) {
-      output.toString('UTF-8').eachLine { line -> logger.error(line) }
-      execResult.assertNormalExitValue()
-    }
-    project.ext.upstreamExists = false
-    output.toString('UTF-8').eachLine {
-      if (it.contains("upstream")) {
-        project.ext.upstreamExists = true
+  // we use regular Exec here to ensure we always get output, regardless of logging level
+  task findUpstream(type: Exec) {
+    dependsOn createClone
+    workingDir = checkoutDir
+    commandLine = ['git', 'remote', '-v']
+    ignoreExitValue = true
+    ByteArrayOutputStream output = new ByteArrayOutputStream()
+    standardOutput = output
+    doLast {
+      if (execResult.exitValue != 0) {
+        output.toString('UTF-8').eachLine { line -> logger.error(line) }
+        execResult.assertNormalExitValue()
+      }
+      project.ext.upstreamExists = false
+      output.toString('UTF-8').eachLine {
+        if (it.contains("upstream")) {
+          project.ext.upstreamExists = true
+        }
       }
     }
   }
-}
 
-task addUpstream(type: LoggedExec) {
-  dependsOn findUpstream
-  onlyIf { project.ext.upstreamExists == false }
-  workingDir = checkoutDir
-  commandLine = ['git', 'remote', 'add', 'upstream', 'https://github.com/elastic/elasticsearch.git']
-}
+  task addUpstream(type: LoggedExec) {
+    dependsOn findUpstream
+    onlyIf { project.ext.upstreamExists == false }
+    workingDir = checkoutDir
+    commandLine = ['git', 'remote', 'add', 'upstream', 'https://github.com/elastic/elasticsearch.git']
+  }
 
-task fetchLatest(type: LoggedExec) {
-  onlyIf { project.gradle.startParameter.isOffline() == false }
-  dependsOn addUpstream
-  workingDir = checkoutDir
-  commandLine = ['git', 'fetch', 'upstream']
-}
+  task fetchLatest(type: LoggedExec) {
+    onlyIf { project.gradle.startParameter.isOffline() == false }
+    dependsOn addUpstream
+    workingDir = checkoutDir
+    commandLine = ['git', 'fetch', 'upstream']
+  }
 
-task checkoutBwcBranch(type: LoggedExec) {
-  dependsOn fetchLatest
-  workingDir = checkoutDir
-  commandLine = ['git', 'checkout', 'upstream/5.x']
-}
+  task checkoutBwcBranch(type: LoggedExec) {
+    dependsOn fetchLatest
+    workingDir = checkoutDir
+    commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]
+  }
 
-File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.zip")
-task buildBwcVersion(type: GradleBuild) {
-  dependsOn checkoutBwcBranch
-  dir = checkoutDir
-  tasks = [':distribution:zip:assemble']
-}
+  File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.zip")
+  task buildBwcVersion(type: GradleBuild) {
+    dependsOn checkoutBwcBranch
+    dir = checkoutDir
+    tasks = [':distribution:zip:assemble']
+  }
 
-artifacts {
-  'default' file: bwcZip, name: 'elasticsearch', type: 'zip', builtBy: buildBwcVersion
+  artifacts {
+    'default' file: bwcZip, name: 'elasticsearch', type: 'zip', builtBy: buildBwcVersion
+  }
 }
-

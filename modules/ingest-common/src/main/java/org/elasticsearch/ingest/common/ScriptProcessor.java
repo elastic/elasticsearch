@@ -37,7 +37,6 @@ import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalMap;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalStringProperty;
-import static org.elasticsearch.script.ScriptType.FILE;
 import static org.elasticsearch.script.ScriptType.INLINE;
 import static org.elasticsearch.script.ScriptType.STORED;
 
@@ -71,7 +70,7 @@ public final class ScriptProcessor extends AbstractProcessor {
      */
     @Override
     public void execute(IngestDocument document) {
-        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.INGEST);
+        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.INGEST);
         ExecutableScript executableScript = scriptService.executable(compiledScript, script.getParams());
         executableScript.setNextVar("ctx",  document.getSourceAndMetadata());
         executableScript.run();
@@ -100,19 +99,17 @@ public final class ScriptProcessor extends AbstractProcessor {
                                       Map<String, Object> config) throws Exception {
             String lang = readOptionalStringProperty(TYPE, processorTag, config, "lang");
             String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");
-            String file = readOptionalStringProperty(TYPE, processorTag, config, "file");
             String id = readOptionalStringProperty(TYPE, processorTag, config, "id");
             Map<String, ?> params = readOptionalMap(TYPE, processorTag, config, "params");
 
-            boolean containsNoScript = !hasLength(file) && !hasLength(id) && !hasLength(inline);
+            boolean containsNoScript = !hasLength(id) && !hasLength(inline);
             if (containsNoScript) {
-                throw newConfigurationException(TYPE, processorTag, null, "Need [file], [id], or [inline] parameter to refer to scripts");
+                throw newConfigurationException(TYPE, processorTag, null, "Need [id] or [inline] parameter to refer to scripts");
             }
 
-            boolean moreThanOneConfigured = (Strings.hasLength(file) && Strings.hasLength(id)) ||
-                (Strings.hasLength(file) && Strings.hasLength(inline)) || (Strings.hasLength(id) && Strings.hasLength(inline));
+            boolean moreThanOneConfigured = Strings.hasLength(id) && Strings.hasLength(inline);
             if (moreThanOneConfigured) {
-                throw newConfigurationException(TYPE, processorTag, null, "Only one of [file], [id], or [inline] may be configured");
+                throw newConfigurationException(TYPE, processorTag, null, "Only one of [id] or [inline] may be configured");
             }
 
             if (lang == null) {
@@ -125,10 +122,7 @@ public final class ScriptProcessor extends AbstractProcessor {
 
             final Script script;
             String scriptPropertyUsed;
-            if (Strings.hasLength(file)) {
-                script = new Script(FILE, lang, file, (Map<String, Object>)params);
-                scriptPropertyUsed = "file";
-            } else if (Strings.hasLength(inline)) {
+            if (Strings.hasLength(inline)) {
                 script = new Script(INLINE, lang, inline, (Map<String, Object>)params);
                 scriptPropertyUsed = "inline";
             } else if (Strings.hasLength(id)) {
@@ -140,7 +134,7 @@ public final class ScriptProcessor extends AbstractProcessor {
 
             // verify script is able to be compiled before successfully creating processor.
             try {
-                scriptService.compile(script, ScriptContext.Standard.INGEST);
+                scriptService.compile(script, ScriptContext.INGEST);
             } catch (ScriptException e) {
                 throw newConfigurationException(TYPE, processorTag, scriptPropertyUsed, e);
             }

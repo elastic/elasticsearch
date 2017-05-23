@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +22,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 public enum DatafeedState implements Task.Status {
 
-    STARTED, STOPPED;
+    STARTED, STOPPED, STARTING, STOPPING;
 
     public static final String NAME = StartDatafeedAction.TASK_NAME;
 
@@ -47,7 +48,16 @@ public enum DatafeedState implements Task.Status {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(this);
+        DatafeedState state = this;
+        // STARTING & STOPPING states were introduced in v5.5.
+        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+            if (this == STARTING) {
+                state = STOPPED;
+            } else if (this == STOPPING) {
+                state = STARTED;
+            }
+        }
+        out.writeEnum(state);
     }
 
     @Override

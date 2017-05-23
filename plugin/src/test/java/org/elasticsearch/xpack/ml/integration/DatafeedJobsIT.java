@@ -9,8 +9,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
-import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
@@ -87,6 +88,74 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testRealtime() throws Exception {
+        String jobId = "realtime-job";
+        String datafeedId = jobId + "-datafeed";
+        startRealtime(jobId);
+
+        try {
+            StopDatafeedAction.Response stopJobResponse = stopDatafeed(datafeedId);
+            assertTrue(stopJobResponse.isStopped());
+        } catch (Exception e) {
+            NodesHotThreadsResponse nodesHotThreadsResponse = client().admin().cluster().prepareNodesHotThreads().get();
+            int i = 0;
+            for (NodeHotThreads nodeHotThreads : nodesHotThreadsResponse.getNodes()) {
+                logger.info(i++ + ":\n" +nodeHotThreads.getHotThreads());
+            }
+            throw e;
+        }
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
+        });
+    }
+
+    public void testRealtime_multipleStopCalls() throws Exception {
+        String jobId = "realtime-job-multiple-stop";
+        final String datafeedId = jobId + "-datafeed";
+        startRealtime(jobId);
+
+        ConcurrentMapLong<AssertionError> exceptions = ConcurrentCollections.newConcurrentMapLong();
+
+        // It's practically impossible to assert that a stop request has waited
+        // for a concurrently executing request to finish before returning.
+        // But we can assert the data feed has stopped after the request returns.
+        Runnable stopDataFeed = () -> {
+            StopDatafeedAction.Response stopJobResponse = stopDatafeed(datafeedId);
+            if (stopJobResponse.isStopped() == false) {
+                exceptions.put(Thread.currentThread().getId(), new AssertionError("Job is not stopped"));
+            }
+
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            if (response.getResponse().results().get(0).getDatafeedState() != DatafeedState.STOPPED) {
+                exceptions.put(Thread.currentThread().getId(),
+                        new AssertionError("Expected STOPPED datafeed state got "
+                                + response.getResponse().results().get(0).getDatafeedState()));
+            }
+        };
+
+        // The idea is to hit the situation where one request waits for
+        // the other to complete. This is difficult to schedule but
+        // hopefully it will happen in CI
+        int numThreads = 5;
+        Thread [] threads = new Thread[numThreads];
+        for (int i=0; i<numThreads; i++) {
+            threads[i] = new Thread(stopDataFeed);
+        }
+        for (int i=0; i<numThreads; i++) {
+            threads[i].start();
+        }
+        for (int i=0; i<numThreads; i++) {
+            threads[i].join();
+        }
+
+        if (exceptions.isEmpty() == false) {
+            throw exceptions.values().iterator().next();
+        }
+    }
+
+    private void startRealtime(String jobId) throws Exception {
         client().admin().indices().prepareCreate("data")
                 .addMapping("type", "time", "type=date")
                 .get();
@@ -95,7 +164,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         long lastWeek = now - 604800000;
         indexDocs(logger, "data", numDocs1, lastWeek, now);
 
-        Job.Builder job = createScheduledJob("realtime-job");
+        Job.Builder job = createScheduledJob(jobId);
         registerJob(job);
         assertTrue(putJob(job).isAcknowledged());
         openJob(job.getId());
@@ -122,22 +191,5 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1 + numDocs2));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         }, 30, TimeUnit.SECONDS);
-
-        try {
-            StopDatafeedAction.Response stopJobResponse = stopDatafeed(datafeedConfig.getId());
-            assertTrue(stopJobResponse.isStopped());
-        } catch (Exception e) {
-            NodesHotThreadsResponse nodesHotThreadsResponse = client().admin().cluster().prepareNodesHotThreads().get();
-            int i = 0;
-            for (NodeHotThreads nodeHotThreads : nodesHotThreadsResponse.getNodes()) {
-                logger.info(i++ + ":\n" +nodeHotThreads.getHotThreads());
-            }
-            throw e;
-        }
-        assertBusy(() -> {
-            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
-            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
-            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
-        });
     }
 }

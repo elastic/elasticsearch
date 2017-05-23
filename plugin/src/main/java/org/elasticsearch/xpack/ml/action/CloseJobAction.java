@@ -558,7 +558,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
     }
 
     /**
-     * Expand the {@code jobId} parameter and add the job Id the the list arguments
+     * Expand the {@code jobId} parameter and add the job Id to one of the list arguments
      * depending on job state.
      *
      * Opened jobs are added to {@code openJobs} and closing jobs added to {@code closingJobs}. Failed jobs are added 

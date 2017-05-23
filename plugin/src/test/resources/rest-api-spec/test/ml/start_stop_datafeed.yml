@@ -144,13 +144,12 @@ setup:
           datafeed_id: "non-existing-datafeed"
 
 ---
-"Test stop already stopped datafeed job":
+"Test stop already stopped datafeed job is not an error":
   - do:
-      catch: conflict
       xpack.ml.stop_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
+
   - do:
-      catch: /Cannot stop datafeed \[start-stop-datafeed-datafeed-1\] because it has already been stopped/
       xpack.ml.stop_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
 

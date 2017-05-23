@@ -46,7 +46,6 @@ integTestRunner {
     'ml/revert_model_snapshot/Test revert model with invalid snapshotId',
     'ml/start_stop_datafeed/Test start datafeed job, but not open',
     'ml/start_stop_datafeed/Test start non existing datafeed',
-    'ml/start_stop_datafeed/Test stop already stopped datafeed job',
     'ml/start_stop_datafeed/Test stop non existing datafeed',
     'ml/update_model_snapshot/Test without description',
     'ml/validate/Test invalid job config',

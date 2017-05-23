@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class Attachment implements MessageElement {
 
@@ -33,10 +34,11 @@ public class Attachment implements MessageElement {
     final Field[] fields;
     final String imageUrl;
     final String thumbUrl;
+    final String[] markdownSupportedFields;
 
     public Attachment(String fallback, String color, String pretext, String authorName, String authorLink,
                       String authorIcon, String title, String titleLink, String text, Field[] fields,
-                      String imageUrl, String thumbUrl) {
+                      String imageUrl, String thumbUrl, String[] markdownSupportedFields) {
 
         this.fallback = fallback;
         this.color = color;
@@ -50,6 +52,7 @@ public class Attachment implements MessageElement {
         this.fields = fields;
         this.imageUrl = imageUrl;
         this.thumbUrl = thumbUrl;
+        this.markdownSupportedFields = markdownSupportedFields;
     }
 
     @Override
@@ -58,36 +61,19 @@ public class Attachment implements MessageElement {
         if (o == null || getClass() != o.getClass()) return false;
 
         Attachment that = (Attachment) o;
-
-        if (fallback != null ? !fallback.equals(that.fallback) : that.fallback != null) return false;
-        if (color != null ? !color.equals(that.color) : that.color != null) return false;
-        if (pretext != null ? !pretext.equals(that.pretext) : that.pretext != null) return false;
-        if (authorName != null ? !authorName.equals(that.authorName) : that.authorName != null) return false;
-        if (authorLink != null ? !authorLink.equals(that.authorLink) : that.authorLink != null) return false;
-        if (authorIcon != null ? !authorIcon.equals(that.authorIcon) : that.authorIcon != null) return false;
-        if (title != null ? !title.equals(that.title) : that.title != null) return false;
-        if (titleLink != null ? !titleLink.equals(that.titleLink) : that.titleLink != null) return false;
-        if (text != null ? !text.equals(that.text) : that.text != null) return false;
-        if (!Arrays.equals(fields, that.fields)) return false;
-        if (imageUrl != null ? !imageUrl.equals(that.imageUrl) : that.imageUrl != null) return false;
-        return !(thumbUrl != null ? !thumbUrl.equals(that.thumbUrl) : that.thumbUrl != null);
+        return Objects.equals(fallback, that.fallback) && Objects.equals(color, that.color) &&
+                Objects.equals(pretext, that.pretext) && Objects.equals(authorName, that.authorName) &&
+                Objects.equals(authorLink, that.authorLink) && Objects.equals(authorIcon, that.authorIcon) &&
+                Objects.equals(title, that.title) && Objects.equals(titleLink, that.titleLink) &&
+                Objects.equals(text, that.text) && Objects.equals(imageUrl, that.imageUrl) &&
+                Objects.equals(thumbUrl, that.thumbUrl) &&
+                Arrays.equals(markdownSupportedFields, that.markdownSupportedFields) && Arrays.equals(fields, that.fields);
     }
 
     @Override
     public int hashCode() {
-        int result = fallback != null ? fallback.hashCode() : 0;
-        result = 31 * result + (color != null ? color.hashCode() : 0);
-        result = 31 * result + (pretext != null ? pretext.hashCode() : 0);
-        result = 31 * result + (authorName != null ? authorName.hashCode() : 0);
-        result = 31 * result + (authorLink != null ? authorLink.hashCode() : 0);
-        result = 31 * result + (authorIcon != null ? authorIcon.hashCode() : 0);
-        result = 31 * result + (title != null ? title.hashCode() : 0);
-        result = 31 * result + (titleLink != null ? titleLink.hashCode() : 0);
-        result = 31 * result + (text != null ? text.hashCode() : 0);
-        result = 31 * result + (fields != null ? Arrays.hashCode(fields) : 0);
-        result = 31 * result + (imageUrl != null ? imageUrl.hashCode() : 0);
-        result = 31 * result + (thumbUrl != null ? thumbUrl.hashCode() : 0);
-        return result;
+        return Objects.hash(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
+                thumbUrl, markdownSupportedFields);
     }
 
     /**
@@ -138,6 +124,13 @@ public class Attachment implements MessageElement {
         if (thumbUrl != null) {
             builder.field(XField.THUMB_URL.getPreferredName(), thumbUrl);
         }
+        if (markdownSupportedFields != null) {
+            builder.startArray(XField.MARKDOWN_IN.getPreferredName());
+            for (String field : markdownSupportedFields) {
+                builder.value(field);
+            }
+            builder.endArray();
+        }
 
         return builder.endObject();
     }
@@ -156,10 +149,13 @@ public class Attachment implements MessageElement {
         final Field.Template[] fields;
         final TextTemplate imageUrl;
         final TextTemplate thumbUrl;
+        final TextTemplate[] markdownSupportedFields;
+
 
         Template(TextTemplate fallback, TextTemplate color, TextTemplate pretext, TextTemplate authorName,
-                        TextTemplate authorLink, TextTemplate authorIcon, TextTemplate title, TextTemplate titleLink,
-                        TextTemplate text, Field.Template[] fields, TextTemplate imageUrl, TextTemplate thumbUrl) {
+                 TextTemplate authorLink, TextTemplate authorIcon, TextTemplate title, TextTemplate titleLink,
+                 TextTemplate text, Field.Template[] fields, TextTemplate imageUrl, TextTemplate thumbUrl,
+                 TextTemplate[] markdownSupportedFields) {
 
             this.fallback = fallback;
             this.color = color;
@@ -173,6 +169,7 @@ public class Attachment implements MessageElement {
             this.fields = fields;
             this.imageUrl = imageUrl;
             this.thumbUrl = thumbUrl;
+            this.markdownSupportedFields = markdownSupportedFields;
         }
 
         public Attachment render(TextTemplateEngine engine, Map<String, Object> model, SlackMessageDefaults.AttachmentDefaults defaults) {
@@ -194,8 +191,15 @@ public class Attachment implements MessageElement {
                     fields[i] = this.fields[i].render(engine, model, defaults.field);
                 }
             }
+            String[] markdownFields = null;
+            if (this.markdownSupportedFields != null) {
+                markdownFields = new String[this.markdownSupportedFields.length];
+                for (int i = 0; i < markdownSupportedFields.length; i++) {
+                    markdownFields[i] = engine.render(this.markdownSupportedFields[i], model);
+                }
+            }
             return new Attachment(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
-                    thumbUrl);
+                    thumbUrl, markdownFields);
         }
 
         @Override
@@ -205,39 +209,20 @@ public class Attachment implements MessageElement {
 
             Template template = (Template) o;
 
-            if (fallback != null ? !fallback.equals(template.fallback) : template.fallback != null) return false;
-            if (color != null ? !color.equals(template.color) : template.color != null) return false;
-            if (pretext != null ? !pretext.equals(template.pretext) : template.pretext != null) return false;
-            if (authorName != null ? !authorName.equals(template.authorName) : template.authorName != null)
-                return false;
-            if (authorLink != null ? !authorLink.equals(template.authorLink) : template.authorLink != null)
-                return false;
-            if (authorIcon != null ? !authorIcon.equals(template.authorIcon) : template.authorIcon != null)
-                return false;
-            if (title != null ? !title.equals(template.title) : template.title != null) return false;
-            if (titleLink != null ? !titleLink.equals(template.titleLink) : template.titleLink != null)
-                return false;
-            if (text != null ? !text.equals(template.text) : template.text != null) return false;
-            if (!Arrays.equals(fields, template.fields)) return false;
-            if (imageUrl != null ? !imageUrl.equals(template.imageUrl) : template.imageUrl != null) return false;
-            return !(thumbUrl != null ? !thumbUrl.equals(template.thumbUrl) : template.thumbUrl != null);
+            return Objects.equals(fallback, template.fallback) && Objects.equals(color, template.color)
+                    && Objects.equals(pretext, template.pretext) && Objects.equals(authorName, template.authorName)
+                    && Objects.equals(authorLink, template.authorLink) && Objects.equals(authorIcon, template.authorIcon)
+                    && Objects.equals(title, template.title) && Objects.equals(titleLink, template.titleLink)
+                    && Objects.equals(text, template.text) && Objects.equals(imageUrl, template.imageUrl)
+                    && Objects.equals(thumbUrl, template.thumbUrl)
+                    && Arrays.equals(fields, template.fields)
+                    && Arrays.equals(markdownSupportedFields, template.markdownSupportedFields);
         }
 
         @Override
         public int hashCode() {
-            int result = fallback != null ? fallback.hashCode() : 0;
-            result = 31 * result + (color != null ? color.hashCode() : 0);
-            result = 31 * result + (pretext != null ? pretext.hashCode() : 0);
-            result = 31 * result + (authorName != null ? authorName.hashCode() : 0);
-            result = 31 * result + (authorLink != null ? authorLink.hashCode() : 0);
-            result = 31 * result + (authorIcon != null ? authorIcon.hashCode() : 0);
-            result = 31 * result + (title != null ? title.hashCode() : 0);
-            result = 31 * result + (titleLink != null ? titleLink.hashCode() : 0);
-            result = 31 * result + (text != null ? text.hashCode() : 0);
-            result = 31 * result + (fields != null ? Arrays.hashCode(fields) : 0);
-            result = 31 * result + (imageUrl != null ? imageUrl.hashCode() : 0);
-            result = 31 * result + (thumbUrl != null ? thumbUrl.hashCode() : 0);
-            return result;
+            return Objects.hash(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
+                    thumbUrl, markdownSupportedFields);
         }
 
         @Override
@@ -283,6 +268,14 @@ public class Attachment implements MessageElement {
             if (thumbUrl != null) {
                 builder.field(XField.THUMB_URL.getPreferredName(), thumbUrl, params);
             }
+            if (markdownSupportedFields != null) {
+                builder.startArray(XField.MARKDOWN_IN.getPreferredName());
+                for (TextTemplate field : markdownSupportedFields) {
+                    field.toXContent(builder, params);
+                }
+                builder.endArray();
+            }
+
             return builder.endObject();
         }
 
@@ -300,6 +293,7 @@ public class Attachment implements MessageElement {
             Field.Template[] fields = null;
             TextTemplate imageUrl = null;
             TextTemplate thumbUrl = null;
+            TextTemplate[] markdownFields = null;
 
             XContentParser.Token token = null;
             String currentFieldName = null;
@@ -403,6 +397,26 @@ public class Attachment implements MessageElement {
                         throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
                                 XField.THUMB_URL);
                     }
+                } else if (XField.MARKDOWN_IN.match(currentFieldName)) {
+                    if (token == XContentParser.Token.START_ARRAY) {
+                        List<TextTemplate> list = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            try {
+                                list.add(new TextTemplate(parser.text()));
+                            } catch (ElasticsearchParseException pe) {
+                                throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field",
+                                        pe, XField.MARKDOWN_IN);
+                            }
+                        }
+                        markdownFields = list.toArray(new TextTemplate[list.size()]);
+                    } else {
+                        try {
+                            markdownFields = new TextTemplate[]{ new TextTemplate(parser.text())};
+                        } catch (ElasticsearchParseException pe) {
+                            throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
+                                    XField.MARKDOWN_IN);
+                        }
+                    }
                 } else {
                     throw new ElasticsearchParseException("could not parse message attachment field. unexpected field [{}]",
                             currentFieldName);
@@ -425,7 +439,7 @@ public class Attachment implements MessageElement {
                 }
             }
             return new Template(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
-                    thumbUrl);
+                    thumbUrl, markdownFields);
         }
 
 
@@ -447,6 +461,7 @@ public class Attachment implements MessageElement {
             private List<Field.Template> fields = new ArrayList<>();
             private TextTemplate imageUrl;
             private TextTemplate thumbUrl;
+            private List<TextTemplate> markdownFields = new ArrayList<>();
 
             private Builder() {
             }
@@ -559,10 +574,17 @@ public class Attachment implements MessageElement {
                 return setThumbUrl(new TextTemplate(thumbUrl));
             }
 
+            public Builder addMarkdownField(String name) {
+                this.markdownFields.add(new TextTemplate(name));
+                return this;
+            }
+
             public Template build() {
                 Field.Template[] fields = this.fields.isEmpty() ? null : this.fields.toArray(new Field.Template[this.fields.size()]);
+                TextTemplate[] markdownFields =
+                        this.markdownFields.isEmpty() ? null : this.markdownFields.toArray(new TextTemplate[this.markdownFields.size()]);
                 return new Template(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields,
-                        imageUrl, thumbUrl);
+                        imageUrl, thumbUrl, markdownFields);
             }
         }
     }
@@ -579,5 +601,7 @@ public class Attachment implements MessageElement {
         ParseField FIELDS = new ParseField("fields");
         ParseField IMAGE_URL = new ParseField("image_url");
         ParseField THUMB_URL = new ParseField("thumb_url");
+
+        ParseField MARKDOWN_IN = new ParseField("mrkdwn_in");
     }
 }

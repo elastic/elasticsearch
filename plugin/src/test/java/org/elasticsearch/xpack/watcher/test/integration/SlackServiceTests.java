@@ -63,8 +63,8 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
     public void testSendMessage() throws Exception {
         SlackService service = getInstanceFromMaster(SlackService.class);
         Attachment[] attachments = new Attachment[] {
-                new Attachment("fallback", randomFrom("good", "warning", "danger"), "pretext", "author_name", null, null,
-                        "title", null, "_text", null, null, null)
+                new Attachment("fallback", randomFrom("good", "warning", "danger"), "pretext `code` *bold*", "author_name", null, null,
+                        "title", null, "_text `code` *bold*", null, null, null, new String[] { "text", "pretext" })
         };
         SlackMessage message = new SlackMessage(
                 "SlackServiceTests",
@@ -87,8 +87,7 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
                 builder.prettyPrint();
                 sentMessage.toXContent(builder, EMPTY_PARAMS);
                 final String messageDescription = builder.string();
-                logger.warn("failed to send message. full message description: \n"
-                                + messageDescription, e);
+                logger.warn("failed to send message. full message description: \n" + messageDescription, e);
                 throw e;
             }
         }

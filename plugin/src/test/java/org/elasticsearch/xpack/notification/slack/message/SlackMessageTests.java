@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -23,10 +24,12 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SlackMessageTests extends ESTestCase {
+
     public void testToXContent() throws Exception {
         String from = randomBoolean() ? null : randomAlphaOfLength(10);
         String[] to = rarely() ? null : new String[randomIntBetween(0, 2)];
@@ -57,8 +60,9 @@ public class SlackMessageTests extends ESTestCase {
                 }
                 String imageUrl = randomBoolean() ? null : randomAlphaOfLength(10);
                 String thumbUrl = randomBoolean() ? null : randomAlphaOfLength(10);
+                String[] markdownFields = randomBoolean() ? null : new String[]{"pretext"};
                 attachments[i] = new Attachment(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink,
-                        attachmentText, fields, imageUrl, thumbUrl);
+                        attachmentText, fields, imageUrl, thumbUrl, markdownFields);
             }
         }
 
@@ -154,6 +158,7 @@ public class SlackMessageTests extends ESTestCase {
                     Field[] fields = null;
                     String imageUrl = null;
                     String thumbUrl = null;
+                    String[] markdownSupportedFields = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
@@ -200,10 +205,16 @@ public class SlackMessageTests extends ESTestCase {
                             imageUrl = parser.text();
                         } else if ("thumb_url".equals(currentFieldName)) {
                             thumbUrl = parser.text();
+                        } else if ("mrkdwn_in".equals(currentFieldName)) {
+                            List<String> data = new ArrayList<>();
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                data.add(parser.text());
+                            }
+                            markdownSupportedFields = data.toArray(new String[]{});
                         }
                     }
                     list.add(new Attachment(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink,
-                            attachmentText, fields, imageUrl, thumbUrl));
+                            attachmentText, fields, imageUrl, thumbUrl, markdownSupportedFields));
                 }
                 attachments = list.toArray(new Attachment[list.size()]);
             }
@@ -327,9 +338,16 @@ public class SlackMessageTests extends ESTestCase {
                     }
                     jsonBuilder.endArray();
                 }
+                TextTemplate[] markdownSupportedFields = null;
+                if (randomBoolean()) {
+                    jsonBuilder.startArray("mrkdwn_in");
+                    jsonBuilder.value("pretext");
+                    jsonBuilder.endArray();
+                    markdownSupportedFields = new TextTemplate[] { new TextTemplate("pretext") };
+                }
                 jsonBuilder.endObject();
                 attachments[i] = new Attachment.Template(fallback, color, pretext, authorName, authorLink, authorIcon, title,
-                        titleLink, attachmentText, fields, imageUrl, thumbUrl);
+                        titleLink, attachmentText, fields, imageUrl, thumbUrl, markdownSupportedFields);
             }
             jsonBuilder.endArray();
         }
@@ -395,46 +413,7 @@ public class SlackMessageTests extends ESTestCase {
         if (randomBoolean()) {
             int count = randomIntBetween(0, 3);
             for (int i = 0; i < count; i++) {
-                Attachment.Template.Builder attachmentBuilder = Attachment.Template.builder();
-                if (randomBoolean()) {
-                    attachmentBuilder.setAuthorName(randomAlphaOfLength(10));
-                    if (randomBoolean()) {
-                        attachmentBuilder.setAuthorIcon(randomAlphaOfLength(10));
-                    }
-                    if (randomBoolean()) {
-                        attachmentBuilder.setAuthorLink(randomAlphaOfLength(10));
-                    }
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setColor(randomAlphaOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setFallback(randomAlphaOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setImageUrl(randomAlphaOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setPretext(randomAlphaOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setThumbUrl(randomAlphaOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setTitle(randomAlphaOfLength(10));
-                    if (randomBoolean()) {
-                        attachmentBuilder.setTitleLink(randomAlphaOfLength(10));
-                    }
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setText(randomAlphaOfLength(10));
-                }
-                if (randomBoolean()) {
-                    int fieldCount = randomIntBetween(0, 3);
-                    for (int j = 0; j < fieldCount; j++) {
-                        attachmentBuilder.addField(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean());
-                    }
-                }
+                Attachment.Template.Builder attachmentBuilder = createRandomAttachmentTemplateBuilder();
                 templateBuilder.addAttachments(attachmentBuilder);
             }
         }
@@ -504,11 +483,21 @@ public class SlackMessageTests extends ESTestCase {
                                 is(fieldTemplate.isShort != null ? fieldTemplate.isShort : defaults.attachment.field.isShort));
                     }
                 }
+                if (attachmentTemplate.markdownSupportedFields == null) {
+                    assertThat(attachment.markdownSupportedFields, nullValue());
+                } else {
+                    for (int j = 0; j < attachmentTemplate.markdownSupportedFields.length; j++) {
+                        String[] templateMarkdownSupportFields = Arrays.stream(attachmentTemplate.markdownSupportedFields)
+                                .map(TextTemplate::getTemplate).toArray(String[]::new);
+
+                        assertThat(attachment.markdownSupportedFields, arrayContainingInAnyOrder(templateMarkdownSupportFields));
+                    }
+                }
             }
         }
     }
 
-    static void writeFieldIfNotNull(XContentBuilder builder, String field, Object value) throws IOException {
+    private static void writeFieldIfNotNull(XContentBuilder builder, String field, Object value) throws IOException {
         if (value != null) {
             builder.field(field, value);
         }
@@ -535,50 +524,62 @@ public class SlackMessageTests extends ESTestCase {
         if (randomBoolean()) {
             int count = randomIntBetween(0, 3);
             for (int i = 0; i < count; i++) {
-                Attachment.Template.Builder attachmentBuilder = Attachment.Template.builder();
-                if (randomBoolean()) {
-                    attachmentBuilder.setAuthorName(randomAlphaOfLength(10));
-                    if (randomBoolean()) {
-                        attachmentBuilder.setAuthorIcon(randomAlphaOfLength(10));
-                    }
-                    if (randomBoolean()) {
-                        attachmentBuilder.setAuthorLink(randomAlphaOfLength(10));
-                    }
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setColor(randomAlphaOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setFallback(randomAlphaOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setImageUrl(randomAlphaOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setPretext(randomAlphaOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setThumbUrl(randomAlphaOfLength(10));
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setTitle(randomAlphaOfLength(10));
-                    if (randomBoolean()) {
-                        attachmentBuilder.setTitleLink(randomAlphaOfLength(10));
-                    }
-                }
-                if (randomBoolean()) {
-                    attachmentBuilder.setText(randomAlphaOfLength(10));
-                }
-                if (randomBoolean()) {
-                    int fieldCount = randomIntBetween(0, 3);
-                    for (int j = 0; j < fieldCount; j++) {
-                        attachmentBuilder.addField(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean());
-                    }
-                }
+                Attachment.Template.Builder attachmentBuilder = createRandomAttachmentTemplateBuilder();
                 templateBuilder.addAttachments(attachmentBuilder);
             }
         }
 
         return templateBuilder.build();
+    }
+
+    private static Attachment.Template.Builder createRandomAttachmentTemplateBuilder() {
+        Attachment.Template.Builder attachmentBuilder = Attachment.Template.builder();
+        if (randomBoolean()) {
+            attachmentBuilder.setAuthorName(randomAlphaOfLength(10));
+            if (randomBoolean()) {
+                attachmentBuilder.setAuthorIcon(randomAlphaOfLength(10));
+            }
+            if (randomBoolean()) {
+                attachmentBuilder.setAuthorLink(randomAlphaOfLength(10));
+            }
+        }
+        if (randomBoolean()) {
+            attachmentBuilder.setColor(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            attachmentBuilder.setFallback(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            attachmentBuilder.setImageUrl(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            attachmentBuilder.setPretext(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            attachmentBuilder.setThumbUrl(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            attachmentBuilder.setTitle(randomAlphaOfLength(10));
+            if (randomBoolean()) {
+                attachmentBuilder.setTitleLink(randomAlphaOfLength(10));
+            }
+        }
+        if (randomBoolean()) {
+            attachmentBuilder.setText(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            int fieldCount = randomIntBetween(0, 3);
+            for (int j = 0; j < fieldCount; j++) {
+                attachmentBuilder.addField(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean());
+            }
+        }
+        if (randomBoolean()) {
+            attachmentBuilder.addMarkdownField(randomAlphaOfLength(10));
+            if (randomBoolean()) {
+                attachmentBuilder.addMarkdownField(randomAlphaOfLength(10));
+            }
+        }
+
+        return attachmentBuilder;
     }
 }

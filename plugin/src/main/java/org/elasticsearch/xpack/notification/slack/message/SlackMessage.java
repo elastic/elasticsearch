@@ -172,13 +172,7 @@ public class SlackMessage implements MessageElement {
 
         @Override
         public int hashCode() {
-            int result = from != null ? from.hashCode() : 0;
-            result = 31 * result + (to != null ? Arrays.hashCode(to) : 0);
-            result = 31 * result + (text != null ? text.hashCode() : 0);
-            result = 31 * result + (icon != null ? icon.hashCode() : 0);
-            result = 31 * result + (attachments != null ? Arrays.hashCode(attachments) : 0);
-            result = 31 * result + (dynamicAttachments != null ? dynamicAttachments.hashCode() : 0);
-            return result;
+            return Objects.hash(from, to, text, icon, attachments, dynamicAttachments);
         }
 
         public SlackMessage render(String watchId, String actionId, TextTemplateEngine engine, Map<String, Object> model,

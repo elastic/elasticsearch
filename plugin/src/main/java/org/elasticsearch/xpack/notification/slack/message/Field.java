@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 class Field implements MessageElement {
 
@@ -42,10 +43,7 @@ class Field implements MessageElement {
 
     @Override
     public int hashCode() {
-        int result = title.hashCode();
-        result = 31 * result + value.hashCode();
-        result = 31 * result + (isShort ? 1 : 0);
-        return result;
+        return Objects.hash(title, value, isShort);
     }
 
     @Override

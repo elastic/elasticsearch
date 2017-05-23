@@ -8,14 +8,15 @@ package org.elasticsearch.xpack.notification.slack.message;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 public class SlackMessageDefaults {
 
-    public static final String FROM_SETTING = SlackMessage.XField.FROM.getPreferredName();
-    public static final String TO_SETTING = SlackMessage.XField.TO.getPreferredName();
-    public static final String ICON_SETTING = SlackMessage.XField.ICON.getPreferredName();
-    public static final String TEXT_SETTING = SlackMessage.XField.TEXT.getPreferredName();
-    public static final String ATTACHMENT_SETTING = "attachment";
+    private static final String FROM_SETTING = SlackMessage.XField.FROM.getPreferredName();
+    private static final String TO_SETTING = SlackMessage.XField.TO.getPreferredName();
+    private static final String ICON_SETTING = SlackMessage.XField.ICON.getPreferredName();
+    private static final String TEXT_SETTING = SlackMessage.XField.TEXT.getPreferredName();
+    private static final String ATTACHMENT_SETTING = "attachment";
 
     public final String from;
     public final String[] to;
@@ -47,41 +48,38 @@ public class SlackMessageDefaults {
 
     @Override
     public int hashCode() {
-        int result = from != null ? from.hashCode() : 0;
-        result = 31 * result + (to != null ? Arrays.hashCode(to) : 0);
-        result = 31 * result + (icon != null ? icon.hashCode() : 0);
-        result = 31 * result + (text != null ? text.hashCode() : 0);
-        result = 31 * result + (attachment != null ? attachment.hashCode() : 0);
-        return result;
+        return Objects.hash(to, icon, text, attachment);
     }
 
     static class AttachmentDefaults {
 
-        public static final String FALLBACK_SETTING = Attachment.XField.FALLBACK.getPreferredName();
-        public static final String COLOR_SETTING = Attachment.XField.COLOR.getPreferredName();
-        public static final String PRETEXT_SETTING = Attachment.XField.PRETEXT.getPreferredName();
-        public static final String AUTHOR_NAME_SETTING = Attachment.XField.AUTHOR_NAME.getPreferredName();
-        public static final String AUTHOR_LINK_SETTING = Attachment.XField.AUTHOR_LINK.getPreferredName();
-        public static final String AUTHOR_ICON_SETTING = Attachment.XField.AUTHOR_ICON.getPreferredName();
-        public static final String TITLE_SETTING = Attachment.XField.TITLE.getPreferredName();
-        public static final String TITLE_LINK_SETTING = Attachment.XField.TITLE_LINK.getPreferredName();
-        public static final String TEXT_SETTING = Attachment.XField.TEXT.getPreferredName();
-        public static final String IMAGE_URL_SETTING = Attachment.XField.IMAGE_URL.getPreferredName();
-        public static final String THUMB_URL_SETTING = Attachment.XField.THUMB_URL.getPreferredName();
-        public static final String FIELD_SETTING = "field";
+        static final String FALLBACK_SETTING = Attachment.XField.FALLBACK.getPreferredName();
+        static final String COLOR_SETTING = Attachment.XField.COLOR.getPreferredName();
+        static final String PRETEXT_SETTING = Attachment.XField.PRETEXT.getPreferredName();
+        static final String AUTHOR_NAME_SETTING = Attachment.XField.AUTHOR_NAME.getPreferredName();
+        static final String AUTHOR_LINK_SETTING = Attachment.XField.AUTHOR_LINK.getPreferredName();
+        static final String AUTHOR_ICON_SETTING = Attachment.XField.AUTHOR_ICON.getPreferredName();
+        static final String TITLE_SETTING = Attachment.XField.TITLE.getPreferredName();
+        static final String TITLE_LINK_SETTING = Attachment.XField.TITLE_LINK.getPreferredName();
+        static final String TEXT_SETTING = Attachment.XField.TEXT.getPreferredName();
+        static final String IMAGE_URL_SETTING = Attachment.XField.IMAGE_URL.getPreferredName();
+        static final String THUMB_URL_SETTING = Attachment.XField.THUMB_URL.getPreferredName();
+        static final String MARKDOWN_IN_SETTING = Attachment.XField.MARKDOWN_IN.getPreferredName();
+        static final String FIELD_SETTING = "field";
 
-        public final String fallback;
-        public final String color;
-        public final String pretext;
-        public final String authorName;
-        public final String authorLink;
-        public final String authorIcon;
-        public final String title;
-        public final String titleLink;
-        public final String text;
-        public final String imageUrl;
-        public final String thumbUrl;
-        public final FieldDefaults field;
+        final String fallback;
+        final String color;
+        final String pretext;
+        final String authorName;
+        final String authorLink;
+        final String authorIcon;
+        final String title;
+        final String titleLink;
+        final String text;
+        final String imageUrl;
+        final String thumbUrl;
+        final String[] markdownSupportedFields;
+        final FieldDefaults field;
 
         AttachmentDefaults(Settings settings) {
             fallback = settings.get(FALLBACK_SETTING, null);
@@ -95,6 +93,7 @@ public class SlackMessageDefaults {
             text = settings.get(TEXT_SETTING, null);
             imageUrl = settings.get(IMAGE_URL_SETTING, null);
             thumbUrl = settings.get(THUMB_URL_SETTING, null);
+            markdownSupportedFields = settings.getAsArray(MARKDOWN_IN_SETTING, null);
             field = new FieldDefaults(settings.getAsSettings(FIELD_SETTING));
         }
 
@@ -105,46 +104,30 @@ public class SlackMessageDefaults {
 
             AttachmentDefaults that = (AttachmentDefaults) o;
 
-            if (fallback != null ? !fallback.equals(that.fallback) : that.fallback != null) return false;
-            if (color != null ? !color.equals(that.color) : that.color != null) return false;
-            if (pretext != null ? !pretext.equals(that.pretext) : that.pretext != null) return false;
-            if (authorName != null ? !authorName.equals(that.authorName) : that.authorName != null) return false;
-            if (authorLink != null ? !authorLink.equals(that.authorLink) : that.authorLink != null) return false;
-            if (authorIcon != null ? !authorIcon.equals(that.authorIcon) : that.authorIcon != null) return false;
-            if (title != null ? !title.equals(that.title) : that.title != null) return false;
-            if (titleLink != null ? !titleLink.equals(that.titleLink) : that.titleLink != null) return false;
-            if (text != null ? !text.equals(that.text) : that.text != null) return false;
-            if (imageUrl != null ? !imageUrl.equals(that.imageUrl) : that.imageUrl != null) return false;
-            if (thumbUrl != null ? !thumbUrl.equals(that.thumbUrl) : that.thumbUrl != null) return false;
-            return !(field != null ? !field.equals(that.field) : that.field != null);
+            return Objects.equals(fallback, that.fallback) && Objects.equals(color, that.color) &&
+                    Objects.equals(pretext, that.pretext) && Objects.equals(authorName, that.authorName) &&
+                    Objects.equals(authorLink, that.authorLink) && Objects.equals(authorIcon, that.authorIcon) &&
+                    Objects.equals(title, that.title) && Objects.equals(titleLink, that.titleLink) &&
+                    Objects.equals(text, that.text) && Objects.equals(imageUrl, that.imageUrl) &&
+                    Objects.equals(thumbUrl, that.thumbUrl) && Objects.equals(field, that.field) &&
+                    Arrays.equals(markdownSupportedFields, that.markdownSupportedFields);
         }
 
         @Override
         public int hashCode() {
-            int result = fallback != null ? fallback.hashCode() : 0;
-            result = 31 * result + (color != null ? color.hashCode() : 0);
-            result = 31 * result + (pretext != null ? pretext.hashCode() : 0);
-            result = 31 * result + (authorName != null ? authorName.hashCode() : 0);
-            result = 31 * result + (authorLink != null ? authorLink.hashCode() : 0);
-            result = 31 * result + (authorIcon != null ? authorIcon.hashCode() : 0);
-            result = 31 * result + (title != null ? title.hashCode() : 0);
-            result = 31 * result + (titleLink != null ? titleLink.hashCode() : 0);
-            result = 31 * result + (text != null ? text.hashCode() : 0);
-            result = 31 * result + (imageUrl != null ? imageUrl.hashCode() : 0);
-            result = 31 * result + (thumbUrl != null ? thumbUrl.hashCode() : 0);
-            result = 31 * result + (field != null ? field.hashCode() : 0);
-            return result;
+            return Objects.hash(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, imageUrl,
+                    thumbUrl, field, markdownSupportedFields);
         }
 
         static class FieldDefaults {
 
-            public static final String TITLE_SETTING = Field.XField.TITLE.getPreferredName();
-            public static final String VALUE_SETTING = Field.XField.VALUE.getPreferredName();
-            public static final String SHORT_SETTING = Field.XField.SHORT.getPreferredName();
+            static final String TITLE_SETTING = Field.XField.TITLE.getPreferredName();
+            static final String VALUE_SETTING = Field.XField.VALUE.getPreferredName();
+            static final String SHORT_SETTING = Field.XField.SHORT.getPreferredName();
 
-            public final String title;
-            public final String value;
-            public final Boolean isShort;
+            final String title;
+            final String value;
+            final Boolean isShort;
 
             FieldDefaults(Settings settings) {
                 title = settings.get(TITLE_SETTING, null);
@@ -159,17 +142,12 @@ public class SlackMessageDefaults {
 
                 FieldDefaults that = (FieldDefaults) o;
 
-                if (title != null ? !title.equals(that.title) : that.title != null) return false;
-                if (value != null ? !value.equals(that.value) : that.value != null) return false;
-                return !(isShort != null ? !isShort.equals(that.isShort) : that.isShort != null);
+                return Objects.equals(title, that.title) && Objects.equals(value, that.value) && Objects.equals(isShort, that.isShort);
             }
 
             @Override
             public int hashCode() {
-                int result = title != null ? title.hashCode() : 0;
-                result = 31 * result + (value != null ? value.hashCode() : 0);
-                result = 31 * result + (isShort != null ? isShort.hashCode() : 0);
-                return result;
+                return Objects.hash(title, value, isShort);
             }
         }
     }

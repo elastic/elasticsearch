@@ -222,6 +222,7 @@ xpack.notification.slack:
           title: "X-Pack Notification"
           title_link: "https://www.elastic.co/guide/en/x-pack/current/index.html"
           text: "One of your watches generated this notification."
+          mrkdwn_in: "pretext, text"
 --------------------------------------------------
 
 If you configure multiple Slack accounts, you either need to configure a default 

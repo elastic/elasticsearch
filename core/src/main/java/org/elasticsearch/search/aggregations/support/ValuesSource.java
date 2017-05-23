@@ -22,7 +22,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
@@ -32,18 +31,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.WithScript.BytesValues;
@@ -147,40 +143,6 @@ public abstract class ValuesSource {
                     final AtomicOrdinalsFieldData atomicFieldData = global.load(context);
                     return atomicFieldData.getOrdinalsValues();
                 }
-            }
-        }
-
-        public static class ParentChild extends Bytes {
-
-            protected final ParentChildIndexFieldData indexFieldData;
-
-            public ParentChild(ParentChildIndexFieldData indexFieldData) {
-                this.indexFieldData = indexFieldData;
-            }
-
-            public long globalMaxOrd(IndexSearcher indexSearcher, String type) {
-                DirectoryReader indexReader = (DirectoryReader) indexSearcher.getIndexReader();
-                if (indexReader.leaves().isEmpty()) {
-                    return 0;
-                } else {
-                    LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
-                    IndexParentChildFieldData globalFieldData = indexFieldData.loadGlobal(indexReader);
-                    AtomicParentChildFieldData afd = globalFieldData.load(atomicReaderContext);
-                    SortedDocValues values = afd.getOrdinalsValues(type);
-                    return values.getValueCount();
-                }
-            }
-
-            public SortedDocValues globalOrdinalsValues(String type, LeafReaderContext context) {
-                final IndexParentChildFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
-                final AtomicParentChildFieldData atomicFieldData = global.load(context);
-                return atomicFieldData.getOrdinalsValues(type);
-            }
-
-            @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
-                final AtomicParentChildFieldData atomicFieldData = indexFieldData.load(context);
-                return atomicFieldData.getBytesValues();
             }
         }
 

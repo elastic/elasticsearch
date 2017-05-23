@@ -74,14 +74,15 @@ public final class AnalysisRegistry implements Closeable {
                             Map<String, AnalysisProvider<TokenizerFactory>> tokenizers,
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers,
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers,
-                            Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters) {
+                            Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
+                            Map<String, PreConfiguredTokenizer> preConfiguredTokenizers) {
         this.environment = environment;
         this.charFilters = unmodifiableMap(charFilters);
         this.tokenFilters = unmodifiableMap(tokenFilters);
         this.tokenizers = unmodifiableMap(tokenizers);
         this.analyzers = unmodifiableMap(analyzers);
         this.normalizers = unmodifiableMap(normalizers);
-        prebuiltAnalysis = new PrebuiltAnalysis(preConfiguredTokenFilters);
+        prebuiltAnalysis = new PrebuiltAnalysis(preConfiguredTokenFilters, preConfiguredTokenizers);
     }
 
     /**
@@ -169,12 +170,12 @@ public final class AnalysisRegistry implements Closeable {
          */
         tokenFilters.put("synonym", requiresAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings)));
         tokenFilters.put("synonym_graph", requiresAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings)));
-        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.tokenFilterFactories);
+        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
     }
 
     public Map<String, TokenizerFactory> buildTokenizerFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> tokenizersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_TOKENIZER);
-        return buildMapping(Component.TOKENIZER, indexSettings, tokenizersSettings, tokenizers, prebuiltAnalysis.tokenizerFactories);
+        return buildMapping(Component.TOKENIZER, indexSettings, tokenizersSettings, tokenizers, prebuiltAnalysis.preConfiguredTokenizers);
     }
 
     public Map<String, CharFilterFactory> buildCharFilterFactories(IndexSettings indexSettings) throws IOException {
@@ -394,30 +395,21 @@ public final class AnalysisRegistry implements Closeable {
     private static class PrebuiltAnalysis implements Closeable {
 
         final Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider<?>>> analyzerProviderFactories;
-        final Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> tokenizerFactories;
-        final Map<String, ? extends AnalysisProvider<TokenFilterFactory>> tokenFilterFactories;
+        final Map<String, ? extends AnalysisProvider<TokenFilterFactory>> preConfiguredTokenFilters;
+        final Map<String, ? extends AnalysisProvider<TokenizerFactory>> preConfiguredTokenizers;
         final Map<String, AnalysisModule.AnalysisProvider<CharFilterFactory>> charFilterFactories;
 
-        private PrebuiltAnalysis(Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters) {
+        private PrebuiltAnalysis(
+                Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
+                Map<String, PreConfiguredTokenizer> preConfiguredTokenizers) {
             Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
-            Map<String, PreBuiltTokenizerFactoryFactory> tokenizerFactories = new HashMap<>();
             Map<String, PreBuiltCharFilterFactoryFactory> charFilterFactories = new HashMap<>();
+
             // Analyzers
             for (PreBuiltAnalyzers preBuiltAnalyzerEnum : PreBuiltAnalyzers.values()) {
                 String name = preBuiltAnalyzerEnum.name().toLowerCase(Locale.ROOT);
                 analyzerProviderFactories.put(name, new PreBuiltAnalyzerProviderFactory(name, AnalyzerScope.INDICES, preBuiltAnalyzerEnum.getAnalyzer(Version.CURRENT)));
             }
-
-            // Tokenizers
-            for (PreBuiltTokenizers preBuiltTokenizer : PreBuiltTokenizers.values()) {
-                String name = preBuiltTokenizer.name().toLowerCase(Locale.ROOT);
-                tokenizerFactories.put(name, new PreBuiltTokenizerFactoryFactory(preBuiltTokenizer.getTokenizerFactory(Version.CURRENT)));
-            }
-
-            // Tokenizer aliases
-            tokenizerFactories.put("nGram", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.NGRAM.getTokenizerFactory(Version.CURRENT)));
-            tokenizerFactories.put("edgeNGram", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.EDGE_NGRAM.getTokenizerFactory(Version.CURRENT)));
-            tokenizerFactories.put("PathHierarchy", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.PATH_HIERARCHY.getTokenizerFactory(Version.CURRENT)));
 
             // Char Filters
             for (PreBuiltCharFilters preBuiltCharFilter : PreBuiltCharFilters.values()) {
@@ -429,8 +421,8 @@ public final class AnalysisRegistry implements Closeable {
 
             this.analyzerProviderFactories = Collections.unmodifiableMap(analyzerProviderFactories);
             this.charFilterFactories = Collections.unmodifiableMap(charFilterFactories);
-            this.tokenizerFactories = Collections.unmodifiableMap(tokenizerFactories);
-            tokenFilterFactories = preConfiguredTokenFilters;
+            this.preConfiguredTokenFilters = preConfiguredTokenFilters;
+            this.preConfiguredTokenizers = preConfiguredTokenizers;
         }
 
         public AnalysisModule.AnalysisProvider<CharFilterFactory> getCharFilterFactory(String name) {
@@ -438,11 +430,11 @@ public final class AnalysisRegistry implements Closeable {
         }
 
         public AnalysisModule.AnalysisProvider<TokenFilterFactory> getTokenFilterFactory(String name) {
-            return tokenFilterFactories.get(name);
+            return preConfiguredTokenFilters.get(name);
         }
 
         public AnalysisModule.AnalysisProvider<TokenizerFactory> getTokenizerFactory(String name) {
-            return tokenizerFactories.get(name);
+            return preConfiguredTokenizers.get(name);
         }
 
         public AnalysisModule.AnalysisProvider<AnalyzerProvider<?>> getAnalyzerProvider(String name) {

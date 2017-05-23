@@ -44,6 +44,8 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
@@ -69,10 +71,19 @@ public class CollapseBuilderTests extends AbstractWireSerializingTestCase {
     public static CollapseBuilder randomCollapseBuilder() {
         CollapseBuilder builder = new CollapseBuilder(randomAlphaOfLength(10));
         builder.setMaxConcurrentGroupRequests(randomIntBetween(1, 48));
-        if (randomBoolean()) {
+        int numInnerHits = randomIntBetween(0, 5);
+        if (numInnerHits == 1) {
             InnerHitBuilder innerHit = InnerHitBuilderTests.randomInnerHits(false, false);
             builder.setInnerHits(innerHit);
+        } else if (numInnerHits > 1) {
+            List<InnerHitBuilder> innerHits = new ArrayList<>(numInnerHits);
+            for (int i = 0; i < numInnerHits; i++) {
+                innerHits.add(InnerHitBuilderTests.randomInnerHits(false, false));
+            }
+
+            builder.setInnerHits(innerHits);
         }
+
         return builder;
     }
 

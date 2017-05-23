@@ -5,10 +5,15 @@
  */
 package org.elasticsearch.xpack.watcher.transport.action.stats;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.LatchScriptEngine;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.WatcherState;
@@ -20,13 +25,20 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionSnapshot;
 import org.elasticsearch.xpack.watcher.input.InputBuilders;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
+import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -45,6 +57,38 @@ import static org.hamcrest.core.Is.is;
         randomDynamicTemplates = false, numDataNodes = 1, supportsDedicatedMasters = false)
 public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
 
+    private static CountDownLatch scriptStartedLatch = new CountDownLatch(1);
+    private static CountDownLatch scriptCompletionLatch = new CountDownLatch(1);
+    private static Logger logger = ESLoggerFactory.getLogger(WatchStatsTests.class);
+
+    public static class LatchScriptPlugin extends MockScriptPlugin {
+
+        private static final String NAME = "latch";
+
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap(NAME, p -> {
+                scriptStartedLatch.countDown();
+                try {
+                    if (scriptCompletionLatch.await(10, TimeUnit.SECONDS) == false) {
+                        logger.error("Script completion latch was not counted down after 10 seconds");
+                    }
+                } catch (InterruptedException e) {
+                }
+                return true;
+            });
+        }
+    }
+
+    static Script latchScript() {
+        return new Script(ScriptType.INLINE, "mockscript", LatchScriptPlugin.NAME, Collections.emptyMap());
+    }
+
+    public void awaitScriptStartedExecution() throws InterruptedException {
+        if (scriptStartedLatch.await(10, TimeUnit.SECONDS) == false) {
+            throw new ElasticsearchException("Expected script to be called within 10 seconds, did not happen");
+        }
+    }
+
     @Override
     protected boolean timeWarped() {
         return false;
@@ -58,7 +102,7 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(LatchScriptEngine.LatchScriptPlugin.class);
+        plugins.add(LatchScriptPlugin.class);
         return plugins;
     }
 
@@ -73,12 +117,16 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
 
     @Before
     public void createLatches() {
-        getLatchScriptEngine().reset();
+        scriptStartedLatch = new CountDownLatch(1);
+        scriptCompletionLatch = new CountDownLatch(1);
     }
 
     @After
     public void clearLatches() throws InterruptedException {
-        getLatchScriptEngine().finishScriptExecution();
+        scriptCompletionLatch.countDown();
+        boolean countedDown = scriptCompletionLatch.await(10, TimeUnit.SECONDS);
+        String msg = String.format(Locale.ROOT, "Script completion latch value is [%s], but should be 0", scriptCompletionLatch.getCount());
+        assertThat(msg, countedDown, Matchers.is(true));
     }
 
     @TestLogging("org.elasticsearch.xpack.watcher.trigger.schedule.engine:TRACE,org.elasticsearch.xpack.scheduler:TRACE,org.elasticsearch" +
@@ -87,12 +135,12 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
         watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("1s")))
                 .input(InputBuilders.simpleInput("key", "value"))
-                .condition(new ScriptCondition(LatchScriptEngine.latchScript()))
+                .condition(new ScriptCondition(latchScript()))
                 .addAction("_action", ActionBuilders.loggingAction("some logging"))
         ).get();
 
         logger.info("Waiting for first script invocation");
-        getLatchScriptEngine().awaitScriptStartedExecution();
+        awaitScriptStartedExecution();
         logger.info("First script got executed, checking currently running watches");
 
         WatcherStatsResponse response = watcherClient().prepareWatcherStats().setIncludeCurrentWatches(true).get();
@@ -116,13 +164,13 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
             watcherClient().preparePutWatch("_id" + i).setSource(watchBuilder()
                     .trigger(schedule(interval("1s")))
                     .input(noneInput())
-                    .condition(new ScriptCondition(LatchScriptEngine.latchScript()))
+                    .condition(new ScriptCondition(latchScript()))
                     .addAction("_action", ActionBuilders.loggingAction("some logging"))
             ).get();
         }
 
         logger.info("Waiting for first script invocation");
-        getLatchScriptEngine().awaitScriptStartedExecution();
+        awaitScriptStartedExecution();
         // I know this still sucks, but it is still way faster than the older implementation
         logger.info("Sleeping 2.5 seconds to make sure a new round of watches is queued");
         Thread.sleep(2500);
@@ -161,9 +209,5 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
                 .filter(node -> node.getQueuedWatches() != null)
                 .forEach(node -> queuedWatches.addAll(node.getQueuedWatches()));
         return queuedWatches;
-    }
-
-    private LatchScriptEngine getLatchScriptEngine() {
-        return internalCluster().getInstance(LatchScriptEngine.LatchScriptPlugin.class).getScriptEngineService();
     }
 }

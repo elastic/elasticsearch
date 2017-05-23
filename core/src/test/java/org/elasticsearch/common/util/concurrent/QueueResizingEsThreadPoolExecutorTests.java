@@ -192,7 +192,7 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
 
     private Function<Runnable, Runnable> fastWrapper() {
         return (runnable) -> {
-            return new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(50));
+            return new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(100));
         };
     }
 

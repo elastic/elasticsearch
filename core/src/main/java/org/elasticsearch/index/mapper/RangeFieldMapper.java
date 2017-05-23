@@ -282,12 +282,6 @@ public class RangeFieldMapper extends FieldMapper {
             return query;
         }
 
-        @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                QueryShardContext context) {
-            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, ShapeRelation.INTERSECTS, context);
-        }
-
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                                 ShapeRelation relation, QueryShardContext context) {
             failIfNotIndexed();

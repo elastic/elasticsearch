@@ -42,7 +42,8 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -56,7 +57,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -80,7 +80,6 @@ public class UpdateRequestTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .build();
-        final Environment environment = new Environment(baseSettings);
         final Map<String, Function<Map<String, Object>, Object>> scripts =  new HashMap<>();
         scripts.put(
                 "ctx._source.update_timestamp = ctx._now",
@@ -135,13 +134,9 @@ public class UpdateRequestTests extends ESTestCase {
                     return null;
                 });
         scripts.put("return", vars -> null);
-        final ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(emptyList());
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts);
-
-        ScriptService scriptService = new ScriptService(
-                baseSettings,
-                Collections.singletonMap(engine.getType(), engine),
-                scriptContextRegistry);
+        Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
+        ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptContext.BUILTINS);
         final Settings settings = settings(Version.CURRENT).build();
 
         updateHelper = new UpdateHelper(settings, scriptService);

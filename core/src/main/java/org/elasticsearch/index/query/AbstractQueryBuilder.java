@@ -283,7 +283,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * Extracts the inner hits from the query tree.
      * While it extracts inner hits, child inner hits are inlined into the inner hit builder they belong to.
      */
-    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+    protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
     }
 
     // Like Objects.requireNotNull(...) but instead throws a IllegalArgumentException

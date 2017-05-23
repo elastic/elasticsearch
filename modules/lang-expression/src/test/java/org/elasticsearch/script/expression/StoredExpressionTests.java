@@ -40,7 +40,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        builder.put("script.contexts_allowed", "update");
+        builder.put("script.allowed_contexts", "update");
         return builder.build();
     }
 

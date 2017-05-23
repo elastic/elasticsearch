@@ -33,9 +33,11 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -54,11 +56,18 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
      * Should the test instances look like they are sorted by some fields (true) or sorted by score (false). Set here because these need
      * to be the same across the entirety of {@link #testReduceRandom()}.
      */
-    private final boolean testInstancesLookSortedByField = randomBoolean();
+    private boolean testInstancesLookSortedByField;
     /**
      * Fields shared by all instances created by {@link #createTestInstance(String, List, Map)}.
      */
-    private final SortField[] testInstancesSortFields = testInstancesLookSortedByField ? randomSortFields() : new SortField[0];
+    private SortField[] testInstancesSortFields;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        testInstancesLookSortedByField = randomBoolean();
+        testInstancesSortFields = testInstancesLookSortedByField ? randomSortFields() : new SortField[0];
+    }
 
     @Override
     protected InternalTopHits createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
@@ -101,6 +110,35 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         }
 
         return new InternalTopHits(name, from, requestedSize, topDocs, searchHits, pipelineAggregators, metaData);
+    }
+
+    @Override
+    protected void assertFromXContent(InternalTopHits aggregation, ParsedAggregation parsedAggregation) throws IOException {
+        final SearchHits expectedSearchHits = aggregation.getHits();
+
+        assertTrue(parsedAggregation instanceof ParsedTopHits);
+        ParsedTopHits parsed = (ParsedTopHits) parsedAggregation;
+        final SearchHits actualSearchHits = parsed.getHits();
+
+        assertEquals(expectedSearchHits.getTotalHits(), actualSearchHits.getTotalHits());
+        assertEquals(expectedSearchHits.getMaxScore(), actualSearchHits.getMaxScore(), 0.0f);
+
+        List<SearchHit> expectedHits = Arrays.asList(expectedSearchHits.getHits());
+        List<SearchHit> actualHits = Arrays.asList(actualSearchHits.getHits());
+
+        assertEquals(expectedHits.size(), actualHits.size());
+        for (int i = 0; i < expectedHits.size(); i++) {
+            SearchHit expected = expectedHits.get(i);
+            SearchHit actual = actualHits.get(i);
+
+            assertEquals(expected.getIndex(), actual.getIndex());
+            assertEquals(expected.getType(), actual.getType());
+            assertEquals(expected.getId(), actual.getId());
+            assertEquals(expected.getVersion(), actual.getVersion());
+            assertEquals(expected.getScore(), actual.getScore(), 0.0f);
+            assertEquals(expected.getFields(), actual.getFields());
+            assertEquals(expected.getSourceAsMap(), actual.getSourceAsMap());
+        }
     }
 
     private Object randomOfType(SortField.Type type) {

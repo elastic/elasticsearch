@@ -54,7 +54,7 @@ import org.mockito.ArgumentCaptor;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.InetAddress;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -180,11 +180,11 @@ public class DatafeedManagerTests extends ESTestCase {
         verify(auditor).warning("job_id", "Datafeed lookback retrieved no data");
     }
 
-    public void testStart_GivenNewlyCreatedJobLoopBack() throws Exception {
+    public void testStart_GivenNewlyCreatedJobLookback() throws Exception {
         DataExtractor dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(0L, 60000L)).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        byte[] contentBytes = "".getBytes(Charset.forName("utf-8"));
+        byte[] contentBytes = "".getBytes(StandardCharsets.UTF_8);
         XContentType xContentType = XContentType.JSON;
         InputStream in = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.next()).thenReturn(Optional.of(in));
@@ -274,7 +274,7 @@ public class DatafeedManagerTests extends ESTestCase {
         DataExtractor dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        byte[] contentBytes = "".getBytes(Charset.forName("utf-8"));
+        byte[] contentBytes = "".getBytes(StandardCharsets.UTF_8);
         InputStream in = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.next()).thenReturn(Optional.of(in));
 
@@ -303,7 +303,7 @@ public class DatafeedManagerTests extends ESTestCase {
         DataExtractor dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        byte[] contentBytes = "".getBytes(Charset.forName("utf-8"));
+        byte[] contentBytes = "".getBytes(StandardCharsets.UTF_8);
         InputStream in = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.next()).thenReturn(Optional.of(in));
 
@@ -325,7 +325,7 @@ public class DatafeedManagerTests extends ESTestCase {
         DataExtractor dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(0L, 60000L)).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        byte[] contentBytes = "".getBytes(Charset.forName("utf-8"));
+        byte[] contentBytes = "".getBytes(StandardCharsets.UTF_8);
         InputStream in = new ByteArrayInputStream(contentBytes);
         XContentType xContentType = XContentType.JSON;
         when(dataExtractor.next()).thenReturn(Optional.of(in));

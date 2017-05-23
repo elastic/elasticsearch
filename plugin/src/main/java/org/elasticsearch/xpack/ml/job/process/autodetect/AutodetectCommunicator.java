@@ -58,6 +58,7 @@ public class AutodetectCommunicator implements Closeable {
     private final Consumer<Exception> handler;
     private final ExecutorService autodetectWorkerExecutor;
     private final NamedXContentRegistry xContentRegistry;
+    private volatile boolean processKilled;
 
     AutodetectCommunicator(Job job, JobTask jobTask, AutodetectProcess process, DataCountsReporter dataCountsReporter,
                            AutoDetectResultProcessor autoDetectResultProcessor, Consumer<Exception> handler,
@@ -146,6 +147,12 @@ public class AutodetectCommunicator implements Closeable {
         }
     }
 
+    public void killProcess() throws IOException {
+        processKilled = true;
+        autoDetectResultProcessor.setProcessKilled();
+        autodetectProcess.kill();
+    }
+
     public void writeUpdateProcessMessage(ModelPlotConfig config, List<JobUpdate.DetectorUpdate> updates,
                                           BiConsumer<Void, Exception> handler) {
         submitOperation(() -> {
@@ -184,11 +191,13 @@ public class AutodetectCommunicator implements Closeable {
             autoDetectResultProcessor.clearAwaitingFlush(flushId);
         }
 
-        // We also have to wait for the normalizer to become idle so that we block
-        // clients from querying results in the middle of normalization.
-        autoDetectResultProcessor.waitUntilRenormalizerIsIdle();
+        if (processKilled == false) {
+            // We also have to wait for the normalizer to become idle so that we block
+            // clients from querying results in the middle of normalization.
+            autoDetectResultProcessor.waitUntilRenormalizerIsIdle();
 
-        LOGGER.debug("[{}] Flush completed", job.getId());
+            LOGGER.debug("[{}] Flush completed", job.getId());
+        }
     }
 
     /**
@@ -223,20 +232,22 @@ public class AutodetectCommunicator implements Closeable {
         autodetectWorkerExecutor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                if (e.getCause() instanceof TimeoutException) {
-                    LOGGER.warn("Connection to process was dropped due to a timeout - if you are feeding this job from a connector it " +
-                            "may be that your connector stalled for too long", e.getCause());
+                if (processKilled) {
+                    handler.accept(null, null);
                 } else {
                     LOGGER.error(new ParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
+                    handler.accept(null, e);
                 }
-
-                handler.accept(null, e);
             }
 
             @Override
             protected void doRun() throws Exception {
-                checkProcessIsAlive();
-                handler.accept(operation.get(), null);
+                if (processKilled) {
+                    handler.accept(null, null);
+                } else {
+                    checkProcessIsAlive();
+                    handler.accept(operation.get(), null);
+                }
             }
         });
     }

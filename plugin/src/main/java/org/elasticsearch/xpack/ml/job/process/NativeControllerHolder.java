@@ -46,4 +46,16 @@ public class NativeControllerHolder {
         }
         return null;
     }
+
+    /**
+     * Get a reference to the singleton native process controller.
+     *
+     * Assumes that if it is possible for a native controller to exist that it will already have been created.
+     * Designed for use by objects that don't have access to settings but know a native controller must exist
+     * for the object calling this method to exist.
+     */
+    public static NativeController getNativeController() {
+        return nativeController;
+    }
+
 }

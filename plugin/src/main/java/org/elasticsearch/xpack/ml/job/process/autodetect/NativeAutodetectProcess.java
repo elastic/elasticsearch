@@ -11,6 +11,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -27,6 +28,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Iterator;
 import java.util.List;
@@ -55,6 +57,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
     private volatile Future<?> logTailFuture;
     private volatile Future<?> stateProcessorFuture;
     private volatile boolean processCloseInitiated;
+    private volatile boolean processKilled;
     private final AutodetectResultsParser resultsParser;
 
     NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream,
@@ -78,9 +81,11 @@ class NativeAutodetectProcess implements AutodetectProcess {
             try (CppLogMessageHandler h = cppLogHandler) {
                 h.tailStream();
             } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Error tailing autodetect process logs", jobId), e);
+                if (processKilled == false) {
+                    LOGGER.error(new ParameterizedMessage("[{}] Error tailing autodetect process logs", jobId), e);
+                }
             } finally {
-                if (processCloseInitiated == false) {
+                if (processCloseInitiated == false && processKilled == false) {
                     // The log message doesn't say "crashed", as the process could have been killed
                     // by a user or other process (e.g. the Linux OOM killer)
                     LOGGER.error("[{}] autodetect process stopped unexpectedly", jobId);
@@ -91,8 +96,13 @@ class NativeAutodetectProcess implements AutodetectProcess {
         stateProcessorFuture = executorService.submit(() -> {
             try (InputStream in = persistStream) {
                 stateProcessor.process(jobId, in);
+                if (processKilled == false) {
+                    LOGGER.info("[{}] State output finished", jobId);
+                }
             } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Error reading autodetect state output", jobId), e);
+                if (processKilled == false) {
+                    LOGGER.error(new ParameterizedMessage("[{}] Error reading autodetect state output", jobId), e);
+                }
             }
         });
     }
@@ -141,11 +151,15 @@ class NativeAutodetectProcess implements AutodetectProcess {
             // wait for the process to exit by waiting for end-of-file on the named pipe connected
             // to the state processor - it may take a long time for all the model state to be
             // indexed
-            stateProcessorFuture.get(MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES);
+            if (stateProcessorFuture != null) {
+                stateProcessorFuture.get(MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES);
+            }
             // the log processor should have stopped by now too - assume processing the logs will
             // take no more than 5 seconds longer than processing the state (usually it should
             // finish first)
-            logTailFuture.get(5, TimeUnit.SECONDS);
+            if (logTailFuture != null) {
+                logTailFuture.get(5, TimeUnit.SECONDS);
+            }
 
             if (cppLogHandler.seenFatalError()) {
                 throw ExceptionsHelper.serverError(cppLogHandler.getErrors());
@@ -161,7 +175,31 @@ class NativeAutodetectProcess implements AutodetectProcess {
         }
     }
 
-    void deleteAssociatedFiles() throws IOException {
+    @Override
+    public void kill() throws IOException {
+        processKilled = true;
+        try {
+            // The PID comes via the processes log stream.  We don't wait for it to arrive here,
+            // but if the wait times out it implies the process has only just started, in which
+            // case it should die very quickly when we close its input stream.
+            NativeControllerHolder.getNativeController().killProcess(cppLogHandler.getPid(Duration.ZERO));
+        } catch (TimeoutException e) {
+            LOGGER.warn("[{}] Failed to get PID of autodetect process to kill", jobId);
+        } finally {
+            try {
+                processInStream.close();
+            } catch (IOException e) {
+                // Ignore it - we're shutting down and the method itself has logged a warning
+            }
+            try {
+                deleteAssociatedFiles();
+            } catch (IOException e) {
+                // Ignore it - we're shutting down and the method itself has logged a warning
+            }
+        }
+    }
+
+    private void deleteAssociatedFiles() throws IOException {
         if (filesToDelete == null) {
             return;
         }

@@ -67,6 +67,7 @@ public class AutoDetectResultProcessor {
     final CountDownLatch completionLatch = new CountDownLatch(1);
     final Semaphore updateModelSnapshotIdSemaphore = new Semaphore(1);
     private final FlushListener flushListener;
+    private volatile boolean processKilled;
 
     /**
      * New model size stats are read as the process is running
@@ -106,6 +107,9 @@ public class AutoDetectResultProcessor {
                         LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
                     }
                 } catch (Exception e) {
+                    if (processKilled) {
+                        throw e;
+                    }
                     LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
                 }
             }
@@ -113,20 +117,32 @@ public class AutoDetectResultProcessor {
             try {
                 context.bulkResultsPersister.executeRequest();
             } catch (Exception e) {
+                if (processKilled) {
+                    throw e;
+                }
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
 
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
-        }
-        catch (Exception e) {
-            // We should only get here if the iterator throws in which
-            // case parsing the autodetect output has failed.
-            LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", jobId), e);
+        } catch (Exception e) {
+            if (processKilled) {
+                // Don't log the stack trace in this case.  Log just enough to hint
+                // that it would have been better to close jobs before shutting down,
+                // but we now fully expect jobs to move between nodes without doing
+                // all their graceful close activities.
+                LOGGER.warn("[{}] some results not processed due to node shutdown", jobId);
+            } else {
+                // We should only get here if the iterator throws in which
+                // case parsing the autodetect output has failed.
+                LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", jobId), e);
+            }
         } finally {
             try {
-                waitUntilRenormalizerIsIdle();
-                persister.commitResultWrites(jobId);
-                persister.commitStateWrites(jobId);
+                if (processKilled == false) {
+                    waitUntilRenormalizerIsIdle();
+                    persister.commitResultWrites(jobId);
+                    persister.commitStateWrites(jobId);
+                }
             } catch (IndexNotFoundException e) {
                 LOGGER.error("[{}] Error while closing: no such index [{}]", jobId, e.getIndex().getName());
             } finally {
@@ -134,6 +150,11 @@ public class AutoDetectResultProcessor {
                 completionLatch.countDown();
             }
         }
+    }
+
+    public void setProcessKilled() {
+        processKilled = true;
+        renormalizer.shutdown();
     }
 
     void processResult(Context context, AutodetectResult result) {
@@ -191,12 +212,14 @@ public class AutoDetectResultProcessor {
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
             persister.persistQuantiles(quantiles);
-            // We need to make all results written up to these quantiles available for renormalization
             context.bulkResultsPersister.executeRequest();
-            persister.commitResultWrites(context.jobId);
 
-            LOGGER.debug("[{}] Quantiles parsed from output - will trigger renormalization of scores", context.jobId);
-            renormalizer.renormalize(quantiles);
+            if (processKilled == false) {
+                // We need to make all results written up to these quantiles available for renormalization
+                persister.commitResultWrites(context.jobId);
+                LOGGER.debug("[{}] Quantiles parsed from output - will trigger renormalization of scores", context.jobId);
+                renormalizer.renormalize(quantiles);
+            }
         }
         FlushAcknowledgement flushAcknowledgement = result.getFlushAcknowledgement();
         if (flushAcknowledgement != null) {

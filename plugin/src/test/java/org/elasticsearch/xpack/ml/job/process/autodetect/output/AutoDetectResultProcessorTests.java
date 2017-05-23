@@ -328,4 +328,26 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         processorUnderTest.process(process, randomBoolean());
         verify(persister, times(2)).persistModelSizeStats(any());
     }
+
+    public void testKill() throws TimeoutException {
+        AutodetectResult autodetectResult = mock(AutodetectResult.class);
+        @SuppressWarnings("unchecked")
+        Iterator<AutodetectResult> iterator = mock(Iterator.class);
+        when(iterator.hasNext()).thenReturn(true).thenReturn(false);
+        when(iterator.next()).thenReturn(autodetectResult);
+        AutodetectProcess process = mock(AutodetectProcess.class);
+        when(process.readAutodetectResults()).thenReturn(iterator);
+        processorUnderTest.setProcessKilled();
+        processorUnderTest.process(process, randomBoolean());
+
+        processorUnderTest.awaitCompletion();
+        assertEquals(0, processorUnderTest.completionLatch.getCount());
+        assertEquals(1, processorUnderTest.updateModelSnapshotIdSemaphore.availablePermits());
+
+        verify(persister, never()).commitResultWrites(JOB_ID);
+        verify(persister, never()).commitStateWrites(JOB_ID);
+        verify(renormalizer, never()).renormalize(any());
+        verify(renormalizer, never()).waitUntilIdle();
+        verify(flushListener, times(1)).clear();
+    }
 }

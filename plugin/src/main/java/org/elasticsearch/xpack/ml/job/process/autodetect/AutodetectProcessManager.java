@@ -55,6 +55,7 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -122,14 +123,27 @@ public class AutodetectProcessManager extends AbstractComponent {
         this.auditor = auditor;
     }
 
-    public synchronized void closeAllJobs(String reason) throws IOException {
+    public synchronized void closeAllJobsOnThisNode(String reason) throws IOException {
         int numJobs = autoDetectCommunicatorByJob.size();
         if (numJobs != 0) {
             logger.info("Closing [{}] jobs, because [{}]", numJobs, reason);
-        }
 
-        for (Map.Entry<Long, AutodetectCommunicator> entry : autoDetectCommunicatorByJob.entrySet()) {
-            closeJob(entry.getValue().getJobTask(), false, reason);
+            for (Map.Entry<Long, AutodetectCommunicator> entry : autoDetectCommunicatorByJob.entrySet()) {
+                closeJob(entry.getValue().getJobTask(), false, reason);
+            }
+        }
+    }
+
+    public void killAllProcessesOnThisNode() {
+        Iterator<AutodetectCommunicator> iter = autoDetectCommunicatorByJob.values().iterator();
+        while (iter.hasNext()) {
+            AutodetectCommunicator communicator = iter.next();
+            try {
+                communicator.killProcess();
+                iter.remove();
+            } catch (IOException e) {
+                logger.error("[{}] Failed to kill autodetect process for job", communicator.getJobTask().getJobId());
+            }
         }
     }
 

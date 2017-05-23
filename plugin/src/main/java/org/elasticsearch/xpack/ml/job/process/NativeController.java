@@ -12,6 +12,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.job.process.logging.CppLogMessageHandler;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -36,6 +37,7 @@ public class NativeController {
     private static final Duration CONTROLLER_CONNECT_TIMEOUT = Duration.ofSeconds(10);
 
     private static final String START_COMMAND = "start";
+    private static final String KILL_COMMAND = "kill";
 
     public static final Map<String, Object> UNKNOWN_NATIVE_CODE_INFO;
 
@@ -55,7 +57,7 @@ public class NativeController {
                 true, true, false, false, false, false);
         processPipes.connectStreams(CONTROLLER_CONNECT_TIMEOUT);
         cppLogHandler = new CppLogMessageHandler(null, processPipes.getLogStream().get());
-        commandStream = processPipes.getCommandStream().get();
+        commandStream = new BufferedOutputStream(processPipes.getCommandStream().get());
     }
 
     void tailLogsInThread() {
@@ -111,6 +113,25 @@ public class NativeController {
                 commandStream.write(arg.getBytes(StandardCharsets.UTF_8));
             }
             commandStream.write('\n');
+            commandStream.flush();
+        }
+    }
+
+    public void killProcess(long pid) throws TimeoutException, IOException {
+        if (pid <= 0) {
+            throw new IllegalArgumentException("invalid PID to kill: " + pid);
+        }
+        if (pid == getPid()) {
+            throw new IllegalArgumentException("native controller will not kill self: " + pid);
+        }
+
+        synchronized (commandStream) {
+            LOGGER.debug("Killing process with PID: " + pid);
+            commandStream.write(KILL_COMMAND.getBytes(StandardCharsets.UTF_8));
+            commandStream.write('\t');
+            commandStream.write(Long.toString(pid).getBytes(StandardCharsets.UTF_8));
+            commandStream.write('\n');
+            commandStream.flush();
         }
     }
 

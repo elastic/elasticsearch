@@ -42,6 +42,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         this.isPerPartitionNormalization = isPerPartitionNormalization;
     }
 
+    @Override
     public void renormalize(Quantiles quantiles) {
         // This will throw NPE if quantiles is null, so do it first
         QuantilesWithLatch quantilesWithLatch = new QuantilesWithLatch(quantiles, new CountDownLatch(1));
@@ -54,6 +55,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         }
     }
 
+    @Override
     public void waitUntilIdle() {
         try {
             // We cannot tolerate more than one thread running this loop at any time,
@@ -67,6 +69,16 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public void shutdown() {
+        scoresUpdater.shutdown();
+        // We have to wait until idle to avoid a raft of exceptions as other parts of the
+        // system are stopped after this method returns.  However, shutting down the
+        // scoresUpdater first means it won't do all pending work; it will stop as soon
+        // as it can without causing further errors.
+        waitUntilIdle();
     }
 
     private Quantiles getEarliestQuantiles() {

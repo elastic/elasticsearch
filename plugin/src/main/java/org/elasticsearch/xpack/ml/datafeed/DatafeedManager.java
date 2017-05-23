@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksService;
 
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -61,7 +62,8 @@ public class DatafeedManager extends AbstractComponent {
     private final Supplier<Long> currentTimeSupplier;
     private final Auditor auditor;
     // Use allocationId as key instead of datafeed id
-    private final ConcurrentMap<Long, Holder> runningDatafeeds = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, Holder> runningDatafeedsOnThisNode = new ConcurrentHashMap<>();
+    private volatile boolean isolated;
 
     public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, JobProvider jobProvider,
                            Supplier<Long> currentTimeSupplier, Auditor auditor, PersistentTasksService persistentTasksService) {
@@ -93,7 +95,7 @@ public class DatafeedManager extends AbstractComponent {
                 latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
             }
             Holder holder = createJobDatafeed(datafeed, job, latestFinalBucketEndMs, latestRecordTimeMs, handler, task);
-            runningDatafeeds.put(task.getAllocationId(), holder);
+            runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
             task.updatePersistentStatus(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
                 @Override
                 public void onResponse(PersistentTask<?> persistentTask) {
@@ -110,20 +112,36 @@ public class DatafeedManager extends AbstractComponent {
 
     public void stopDatafeed(StartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {
         logger.info("[{}] attempt to stop datafeed [{}] [{}]", reason, task.getDatafeedId(), task.getAllocationId());
-        Holder holder = runningDatafeeds.remove(task.getAllocationId());
+        Holder holder = runningDatafeedsOnThisNode.remove(task.getAllocationId());
         if (holder != null) {
             holder.stop(reason, timeout, null);
         }
     }
 
-    public void stopAllDatafeeds(String reason) {
-        int numDatafeeds = runningDatafeeds.size();
+    /**
+     * This is used when the license expires.
+     */
+    public void stopAllDatafeedsOnThisNode(String reason) {
+        int numDatafeeds = runningDatafeedsOnThisNode.size();
         if (numDatafeeds != 0) {
             logger.info("Closing [{}] datafeeds, because [{}]", numDatafeeds, reason);
-        }
 
-        for (Holder holder : runningDatafeeds.values()) {
-            holder.stop(reason, TimeValue.timeValueSeconds(20), null);
+            for (Holder holder : runningDatafeedsOnThisNode.values()) {
+                holder.stop(reason, TimeValue.timeValueSeconds(20), null);
+            }
+        }
+    }
+
+    /**
+     * This is used before the JVM is killed.  It differs from stopAllDatafeedsOnThisNode in that it leaves
+     * the datafeed tasks in the "started" state, so that they get restarted on a different node.
+     */
+    public void isolateAllDatafeedsOnThisNode() {
+        isolated = true;
+        Iterator<Holder> iter = runningDatafeedsOnThisNode.values().iterator();
+        while (iter.hasNext()) {
+            iter.next().isolateDatafeed();
+            iter.remove();
         }
     }
 
@@ -176,11 +194,13 @@ public class DatafeedManager extends AbstractComponent {
                     holder.stop("general_lookback_failure", TimeValue.timeValueSeconds(20), e);
                     return;
                 }
-                if (next != null) {
-                    doDatafeedRealtime(next, holder.datafeed.getJobId(), holder);
-                } else {
-                    holder.stop("no_realtime", TimeValue.timeValueSeconds(20), null);
-                    holder.problemTracker.finishReport();
+                if (isolated == false) {
+                    if (next != null) {
+                        doDatafeedRealtime(next, holder.datafeed.getJobId(), holder);
+                    } else {
+                        holder.stop("no_realtime", TimeValue.timeValueSeconds(20), null);
+                        holder.problemTracker.finishReport();
+                    }
                 }
             }
         });
@@ -236,7 +256,7 @@ public class DatafeedManager extends AbstractComponent {
         Duration frequency = getFrequencyOrDefault(datafeed, job);
         Duration queryDelay = Duration.ofMillis(datafeed.getQueryDelay().millis());
         DataExtractorFactory dataExtractorFactory = createDataExtractorFactory(datafeed, job);
-        DatafeedJob datafeedJob =  new DatafeedJob(job.getId(), buildDataDescription(job), frequency.toMillis(), queryDelay.toMillis(),
+        DatafeedJob datafeedJob = new DatafeedJob(job.getId(), buildDataDescription(job), frequency.toMillis(), queryDelay.toMillis(),
                 dataExtractorFactory, client, auditor, currentTimeSupplier, finalBucketEndMs, latestRecordTimeMs);
         return new Holder(task.getPersistentTaskId(), task.getAllocationId(), datafeed, datafeedJob, task.isLookbackOnly(),
                 new ProblemTracker(auditor, job.getId()), handler);
@@ -288,7 +308,7 @@ public class DatafeedManager extends AbstractComponent {
      * Visible for testing
      */
     boolean isRunning(long allocationId) {
-        return runningDatafeeds.containsKey(allocationId);
+        return runningDatafeedsOnThisNode.containsKey(allocationId);
     }
 
     public class Holder {
@@ -332,7 +352,7 @@ public class DatafeedManager extends AbstractComponent {
                 } finally {
                     logger.info("[{}] stopping datafeed [{}] for job [{}], acquired [{}]...", source, datafeed.getId(),
                             datafeed.getJobId(), acquired);
-                    runningDatafeeds.remove(allocationId);
+                    runningDatafeedsOnThisNode.remove(allocationId);
                     FutureUtils.cancel(future);
                     auditor.info(datafeed.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
                     handler.accept(e);
@@ -348,6 +368,15 @@ public class DatafeedManager extends AbstractComponent {
             } else {
                 logger.info("[{}] datafeed [{}] for job [{}] was already stopped", source, datafeed.getId(), datafeed.getJobId());
             }
+        }
+
+        /**
+         * This stops a datafeed WITHOUT updating the corresponding persistent task.  It must ONLY be called
+         * immediately prior to shutting down a node.  Then the datafeed task can remain "started", and be
+         * relocated to a different node.  Calling this method at any other time will ruin the datafeed.
+         */
+        public void isolateDatafeed() {
+            datafeedJob.isolate();
         }
 
         private Long executeLoopBack(long startTime, Long endTime) throws Exception {

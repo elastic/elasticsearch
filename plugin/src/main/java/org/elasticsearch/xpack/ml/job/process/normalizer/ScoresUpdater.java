@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -52,6 +51,7 @@ public class ScoresUpdater {
     private int bucketSpan;
     private long normalizationWindow;
     private boolean perPartitionNormalization;
+    private volatile boolean shutdown;
 
     public ScoresUpdater(Job job, JobProvider jobProvider, JobRenormalizedResultsPersister jobRenormalizedResultsPersister,
                          NormalizerFactory normalizerFactory) {
@@ -62,6 +62,13 @@ public class ScoresUpdater {
         bucketSpan = ((Long) job.getAnalysisConfig().getBucketSpan().seconds()).intValue();
         normalizationWindow = getNormalizationWindowOrDefault(job);
         perPartitionNormalization = getPerPartitionNormalizationOrDefault(job.getAnalysisConfig());
+    }
+
+    /**
+     * Tell the scores updater to shut down ASAP.
+     */
+    public void shutdown() {
+        shutdown = true;
     }
 
     private long getNormalizationWindowOrDefault(Job job) {
@@ -108,7 +115,7 @@ public class ScoresUpdater {
         int batchRecordCount = 0;
         int skipped = 0;
 
-        while (bucketsIterator.hasNext()) {
+        while (bucketsIterator.hasNext() && shutdown == false) {
             // Get a batch of buckets without their records to calculate
             // how many buckets can be sensibly retrieved
             Deque<Result<Bucket>> buckets = bucketsIterator.next();
@@ -116,7 +123,7 @@ public class ScoresUpdater {
                 break;
             }
 
-            while (!buckets.isEmpty()) {
+            while (!buckets.isEmpty() && shutdown == false) {
                 Result<Bucket> current = buckets.removeFirst();
                 Bucket currentBucket = current.result;
                 if (currentBucket.isNormalizable()) {
@@ -153,7 +160,7 @@ public class ScoresUpdater {
                 .includeInterim(false);
 
         List<RecordNormalizable> recordNormalizables = new ArrayList<>();
-        while (recordsIterator.hasNext()) {
+        while (recordsIterator.hasNext() && shutdown == false) {
             for (Result<AnomalyRecord> record : recordsIterator.next() ) {
                 recordNormalizables.add(new RecordNormalizable(record.result, record.index));
             }
@@ -169,11 +176,14 @@ public class ScoresUpdater {
     private void normalizeBuckets(Normalizer normalizer, List<BucketNormalizable> normalizableBuckets,
                                   String quantilesState, int recordCount, int skipped, int[] counts,
                                   boolean perPartitionNormalization) {
+        if (shutdown) {
+            return;
+        }
+
         LOGGER.debug("[{}] Will renormalize a batch of {} buckets with {} records ({} empty buckets skipped)",
                 job.getId(), normalizableBuckets.size(), recordCount, skipped);
 
-        List<Normalizable> asNormalizables = normalizableBuckets.stream()
-                .map(Function.identity()).collect(Collectors.toList());
+        List<Normalizable> asNormalizables = normalizableBuckets.stream().collect(Collectors.toList());
         normalizer.normalize(bucketSpan, perPartitionNormalization, asNormalizables, quantilesState);
 
         for (BucketNormalizable bn : normalizableBuckets) {
@@ -207,7 +217,7 @@ public class ScoresUpdater {
                 .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs)
                 .includeInterim(false);
 
-        while (influencersIterator.hasNext()) {
+        while (influencersIterator.hasNext() && shutdown == false) {
             Deque<Result<Influencer>> influencers = influencersIterator.next();
             if (influencers.isEmpty()) {
                 LOGGER.debug("[{}] No influencers to renormalize for job", job.getId());
@@ -228,6 +238,10 @@ public class ScoresUpdater {
     }
 
     private void persistChanged(int[] counts, List<? extends Normalizable> asNormalizables) {
+        if (shutdown) {
+            return;
+        }
+
         List<Normalizable> toUpdate = asNormalizables.stream().filter(n -> n.hadBigNormalizedUpdate()).collect(Collectors.toList());
 
         counts[0] += toUpdate.size();

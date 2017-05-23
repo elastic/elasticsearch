@@ -232,6 +232,36 @@ public class ScoresUpdaterTests extends ESTestCase {
         verify(jobRenormalizedResultsPersister, times(1)).executeRequest(anyString());
     }
 
+    public void testUpdate_GivenShutdown() throws IOException {
+        Influencer influencer = new Influencer(JOB_ID, "n", "v", new Date(DEFAULT_START_TIME), 600, 1);
+
+        Deque<Influencer> influencers = new ArrayDeque<>();
+        influencers.add(influencer);
+        givenProviderReturnsInfluencers(influencers);
+
+        Bucket bucket = generateBucket(new Date(DEFAULT_START_TIME));
+        bucket.setAnomalyScore(30.0);
+        bucket.addBucketInfluencer(createTimeBucketInfluencer(bucket.getTimestamp(), 0.04, 30.0));
+        Deque<AnomalyRecord> records = new ArrayDeque<>();
+        AnomalyRecord record1 = createRecord();
+        AnomalyRecord record2 = createRecord();
+        records.add(record1);
+        records.add(record2);
+
+        Deque<Bucket> buckets = new ArrayDeque<>();
+        buckets.add(bucket);
+        givenProviderReturnsBuckets(buckets);
+        givenProviderReturnsRecords(records);
+
+        scoresUpdater.shutdown();
+        scoresUpdater.update(QUANTILES_STATE, 3600, 0, false);
+
+        verifyNormalizerWasInvoked(0);
+        verify(jobRenormalizedResultsPersister, never()).updateBucket(any());
+        verify(jobRenormalizedResultsPersister, never()).updateResult(any(), any(), any());
+        verify(jobRenormalizedResultsPersister, never()).updateResults(any());
+    }
+
     public void testDefaultRenormalizationWindowBasedOnTime() throws IOException {
         Bucket bucket = generateBucket(new Date(2509200000L));
         bucket.setAnomalyScore(42.0);

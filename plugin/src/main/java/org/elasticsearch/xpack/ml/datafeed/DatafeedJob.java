@@ -48,6 +48,7 @@ class DatafeedJob {
     private volatile long lookbackStartTimeMs;
     private volatile Long lastEndTimeMs;
     private AtomicBoolean running = new AtomicBoolean(true);
+    private volatile boolean isIsolated;
 
     DatafeedJob(String jobId, DataDescription dataDescription, long frequencyMs, long queryDelayMs,
                  DataExtractorFactory dataExtractorFactory, Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
@@ -65,6 +66,11 @@ class DatafeedJob {
         if (lastEndTime > 0) {
             lastEndTimeMs = lastEndTime;
         }
+    }
+
+    void isolate() {
+        isIsolated = true;
+        stop();
     }
 
     Long runLookBack(long startTime, Long endTime) throws Exception {
@@ -99,10 +105,11 @@ class DatafeedJob {
                 auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CONTINUED_REALTIME));
                 return nextRealtimeTimestamp();
             }
-        } else {
-            LOGGER.debug("Lookback finished after being stopped");
-            return null;
         }
+        if (!isIsolated) {
+            LOGGER.debug("Lookback finished after being stopped");
+        }
+        return null;
     }
 
     long runRealtime() throws Exception {
@@ -150,6 +157,9 @@ class DatafeedJob {
             if (!isRunning() && !dataExtractor.isCancelled()) {
                 dataExtractor.cancel();
             }
+            if (isIsolated) {
+                return;
+            }
 
             Optional<InputStream> extractedData;
             try {
@@ -171,6 +181,9 @@ class DatafeedJob {
                 }
                 throw new ExtractionProblemException(e);
             }
+            if (isIsolated) {
+                return;
+            }
             if (extractedData.isPresent()) {
                 DataCounts counts;
                 try (InputStream in = extractedData.get()) {
@@ -179,6 +192,9 @@ class DatafeedJob {
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) {
                         Thread.currentThread().interrupt();
+                    }
+                    if (isIsolated) {
+                        return;
                     }
                     LOGGER.debug("[" + jobId + "] error while posting data", e);
 
@@ -215,7 +231,7 @@ class DatafeedJob {
 
         // If the datafeed was stopped, then it is possible that by the time
         // we call flush the job is closed. Thus, we don't flush unless the
-        // datafeed is stilll running.
+        // datafeed is still running.
         if (isRunning()) {
             flushJob(flushRequest);
         }

@@ -40,8 +40,8 @@ public class InvalidLicenseEnforcer extends AbstractComponent {
 
                 @Override
                 protected void doRun() throws Exception {
-                    datafeedManager.stopAllDatafeeds("invalid license");
-                    autodetectProcessManager.closeAllJobs("invalid license");
+                    datafeedManager.stopAllDatafeedsOnThisNode("invalid license");
+                    autodetectProcessManager.closeAllJobsOnThisNode("invalid license");
                 }
             });
         }

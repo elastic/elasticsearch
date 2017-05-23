@@ -35,6 +35,7 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -92,6 +93,18 @@ public class DatafeedJobTests extends ESTestCase {
         FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
         flushRequest.setCalcInterim(true);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
+    }
+
+    public void testSetIsolated() throws Exception {
+        currentTime = 2000L;
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
+        datafeedJob.isolate();
+        assertNull(datafeedJob.runLookBack(0L, null));
+
+        verify(dataExtractorFactory).newExtractor(0L, 1500L);
+        FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
+        flushRequest.setCalcInterim(true);
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
     }
 
     public void testLookBackRunWithNoEndTime() throws Exception {

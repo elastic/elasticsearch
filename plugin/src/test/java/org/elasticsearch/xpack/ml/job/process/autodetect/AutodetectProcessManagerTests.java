@@ -377,6 +377,24 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertFalse(manager.jobHasActiveAutodetectProcess(jobTask));
     }
 
+    public void testKillKillsAutodetectProcess() throws IOException {
+        AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
+        AutodetectProcessManager manager = createManager(communicator);
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        assertFalse(manager.jobHasActiveAutodetectProcess(jobTask));
+
+        manager.openJob(jobTask, false, e -> {});
+        manager.processData(jobTask, createInputStream(""), randomFrom(XContentType.values()),
+                mock(DataLoadParams.class), (dataCounts1, e) -> {});
+
+        assertTrue(manager.jobHasActiveAutodetectProcess(jobTask));
+
+        manager.killAllProcessesOnThisNode();
+
+        verify(communicator).killProcess();
+    }
+
     public void testProcessData_GivenStateNotOpened() throws IOException {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         doAnswer(invocationOnMock -> {

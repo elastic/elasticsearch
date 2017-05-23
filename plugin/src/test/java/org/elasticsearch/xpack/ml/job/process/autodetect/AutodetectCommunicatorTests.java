@@ -100,6 +100,15 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         Mockito.verify(process).close();
     }
 
+    public void testKill() throws IOException {
+        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
+        AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
+        AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
+        communicator.killProcess();
+        Mockito.verify(resultProcessor).setProcessKilled();
+        Mockito.verify(process).kill();
+    }
+
     private Job createJobDetails() {
         Job.Builder builder = new Job.Builder("foo");
 

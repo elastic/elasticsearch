@@ -18,4 +18,9 @@ public interface Renormalizer {
      * Blocks until the renormalizer is idle and no further quantiles updates are pending.
      */
     void waitUntilIdle();
+
+    /**
+     * Shut down the renormalization ASAP.  Do not wait for it to fully complete.
+     */
+    void shutdown();
 }

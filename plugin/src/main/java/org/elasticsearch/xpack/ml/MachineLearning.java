@@ -253,13 +253,11 @@ public class MachineLearning implements ActionPlugin {
             return emptyList();
         }
 
-        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(settings, clusterService);
-
         // Even when ML is disabled the native controller will be running if it's installed, and it
         // prevents graceful shutdown on Windows unless we tell it to stop.  Hence when disabled we
         // still return a lifecycle service that will tell the native controller to stop.
         if (enabled == false || tribeNode) {
-            return Collections.singletonList(mlLifeCycleService);
+            return Collections.singletonList(new MlLifeCycleService(settings, clusterService));
         }
 
         Auditor auditor = new Auditor(internalClient, clusterService);
@@ -302,6 +300,7 @@ public class MachineLearning implements ActionPlugin {
         PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, internalClient);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, internalClient, clusterService, jobProvider,
                 System::currentTimeMillis, auditor, persistentTasksService);
+        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(settings, clusterService, datafeedManager, autodetectProcessManager);
         InvalidLicenseEnforcer invalidLicenseEnforcer =
                 new InvalidLicenseEnforcer(settings, licenseState, threadPool, datafeedManager, autodetectProcessManager);
         PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Arrays.asList(

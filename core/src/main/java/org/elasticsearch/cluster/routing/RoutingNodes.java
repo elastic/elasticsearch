@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -1018,9 +1019,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      *         this method does nothing.
      */
     public static boolean assertShardStats(RoutingNodes routingNodes) {
-        boolean run = false;
-        assert (run = true); // only run if assertions are enabled!
-        if (!run) {
+        if (!Assertions.ENABLED) {
             return true;
         }
         int unassignedPrimaryCount = 0;

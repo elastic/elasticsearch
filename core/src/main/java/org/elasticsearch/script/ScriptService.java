@@ -74,18 +74,17 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public static final String ALLOW_NONE = "none";
 
     public static final Setting<List<String>> TYPES_ALLOWED_SETTING =
-        Setting.listSetting("script.types_allowed", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
+        Setting.listSetting("script.allowed_types", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
     public static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING =
-        Setting.listSetting("script.contexts_allowed", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
+        Setting.listSetting("script.allowed_contexts", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
 
     private final Set<String> typesAllowed;
     private final Set<String> contextsAllowed;
 
     private final Map<String, ScriptEngine> engines;
+    private final Map<String, ScriptContext> contexts;
 
     private final Cache<CacheKey, CompiledScript> cache;
-
-    private final ScriptContextRegistry scriptContextRegistry;
 
     private final ScriptMetrics scriptMetrics = new ScriptMetrics();
 
@@ -96,12 +95,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private double scriptsPerMinCounter;
     private double compilesAllowedPerNano;
 
-    public ScriptService(Settings settings, ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry) throws IOException {
+    public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext> contexts) {
         super(settings);
 
         Objects.requireNonNull(settings);
-        Objects.requireNonNull(scriptEngineRegistry);
-        Objects.requireNonNull(scriptContextRegistry);
+        this.engines = Objects.requireNonNull(engines);
+        this.contexts = Objects.requireNonNull(contexts);
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
@@ -166,7 +165,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     }
                 }
 
-                if (scriptContextRegistry.isSupportedContext(settingContext)) {
+                if (contexts.containsKey(settingContext)) {
                     this.contextsAllowed.add(settingContext);
                 } else {
                     throw new IllegalArgumentException(
@@ -174,8 +173,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 }
             }
         }
-
-        this.scriptContextRegistry = scriptContextRegistry;
 
         int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
 
@@ -191,8 +188,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
-
-        this.engines = scriptEngineRegistry.getRegisteredLanguages();
 
         this.lastInlineCompileTime = System.nanoTime();
         this.setMaxCompilationsPerMinute(SCRIPT_MAX_COMPILATIONS_PER_MINUTE.get(settings));
@@ -225,9 +220,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
      */
-    public CompiledScript compile(Script script, ScriptContext scriptContext) {
+    public CompiledScript compile(Script script, ScriptContext context) {
         Objects.requireNonNull(script);
-        Objects.requireNonNull(scriptContext);
+        Objects.requireNonNull(context);
 
         ScriptType type = script.getType();
         String lang = script.getLang();
@@ -268,10 +263,10 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         // TODO: fix this through some API or something, that's wrong
         // special exception to prevent expressions from compiling as update or mapping scripts
         boolean expression = "expression".equals(script.getLang());
-        boolean notSupported = scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey());
+        boolean notSupported = context.name.equals(ScriptContext.UPDATE.name);
         if (expression && notSupported) {
             throw new UnsupportedOperationException("scripts of type [" + script.getType() + "]," +
-                " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");
+                " operation [" + context.name + "] and lang [" + lang + "] are not supported");
         }
 
         ScriptEngine scriptEngine = getEngine(lang);
@@ -280,12 +275,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             throw new IllegalArgumentException("cannot execute [" + type + "] scripts");
         }
 
-        if (scriptContextRegistry.isSupportedContext(scriptContext.getKey()) == false) {
-            throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
+        if (contexts.containsKey(context.name) == false) {
+            throw new IllegalArgumentException("script context [" + context.name + "] not supported");
         }
 
-        if (isContextEnabled(scriptContext) == false) {
-            throw new IllegalArgumentException("cannot execute scripts using [" + scriptContext.getKey() + "] context");
+        if (isContextEnabled(context) == false) {
+            throw new IllegalArgumentException("cannot execute scripts using [" + context.name + "] context");
         }
 
         if (logger.isTraceEnabled()) {
@@ -382,7 +377,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     public boolean isContextEnabled(ScriptContext scriptContext) {
-        return contextsAllowed == null || contextsAllowed.contains(scriptContext.getKey());
+        return contextsAllowed == null || contextsAllowed.contains(scriptContext.name);
     }
 
     public boolean isAnyContextEnabled() {
@@ -508,14 +503,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      */
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
         return getEngine(compiledScript.lang()).executable(compiledScript, params);
-    }
-
-    /**
-     * Compiles (or retrieves from cache) and executes the provided search script
-     */
-    public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext) {
-        CompiledScript compiledScript = compile(script, scriptContext);
-        return search(lookup, compiledScript, script.getParams());
     }
 
     /**

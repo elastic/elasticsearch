@@ -27,6 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -49,6 +51,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -123,7 +126,15 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         out.writeInt(maxChildren);
         out.writeVInt(scoreMode.ordinal());
         out.writeNamedWriteable(query);
-        out.writeOptionalWriteable(innerHitBuilder);
+        if (out.getVersion().before(Version.V_6_0_0_alpha2_UNRELEASED)) {
+            final boolean hasInnerHit = innerHitBuilder != null;
+            out.writeBoolean(hasInnerHit);
+            if (hasInnerHit) {
+                innerHitBuilder.writeToParentChildBWC(out, query, type);
+            }
+        } else {
+            out.writeOptionalWriteable(innerHitBuilder);
+        }
         out.writeBoolean(ignoreUnmapped);
     }
 
@@ -153,8 +164,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         return innerHitBuilder;
     }
 
-    public HasChildQueryBuilder innerHit(InnerHitBuilder innerHit, boolean ignoreUnmapped) {
-        this.innerHitBuilder = new InnerHitBuilder(Objects.requireNonNull(innerHit), query, type, ignoreUnmapped);
+    public HasChildQueryBuilder innerHit(InnerHitBuilder innerHit) {
+        this.innerHitBuilder = innerHit;
         return this;
     }
 
@@ -281,7 +292,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         hasChildQueryBuilder.boost(boost);
         hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
         if (innerHitBuilder != null) {
-            hasChildQueryBuilder.innerHit(innerHitBuilder, ignoreUnmapped);
+            hasChildQueryBuilder.innerHit(innerHitBuilder);
+            hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
         }
         return hasChildQueryBuilder;
     }
@@ -454,12 +466,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryBuilder rewrittenQuery = query.rewrite(queryRewriteContext);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder rewrittenQuery = query.rewrite(queryShardContext);
         if (rewrittenQuery != query) {
-            InnerHitBuilder rewrittenInnerHit = InnerHitBuilder.rewrite(innerHitBuilder, rewrittenQuery);
             HasChildQueryBuilder hasChildQueryBuilder =
-                new HasChildQueryBuilder(type, rewrittenQuery, minChildren, maxChildren, scoreMode, rewrittenInnerHit);
+                new HasChildQueryBuilder(type, rewrittenQuery, minChildren, maxChildren, scoreMode, innerHitBuilder);
             hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
             return hasChildQueryBuilder;
         }
@@ -467,9 +478,14 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     }
 
     @Override
-    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+    protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         if (innerHitBuilder != null) {
-            innerHitBuilder.inlineInnerHits(innerHits);
+            Map<String, InnerHitContextBuilder> children = new HashMap<>();
+            InnerHitContextBuilder.extractInnerHits(query, children);
+            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : type;
+            InnerHitContextBuilder innerHitContextBuilder =
+                new HasParentQueryBuilder.ParentChildInnerHitContextBuilder(type, query, innerHitBuilder, children);
+            innerHits.put(name, innerHitContextBuilder);
         }
     }
 }

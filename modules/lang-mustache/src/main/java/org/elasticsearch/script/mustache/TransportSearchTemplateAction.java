@@ -46,7 +46,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.script.ScriptContext.Standard.SEARCH;
+import static org.elasticsearch.script.ScriptContext.SEARCH;
 
 public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse> {
 

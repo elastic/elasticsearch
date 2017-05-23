@@ -27,6 +27,7 @@ import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
@@ -263,10 +264,5 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
     private int getNextStatement(String scriptSource, int offset) {
         return Math.min(scriptSource.length(), offset + 25);
-    }
-
-    @Override
-    public boolean isInlineScriptEnabled() {
-        return true;
     }
 }

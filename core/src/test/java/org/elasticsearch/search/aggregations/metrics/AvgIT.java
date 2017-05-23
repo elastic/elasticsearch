@@ -588,10 +588,5 @@ public class AvgIT extends AbstractNumericTestCase {
                 }
             };
         }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
-        }
     }
 }

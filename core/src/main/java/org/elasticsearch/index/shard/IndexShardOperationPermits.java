@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
@@ -36,7 +37,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-public class IndexShardOperationsLock implements Closeable {
+final class IndexShardOperationPermits implements Closeable {
     private final ShardId shardId;
     private final Logger logger;
     private final ThreadPool threadPool;
@@ -44,10 +45,10 @@ public class IndexShardOperationsLock implements Closeable {
     private static final int TOTAL_PERMITS = Integer.MAX_VALUE;
     // fair semaphore to ensure that blockOperations() does not starve under thread contention
     final Semaphore semaphore = new Semaphore(TOTAL_PERMITS, true);
-    @Nullable private List<ActionListener<Releasable>> delayedOperations; // operations that are delayed due to relocation hand-off
+    @Nullable private List<ActionListener<Releasable>> delayedOperations; // operations that are delayed
     private volatile boolean closed;
 
-    public IndexShardOperationsLock(ShardId shardId, Logger logger, ThreadPool threadPool) {
+    IndexShardOperationPermits(ShardId shardId, Logger logger, ThreadPool threadPool) {
         this.shardId = shardId;
         this.logger = logger;
         this.threadPool = threadPool;
@@ -67,7 +68,7 @@ public class IndexShardOperationsLock implements Closeable {
      * @param onBlocked the action to run once the block has been acquired
      * @throws InterruptedException if calling thread is interrupted
      * @throws TimeoutException if timed out waiting for in-flight operations to finish
-     * @throws IndexShardClosedException if operation lock has been closed
+     * @throws IndexShardClosedException if operation permit has been closed
      */
     public void blockOperations(long timeout, TimeUnit timeUnit, Runnable onBlocked) throws InterruptedException, TimeoutException {
         if (closed) {
@@ -75,6 +76,7 @@ public class IndexShardOperationsLock implements Closeable {
         }
         try {
             if (semaphore.tryAcquire(TOTAL_PERMITS, timeout, timeUnit)) {
+                assert semaphore.availablePermits() == 0;
                 try {
                     onBlocked.run();
                 } finally {
@@ -91,7 +93,7 @@ public class IndexShardOperationsLock implements Closeable {
             }
             if (queuedActions != null) {
                 // Try acquiring permits on fresh thread (for two reasons):
-                // - blockOperations is called on recovery thread which can be expected to be interrupted when recovery is cancelled.
+                // - blockOperations can be called on recovery thread which can be expected to be interrupted when recovery is cancelled.
                 //   Interruptions are bad here as permit acquisition will throw an InterruptedException which will be swallowed by
                 //   ThreadedActionListener if the queue of the thread pool on which it submits is full.
                 // - if permit is acquired and queue of the thread pool which the ThreadedActionListener uses is full, the onFailure
@@ -106,14 +108,14 @@ public class IndexShardOperationsLock implements Closeable {
     }
 
     /**
-     * Acquires a lock whenever lock acquisition is not blocked. If the lock is directly available, the provided
-     * ActionListener will be called on the calling thread. During calls of {@link #blockOperations(long, TimeUnit, Runnable)}, lock
-     * acquisition can be delayed. The provided ActionListener will then be called using the provided executor once blockOperations
-     * terminates.
+     * Acquires a permit whenever permit acquisition is not blocked. If the permit is directly available, the provided
+     * {@link ActionListener} will be called on the calling thread. During calls of {@link #blockOperations(long, TimeUnit, Runnable)},
+     * permit acquisition can be delayed. The provided ActionListener will then be called using the provided executor once operations are no
+     * longer blocked.
      *
-     * @param onAcquired ActionListener that is invoked once acquisition is successful or failed
+     * @param onAcquired      {@link ActionListener} that is invoked once acquisition is successful or failed
      * @param executorOnDelay executor to use for delayed call
-     * @param forceExecution whether the runnable should force its execution in case it gets rejected
+     * @param forceExecution  whether the runnable should force its execution in case it gets rejected
      */
     public void acquire(ActionListener<Releasable> onAcquired, String executorOnDelay, boolean forceExecution) {
         if (closed) {

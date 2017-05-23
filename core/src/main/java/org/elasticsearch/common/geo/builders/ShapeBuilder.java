@@ -23,6 +23,7 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -58,9 +59,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     static {
         // if asserts are enabled we run the debug statements even if they are not logged
         // to prevent exceptions only present if debug enabled
-        boolean debug = false;
-        assert debug = true;
-        DEBUG = debug;
+        DEBUG = Assertions.ENABLED;
     }
 
     public static final double DATELINE = 180;

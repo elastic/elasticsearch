@@ -170,10 +170,8 @@ summarizing data this way is that {es} automatically distributes
 these calculations across your cluster. You can then feed this summarized data
 into {xpackml} instead of raw results, which reduces the volume
 of data that must be considered while detecting anomalies. For the purposes of
-this tutorial, however, these summary values are stored in {es},
-rather than created using the {ref}/search-aggregations.html[_aggregations framework_].
-
-//TBD link to working with aggregations page
+this tutorial, however, these summary values are stored in {es}. For more
+information, see <<ml-configuring-aggregation>>.
 
 Before you load the data set, you need to set up {ref}/mapping.html[_mappings_]
 for the fields. Mappings divide the documents in the index into logical groups

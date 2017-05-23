@@ -1260,10 +1260,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public int hashCode() {
-            int result = (int) (seqNo ^ (seqNo >>> 32));
-            result = 31 * result + (int) (primaryTerm ^ (primaryTerm >>> 32));
-            result = 31 * result + reason.hashCode();
-            return result;
+            return 31 * 31 * 31 + 31 * 31 * Long.hashCode(seqNo) + 31 * Long.hashCode(primaryTerm) + reason().hashCode();
         }
 
         @Override

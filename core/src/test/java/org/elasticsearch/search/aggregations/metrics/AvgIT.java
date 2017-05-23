@@ -410,10 +410,6 @@ public class AvgIT extends AbstractNumericTestCase {
         public static final String NAME = "extract_field";
 
         @Override
-        public void close() throws IOException {
-        }
-
-        @Override
         public String getType() {
             return NAME;
         }
@@ -508,10 +504,6 @@ public class AvgIT extends AbstractNumericTestCase {
     public static class FieldValueScriptEngine implements ScriptEngine {
 
         public static final String NAME = "field_value";
-
-        @Override
-        public void close() throws IOException {
-        }
 
         @Override
         public String getType() {

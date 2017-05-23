@@ -64,7 +64,7 @@ public class ScriptServiceTests extends ESTestCase {
                 .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 10000)
                 .build();
         scriptEngine = new TestEngine();
-        TestEngine defaultScriptServiceEngine = new TestEngine(Script.DEFAULT_SCRIPT_LANG) {};
+        TestEngine defaultScriptServiceEngine = new TestEngine(Script.DEFAULT_SCRIPT_LANG);
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
         //prevent duplicates using map
@@ -346,11 +346,6 @@ public class ScriptServiceTests extends ESTestCase {
         @Override
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
             return null;
-        }
-
-        @Override
-        public void close() {
-
         }
     }
 }

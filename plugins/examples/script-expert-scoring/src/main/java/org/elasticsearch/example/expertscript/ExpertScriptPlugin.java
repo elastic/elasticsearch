@@ -134,7 +134,9 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         }
 
         @Override
-        public void close() {}
+        public void close() {
+            // optionally close resources
+        }
     }
     // end::expert_engine
 }

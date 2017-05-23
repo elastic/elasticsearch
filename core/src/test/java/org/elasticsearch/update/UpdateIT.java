@@ -83,10 +83,6 @@ public class UpdateIT extends ESIntegTestCase {
         public static final String NAME = "put_values";
 
         @Override
-        public void close() throws IOException {
-        }
-
-        @Override
         public String getType() {
             return NAME;
         }
@@ -146,10 +142,6 @@ public class UpdateIT extends ESIntegTestCase {
         public static final String NAME = "field_inc";
 
         @Override
-        public void close() throws IOException {
-        }
-
-        @Override
         public String getType() {
             return NAME;
         }
@@ -202,10 +194,6 @@ public class UpdateIT extends ESIntegTestCase {
         public static final String NAME = "scripted_upsert";
 
         @Override
-        public void close() throws IOException {
-        }
-
-        @Override
         public String getType() {
             return NAME;
         }
@@ -256,10 +244,6 @@ public class UpdateIT extends ESIntegTestCase {
     public static class ExtractContextInSourceScriptEngine implements ScriptEngine {
 
         public static final String NAME = "extract_ctx";
-
-        @Override
-        public void close() throws IOException {
-        }
 
         @Override
         public String getType() {

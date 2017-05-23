@@ -264,10 +264,6 @@ public class ValueCountIT extends ESIntegTestCase {
         public static final String NAME = "field_value";
 
         @Override
-        public void close() throws IOException {
-        }
-
-        @Override
         public String getType() {
             return NAME;
         }

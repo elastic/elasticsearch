@@ -19,6 +19,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.http.ParseException;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -95,7 +96,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             indexRandomDocuments(index, count, true);
             createSnapshot();
             // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
-            flush();
+            client().performRequest("POST", "/_flush");
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
                 indexRandomDocuments(index, count / 10, false /* Flushing here would invalidate the whole thing....*/);
@@ -126,86 +127,10 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertThat(countResponse, containsString("\"total\":" + count));
 
         if (false == runningAgainstOldCluster) {
-            boolean restoredFromTranslog = false;
-            boolean foundPrimary = false;
-            Map<String, String> params = new HashMap<>();
-            params.put("h", "index,shard,type,stage,translog_ops_recovered");
-            params.put("s", "index,shard,type");
-            String recoveryResponse = EntityUtils.toString(client().performRequest("GET", "/_cat/recovery/" + index, params).getEntity());
-            for (String line : recoveryResponse.split("\n")) {
-                // Find the primaries
-                foundPrimary = true;
-                if (false == line.contains("done") && line.contains("existing_store")) {
-                    continue;
-                }
-                /* Mark if we see a primary that looked like it restored from the translog.
-                 * Not all primaries will look like this all the time because we modify
-                 * random documents when we want there to be a translog and they might
-                 * not be spread around all the shards. */
-                Matcher m = Pattern.compile("(\\d+)$").matcher(line);
-                assertTrue(line, m.find());
-                int translogOps = Integer.parseInt(m.group(1));
-                if (translogOps > 0) {
-                    restoredFromTranslog = true;
-                }
-            }
-            assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
-            assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
-
-            String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
-            String bwcLuceneVersion = oldClusterVersion.luceneVersion.toString();
-            if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
-                int numCurrentVersion = 0;
-                int numBwcVersion = 0;
-                params.clear();
-                params.put("h", "prirep,shard,index,version");
-                params.put("s", "prirep,shard,index");
-                String segmentsResponse = EntityUtils.toString(
-                        client().performRequest("GET", "/_cat/segments/" + index, params).getEntity());
-                for (String line : segmentsResponse.split("\n")) {
-                    if (false == line.startsWith("p")) {
-                        continue;
-                    }
-                    Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
-                    assertTrue(line, m.find());
-                    String version = m.group(1);
-                    if (currentLuceneVersion.equals(version)) {
-                        numCurrentVersion++;
-                    } else if (bwcLuceneVersion.equals(version)) {
-                        numBwcVersion++;
-                    } else {
-                        fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was" + line);
-                    }
-                }
-                assertNotEquals("expected at least 1 current segment after translog recovery", 0, numCurrentVersion);
-                assertNotEquals("expected at least 1 old segment", 0, numBwcVersion);
-            }
+            assertTranslogRecoveryStatistics(index, shouldHaveTranslog);
         }
 
-        // Restore a snapshot and make sure the documents are the same
-        if (false == runningAgainstOldCluster) {
-            /* Remove any "restored" indices from the old cluster run of this test.
-             * We intentionally don't remove them while running this against the
-             * old cluster so we can test starting the node with a restored index
-             * in the cluster. */
-            client().performRequest("DELETE", "/restored_*");
-        }
-
-        if (runningAgainstOldCluster) {
-            // TODO restoring the snapshot seems to fail! This seems like a bug.
-            XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
-            restoreCommand.field("include_global_state", false);
-            restoreCommand.field("indices", index);
-            restoreCommand.field("rename_pattern", index);
-            restoreCommand.field("rename_replacement", "restored_" + index);
-            restoreCommand.endObject();
-            client().performRequest("POST", REPO + "/snap/_restore", singletonMap("wait_for_completion", "true"),
-                    new StringEntity(restoreCommand.string(), ContentType.APPLICATION_JSON));
-
-            countResponse = EntityUtils.toString(
-                    client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")).getEntity());
-            assertThat(countResponse, containsString("\"total\":" + count));
-        }
+        restoreSnapshot(index, count);
 
         // TODO finish adding tests for the things in OldIndexBackwardsCompatibilityIT
     }
@@ -230,7 +155,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 client().performRequest("POST", "/_refresh");
             }
             if (flushAllowed && rarely()) {
-                flush();
+                client().performRequest("POST", "/_flush");
             }
         }
     }
@@ -250,8 +175,88 @@ public class FullClusterRestartIT extends ESRestTestCase {
         client().performRequest("PUT", REPO + "/snap", singletonMap("wait_for_completion", "true"));
     }
 
-    private void flush() throws IOException {
-        client().performRequest("POST", "/_flush");
+    private void assertTranslogRecoveryStatistics(String index, boolean shouldHaveTranslog) throws ParseException, IOException {
+        boolean restoredFromTranslog = false;
+        boolean foundPrimary = false;
+        Map<String, String> params = new HashMap<>();
+        params.put("h", "index,shard,type,stage,translog_ops_recovered");
+        params.put("s", "index,shard,type");
+        String recoveryResponse = EntityUtils.toString(client().performRequest("GET", "/_cat/recovery/" + index, params).getEntity());
+        for (String line : recoveryResponse.split("\n")) {
+            // Find the primaries
+            foundPrimary = true;
+            if (false == line.contains("done") && line.contains("existing_store")) {
+                continue;
+            }
+            /* Mark if we see a primary that looked like it restored from the translog.
+             * Not all primaries will look like this all the time because we modify
+             * random documents when we want there to be a translog and they might
+             * not be spread around all the shards. */
+            Matcher m = Pattern.compile("(\\d+)$").matcher(line);
+            assertTrue(line, m.find());
+            int translogOps = Integer.parseInt(m.group(1));
+            if (translogOps > 0) {
+                restoredFromTranslog = true;
+            }
+        }
+        assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
+        assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
+
+        String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
+        String bwcLuceneVersion = oldClusterVersion.luceneVersion.toString();
+        if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
+            int numCurrentVersion = 0;
+            int numBwcVersion = 0;
+            params.clear();
+            params.put("h", "prirep,shard,index,version");
+            params.put("s", "prirep,shard,index");
+            String segmentsResponse = EntityUtils.toString(
+                    client().performRequest("GET", "/_cat/segments/" + index, params).getEntity());
+            for (String line : segmentsResponse.split("\n")) {
+                if (false == line.startsWith("p")) {
+                    continue;
+                }
+                Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
+                assertTrue(line, m.find());
+                String version = m.group(1);
+                if (currentLuceneVersion.equals(version)) {
+                    numCurrentVersion++;
+                } else if (bwcLuceneVersion.equals(version)) {
+                    numBwcVersion++;
+                } else {
+                    fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was" + line);
+                }
+            }
+            assertNotEquals("expected at least 1 current segment after translog recovery", 0, numCurrentVersion);
+            assertNotEquals("expected at least 1 old segment", 0, numBwcVersion);
+        }
+    }
+
+    private void restoreSnapshot(String index, int count) throws ParseException, IOException {
+        if (false == runningAgainstOldCluster) {
+            /* Remove any "restored" indices from the old cluster run of this test.
+             * We intentionally don't remove them while running this against the
+             * old cluster so we can test starting the node with a restored index
+             * in the cluster. */
+            client().performRequest("DELETE", "/restored_*");
+        }
+
+        if (runningAgainstOldCluster) {
+            // TODO restoring the snapshot seems to fail! This seems like a bug.
+            XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
+            restoreCommand.field("include_global_state", false);
+            restoreCommand.field("indices", index);
+            restoreCommand.field("rename_pattern", index);
+            restoreCommand.field("rename_replacement", "restored_" + index);
+            restoreCommand.endObject();
+            client().performRequest("POST", REPO + "/snap/_restore", singletonMap("wait_for_completion", "true"),
+                    new StringEntity(restoreCommand.string(), ContentType.APPLICATION_JSON));
+
+            String countResponse = EntityUtils.toString(
+                    client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")).getEntity());
+            assertThat(countResponse, containsString("\"total\":" + count));
+        }
+
     }
 
     private Object randomLenientBoolean() {

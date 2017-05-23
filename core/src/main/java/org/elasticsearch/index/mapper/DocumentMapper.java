@@ -48,7 +48,7 @@ import java.util.Objects;
 import static java.util.Collections.emptyMap;
 
 public class DocumentMapper implements ToXContent {
-
+    public static String DEFAULT_DOC_TYPE = "doc";
     public static class Builder {
 
         private Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();

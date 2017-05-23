@@ -25,6 +25,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -47,13 +48,14 @@ public class RestGetAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/{type}/{id}", this);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
         // new typeless API added in 5.5
-        controller.registerHandler(GET, "/{index}/_doc/{id}", new DocTypeRestHandler(settings, this::prepareRequest));
-        controller.registerHandler(HEAD, "/{index}/_doc/{id}", new DocTypeRestHandler(settings, this::prepareRequest));
+        controller.registerHandler(GET, "/{index}/_doc/{id}", this);
+        controller.registerHandler(HEAD, "/{index}/_doc/{id}", this);
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
+        final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type",  DocumentMapper.DEFAULT_DOC_TYPE),
+            request.param("id"));
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));

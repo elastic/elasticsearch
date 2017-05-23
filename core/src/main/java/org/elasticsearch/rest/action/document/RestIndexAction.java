@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -48,8 +49,10 @@ public class RestIndexAction extends BaseRestHandler {
         controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
         // new typeless API added in 5.5
-        controller.registerHandler(POST, "/{index}_doc", new DocTypeRestHandler(settings, this::prepareRequest)); // auto id creation
-        controller.registerHandler(PUT, "/{index}/_doc/{id}", new DocTypeRestHandler(settings, this::prepareRequest));
+        controller.registerHandler(POST, "/{index}/_doc", this); // auto id creation
+        controller.registerHandler(PUT, "/{index}/_doc/{id}", this);
+        controller.registerHandler(PUT, "/{index}/_doc/{id}/_create", createHandler);
+        controller.registerHandler(POST, "/{index}/_doc/{id}/_create", createHandler);
     }
 
     final class CreateHandler extends BaseRestHandler {
@@ -66,7 +69,8 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
+        IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type",  DocumentMapper.DEFAULT_DOC_TYPE),
+            request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.parent(request.param("parent"));
         indexRequest.setPipeline(request.param("pipeline"));

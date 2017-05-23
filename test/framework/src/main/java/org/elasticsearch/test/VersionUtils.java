@@ -29,7 +29,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -37,11 +36,6 @@ import static java.util.Collections.unmodifiableList;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
-    /**
-     * Matches names of versions that we process. Intentionally skips things like CURRENT.
-     */
-    private static final Pattern VERSION_NAME = Pattern.compile("V_(\\d+)_(\\d+)_(\\d+)(_(alpha|beta|rc)\\d+)?");
-
     /**
      * Sort versions that have backwards compatibility guarantees from
      * those that don't. Doesn't actually check whether or not the versions
@@ -64,7 +58,7 @@ public class VersionUtils {
                 continue;
             }
             assert field.getName().matches("(V(_\\d+)+(_(alpha|beta|rc)\\d+)?|CURRENT)") : field.getName();
-            if (false == VERSION_NAME.matcher(field.getName()).matches()) {
+            if ("CURRENT".equals(field.getName())) {
                 continue;
             }
             try {
@@ -88,6 +82,9 @@ public class VersionUtils {
          * current one is unreleased. If it is released then gradle would be complaining. */
         int unreleasedIndex = versions.size() - 2;
         while (true) {
+            if (unreleasedIndex < 0) {
+                throw new IllegalArgumentException("Couldn't find first non-alpha release");
+            }
             /* Technically we don't support backwards compatiblity for alphas, betas,
              * and rcs. But the testing infrastructure requires that we act as though we
              * do. This is a difference between the gradle and Java logic but should be
@@ -98,9 +95,6 @@ public class VersionUtils {
                 break;
             }
             unreleasedIndex--;
-            if (unreleasedIndex < 0) {
-                throw new IllegalArgumentException("Couldn't find first non-alpha release");
-            }
         }
 
         Version unreleased = versions.remove(unreleasedIndex);

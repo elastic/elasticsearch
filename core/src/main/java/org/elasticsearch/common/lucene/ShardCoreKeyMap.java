@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReader.CoreClosedListener;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 
@@ -148,10 +149,7 @@ public final class ShardCoreKeyMap {
     }
 
     private synchronized boolean assertSize() {
-        // this is heavy and should only used in assertions
-        boolean assertionsEnabled = false;
-        assert assertionsEnabled = true;
-        if (assertionsEnabled == false) {
+        if (!Assertions.ENABLED) {
             throw new AssertionError("only run this if assertions are enabled");
         }
         Collection<Set<Object>> values = indexToCoreKey.values();

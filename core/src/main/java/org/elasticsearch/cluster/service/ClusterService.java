@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -655,9 +656,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         assert clusterTasksResult.executionResults.size() == taskInputs.updateTasks.size()
                 : String.format(Locale.ROOT, "expected [%d] task result%s but was [%d]", taskInputs.updateTasks.size(),
                 taskInputs.updateTasks.size() == 1 ? "" : "s", clusterTasksResult.executionResults.size());
-        boolean assertsEnabled = false;
-        assert (assertsEnabled = true);
-        if (assertsEnabled) {
+        if (Assertions.ENABLED) {
             for (ClusterServiceTaskBatcher.UpdateTask updateTask : taskInputs.updateTasks) {
                 assert clusterTasksResult.executionResults.containsKey(updateTask.task) :
                     "missing task result for " + updateTask;

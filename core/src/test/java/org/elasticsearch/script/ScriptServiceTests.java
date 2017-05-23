@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
@@ -46,7 +47,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-//TODO: this needs to be a base test class, and all scripting engines extend it
 public class ScriptServiceTests extends ESTestCase {
 
     private ScriptEngine scriptEngine;
@@ -63,15 +63,18 @@ public class ScriptServiceTests extends ESTestCase {
                 .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 10000)
                 .build();
-        scriptEngine = new TestEngine();
-        TestEngine defaultScriptServiceEngine = new TestEngine(Script.DEFAULT_SCRIPT_LANG) {};
-        //randomly register custom script contexts
-        int randomInt = randomIntBetween(0, 3);
+        Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+        for (int i = 0; i < 20; ++i) {
+            scripts.put(i + "+" + i, p -> null); // only care about compilation, not execution
+        }
+        scripts.put("script", p -> null);
+        scriptEngine = new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, scripts);
+
         //prevent duplicates using map
         contexts = new HashMap<>(ScriptContext.BUILTINS);
         engines = new HashMap<>();
         engines.put(scriptEngine.getType(), scriptEngine);
-        engines.put(defaultScriptServiceEngine.getType(), defaultScriptServiceEngine);
+        engines.put("test", new MockScriptEngine("test", scripts));
         logger.info("--> setup script service");
     }
 
@@ -81,7 +84,7 @@ public class ScriptServiceTests extends ESTestCase {
             @Override
             StoredScriptSource getScriptFromClusterState(String id, String lang) {
                 //mock the script that gets retrieved from an index
-                return new StoredScriptSource(lang, "100", Collections.emptyMap());
+                return new StoredScriptSource(lang, "1+1", Collections.emptyMap());
             }
         };
     }
@@ -215,10 +218,10 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testMultipleCompilationsCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        int numberOfCompilations = randomIntBetween(1, 1024);
+        int numberOfCompilations = randomIntBetween(1, 20);
         for (int i = 0; i < numberOfCompilations; i++) {
             scriptService
-                    .compile(new Script(ScriptType.INLINE, "test", i + " + " + i, Collections.emptyMap()), randomFrom(contexts.values()));
+                    .compile(new Script(ScriptType.INLINE, "test", i + "+" + i, Collections.emptyMap()), randomFrom(contexts.values()));
         }
         assertEquals(numberOfCompilations, scriptService.stats().getCompilations());
     }
@@ -253,7 +256,7 @@ public class ScriptServiceTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         buildScriptService(builder.build());
         CompiledScript script = scriptService.compile(
-            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 + 1", Collections.emptyMap()), randomFrom(contexts.values()));
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
         assertEquals(script.lang(), Script.DEFAULT_SCRIPT_LANG);
     }
 
@@ -314,43 +317,4 @@ public class ScriptServiceTests extends ESTestCase {
         );
     }
 
-    public static class TestEngine implements ScriptEngine {
-
-        public static final String NAME = "test";
-
-        private final String name;
-
-        public TestEngine() {
-            this(NAME);
-        }
-
-        public TestEngine(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String getType() {
-            return name;
-        }
-
-        @Override
-        public Object compile(String scriptName, String scriptText, Map<String, String> params) {
-            return "compiled_" + scriptText;
-        }
-
-        @Override
-        public ExecutableScript executable(final CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
-            return null;
-        }
-
-        @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-            return null;
-        }
-
-        @Override
-        public void close() {
-
-        }
-    }
 }

@@ -110,6 +110,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         QueryShardContext queryShardContext = queryShardContextMock(mapperService, fieldTypes, circuitBreakerService);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
+        for (MappedFieldType fieldType : fieldTypes) {
+            when(searchContext.smartNameFieldType(fieldType.name())).thenReturn(fieldType);
+        }
 
         return aggregationBuilder.build(searchContext, null);
     }

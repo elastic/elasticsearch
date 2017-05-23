@@ -46,7 +46,7 @@ public class VersionUtils {
      * Sort versions that have backwards compatibility guarantees from
      * those that don't. Doesn't actually check whether or not the versions
      * are released, instead it relies on gradle to have already checked
-     * this which is does in {@code :core:verifyVersions}. So long as the
+     * this which it does in {@code :core:verifyVersions}. So long as the
      * rules here match up with the rules in gradle then this should
      * produce sensible results.
      * @return a tuple containing versions with backwards compatibility
@@ -78,21 +78,22 @@ public class VersionUtils {
             + "but was [" + versions.get(versions.size() - 1) + "] and current was [" + current + "]";
 
         if (current.revision != 0) {
-            /* If we are in a patch release there should be no unreleased version constants.
-             * If there are, gradle will yell about it. */
+            /* If we are in a stable branch there should be no unreleased version constants
+             * because we don't expect to release any new versions in older branches. If there
+             * are extra constants then gradle will yell about it. */
             return new Tuple<>(unmodifiableList(versions), emptyList());
         }
+
         /* If we are on a patch release then we know that at least the version before the
          * current one is unreleased. If it is released then gradle would be complaining. */
-
-        /* Technically we don't support backwards compatiblity for alphas, betas,
-         * and rcs. But the testing infrastructure requires that we act as though we
-         * do. This is a difference between the gradle and Java logic but should be
-         * fairly safe as it is errs on us being more compatible rather than less....
-         * Anyway, the upshot is that we never declare alphas as unreleased, no
-         * matter where they are in the list */
         int unreleasedIndex = versions.size() - 2;
         while (true) {
+            /* Technically we don't support backwards compatiblity for alphas, betas,
+             * and rcs. But the testing infrastructure requires that we act as though we
+             * do. This is a difference between the gradle and Java logic but should be
+             * fairly safe as it is errs on us being more compatible rather than less....
+             * Anyway, the upshot is that we never declare alphas as unreleased, no
+             * matter where they are in the list. */
             if (versions.get(unreleasedIndex).isRelease()) {
                 break;
             }

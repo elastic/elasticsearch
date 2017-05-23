@@ -86,81 +86,75 @@ public class VersionUtilsTests extends ESTestCase {
         assertEquals(got, Version.CURRENT);
     }
 
-    static class TestPatchBranch {
-        public static final Version V_5_3_0 = Version.fromId(Version.V_5_3_0_ID);
-        public static final Version V_5_3_1 = Version.fromId(Version.V_5_3_1_ID);
-        public static final Version V_5_3_2 = Version.fromId(Version.V_5_3_2_ID);
-        public static final Version V_5_4_0 = Version.fromId(Version.V_5_4_0_ID);
-        public static final Version V_5_4_1 = Version.fromId(Version.V_5_4_1_ID);
+    static class TestReleasedBranch {
+        public static final Version V_5_3_0 = Version.fromString("5.3.0");
+        public static final Version V_5_3_1 = Version.fromString("5.3.1");
+        public static final Version V_5_3_2 = Version.fromString("5.3.2");
+        public static final Version V_5_4_0 = Version.fromString("5.4.0");
+        public static final Version V_5_4_1 = Version.fromString("5.4.1");
         public static final Version CURRENT = V_5_4_1;
     }
-    public void testResolveReleasedVersionsForPatchBranch() {
-        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestPatchBranch.CURRENT, TestPatchBranch.class);
+    public void testResolveReleasedVersionsForReleasedBranch() {
+        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestReleasedBranch.CURRENT, TestReleasedBranch.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(Arrays.asList(TestPatchBranch.V_5_3_0, TestPatchBranch.V_5_3_1, TestPatchBranch.V_5_3_2, TestPatchBranch.V_5_4_0,
-                TestPatchBranch.V_5_4_1), released);
+        assertEquals(Arrays.asList(TestReleasedBranch.V_5_3_0, TestReleasedBranch.V_5_3_1, TestReleasedBranch.V_5_3_2,
+                TestReleasedBranch.V_5_4_0, TestReleasedBranch.V_5_4_1), released);
         assertEquals(emptyList(), unreleased);
     }
 
-    static class TestMinorBranch {
-        public static final Version V_5_3_0 = Version.fromId(Version.V_5_3_0_ID);
-        public static final Version V_5_3_1 = Version.fromId(Version.V_5_3_1_ID);
-        public static final Version V_5_3_2 = Version.fromId(Version.V_5_3_2_ID);
-        public static final Version V_5_4_0 = Version.fromId(Version.V_5_4_0_ID);
+    static class TestUnreleasedMinorBranch {
+        public static final Version V_5_3_0 = Version.fromString("5.3.0");
+        public static final Version V_5_3_1 = Version.fromString("5.3.1");
+        public static final Version V_5_3_2 = Version.fromString("5.3.2");
+        public static final Version V_5_4_0 = Version.fromString("5.4.0");
         public static final Version CURRENT = V_5_4_0;
     }
-    public void testResolveReleasedVersionsForMinorBranch() {
-        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestMinorBranch.CURRENT, TestMinorBranch.class);
+    public void testResolveReleasedVersionsForUnreleasedMinorBranch() {
+        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestUnreleasedMinorBranch.CURRENT,
+                TestUnreleasedMinorBranch.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(Arrays.asList(TestMinorBranch.V_5_3_0, TestMinorBranch.V_5_3_1, TestMinorBranch.V_5_4_0), released);
-        assertEquals(singletonList(TestMinorBranch.V_5_3_2), unreleased);
+        assertEquals(Arrays.asList(TestUnreleasedMinorBranch.V_5_3_0, TestUnreleasedMinorBranch.V_5_3_1, TestUnreleasedMinorBranch.V_5_4_0),
+                released);
+        assertEquals(singletonList(TestUnreleasedMinorBranch.V_5_3_2), unreleased);
     }
 
-    static class TestNextBranch {
-        public static final Version V_5_3_0 = Version.fromId(Version.V_5_3_0_ID);
-        public static final Version V_5_3_1 = Version.fromId(Version.V_5_3_1_ID);
-        public static final Version V_5_3_2 = Version.fromId(Version.V_5_3_2_ID);
-        public static final Version V_5_4_0 = Version.fromId(Version.V_5_4_0_ID);
-        public static final Version V_5_5_0 = Version.fromId(5050099);
+    static class TestUreleasedBranchChain {
+        public static final Version V_5_3_0 = Version.fromString("5.3.0");
+        public static final Version V_5_3_1 = Version.fromString("5.3.1");
+        public static final Version V_5_3_2 = Version.fromString("5.3.2");
+        public static final Version V_5_4_0 = Version.fromString("5.4.0");
+        public static final Version V_5_5_0 = Version.fromString("5.5.0");
         public static final Version CURRENT = V_5_5_0;
     }
-    public void testResolveReleasedVersionsForNextBranch() {
-        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestNextBranch.CURRENT, TestNextBranch.class);
+    public void testResolveReleasedVersionsForUnreleasedBranchChain() {
+        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestUreleasedBranchChain.CURRENT,
+                TestUreleasedBranchChain.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(Arrays.asList(TestNextBranch.V_5_3_0, TestNextBranch.V_5_3_1, TestNextBranch.V_5_5_0), released);
-        assertEquals(Arrays.asList(TestNextBranch.V_5_3_2, Version.V_5_4_0), unreleased);
+        assertEquals(Arrays.asList(TestUreleasedBranchChain.V_5_3_0, TestUreleasedBranchChain.V_5_3_1, TestUreleasedBranchChain.V_5_5_0),
+                released);
+        assertEquals(Arrays.asList(TestUreleasedBranchChain.V_5_3_2, Version.V_5_4_0), unreleased);
     }
 
-    static class TestAlphaBranch {
-        public static final Version V_5_3_0 = Version.fromId(Version.V_5_3_0_ID);
-        public static final Version V_5_3_1 = Version.fromId(Version.V_5_3_1_ID);
-        public static final Version V_5_3_2 = Version.fromId(Version.V_5_3_2_ID);
-        public static final Version V_5_4_0 = Version.fromId(Version.V_5_4_0_ID);
-        public static final Version V_6_0_0_alpha1 = Version.fromId(Version.V_6_0_0_alpha1_ID);
-        public static final Version V_6_0_0_alpha2 = Version.fromId(Version.V_6_0_0_alpha2_ID);
+    static class TestBranchWithAlphas {
+        public static final Version V_5_3_0 = Version.fromString("5.3.0");
+        public static final Version V_5_3_1 = Version.fromString("5.3.1");
+        public static final Version V_5_3_2 = Version.fromString("5.3.2");
+        public static final Version V_5_4_0 = Version.fromString("5.4.0");
+        public static final Version V_6_0_0_alpha1 = Version.fromString("6.0.0-alpha1");
+        public static final Version V_6_0_0_alpha2 = Version.fromString("6.0.0-alpha2");
         public static final Version CURRENT = V_6_0_0_alpha2;
     }
     public void testResolveReleasedVersionsForAlphaBranch() {
-        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestAlphaBranch.CURRENT, TestAlphaBranch.class);
+        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestBranchWithAlphas.CURRENT,
+                TestBranchWithAlphas.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(Arrays.asList(TestAlphaBranch.V_5_3_0, TestAlphaBranch.V_5_3_1, TestAlphaBranch.V_6_0_0_alpha1,
-                TestAlphaBranch.V_6_0_0_alpha2), released);
-        assertEquals(Arrays.asList(TestAlphaBranch.V_5_3_2, TestAlphaBranch.V_5_4_0), unreleased);
-    }
-
-    /**
-     * Test that the released inference logic produces expected "unreleased"
-     * versions. This test will fail every time we create a new version
-     * constant and it should be upgraded by hand. Take this opportunity to
-     * make sure that it lines up with reality.
-     */
-    public void testUnreleaseCurrent() {
-        List<Version> unreleased = VersionUtils.resolveReleasedVersions(Version.CURRENT, Version.class).v2();
-        assertEquals(Arrays.asList(Version.V_5_4_1, Version.V_5_5_0), unreleased);
+        assertEquals(Arrays.asList(TestBranchWithAlphas.V_5_3_0, TestBranchWithAlphas.V_5_3_1, TestBranchWithAlphas.V_6_0_0_alpha1,
+                TestBranchWithAlphas.V_6_0_0_alpha2), released);
+        assertEquals(Arrays.asList(TestBranchWithAlphas.V_5_3_2, TestBranchWithAlphas.V_5_4_0), unreleased);
     }
 
     // TODO add a test that compares gradle and VersionUtils.java in a followup

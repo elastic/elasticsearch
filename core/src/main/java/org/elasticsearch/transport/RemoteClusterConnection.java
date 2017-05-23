@@ -160,9 +160,21 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             // we can't proceed with a search on a cluster level.
             // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the caller
             // end since they provide the listener.
-            connectHandler.connect(ActionListener.wrap((x) -> fetchShardsInternal(searchRequest, listener), listener::onFailure));
+            ensureConnected(ActionListener.wrap((x) -> fetchShardsInternal(searchRequest, listener), listener::onFailure));
         } else {
             fetchShardsInternal(searchRequest, listener);
+        }
+    }
+
+    /**
+     * Ensures that this cluster is connected. If the cluster is connected this operation
+     * will invoke the listener immediately.
+     */
+    public void ensureConnected(ActionListener<Void> voidActionListener) {
+        if (connectedNodes.isEmpty()) {
+            connectHandler.connect(voidActionListener);
+        } else {
+            voidActionListener.onResponse(null);
         }
     }
 

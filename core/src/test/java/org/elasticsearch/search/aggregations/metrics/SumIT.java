@@ -302,7 +302,8 @@ public class SumIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("increment", 1);
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(sum("sum").field("values").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_SCRIPT, params)))
+                .addAggregation(sum("sum").field("values")
+                    .script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_SCRIPT, params)))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);

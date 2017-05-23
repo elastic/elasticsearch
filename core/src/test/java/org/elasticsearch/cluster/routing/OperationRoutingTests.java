@@ -395,14 +395,14 @@ public class OperationRoutingTests extends ESTestCase{
             Set<String> selectedNodes = new HashSet<>(numShards);
             final GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, sessionKey);
 
-            assertEquals("One group per index shard", numIndices * numShards, groupIterator.size());
+            assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
             for (ShardIterator shardIterator : groupIterator) {
-                assertEquals(numReplicas + 1, shardIterator.size());
+                assertThat(shardIterator.size(), equalTo(numReplicas + 1));
 
                 ShardRouting firstChoice = shardIterator.nextOrNull();
                 assertNotNull(firstChoice);
                 ShardRouting duelFirst = duelGetShards(state, firstChoice.shardId(), sessionKey).nextOrNull();
-                assertEquals("Regression test failure", duelFirst, firstChoice);
+                assertThat("Regression test failure", duelFirst, equalTo(firstChoice));
 
                 searchedShards.add(firstChoice);
                 selectedNodes.add(firstChoice.currentNodeId());
@@ -410,7 +410,7 @@ public class OperationRoutingTests extends ESTestCase{
             if (sessionsfirstSearch == null) {
                 sessionsfirstSearch = searchedShards;
             } else {
-                assertEquals("Sessions must reuse same replica choices", sessionsfirstSearch, searchedShards);
+                assertThat("Sessions must reuse same replica choices", searchedShards, equalTo(sessionsfirstSearch));
             }
 
             // 2 is the bare minimum number of nodes we can reliably expect from

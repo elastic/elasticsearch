@@ -46,6 +46,9 @@ public class RestGetAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/{id}", this);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
+        // new typeless API added in 5.5
+        controller.registerHandler(GET, "/{index}/_doc/{id}", new DocTypeRestHandler(settings, this::prepareRequest));
+        controller.registerHandler(HEAD, "/{index}/_doc/{id}", new DocTypeRestHandler(settings, this::prepareRequest));
     }
 
     @Override

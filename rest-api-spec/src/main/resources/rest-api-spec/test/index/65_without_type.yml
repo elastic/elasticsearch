@@ -1,0 +1,27 @@
+---
+"Index without type":
+ - skip:
+      version: " - 5.99.99" # TODO update this once backported
+      reason:  typeless URLs are only available from 5.5.0 on
+ - do:
+      index:
+          index:  test_index
+          id:     42
+          body:   { foo: bar }
+
+ - match:   { _index:   test_index }
+ - match:   { _type:    doc}
+ - match:   { _id:      "42"}
+ - match:   { _version: 1}
+
+
+ - do:
+      get:
+          index:  test_index
+          id:     42
+
+ - match:   { _index:   test_index }
+ - match:   { _type:    doc }
+ - match:   { _id:      "42"}
+ - match:   { _version: 1}
+ - match:   { _source: { foo: bar }}

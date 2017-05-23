@@ -59,8 +59,8 @@ public class RestBulkAction extends BaseRestHandler {
 
         controller.registerHandler(POST, "/_bulk", this);
         controller.registerHandler(PUT, "/_bulk", this);
-        controller.registerHandler(POST, "/{index}/_bulk", this);
-        controller.registerHandler(PUT, "/{index}/_bulk", this);
+        controller.registerHandler(POST, "/{index}/_bulk", new DocTypeRestHandler(settings, this::prepareRequest));
+        controller.registerHandler(PUT, "/{index}/_bulk", new DocTypeRestHandler(settings, this::prepareRequest));
         controller.registerHandler(POST, "/{index}/{type}/_bulk", this);
         controller.registerHandler(PUT, "/{index}/{type}/_bulk", this);
 

@@ -1,0 +1,42 @@
+---
+"Array of objects without type":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_index
+              _id:    42
+          - f1: v1
+            f2: 42
+          - index:
+              _index: test_index
+              _id:    43
+          - f1: v2
+            f2: 47
+
+  - do:
+      count:
+        index: test_index
+
+  - match: {count: 2}
+
+  - do:
+      get:
+          index:  test_index
+          id:     42
+
+  - match:   { _index:   test_index }
+  - match:   { _type:    doc }
+  - match:   { _id:      "42"}
+  - match:   { _version: 1}
+
+  - do:
+       get:
+           index:  test_index
+           id:     43
+
+  - match:   { _index:   test_index }
+  - match:   { _type:    doc }
+  - match:   { _id:      "43"}
+  - match:   { _version: 1}

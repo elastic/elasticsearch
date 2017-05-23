@@ -35,6 +35,9 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+// TODO once the typeless API is backported to 5.5 we can cut over existing tests such that they don't use typed APIs
+// anymore. Once this is done we can add deprecation warnings to the typed APIs and add specific 6.x only tests for this.
+// We need to do this in RestIndexAction, RestGetAction and RestBulkAction
 public class RestIndexAction extends BaseRestHandler {
     public RestIndexAction(Settings settings, RestController controller) {
         super(settings);
@@ -44,6 +47,9 @@ public class RestIndexAction extends BaseRestHandler {
         CreateHandler createHandler = new CreateHandler(settings);
         controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
+        // new typeless API added in 5.5
+        controller.registerHandler(POST, "/{index}_doc", new DocTypeRestHandler(settings, this::prepareRequest)); // auto id creation
+        controller.registerHandler(PUT, "/{index}/_doc/{id}", new DocTypeRestHandler(settings, this::prepareRequest));
     }
 
     final class CreateHandler extends BaseRestHandler {

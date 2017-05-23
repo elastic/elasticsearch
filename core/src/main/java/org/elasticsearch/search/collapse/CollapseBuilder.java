@@ -82,7 +82,7 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeVInt(maxConcurrentGroupRequests);
-        if (out.getVersion().before(Version.V_6_0_0_alpha2_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
             final boolean hasInnerHit = innerHit != null;
             out.writeBoolean(hasInnerHit);
             if (hasInnerHit) {

@@ -357,7 +357,7 @@ public class HttpExporterTests extends ESTestCase {
                    equalTo(version + typeMappings.size() + templates.size() + pipelines.size() + watcherCheck.size() + bwc.size()));
         assertThat(version, equalTo(1));
         assertThat(typeMappings, hasSize(MonitoringTemplateUtils.NEW_DATA_TYPES.length));
-        assertThat(templates, hasSize(7));
+        assertThat(templates, hasSize(6));
         assertThat(pipelines, hasSize(useIngest ? 1 : 0));
         assertThat(watcherCheck, hasSize(clusterAlertManagement ? 1 : 0));
         assertThat(watches, hasSize(clusterAlertManagement ? ClusterAlertsUtil.WATCH_IDS.length : 0));

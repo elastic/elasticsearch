@@ -12,8 +12,7 @@ public enum MonitoredSystem {
     ES("es"),
     KIBANA("kibana"),
     LOGSTASH("logstash"),
-    BEATS("beats"),
-    LOGSTASH_STATES("logstash-states");
+    BEATS("beats");
 
     private final String system;
 
@@ -26,23 +25,17 @@ public enum MonitoredSystem {
     }
 
     public static MonitoredSystem fromSystem(String system) {
-        switch (transformSystemName(system)) {
+        switch (system.toLowerCase(Locale.ROOT)) {
             case "es":
                 return ES;
             case "kibana":
                 return KIBANA;
             case "logstash":
                 return LOGSTASH;
-            case "logstash-states":
-                return LOGSTASH_STATES;
             case "beats":
                 return BEATS;
             default:
                 throw new IllegalArgumentException("Unknown monitoring system [" + system + "]");
         }
-    }
-
-    public static String transformSystemName(String systemName) {
-        return systemName.toLowerCase(Locale.ROOT).replace("_", "-");
     }
 }

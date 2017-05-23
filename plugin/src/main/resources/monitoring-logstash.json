@@ -329,6 +329,59 @@
           }
         }
       }
+    },
+    "logstash_state": {
+      "properties": {
+        "timestamp": {
+          "type": "date"
+        },
+        "uuid": {
+          "type": "keyword"
+        },
+        "name": {
+          "type": "keyword"
+        },
+        "host": {
+          "type": "keyword"
+        },
+        "http_address": {
+          "type": "keyword"
+        },
+        "version": {
+          "type": "keyword"
+        },
+        "snapshot": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "keyword"
+        },
+        "pipeline": {
+          "properties": {
+            "name": {
+              "type": "keyword"
+            },
+            "hash": {
+              "type": "keyword"
+            },
+            "workers": {
+              "type": "short"
+            },
+            "batch_size": {
+              "type": "integer"
+            },
+            "format": {
+              "type": "keyword"
+            },
+            "version": {
+              "type": "keyword"
+            },
+            "representation": {
+              "enabled": false
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -19,14 +19,16 @@ public class MonitoredSystemTests extends ESTestCase {
     public void testGetSystem() {
         // everything is just lowercased...
         for (final MonitoredSystem system : MonitoredSystem.values()) {
-            assertEquals(MonitoredSystem.transformSystemName(system.name()), system.getSystem());
+            assertEquals(system.name().toLowerCase(Locale.ROOT), system.getSystem());
         }
     }
 
     public void testFromSystem() {
         for (final MonitoredSystem system : MonitoredSystem.values()) {
+            final String lowercased = system.name().toLowerCase(Locale.ROOT);
+
             assertSame(system, MonitoredSystem.fromSystem(system.name()));
-            assertSame(system, MonitoredSystem.fromSystem(MonitoredSystem.transformSystemName(system.name())));
+            assertSame(system, MonitoredSystem.fromSystem(lowercased));
         }
     }
 
@@ -38,11 +40,6 @@ public class MonitoredSystemTests extends ESTestCase {
         });
 
         assertThat(e.getMessage(), containsString(unknownSystem));
-    }
-
-    public void testTransformSystemName() {
-        final String systemName = "MiXED_System_Name";
-        assertEquals(MonitoredSystem.transformSystemName(systemName), "mixed-system-name");
     }
 
 }

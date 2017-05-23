@@ -41,13 +41,14 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -437,7 +438,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (context == null) {
             throw new SearchContextMissingException(id);
         }
-        return context;
+
+        SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
+        try {
+            operationListener.validateSearchContext(context);
+            return context;
+        } catch (Exception e) {
+            processFailure(context, e);
+            throw e;
+        }
     }
 
     final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {
@@ -594,17 +603,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         QueryShardContext queryShardContext = context.getQueryShardContext();
         context.from(source.from());
         context.size(source.size());
-        Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+        Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
-            InnerHitBuilder.extractInnerHits(source.query(), innerHitBuilders);
+            InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);
             context.parsedQuery(queryShardContext.toQuery(source.query()));
         }
         if (source.postFilter() != null) {
-            InnerHitBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);
+            InnerHitContextBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);
             context.parsedPostFilter(queryShardContext.toQuery(source.postFilter()));
         }
         if (innerHitBuilders.size() > 0) {
-            for (Map.Entry<String, InnerHitBuilder> entry : innerHitBuilders.entrySet()) {
+            for (Map.Entry<String, InnerHitContextBuilder> entry : innerHitBuilders.entrySet()) {
                 try {
                     entry.getValue().build(context, context.innerHits());
                 } catch (IOException e) {
@@ -677,7 +686,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
-                SearchScript searchScript = scriptService.search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH);
+                CompiledScript compile = scriptService.compile(field.script(), ScriptContext.SEARCH);
+                SearchScript searchScript = scriptService.search(context.lookup(), compile, field.script().getParams());
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

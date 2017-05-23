@@ -92,11 +92,6 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public String getExtension() {
-            return NAME;
-        }
-
-        @Override
         public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
             return new Object(); // unused
         }
@@ -137,11 +132,6 @@ public class UpdateIT extends ESIntegTestCase {
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
-        }
     }
 
     public static class FieldIncrementScriptPlugin extends Plugin implements ScriptPlugin {
@@ -161,11 +151,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 
@@ -203,11 +188,6 @@ public class UpdateIT extends ESIntegTestCase {
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
-        }
     }
 
     public static class ScriptedUpsertScriptPlugin extends Plugin implements ScriptPlugin {
@@ -227,11 +207,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 
@@ -269,12 +244,6 @@ public class UpdateIT extends ESIntegTestCase {
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
-        }
-
     }
 
     public static class ExtractContextInSourceScriptPlugin extends Plugin implements ScriptPlugin {
@@ -294,11 +263,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 
@@ -336,11 +300,6 @@ public class UpdateIT extends ESIntegTestCase {
         @Override
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
         }
     }
 

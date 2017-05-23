@@ -333,7 +333,8 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public final SearchScript getSearchScript(Script script, ScriptContext context) {
         failIfFrozen();
-        return scriptService.search(lookup(), script, context);
+        CompiledScript compile = scriptService.compile(script, context);
+        return scriptService.search(lookup(), compile, script.getParams());
     }
     /**
      * Returns a lazily created {@link SearchScript} that is compiled immediately but can be pulled later once all

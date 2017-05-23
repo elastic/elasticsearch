@@ -70,11 +70,6 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
     }
 
     @Override
-    public String getExtension() {
-        return NAME;
-    }
-
-    @Override
     public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
@@ -260,9 +255,4 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
 
     @Override
     public void close() {}
-
-    @Override
-    public boolean isInlineScriptEnabled() {
-        return true;
-    }
 }

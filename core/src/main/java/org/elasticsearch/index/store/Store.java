@@ -99,6 +99,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
@@ -240,7 +241,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
      * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
      * {@link IndexShard#acquireIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
-     *
+     * @param commit the index commit to read the snapshot from or <code>null</code> if the latest snapshot should be read from the
+     *               directory
      * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                    unexpected exception when opening the index reading the segments file.
      * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
@@ -250,16 +252,47 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IndexNotFoundException     if the commit point can't be found in this store
      */
     public MetadataSnapshot getMetadata(IndexCommit commit) throws IOException {
+        return getMetadata(commit, false);
+    }
+
+    /**
+     * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
+     * the latest commit point is used.
+     *
+     * Note that this method requires the caller verify it has the right to access the store and
+     * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
+     *
+     * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
+     * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
+     * {@link IndexShard#acquireIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
+     *
+     * @param commit the index commit to read the snapshot from or <code>null</code> if the latest snapshot should be read from the
+     *               directory
+     * @param lockDirectory if <code>true</code> the index writer lock will be obtained before reading the snapshot. This should
+     *                      only be used if there is no started shard using this store.
+     * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
+     *                                    unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException if the lucene index is too new to be opened.
+     * @throws FileNotFoundException      if one or more files referenced by a commit are not present.
+     * @throws NoSuchFileException        if one or more files referenced by a commit are not present.
+     * @throws IndexNotFoundException     if the commit point can't be found in this store
+     */
+    public MetadataSnapshot getMetadata(IndexCommit commit, boolean lockDirectory) throws IOException {
         ensureOpen();
         failIfCorrupted();
-        metadataLock.readLock().lock();
-        try {
+        assert lockDirectory ? commit == null : true : "IW lock should not be obtained if there is a commit point available";
+        // if we lock the directory we also acquire the write lock since that makes sure that nobody else tries to lock the IW
+        // on this store at the same time.
+        java.util.concurrent.locks.Lock lock = lockDirectory ? metadataLock.writeLock() : metadataLock.readLock();
+        lock.lock();
+        try (Closeable ignored = lockDirectory ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : () -> {} ) {
             return new MetadataSnapshot(commit, directory, logger);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
         } finally {
-            metadataLock.readLock().unlock();
+            lock.unlock();
         }
     }
 

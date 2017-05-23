@@ -104,6 +104,7 @@ import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.PorterStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.PortugueseAnalyzerProvider;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
+import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ReverseTokenFilterFactory;
 import org.elasticsearch.index.analysis.RomanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.RussianAnalyzerProvider;
@@ -141,7 +142,6 @@ import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
-import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 
 import java.io.IOException;
@@ -178,9 +178,10 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
 
         Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
+        Map<String, PreConfiguredTokenizer> preConfiguredTokenizers = setupPreConfiguredTokenizers(plugins);
 
         analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers
-            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry(), preConfiguredTokenFilters);
+            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry(), preConfiguredTokenFilters, preConfiguredTokenizers);
     }
 
     HunspellService getHunspellService() {
@@ -285,6 +286,37 @@ public final class AnalysisModule {
             }
         }
         return unmodifiableMap(preConfiguredTokenFilters.getRegistry());
+    }
+
+    static Map<String, PreConfiguredTokenizer> setupPreConfiguredTokenizers(List<AnalysisPlugin> plugins) {
+        NamedRegistry<PreConfiguredTokenizer> preConfiguredTokenizers = new NamedRegistry<>("pre-configured tokenizer");
+
+        // Temporary shim to register old style pre-configured tokenizers
+        for (PreBuiltTokenizers tokenizer : PreBuiltTokenizers.values()) {
+            String name = tokenizer.name().toLowerCase(Locale.ROOT);
+            PreConfiguredTokenizer preConfigured;
+            switch (tokenizer.getCachingStrategy()) {
+            case ONE:
+                preConfigured = PreConfiguredTokenizer.singleton(name,
+                        () -> tokenizer.create(Version.CURRENT), null);
+                break;
+            default:
+                throw new UnsupportedOperationException(
+                        "Caching strategy unsupported by temporary shim [" + tokenizer + "]");
+            }
+            preConfiguredTokenizers.register(name, preConfigured);
+        }
+        // Temporary shim for aliases. TODO deprecate after they are moved
+        preConfiguredTokenizers.register("nGram", preConfiguredTokenizers.getRegistry().get("ngram"));
+        preConfiguredTokenizers.register("edgeNGram", preConfiguredTokenizers.getRegistry().get("edge_ngram"));
+        preConfiguredTokenizers.register("PathHierarchy", preConfiguredTokenizers.getRegistry().get("path_hierarchy"));
+
+        for (AnalysisPlugin plugin: plugins) {
+            for (PreConfiguredTokenizer tokenizer : plugin.getPreConfiguredTokenizers()) {
+                preConfiguredTokenizers.register(tokenizer.getName(), tokenizer);
+            }
+        }
+        return unmodifiableMap(preConfiguredTokenizers.getRegistry());
     }
 
     private NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {

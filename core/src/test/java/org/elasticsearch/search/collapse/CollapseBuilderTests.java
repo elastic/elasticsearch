@@ -70,7 +70,7 @@ public class CollapseBuilderTests extends AbstractWireSerializingTestCase {
         CollapseBuilder builder = new CollapseBuilder(randomAlphaOfLength(10));
         builder.setMaxConcurrentGroupRequests(randomIntBetween(1, 48));
         if (randomBoolean()) {
-            InnerHitBuilder innerHit = InnerHitBuilderTests.randomInnerHits(false, false);
+            InnerHitBuilder innerHit = InnerHitBuilderTests.randomInnerHits();
             builder.setInnerHits(innerHit);
         }
         return builder;

@@ -47,6 +47,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -59,6 +61,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -225,7 +228,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             assert shardRoutings().stream()
                 .filter(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())).findFirst().isPresent() == false :
                 "replica with aId [" + replica.routingEntry().allocationId() + "] already exists";
-            replica.updatePrimaryTerm(primary.getPrimaryTerm());
             replicas.add(replica);
             updateAllocationIDsOnPrimary();
         }
@@ -254,17 +256,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
          */
         public synchronized void promoteReplicaToPrimary(IndexShard replica) throws IOException {
             final long newTerm = indexMetaData.primaryTerm(shardId.id()) + 1;
-            IndexMetaData.Builder newMetaData =
-                IndexMetaData.builder(indexMetaData).primaryTerm(shardId.id(), newTerm);
+            IndexMetaData.Builder newMetaData = IndexMetaData.builder(indexMetaData).primaryTerm(shardId.id(), newTerm);
             indexMetaData = newMetaData.build();
-            for (IndexShard shard: replicas) {
-                shard.updatePrimaryTerm(newTerm);
-            }
-            boolean found = replicas.remove(replica);
-            assert found;
+            assertTrue(replicas.remove(replica));
             closeShards(primary);
             primary = replica;
-            replica.updateRoutingEntry(replica.routingEntry().moveActiveReplicaToPrimary());
+            primary.updateRoutingEntry(replica.routingEntry().moveActiveReplicaToPrimary());
+            primary.updatePrimaryTerm(newTerm);
             updateAllocationIDsOnPrimary();
         }
 
@@ -476,15 +474,32 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 final ReplicaRequest request,
                 final long globalCheckpoint,
                 final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-                try {
-                    IndexShard replica = replicationGroup.replicas.stream()
+                IndexShard replica = replicationGroup.replicas.stream()
                         .filter(s -> replicaRouting.isSameAllocation(s.routingEntry())).findFirst().get();
-                    replica.updateGlobalCheckpointOnReplica(globalCheckpoint);
-                    performOnReplica(request, replica);
-                    listener.onResponse(new ReplicaResponse(replica.routingEntry().allocationId().getId(), replica.getLocalCheckpoint()));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+                replica.acquireReplicaOperationPermit(
+                        request.primaryTerm(),
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                try {
+                                    replica.updateGlobalCheckpointOnReplica(globalCheckpoint);
+                                    performOnReplica(request, replica);
+                                    releasable.close();
+                                    listener.onResponse(
+                                            new ReplicaResponse(
+                                                    replica.routingEntry().allocationId().getId(), replica.getLocalCheckpoint()));
+                                } catch (final Exception e) {
+                                    Releasables.closeWhileHandlingException(releasable);
+                                    listener.onFailure(e);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
+                            }
+                        },
+                        ThreadPool.Names.INDEX);
             }
 
             @Override

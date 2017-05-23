@@ -19,6 +19,7 @@
 package org.elasticsearch.search.collapse;
 
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -81,7 +82,15 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeVInt(maxConcurrentGroupRequests);
-        out.writeOptionalWriteable(innerHit);
+        if (out.getVersion().before(Version.V_6_0_0_alpha2_UNRELEASED)) {
+            final boolean hasInnerHit = innerHit != null;
+            out.writeBoolean(hasInnerHit);
+            if (hasInnerHit) {
+                innerHit.writeToCollapseBWC(out);
+            }
+        } else {
+            out.writeOptionalWriteable(innerHit);
+        }
     }
 
     public static CollapseBuilder fromXContent(QueryParseContext context) throws IOException {

@@ -207,23 +207,4 @@ public class SettingsModuleTests extends ModuleTestCase {
             assertEquals("unknown setting [index.query.bool.max_clause_count] did you mean [indices.query.bool.max_clause_count]?",
                 ex.getMessage());
     }
-
-    public void testRegisterShared() {
-        Property scope = randomFrom(Property.NodeScope, Property.IndexScope);
-        expectThrows(IllegalArgumentException.class, () ->
-            new SettingsModule(Settings.EMPTY,
-                Setting.simpleString("index.foo.bar", scope), Setting.simpleString("index.foo.bar", scope))
-        );
-        expectThrows(IllegalArgumentException.class, () ->
-            new SettingsModule(Settings.EMPTY,
-                Setting.simpleString("index.foo.bar", scope, Property.Shared), Setting.simpleString("index.foo.bar", scope))
-        );
-        expectThrows(IllegalArgumentException.class, () ->
-            new SettingsModule(Settings.EMPTY,
-                Setting.simpleString("index.foo.bar", scope), Setting.simpleString("index.foo.bar", scope, Property.Shared))
-        );
-        new SettingsModule(Settings.EMPTY,
-            Setting.simpleString("index.foo.bar", scope, Property.Shared),
-            Setting.simpleString("index.foo.bar", scope, Property.Shared));
-    }
 }

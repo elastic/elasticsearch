@@ -1031,11 +1031,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public String getExtension() {
-            return NAME;
-        }
-
-        @Override
         public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
             return scriptSource;
         }
@@ -1063,11 +1058,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
         @Override
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException("search script not supported");
-        }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
         }
     }
 

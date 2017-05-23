@@ -98,11 +98,9 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -671,11 +669,11 @@ public class TranslogTests extends ESTestCase {
      * Tests that concurrent readers and writes maintain view and snapshot semantics
      */
     public void testConcurrentWriteViewsAndSnapshot() throws Throwable {
-        final Thread[] writers = new Thread[randomIntBetween(1, 10)];
-        final Thread[] readers = new Thread[randomIntBetween(1, 10)];
+        final Thread[] writers = new Thread[randomIntBetween(1, 3)];
+        final Thread[] readers = new Thread[randomIntBetween(1, 3)];
         final int flushEveryOps = randomIntBetween(5, 100);
-        // used to notify main thread that so many operations have been written so it can simulate a flush
-        final AtomicReference<CountDownLatch> writtenOpsLatch = new AtomicReference<>(new CountDownLatch(0));
+        final int maxOps = randomIntBetween(200, 1000);
+        final Object signalReaderSomeDataWasIndexed = new Object();
         final AtomicLong idGenerator = new AtomicLong();
         final CyclicBarrier barrier = new CyclicBarrier(writers.length + readers.length + 1);
 
@@ -696,7 +694,7 @@ public class TranslogTests extends ESTestCase {
                 public void doRun() throws BrokenBarrierException, InterruptedException, IOException {
                     barrier.await();
                     int counter = 0;
-                    while (run.get()) {
+                    while (run.get() && idGenerator.get() < maxOps) {
                         long id = idGenerator.incrementAndGet();
                         final Translog.Operation op;
                         final Translog.Operation.Type type =
@@ -723,7 +721,14 @@ public class TranslogTests extends ESTestCase {
                         if (id % writers.length == threadId) {
                             translog.ensureSynced(location);
                         }
-                        writtenOpsLatch.get().countDown();
+                        if (id % flushEveryOps == 0) {
+                            translog.commit(translog.currentFileGeneration());
+                        }
+                        if (id % 7 == 0) {
+                            synchronized (signalReaderSomeDataWasIndexed) {
+                                signalReaderSomeDataWasIndexed.notifyAll();
+                            }
+                        }
                         counter++;
                     }
                     logger.debug("--> [{}] done. wrote [{}] ops.", threadName, counter);
@@ -774,7 +779,7 @@ public class TranslogTests extends ESTestCase {
                 protected void doRun() throws Exception {
                     barrier.await();
                     int iter = 0;
-                    while (run.get()) {
+                    while (idGenerator.get() < maxOps) {
                         if (iter++ % 10 == 0) {
                             newView();
                         }
@@ -807,7 +812,11 @@ public class TranslogTests extends ESTestCase {
                             }
                         }
                         // slow down things a bit and spread out testing..
-                        writtenOpsLatch.get().await(200, TimeUnit.MILLISECONDS);
+                        synchronized (signalReaderSomeDataWasIndexed) {
+                            if (idGenerator.get() < maxOps){
+                                signalReaderSomeDataWasIndexed.wait();
+                            }
+                        }
                     }
                     closeView();
                     logger.debug("--> [{}] done. tested [{}] snapshots", threadId, iter);
@@ -817,34 +826,27 @@ public class TranslogTests extends ESTestCase {
         }
 
         barrier.await();
-        try {
-            for (int iterations = scaledRandomIntBetween(10, 200); iterations > 0 && errors.isEmpty(); iterations--) {
-                writtenOpsLatch.set(new CountDownLatch(flushEveryOps));
-                while (writtenOpsLatch.get().await(200, TimeUnit.MILLISECONDS) == false) {
-                    if (errors.size() > 0) {
-                        break;
-                    }
-                }
-                translog.commit(translog.currentFileGeneration());
-            }
-        } finally {
-            run.set(false);
-            logger.debug("--> waiting for threads to stop");
-            for (Thread thread : writers) {
-                thread.join();
-            }
-            for (Thread thread : readers) {
-                thread.join();
-            }
-            if (errors.size() > 0) {
-                Throwable e = errors.get(0);
-                for (Throwable suppress : errors.subList(1, errors.size())) {
-                    e.addSuppressed(suppress);
-                }
-                throw e;
-            }
-            logger.info("--> test done. total ops written [{}]", writtenOps.size());
+        logger.debug("--> waiting for threads to stop");
+        for (Thread thread : writers) {
+            thread.join();
         }
+        logger.debug("--> waiting for readers to stop");
+        // force stopping, if all writers crashed
+        synchronized (signalReaderSomeDataWasIndexed) {
+            idGenerator.set(Long.MAX_VALUE);
+            signalReaderSomeDataWasIndexed.notifyAll();
+        }
+        for (Thread thread : readers) {
+            thread.join();
+        }
+        if (errors.size() > 0) {
+            Throwable e = errors.get(0);
+            for (Throwable suppress : errors.subList(1, errors.size())) {
+                e.addSuppressed(suppress);
+            }
+            throw e;
+        }
+        logger.info("--> test done. total ops written [{}]", writtenOps.size());
     }
 
     public void testSyncUpTo() throws IOException {
@@ -1403,7 +1405,7 @@ public class TranslogTests extends ESTestCase {
                             break;
                         case DELETE:
                             op = new Translog.Delete(
-                                "test", threadId + "_" + opCount, 
+                                "test", threadId + "_" + opCount,
                                 new Term("_uid", threadId + "_" + opCount),
                                 opCount,
                                 0,

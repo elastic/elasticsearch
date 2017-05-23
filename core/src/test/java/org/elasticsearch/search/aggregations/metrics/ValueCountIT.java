@@ -273,11 +273,6 @@ public class ValueCountIT extends ESIntegTestCase {
         }
 
         @Override
-        public String getExtension() {
-            return NAME;
-        }
-
-        @Override
         public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
             return scriptSource;
         }
@@ -348,11 +343,6 @@ public class ValueCountIT extends ESIntegTestCase {
                     return false;
                 }
             };
-        }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
         }
     }
 }

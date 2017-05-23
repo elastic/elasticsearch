@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality.
@@ -39,16 +39,9 @@ public interface ScriptPlugin {
     }
 
     /**
-     * Returns a list of {@link NativeScriptFactory} instances.
+     * Return script contexts this plugin wants to allow using.
      */
-    default List<NativeScriptFactory> getNativeScripts() {
+    default List<ScriptContext> getContexts() {
         return Collections.emptyList();
-    }
-
-    /**
-     * Returns a {@link ScriptContext.Plugin} instance or <code>null</code> if this plugin doesn't add a new script context plugin
-     */
-    default ScriptContext.Plugin getCustomScriptContexts() {
-        return null;
     }
 }

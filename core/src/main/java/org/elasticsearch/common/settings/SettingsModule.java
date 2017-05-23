@@ -164,14 +164,14 @@ public class SettingsModule implements Module {
         if (setting.hasNodeScope() || setting.hasIndexScope()) {
             if (setting.hasNodeScope()) {
                 Setting<?> existingSetting = nodeSettings.get(setting.getKey());
-                if (existingSetting != null && (setting.isShared() == false || existingSetting.isShared() == false)) {
+                if (existingSetting != null) {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
                 }
                 nodeSettings.put(setting.getKey(), setting);
             }
             if (setting.hasIndexScope()) {
                 Setting<?> existingSetting = indexSettings.get(setting.getKey());
-                if (existingSetting != null && (setting.isShared() == false || existingSetting.isShared() == false)) {
+                if (existingSetting != null) {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
                 }
                 indexSettings.put(setting.getKey(), setting);

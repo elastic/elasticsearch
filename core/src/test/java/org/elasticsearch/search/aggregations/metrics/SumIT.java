@@ -419,11 +419,6 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public String getExtension() {
-            return NAME;
-        }
-
-        @Override
         public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
             return scriptSource;
         }
@@ -496,11 +491,6 @@ public class SumIT extends AbstractNumericTestCase {
                 }
             };
         }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
-        }
     }
 
     /**
@@ -527,11 +517,6 @@ public class SumIT extends AbstractNumericTestCase {
 
         @Override
         public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public String getExtension() {
             return NAME;
         }
 
@@ -606,11 +591,6 @@ public class SumIT extends AbstractNumericTestCase {
                     return false;
                 }
             };
-        }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
         }
     }
 }

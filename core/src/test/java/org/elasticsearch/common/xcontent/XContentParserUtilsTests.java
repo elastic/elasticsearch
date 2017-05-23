@@ -65,12 +65,10 @@ public class XContentParserUtilsTests extends ESTestCase {
 
         BytesReference bytes = toXContent((builder, params) -> builder.field("test", 0), xContentType, randomBoolean());
         try (XContentParser parser = xContentType.xContent().createParser(namedXContentRegistry, bytes)) {
-            parser.nextToken();
-            ParsingException e = expectThrows(ParsingException.class, () -> parseTypedKeysObject(parser, delimiter, Boolean.class));
-            assertEquals("Failed to parse object: expecting token of type [FIELD_NAME] but found [START_OBJECT]", e.getMessage());
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
 
-            parser.nextToken();
-            e = expectThrows(ParsingException.class, () -> parseTypedKeysObject(parser, delimiter, Boolean.class));
+            ParsingException e = expectThrows(ParsingException.class, () -> parseTypedKeysObject(parser, delimiter, Boolean.class));
             assertEquals("Cannot parse object of class [Boolean] without type information. Set [typed_keys] parameter " +
                     "on the request to ensure the type information is added to the response output", e.getMessage());
         }

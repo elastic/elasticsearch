@@ -419,11 +419,6 @@ public class AvgIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public String getExtension() {
-            return NAME;
-        }
-
-        @Override
         public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
             return scriptSource;
         }
@@ -524,11 +519,6 @@ public class AvgIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public String getExtension() {
-            return NAME;
-        }
-
-        @Override
         public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
             return scriptSource;
         }
@@ -597,11 +587,6 @@ public class AvgIT extends AbstractNumericTestCase {
                     return false;
                 }
             };
-        }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
         }
     }
 }

@@ -36,30 +36,15 @@ public interface ScriptEngine extends Closeable {
     String getType();
 
     /**
-     * The extension for file scripts in this language.
-     */
-    default String getExtension() {
-        return getType();
-    }
-
-    /**
      * Compiles a script.
-     * @param scriptName name of the script. {@code null} if it is anonymous (inline).
-     *                                        For a file script, its the file name (with extension).
-     *                                        For a stored script, its the identifier.
-     * @param scriptSource actual source of the script
+     * @param name the name of the script. {@code null} if it is anonymous (inline). For a stored script, its the identifier.
+     * @param code actual source of the script
      * @param params compile-time parameters (such as flags to the compiler)
+     * @return an opaque compiled script which may be cached and later passed to
      */
-    Object compile(String scriptName, String scriptSource, Map<String, String> params);
+    Object compile(String name, String code, Map<String, String> params);
 
     ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);
 
     SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars);
-
-    /**
-     * Returns <code>true</code> if this scripting engine can safely accept inline scripts by default. The default is <code>false</code>
-     */
-    default boolean isInlineScriptEnabled() {
-        return false;
-    }
 }

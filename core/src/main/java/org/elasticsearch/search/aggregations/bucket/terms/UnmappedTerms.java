@@ -74,7 +74,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return StringTerms.NAME;
     }
 

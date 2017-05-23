@@ -21,13 +21,14 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -35,22 +36,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.search.aggregations.InternalAggregations.EMPTY;
-
 public class SignificantLongTermsTests extends InternalSignificantTermsTestCase {
 
     private SignificanceHeuristic significanceHeuristic;
+    private DocValueFormat format;
 
-    @Before
-    public void setUpSignificanceHeuristic() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         significanceHeuristic = randomSignificanceHeuristic();
+        format = randomNumericDocValueFormat();
     }
 
     @Override
     protected InternalSignificantTerms createTestInstance(String name,
                                                           List<PipelineAggregator> pipelineAggregators,
-                                                          Map<String, Object> metaData) {
-        DocValueFormat format = DocValueFormat.RAW;
+                                                          Map<String, Object> metaData,
+                                                          InternalAggregations aggregations) {
         int requiredSize = randomIntBetween(1, 5);
         int shardSize = requiredSize + 2;
         final int numBuckets = randomInt(shardSize);
@@ -70,7 +72,7 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
             globalSubsetSize += subsetDf;
             globalSupersetSize += supersetSize;
 
-            buckets.add(new SignificantLongTerms.Bucket(subsetDf, subsetDf, supersetDf, supersetSize, term, EMPTY, format));
+            buckets.add(new SignificantLongTerms.Bucket(subsetDf, subsetDf, supersetDf, supersetSize, term, aggregations, format));
         }
         return new SignificantLongTerms(name, requiredSize, 1L, pipelineAggregators, metaData, format, globalSubsetSize,
                 globalSupersetSize, significanceHeuristic, buckets);
@@ -79,6 +81,11 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
     @Override
     protected Writeable.Reader<InternalSignificantTerms<?, ?>> instanceReader() {
         return SignificantLongTerms::new;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedSignificantLongTerms.class;
     }
 
     private static SignificanceHeuristic randomSignificanceHeuristic() {

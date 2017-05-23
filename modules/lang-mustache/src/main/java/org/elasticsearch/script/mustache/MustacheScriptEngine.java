@@ -86,11 +86,6 @@ public final class MustacheScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public String getExtension() {
-        return NAME;
-    }
-
-    @Override
     public ExecutableScript executable(CompiledScript compiledScript,
             @Nullable Map<String, Object> vars) {
         return new MustacheExecutableScript(compiledScript, vars);
@@ -146,10 +141,5 @@ public final class MustacheScriptEngine implements ScriptEngine {
             }
             return writer.toString();
         }
-    }
-
-    @Override
-    public boolean isInlineScriptEnabled() {
-        return true;
     }
 }

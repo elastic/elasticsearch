@@ -55,7 +55,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
@@ -63,16 +62,6 @@ import static java.util.Collections.singletonMap;
 public class CrudIT extends ESRestHighLevelClientTestCase {
 
     public void testDelete() throws IOException {
-        {
-            // Testing non existing document
-            String docId = "does_not_exist";
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
-            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
-            assertEquals("index", deleteResponse.getIndex());
-            assertEquals("type", deleteResponse.getType());
-            assertEquals(docId, deleteResponse.getId());
-            assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
-        }
         {
             // Testing deletion
             String docId = "id";
@@ -86,6 +75,16 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("type", deleteResponse.getType());
             assertEquals(docId, deleteResponse.getId());
             assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+        }
+        {
+            // Testing non existing document
+            String docId = "does_not_exist";
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals(docId, deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
         }
         {
             // Testing version conflict

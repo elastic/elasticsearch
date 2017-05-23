@@ -32,6 +32,9 @@
 
 ---
 "verify users for default password migration in mixed cluster":
+  - skip:
+      version: "5.0.0 - "
+      reason: https://github.com/elastic/x-pack-elasticsearch/issues/1516
   - do:
       xpack.security.get_user:
         username: "kibana,logstash_system"

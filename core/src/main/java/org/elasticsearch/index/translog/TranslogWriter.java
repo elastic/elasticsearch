@@ -24,6 +24,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -96,13 +97,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         assert initialCheckpoint.maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED : initialCheckpoint.maxSeqNo;
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        boolean assertionsEnabled = false;
-        assert assertionsEnabled = true;
-        if (assertionsEnabled) {
-            seenSequenceNumbers = new HashMap<>();
-        } else {
-            seenSequenceNumbers = null;
-        }
+        this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
     }
 
     static int getHeaderLength(String translogUUID) {

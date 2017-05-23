@@ -6,36 +6,29 @@
 package org.elasticsearch.xpack.security.test;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.authz.store.NativeRolesStoreTests;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.UUID;
 
 import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 
 public class SecurityTestUtils {
 
@@ -72,30 +65,6 @@ public class SecurityTestUtils {
         return writeFile(folder, name, content.getBytes(StandardCharsets.UTF_8));
     }
 
-    public static ClusterState getClusterStateWithSecurityIndex() {
-        Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build();
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(SecurityLifecycleService.SECURITY_INDEX_NAME).settings(settings))
-                .put(new IndexTemplateMetaData(SecurityLifecycleService.SECURITY_TEMPLATE_NAME, 0, 0,
-                        Collections.singletonList(SecurityLifecycleService.SECURITY_INDEX_NAME), Settings.EMPTY, ImmutableOpenMap.of(),
-                        ImmutableOpenMap.of(), ImmutableOpenMap.of()))
-                .build();
-        RoutingTable routingTable = buildSecurityIndexRoutingTable();
-
-        return ClusterState.builder(new ClusterName(NativeRolesStoreTests.class.getName()))
-                .metaData(metaData)
-                .routingTable(routingTable)
-                .build();
-    }
-
-    public static RoutingTable buildSecurityIndexRoutingTable() {
-        return buildIndexRoutingTable(SecurityLifecycleService.SECURITY_INDEX_NAME);
-    }
-
     public static RoutingTable buildIndexRoutingTable(String indexName) {
         Index index = new Index(indexName, UUID.randomUUID().toString());
         ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true, EXISTING_STORE_INSTANCE,
@@ -108,4 +77,16 @@ public class SecurityTestUtils {
                 .add(IndexRoutingTable.builder(index).addIndexShard(table).build())
                 .build();
     }
+
+    /**
+     * Adds the index alias {@code .security} to the underlying concrete index.
+     */
+    public static MetaData addAliasToMetaData(MetaData metaData, String indexName) {
+        AliasMetaData aliasMetaData = AliasMetaData.newAliasMetaDataBuilder(SECURITY_INDEX_NAME).build();
+        MetaData.Builder metaDataBuilder = new MetaData.Builder(metaData);
+        IndexMetaData indexMetaData = metaData.index(indexName);
+        metaDataBuilder.put(IndexMetaData.builder(indexMetaData).putAlias(aliasMetaData));
+        return metaDataBuilder.build();
+    }
+
 }

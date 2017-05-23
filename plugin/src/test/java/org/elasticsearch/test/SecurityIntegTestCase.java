@@ -14,6 +14,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -21,6 +23,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.XPackClient;
@@ -442,9 +445,12 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 ClusterState clusterState = clusterService.state();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 assertTrue(securityIndexMappingAndTemplateSufficientToRead(clusterState, logger));
-                IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(SecurityLifecycleService.SECURITY_INDEX_NAME);
-                if (indexRoutingTable != null) {
-                    assertTrue(indexRoutingTable.allPrimaryShardsActive());
+                Index securityIndex = resolveSecurityIndex(clusterState.metaData());
+                if (securityIndex != null) {
+                    IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
+                    if (indexRoutingTable != null) {
+                        assertTrue(indexRoutingTable.allPrimaryShardsActive());
+                    }
                 }
             });
         }
@@ -456,9 +462,12 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 ClusterState clusterState = clusterService.state();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 assertTrue(securityIndexMappingAndTemplateUpToDate(clusterState, logger));
-                IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(SecurityLifecycleService.SECURITY_INDEX_NAME);
-                if (indexRoutingTable != null) {
-                    assertTrue(indexRoutingTable.allPrimaryShardsActive());
+                Index securityIndex = resolveSecurityIndex(clusterState.metaData());
+                if (securityIndex != null) {
+                    IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
+                    if (indexRoutingTable != null) {
+                        assertTrue(indexRoutingTable.allPrimaryShardsActive());
+                    }
                 }
             });
         }
@@ -471,5 +480,13 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         } catch (IndexNotFoundException e) {
             // ignore it since not all tests create this index...
         }
+    }
+
+    private static Index resolveSecurityIndex(MetaData metaData) {
+        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(SecurityLifecycleService.SECURITY_INDEX_NAME);
+        if (aliasOrIndex != null) {
+            return aliasOrIndex.getIndices().get(0).getIndex();
+        }
+        return null;
     }
 }

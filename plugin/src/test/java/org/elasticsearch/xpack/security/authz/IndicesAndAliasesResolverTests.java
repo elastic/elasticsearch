@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
@@ -66,6 +67,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -101,7 +103,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .build();
 
         indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
-        metaData = MetaData.builder()
+
+        final boolean withAlias = randomBoolean();
+        final String securityIndexName = SECURITY_INDEX_NAME + (withAlias ? "-" + randomAlphaOfLength(5) : "");
+        MetaData metaData = MetaData.builder()
                 .put(indexBuilder("foo").putAlias(AliasMetaData.builder("foofoobar")).settings(settings))
                 .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("foofoobar")).settings(settings))
                 .put(indexBuilder("closed").state(IndexMetaData.State.CLOSE)
@@ -117,7 +122,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(indexBuilder("-index11").settings(settings))
                 .put(indexBuilder("-index20").settings(settings))
                 .put(indexBuilder("-index21").settings(settings))
-                .put(indexBuilder(SecurityLifecycleService.SECURITY_INDEX_NAME).settings(settings)).build();
+                .put(indexBuilder(securityIndexName).settings(settings)).build();
+
+        if (withAlias) {
+            metaData = SecurityTestUtils.addAliasToMetaData(metaData, securityIndexName);
+        }
+        this.metaData = metaData;
 
         user = new User("user", "role");
         userDashIndices = new User("dash", "dash");

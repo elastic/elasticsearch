@@ -18,9 +18,11 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -38,12 +40,14 @@ import org.elasticsearch.xpack.template.TemplateUtils;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 
@@ -64,8 +68,7 @@ public class IndexLifecycleManager extends AbstractComponent {
     private final AtomicBoolean templateCreationPending = new AtomicBoolean(false);
     private final AtomicBoolean updateMappingPending = new AtomicBoolean(false);
 
-    final AtomicReference<UpgradeState> migrateDataState =
-            new AtomicReference<>(UpgradeState.NOT_STARTED);
+    private final AtomicReference<UpgradeState> migrateDataState = new AtomicReference<>(UpgradeState.NOT_STARTED);
 
     private volatile boolean templateIsUpToDate;
     private volatile boolean indexExists;
@@ -136,7 +139,7 @@ public class IndexLifecycleManager extends AbstractComponent {
 
     public void clusterChanged(ClusterChangedEvent event) {
         final ClusterState state = event.state();
-        this.indexExists = event.state().metaData().indices().get(indexName) != null;
+        this.indexExists = resolveConcreteIndex(indexName, event.state().metaData()) != null;
         this.indexAvailable = checkIndexAvailable(state);
         this.templateIsUpToDate = checkTemplateExistsAndIsUpToDate(state);
         this.mappingIsUpToDate = checkIndexMappingUpToDate(state);
@@ -167,11 +170,11 @@ public class IndexLifecycleManager extends AbstractComponent {
      * Returns the routing-table for this index, or <code>null</code> if the index does not exist.
      */
     private IndexRoutingTable getIndexRoutingTable(ClusterState clusterState) {
-        IndexMetaData metaData = clusterState.metaData().index(indexName);
+        IndexMetaData metaData = resolveConcreteIndex(indexName, clusterState.metaData());
         if (metaData == null) {
             return null;
         } else {
-            return clusterState.routingTable().index(indexName);
+            return clusterState.routingTable().index(metaData.getIndex());
         }
     }
 
@@ -249,7 +252,7 @@ public class IndexLifecycleManager extends AbstractComponent {
     private static Set<Version> loadIndexMappingVersions(String indexName,
                                                          ClusterState clusterState, Logger logger) {
         Set<Version> versions = new HashSet<>();
-        IndexMetaData indexMetaData = clusterState.metaData().getIndices().get(indexName);
+        IndexMetaData indexMetaData = resolveConcreteIndex(indexName, clusterState.metaData());
         if (indexMetaData != null) {
             for (Object object : indexMetaData.getMappings().values().toArray()) {
                 MappingMetaData mappingMetaData = (MappingMetaData) object;
@@ -260,6 +263,23 @@ public class IndexLifecycleManager extends AbstractComponent {
             }
         }
         return versions;
+    }
+
+    /**
+     * Resolves a concrete index name or alias to a {@link IndexMetaData} instance.  Requires
+     * that if supplied with an alias, the alias resolves to at most one concrete index.
+     */
+    private static IndexMetaData resolveConcreteIndex(final String indexOrAliasName, final MetaData metaData) {
+        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(indexOrAliasName);
+        if (aliasOrIndex != null) {
+            final List<IndexMetaData> indices = aliasOrIndex.getIndices();
+            if (aliasOrIndex.isAlias() && indices.size() > 1) {
+                throw new IllegalStateException("Alias [" + indexOrAliasName + "] points to more than one index: " +
+                    indices.stream().map(imd -> imd.getIndex().getName()).collect(Collectors.toList()));
+            }
+            return indices.get(0);
+        }
+        return null;
     }
 
     private static Version readMappingVersion(String indexName, MappingMetaData mappingMetaData,

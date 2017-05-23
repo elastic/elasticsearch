@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;

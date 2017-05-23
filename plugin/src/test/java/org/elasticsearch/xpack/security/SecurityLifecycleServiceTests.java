@@ -32,9 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -64,22 +62,19 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SecurityLifecycleServiceTests extends ESTestCase {
-    private InternalClient client;
     private TransportClient transportClient;
     private ThreadPool threadPool;
-    private ClusterService clusterService;
     private NativeRealmMigrator nativeRealmMigrator;
     private SecurityLifecycleService securityLifecycleService;
     private static final ClusterState EMPTY_CLUSTER_STATE =
             new ClusterState.Builder(new ClusterName("test-cluster")).build();
-
-    CopyOnWriteArrayList<ActionListener> listeners;
+    private CopyOnWriteArrayList<ActionListener> listeners;
 
     @Before
     public void setup() {
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(localNode.getHostAddress()).thenReturn(buildNewFakeTransportAddress().toString());
-        clusterService = mock(ClusterService.class);
+        ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
 
         threadPool = new TestThreadPool("security template service tests");
@@ -106,7 +101,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
             return null;
         }).when(nativeRealmMigrator).performUpgrade(any(Version.class), any(ActionListener.class));
 
-        client = new IClient(transportClient);
+        InternalClient client = new IClient(transportClient);
         securityLifecycleService = new SecurityLifecycleService(Settings.EMPTY, clusterService,
                 threadPool, client, nativeRealmMigrator, mock(IndexAuditTrail.class));
         listeners = new CopyOnWriteArrayList<>();
@@ -155,8 +150,9 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
 
         final int numberOfSecurityIndices = 1; // .security
 
+        final ClusterState clusterState = clusterStateBuilder.build();
         securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event",
-                clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
+                clusterState, EMPTY_CLUSTER_STATE));
         assertThat(securityLifecycleService.securityIndex().isTemplateUpToDate(), equalTo(false));
         assertThat(listeners.size(), equalTo(numberOfSecurityIndices));
         assertTrue(securityLifecycleService.securityIndex().isTemplateCreationPending());
@@ -165,7 +161,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
         ActionListener listener = listeners.get(0);
         listeners.clear();
         securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event",
-                clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
+                clusterState, EMPTY_CLUSTER_STATE));
         assertThat(securityLifecycleService.securityIndex().isTemplateUpToDate(), equalTo(false));
         assertThat(listeners.size(), equalTo(0));
         assertTrue(securityLifecycleService.securityIndex().isTemplateCreationPending());
@@ -177,7 +173,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
 
         // ... we should be able to send a new update
         securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event",
-                clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
+                clusterState, EMPTY_CLUSTER_STATE));
         assertThat(securityLifecycleService.securityIndex().isTemplateUpToDate(), equalTo(false));
         assertThat(listeners.size(), equalTo(1));
         assertTrue(securityLifecycleService.securityIndex().isTemplateCreationPending());
@@ -192,7 +188,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
         // and now let's see what happens if we get back a response
         listeners.clear();
         securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event",
-                clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
+                clusterState, EMPTY_CLUSTER_STATE));
         assertThat(securityLifecycleService.securityIndex().isTemplateUpToDate(), equalTo(false));
         assertTrue(securityLifecycleService.securityIndex().isTemplateCreationPending());
         assertThat(listeners.size(), equalTo(1));
@@ -202,13 +198,9 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
     }
 
     public void testMissingIndexTemplateIsIdentifiedAsMissing() throws IOException {
-        ClusterState.Builder clusterStateBuilder = new ClusterState.Builder(state());
         // add the correct mapping
         String mappingString = "/" + SECURITY_TEMPLATE_NAME + ".json";
-        IndexMetaData.Builder indexMeta = createIndexMetadata(SECURITY_INDEX_NAME, mappingString);
-        MetaData.Builder builder = new MetaData.Builder(clusterStateBuilder.build().getMetaData());
-        builder.put(indexMeta);
-        clusterStateBuilder.metaData(builder);
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(mappingString);
         checkTemplateUpdateWorkCorrectly(clusterStateBuilder);
     }
 
@@ -221,7 +213,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
     public void testOutdatedMappingIsIdentifiedAsNotUpToDate() throws IOException {
         String templateString = "/wrong-version-" + SECURITY_TEMPLATE_NAME + ".json";
         final Version wrongVersion = Version.fromString("4.0.0");
-        ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(templateString);
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
         final ClusterState clusterState = clusterStateBuilder.build();
         assertFalse(securityIndexMappingAndTemplateUpToDate(clusterState, logger));
         assertFalse(securityIndexMappingAndTemplateSufficientToRead(clusterState, logger));
@@ -305,8 +297,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
 
     public void testUpToDateMappingsAreIdentifiedAsUpToDate() throws IOException {
         String securityTemplateString = "/" + SECURITY_TEMPLATE_NAME + ".json";
-        ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(
-                securityTemplateString);
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(securityTemplateString);
         securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event",
                 clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
         assertTrue(securityLifecycleService.securityIndex().isMappingUpToDate());
@@ -315,8 +306,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
 
     public void testMappingVersionMatching() throws IOException {
         String templateString = "/" + SECURITY_TEMPLATE_NAME + ".json";
-        ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(templateString
-        );
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
         securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event",
                 clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
         final IndexLifecycleManager securityIndex = securityLifecycleService.securityIndex();
@@ -326,12 +316,12 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
 
     public void testMissingVersionMappingThrowsError() throws IOException {
         String templateString = "/missing-version-" + SECURITY_TEMPLATE_NAME + ".json";
-        ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(templateString
-        );
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
         final ClusterState clusterState = clusterStateBuilder.build();
         IllegalStateException exception = expectThrows(IllegalStateException.class,
                 () -> securityIndexMappingAndTemplateUpToDate(clusterState, logger));
-        assertEquals(exception.getMessage(), "Cannot read security-version string in index " + SECURITY_INDEX_NAME);
+        assertEquals("Cannot read security-version string in index " + SECURITY_INDEX_NAME,
+            exception.getMessage());
     }
 
     public void testMissingIndexIsIdentifiedAsUpToDate() throws IOException {
@@ -350,24 +340,22 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
     }
 
     private ClusterState.Builder createClusterStateWithMapping(String securityTemplateString) throws IOException {
-        ImmutableOpenMap.Builder mapBuilder = ImmutableOpenMap.builder();
-        IndexMetaData securityIndex = createIndexMetadata(SECURITY_INDEX_NAME, securityTemplateString).build();
-        mapBuilder.put(SECURITY_INDEX_NAME, securityIndex);
-        MetaData.Builder metaDataBuilder = new MetaData.Builder();
-        metaDataBuilder.indices(mapBuilder.build());
+        final ClusterState clusterState = createClusterStateWithIndex(securityTemplateString).build();
+        final String indexName = clusterState.metaData().getAliasAndIndexLookup()
+            .get(SECURITY_INDEX_NAME).getIndices().get(0).getIndex().getName();
+        return ClusterState.builder(clusterState).routingTable(SecurityTestUtils.buildIndexRoutingTable(indexName));
+    }
 
+    private ClusterState.Builder createClusterStateWithMappingAndTemplate(String securityTemplateString) throws IOException {
+        ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(securityTemplateString);
+        MetaData.Builder metaDataBuilder = new MetaData.Builder(clusterStateBuilder.build().metaData());
         String securityMappingString = "/" + SECURITY_TEMPLATE_NAME + ".json";
         IndexTemplateMetaData.Builder securityTemplateMeta = getIndexTemplateMetaData(SECURITY_TEMPLATE_NAME, securityMappingString);
         metaDataBuilder.put(securityTemplateMeta);
-
-        ClusterState.Builder clusterStateBuilder = ClusterState.builder(state());
-        final RoutingTable routingTable = SecurityTestUtils.buildSecurityIndexRoutingTable();
-        clusterStateBuilder.metaData(metaDataBuilder.build()).routingTable(routingTable);
-        return clusterStateBuilder;
+        return clusterStateBuilder.metaData(metaDataBuilder);
     }
 
-    private static IndexMetaData.Builder createIndexMetadata(
-            String indexName, String templateString) throws IOException {
+    private static IndexMetaData.Builder createIndexMetadata(String indexName, String templateString) throws IOException {
         String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString(),
                 IndexLifecycleManager.TEMPLATE_VERSION_PATTERN);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
@@ -385,19 +373,30 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
         return indexMetaData;
     }
 
-    public static ClusterState.Builder createClusterStateWithTemplate(String securityTemplateString) throws IOException {
-        MetaData.Builder metaDataBuilder = new MetaData.Builder();
-
-        IndexTemplateMetaData.Builder securityTemplateBuilder =
-                getIndexTemplateMetaData(SECURITY_TEMPLATE_NAME, securityTemplateString);
-        metaDataBuilder.put(securityTemplateBuilder);
+    public ClusterState.Builder createClusterStateWithTemplate(String securityTemplateString) throws IOException {
         // add the correct mapping no matter what the template
-        String securityMappingString = "/" + SECURITY_TEMPLATE_NAME + ".json";
-        IndexMetaData.Builder securityIndexMeta =
-                createIndexMetadata(SECURITY_INDEX_NAME, securityMappingString);
-        metaDataBuilder.put(securityIndexMeta);
+        ClusterState clusterState = createClusterStateWithIndex("/" + SECURITY_TEMPLATE_NAME + ".json").build();
+        final MetaData.Builder metaDataBuilder = new MetaData.Builder(clusterState.metaData());
+        metaDataBuilder.put(getIndexTemplateMetaData(SECURITY_TEMPLATE_NAME, securityTemplateString));
+        return ClusterState.builder(clusterState).metaData(metaDataBuilder);
+    }
 
-        return ClusterState.builder(state()).metaData(metaDataBuilder.build());
+    private ClusterState.Builder createClusterStateWithIndex(String securityTemplate) throws IOException {
+        final MetaData.Builder metaDataBuilder = new MetaData.Builder();
+        final boolean withAlias = randomBoolean();
+        final String securityIndexName = SECURITY_INDEX_NAME + (withAlias ? "-" + randomAlphaOfLength(5) : "");
+        metaDataBuilder.put(createIndexMetadata(securityIndexName, securityTemplate));
+
+        ClusterState.Builder clusterStateBuilder = ClusterState.builder(state());
+        if (withAlias) {
+            // try with .security index as an alias
+            clusterStateBuilder.metaData(SecurityTestUtils.addAliasToMetaData(metaDataBuilder.build(), securityIndexName));
+        } else {
+            // try with .security index as a concrete index
+            clusterStateBuilder.metaData(metaDataBuilder);
+        }
+
+        return clusterStateBuilder;
     }
 
     private static IndexTemplateMetaData.Builder getIndexTemplateMetaData(

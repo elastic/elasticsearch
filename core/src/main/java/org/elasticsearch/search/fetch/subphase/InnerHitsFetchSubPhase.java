@@ -48,8 +48,8 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
             return;
         }
 
-        for (Map.Entry<String, InnerHitsContext.BaseInnerHits> entry : context.innerHits().getInnerHits().entrySet()) {
-            InnerHitsContext.BaseInnerHits innerHits = entry.getValue();
+        for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : context.innerHits().getInnerHits().entrySet()) {
+            InnerHitsContext.InnerHitSubContext innerHits = entry.getValue();
             TopDocs[] topDocs;
             try {
                 topDocs = innerHits.topDocs(hits);

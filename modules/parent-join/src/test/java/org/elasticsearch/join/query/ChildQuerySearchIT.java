@@ -856,7 +856,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                 hasChildQuery("child", matchQuery("c_field", "foo"), ScoreMode.None)
                     .innerHit(new InnerHitBuilder().setHighlightBuilder(
                         new HighlightBuilder().field(new Field("c_field")
-                                .highlightQuery(QueryBuilders.matchQuery("c_field", "bar")))), false))
+                                .highlightQuery(QueryBuilders.matchQuery("c_field", "bar"))))))
                 .get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1L));

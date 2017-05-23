@@ -168,6 +168,7 @@ subprojects {
     "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',
     "org.elasticsearch.plugin:lang-mustache-client:${version}": ':modules:lang-mustache',
     "org.elasticsearch.plugin:parent-join-client:${version}": ':modules:parent-join',
+    "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
   ]
   if (wireCompatVersions[-1].snapshot) {

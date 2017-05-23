@@ -1882,7 +1882,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             primaryTerm = operationPrimaryTerm;
                             getEngine().getTranslog().rollGeneration();
                         });
-                    } catch (final InterruptedException | TimeoutException | IOException | AlreadyClosedException e) {
+                    } catch (final Exception e) {
                         onPermitAcquired.onFailure(e);
                         return;
                     }

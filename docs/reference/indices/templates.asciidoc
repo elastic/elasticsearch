@@ -191,3 +191,5 @@ added if it matches an index. Here is a sample of the mentioned file:
     }
 }
 --------------------------------------------------
+
+*Please note that templates added this way will not appear in the `/_template/*` API request.*

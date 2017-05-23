@@ -48,14 +48,14 @@ public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (topLeft != null) {
-            builder.startObject("bounds");
-            builder.startObject("top_left");
-            builder.field("lat", topLeft.getLat());
-            builder.field("lon", topLeft.getLon());
+            builder.startObject(BOUNDS_FIELD.getPreferredName());
+            builder.startObject(TOP_LEFT_FIELD.getPreferredName());
+            builder.field(LAT_FIELD.getPreferredName(), topLeft.getLat());
+            builder.field(LON_FIELD.getPreferredName(), topLeft.getLon());
             builder.endObject();
-            builder.startObject("bottom_right");
-            builder.field("lat", bottomRight.getLat());
-            builder.field("lon", bottomRight.getLon());
+            builder.startObject(BOTTOM_RIGHT_FIELD.getPreferredName());
+            builder.field(LAT_FIELD.getPreferredName(), bottomRight.getLat());
+            builder.field(LON_FIELD.getPreferredName(), bottomRight.getLon());
             builder.endObject();
             builder.endObject();
         }

@@ -44,6 +44,7 @@ public class LimitFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         int limit = -1;
+        boolean short_circuit = false;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -52,7 +53,10 @@ public class LimitFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("value".equals(currentFieldName)) {
                     limit = parser.intValue();
-                } else {
+                } else if ("short_circuit".equals(currentFieldName)) {
+                    short_circuit = parser.booleanValue();
+                }
+                else {
                     throw new QueryParsingException(parseContext.index(), "[limit] filter does not support [" + currentFieldName + "]");
                 }
             }
@@ -62,6 +66,6 @@ public class LimitFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "No value specified for limit filter");
         }
 
-        return new LimitFilter(limit);
+        return new LimitFilter(limit, short_circuit);
     }
 }

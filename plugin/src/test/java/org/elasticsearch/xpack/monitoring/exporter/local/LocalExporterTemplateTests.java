@@ -53,6 +53,7 @@ public class LocalExporterTemplateTests extends MonitoringIntegTestCase {
         return settings.build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1410")
     public void testCreateWhenExistingTemplatesAreOld() throws Exception {
         internalCluster().startNode();
 

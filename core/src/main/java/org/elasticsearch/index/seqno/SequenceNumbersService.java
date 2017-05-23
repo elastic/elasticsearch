@@ -151,17 +151,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * @return the global checkpoint
      */
     public long getGlobalCheckpoint() {
-        return globalCheckpointTracker.getCheckpoint();
-    }
-
-    /**
-     * Scans through the currently known local checkpoint and updates the global checkpoint accordingly.
-     *
-     * @return {@code true} if the checkpoint has been updated or if it can not be updated since one of the local checkpoints of one of the
-     * active allocations is not known.
-     */
-    public boolean updateGlobalCheckpointOnPrimary() {
-        return globalCheckpointTracker.updateCheckpointOnPrimary();
+        return globalCheckpointTracker.getGlobalCheckpoint();
     }
 
     /**
@@ -182,6 +172,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public void updateAllocationIdsFromMaster(final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
         globalCheckpointTracker.updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
+    }
+
+    /**
+     * Check if there are any recoveries pending in-sync.
+     *
+     * @return {@code true} if there is at least one shard pending in-sync, otherwise false
+     */
+    public boolean pendingInSync() {
+        return globalCheckpointTracker.pendingInSync();
     }
 
 }

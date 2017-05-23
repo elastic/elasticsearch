@@ -96,7 +96,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
     };
 
     public TestGatewayAllocator() {
-        super(Settings.EMPTY, null, null);
+        super(Settings.EMPTY);
     }
 
     @Override

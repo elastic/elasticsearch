@@ -43,7 +43,7 @@ import java.util.concurrent.ConcurrentMap;
 
 public class GatewayAllocator extends AbstractComponent {
 
-    private RoutingService routingService;
+    private final RoutingService routingService;
 
     private final PrimaryShardAllocator primaryShardAllocator;
     private final ReplicaShardAllocator replicaShardAllocator;
@@ -52,14 +52,12 @@ public class GatewayAllocator extends AbstractComponent {
     private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>> asyncFetchStore = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public GatewayAllocator(Settings settings, final TransportNodesListGatewayStartedShards startedAction, final TransportNodesListShardStoreMetaData storeAction) {
+    public GatewayAllocator(Settings settings, ClusterService clusterService, RoutingService routingService,
+                            TransportNodesListGatewayStartedShards startedAction, TransportNodesListShardStoreMetaData storeAction) {
         super(settings);
+        this.routingService = routingService;
         this.primaryShardAllocator = new InternalPrimaryShardAllocator(settings, startedAction);
         this.replicaShardAllocator = new InternalReplicaShardAllocator(settings, storeAction);
-    }
-
-    public void setReallocation(final ClusterService clusterService, final RoutingService routingService) {
-        this.routingService = routingService;
         clusterService.addStateApplier(event -> {
             boolean cleanCache = false;
             DiscoveryNode localNode = event.state().nodes().getLocalNode();
@@ -77,6 +75,14 @@ public class GatewayAllocator extends AbstractComponent {
                 asyncFetchStore.clear();
             }
         });
+    }
+
+    // for tests
+    protected GatewayAllocator(Settings settings) {
+        super(settings);
+        this.routingService = null;
+        this.primaryShardAllocator = null;
+        this.replicaShardAllocator = null;
     }
 
     public int getNumberOfInFlightFetch() {

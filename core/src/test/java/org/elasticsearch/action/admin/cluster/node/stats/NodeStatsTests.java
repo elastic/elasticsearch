@@ -183,7 +183,6 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(fs.getTotal().getFree(), deserializedFs.getTotal().getFree());
                     assertEquals(fs.getTotal().getMount(), deserializedFs.getTotal().getMount());
                     assertEquals(fs.getTotal().getPath(), deserializedFs.getTotal().getPath());
-                    assertEquals(fs.getTotal().getSpins(), deserializedFs.getTotal().getSpins());
                     assertEquals(fs.getTotal().getType(), deserializedFs.getTotal().getType());
                     FsInfo.IoStats ioStats = fs.getIoStats();
                     FsInfo.IoStats deserializedIoStats = deserializedFs.getIoStats();

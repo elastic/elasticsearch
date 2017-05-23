@@ -620,7 +620,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "test*", "-testXXX")),
                 equalTo(newHashSet("testYYX", "testXYY", "testYYY", "testXXY")));
 
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testXXX", "+testXXY", "+testYYY", "-testYYY")),
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testXXX", "testXXY", "testYYY", "-testYYY")),
                 equalTo(newHashSet("testXXX", "testXXY", "testYYY", "-testYYY")));
 
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testYYY", "testYYX", "testX*", "-testXXX")),
@@ -636,7 +636,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 equalTo(newHashSet("-testXYZ", "-testXZZ", "-testYYY")));
 
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(),
-                                "+testXXX", "+testXXY", "+testXYY", "-testXXY")),
+                                "testXXX", "testXXY", "testXYY", "-testXXY")),
                 equalTo(newHashSet("testXXX", "testXYY", "testXXY")));
 
         indexNames = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), "*", "-*");
@@ -816,7 +816,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testIsPatternMatchingAllIndicesMatchingSingleExclusion() throws Exception {
-        String[] indicesOrAliases = new String[]{"-index1", "+index1"};
+        String[] indicesOrAliases = new String[]{"-index1", "index1"};
         String[] concreteIndices = new String[]{"index1", "index2", "index3"};
         MetaData metaData = metaDataBuilder(concreteIndices);
         assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metaData, indicesOrAliases, concreteIndices), equalTo(true));
@@ -831,7 +831,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testIsPatternMatchingAllIndicesMatchingTrailingWildcardAndExclusion() throws Exception {
-        String[] indicesOrAliases = new String[]{"index*", "-index1", "+index1"};
+        String[] indicesOrAliases = new String[]{"index*", "-index1", "index1"};
         String[] concreteIndices = new String[]{"index1", "index2", "index3"};
         MetaData metaData = metaDataBuilder(concreteIndices);
         assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metaData, indicesOrAliases, concreteIndices), equalTo(true));
@@ -955,5 +955,36 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         strings = indexNameExpressionResolver.filteringAliases(state, "test-0", "test-*,alias-*");
         assertNull(strings);
+    }
+
+    public void testIndexAliases() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("test-0").state(State.OPEN)
+                .putAlias(AliasMetaData.builder("test-alias-0").filter("{ \"term\": \"foo\"}"))
+                .putAlias(AliasMetaData.builder("test-alias-1").filter("{ \"term\": \"foo\"}"))
+                .putAlias(AliasMetaData.builder("test-alias-non-filtering"))
+            );
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        String[] strings = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, true, "test-*");
+        Arrays.sort(strings);
+        assertArrayEquals(new String[] {"test-alias-0", "test-alias-1", "test-alias-non-filtering"}, strings);
+    }
+
+    public void testConcreteIndicesForDeprecatedPattern() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("testXXX").state(State.OPEN))
+            .put(indexBuilder("testXXY").state(State.OPEN))
+            .put(indexBuilder("testYYY").state(State.OPEN));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
+            IndicesOptions.fromOptions(true, true, true, true));
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testX*")),
+            equalTo(newHashSet("testXXX", "testXXY")));
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testXXX", "+testXXY", "+testYYY", "-testYYY")),
+            equalTo(newHashSet("testXXX", "testXXY", "testYYY")));
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testXX*", "+testY*")),
+            equalTo(newHashSet("testXXX", "testXXY", "testYYY")));
+        assertWarnings("support for '+' as part of index expressions is deprecated");
     }
 }

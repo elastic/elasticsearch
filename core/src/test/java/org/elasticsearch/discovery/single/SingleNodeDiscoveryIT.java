@@ -85,14 +85,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             final UnicastHostsProvider provider =
                     () -> Collections.singletonList(nodeTransport.getLocalNode());
             final CountDownLatch latch = new CountDownLatch(1);
-            final UnicastZenPing unicastZenPing =
-                    new UnicastZenPing(settings, threadPool, pingTransport, provider) {
-                        @Override
-                        protected void finishPingingRound(PingingRound pingingRound) {
-                            latch.countDown();
-                            super.finishPingingRound(pingingRound);
-                        }
-                    };
             final DiscoveryNodes nodes = DiscoveryNodes.builder()
                     .add(nodeTransport.getLocalNode())
                     .add(pingTransport.getLocalNode())
@@ -100,7 +92,15 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                     .build();
             final ClusterName clusterName = new ClusterName(internalCluster().getClusterName());
             final ClusterState state = ClusterState.builder(clusterName).nodes(nodes).build();
-            unicastZenPing.start(() -> state);
+            final UnicastZenPing unicastZenPing =
+                new UnicastZenPing(settings, threadPool, pingTransport, provider, () -> state) {
+                    @Override
+                    protected void finishPingingRound(PingingRound pingingRound) {
+                        latch.countDown();
+                        super.finishPingingRound(pingingRound);
+                    }
+                };
+            unicastZenPing.start();
             closeables.push(unicastZenPing);
             final CompletableFuture<ZenPing.PingCollection> responses = new CompletableFuture<>();
             unicastZenPing.ping(responses::complete, TimeValue.timeValueSeconds(3));

@@ -169,7 +169,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     @Override
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
-        List<KeyedFilter> rewrittenFilters = new ArrayList<>();
+        List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
         for(KeyedFilter kf : filters) {
             rewrittenFilters.add(new KeyedFilter(kf.key(), QueryBuilder.rewriteQuery(kf.filter(), 
                     context.getQueryShardContext())));

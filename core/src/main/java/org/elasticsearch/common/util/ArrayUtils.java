@@ -84,5 +84,4 @@ public class ArrayUtils {
         System.arraycopy(other, 0, target, one.length, other.length);
         return target;
     }
-
 }

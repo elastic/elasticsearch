@@ -65,8 +65,8 @@ public class ClusterStatsNodes implements ToXContent {
         this.plugins = new HashSet<>();
 
         Set<InetAddress> seenAddresses = new HashSet<>(nodeResponses.size());
-        List<NodeInfo> nodeInfos = new ArrayList<>();
-        List<NodeStats> nodeStats = new ArrayList<>();
+        List<NodeInfo> nodeInfos = new ArrayList<>(nodeResponses.size());
+        List<NodeStats> nodeStats = new ArrayList<>(nodeResponses.size());
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
             nodeInfos.add(nodeResponse.nodeInfo());
             nodeStats.add(nodeResponse.nodeStats());

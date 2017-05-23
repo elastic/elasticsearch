@@ -49,22 +49,29 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class AnalysisRegistryTests extends ESTestCase {
-
-    private AnalysisRegistry registry;
+    private AnalysisRegistry emptyRegistry;
 
     private static AnalyzerProvider<?> analyzerProvider(final String name) {
         return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDEX, new EnglishAnalyzer());
     }
 
+    private static AnalysisRegistry emptyAnalysisRegistry(Settings settings) {
+        return new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
+                emptyMap());
+    }
+
+    private static IndexSettings indexSettingsOfCurrentVersion(Settings.Builder settings) {
+        return IndexSettingsModule.newIndexSettings("index", settings
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build());
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        Settings settings = Settings
-            .builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
-        registry = new AnalysisRegistry(new Environment(settings),
-            emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
+        emptyRegistry = emptyAnalysisRegistry(Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build());
     }
 
     public void testDefaultAnalyzers() throws IOException {
@@ -75,9 +82,7 @@ public class AnalysisRegistryTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        IndexAnalyzers indexAnalyzers = new AnalysisRegistry(new Environment(settings),
-                emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
-            .build(idxSettings);
+        IndexAnalyzers indexAnalyzers = emptyRegistry.build(idxSettings);
         assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
@@ -86,7 +91,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     public void testOverrideDefaultAnalyzer() throws IOException {
         Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        IndexAnalyzers indexAnalyzers = registry.build(IndexSettingsModule.newIndexSettings("index", settings),
+        IndexAnalyzers indexAnalyzers = emptyRegistry.build(IndexSettingsModule.newIndexSettings("index", settings),
             singletonMap("default", analyzerProvider("default"))
                 , emptyMap(), emptyMap(), emptyMap(), emptyMap());
         assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
@@ -99,7 +104,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         AnalyzerProvider<?> defaultIndex = new PreBuiltAnalyzerProvider("default_index", AnalyzerScope.INDEX, new EnglishAnalyzer());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> registry.build(IndexSettingsModule.newIndexSettings("index", settings),
+                () -> emptyRegistry.build(IndexSettingsModule.newIndexSettings("index", settings),
                         singletonMap("default_index", defaultIndex), emptyMap(), emptyMap(), emptyMap(), emptyMap()));
         assertTrue(e.getMessage().contains("[index.analysis.analyzer.default_index] is not supported"));
     }
@@ -107,7 +112,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     public void testOverrideDefaultSearchAnalyzer() {
         Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        IndexAnalyzers indexAnalyzers = registry.build(IndexSettingsModule.newIndexSettings("index", settings),
+        IndexAnalyzers indexAnalyzers = emptyRegistry.build(IndexSettingsModule.newIndexSettings("index", settings),
                 singletonMap("default_search", analyzerProvider("default_search")), emptyMap(), emptyMap(), emptyMap(), emptyMap());
         assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
@@ -189,11 +194,8 @@ public class AnalysisRegistryTests extends ESTestCase {
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-        IndexAnalyzers indexAnalyzers = new AnalysisRegistry(new Environment(settings),
-                emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
-                .build(idxSettings);
-        IndexAnalyzers otherIndexAnalyzers = new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap()).build(idxSettings);
+        IndexAnalyzers indexAnalyzers = emptyAnalysisRegistry(settings).build(idxSettings);
+        IndexAnalyzers otherIndexAnalyzers = emptyAnalysisRegistry(settings).build(idxSettings);
         final int numIters = randomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {
             PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(random(), PreBuiltAnalyzers.values());
@@ -212,20 +214,12 @@ public class AnalysisRegistryTests extends ESTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new AnalysisRegistry(new Environment(settings),
-                        emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap()).build(idxSettings));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> emptyAnalysisRegistry(settings).build(idxSettings));
         assertThat(e.getMessage(), equalTo("analyzer [test_analyzer] must specify either an analyzer type, or a tokenizer"));
     }
 
     public void testCloseIndexAnalyzersMultipleTimes() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-        IndexAnalyzers indexAnalyzers = new AnalysisRegistry(new Environment(settings),
-                emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
-            .build(idxSettings);
+        IndexAnalyzers indexAnalyzers = emptyRegistry.build(indexSettingsOfCurrentVersion(Settings.builder()));
         indexAnalyzers.close();
         indexAnalyzers.close();
     }

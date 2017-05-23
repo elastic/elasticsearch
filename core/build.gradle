@@ -124,8 +124,8 @@ forbiddenPatterns {
 task generateModulesList {
   List<String> modules = project(':modules').subprojects.collect { it.name }
   File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
-  processResources.from(modulesFile) 
-  inputs.property('modules', modules) 
+  processResources.from(modulesFile)
+  inputs.property('modules', modules)
   outputs.file(modulesFile)
   doLast {
     modulesFile.parentFile.mkdirs()
@@ -138,8 +138,8 @@ task generatePluginsList {
     .findAll { it.name.contains('example') == false }
     .collect { it.name }
   File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
-  processResources.from(pluginsFile) 
-  inputs.property('plugins', plugins) 
+  processResources.from(pluginsFile)
+  inputs.property('plugins', plugins)
   outputs.file(pluginsFile)
   doLast {
     pluginsFile.parentFile.mkdirs()
@@ -256,7 +256,7 @@ thirdPartyAudit.excludes = [
   'org.zeromq.ZMQ',
 
   // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
-  'org.noggit.JSONParser', 
+  'org.noggit.JSONParser',
 ]
 
 dependencyLicenses {
@@ -277,3 +277,43 @@ if (isEclipse == false || project.path == ":core-tests") {
   check.dependsOn integTest
   integTest.mustRunAfter test
 }
+
+task('verifyVersions') {
+  description 'Verifies that all released versions that are indexed compatible are listed in Version.java.'
+  group 'Verification'
+  enabled = false == gradle.startParameter.isOffline()
+  doLast {
+    // Read the list from maven central
+    Node xml
+    new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
+        xml = new XmlParser().parse(s)
+    }
+    Set<String> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ })
+
+    // Limit the known versions to those that should be wire compatible
+    String currentVersion = versions.elasticsearch.minus('-SNAPSHOT')
+    int prevMajor = Integer.parseInt(currentVersion.split('\\.')[0]) - 1
+    if (prevMajor == 4) {
+      // 4 didn't exist, it was 2.
+      prevMajor = 2;
+    }
+    knownVersions = knownVersions.findAll { Integer.parseInt(it.split('\\.')[0]) >= prevMajor }
+
+    /* Limit the listed versions to those that have been marked as released.
+     * Versions not marked as released don't get the same testing and we want
+     * to make sure that we flip all unreleased versions to released as soon
+     * as possible after release. */
+    Set<String> actualVersions = new TreeSet<>(
+      indexCompatVersions
+        .findAll { false == it.unreleased }
+        .collect { it.toString() })
+
+    // Finally, compare!
+    if (!knownVersions.equals(actualVersions)) {
+      throw new GradleException("out-of-date versions\nActual  :" +
+        actualVersions + "\nExpected:" + knownVersions +
+        "; update Version.java")
+    }
+  }
+}
+check.dependsOn(verifyVersions)

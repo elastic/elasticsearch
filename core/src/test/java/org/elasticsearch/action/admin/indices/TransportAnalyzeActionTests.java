@@ -48,8 +48,8 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 
 /**
- * Tests for {@link TransportAnalyzeAction}. See the more "intense" version of this test in the
- * {@code common-analysis} module.
+ * Tests for {@link TransportAnalyzeAction}. See the rest tests in the {@code analysis-common} module for places where this code gets a ton
+ * more exercise.
  */
 public class TransportAnalyzeActionTests extends ESTestCase {
 
@@ -90,7 +90,11 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         indexAnalyzers = registry.build(idxSettings);
     }
 
+    /**
+     * Test behavior when the named analysis component isn't defined on the index. In that case we should build with defaults.
+     */
     public void testNoIndexAnalyzers() throws IOException {
+        // Refer to an analyzer by its type so we get its default configuration
         AnalyzeRequest request = new AnalyzeRequest();
         request.analyzer("standard");
         request.text("the quick brown fox");
@@ -98,33 +102,30 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
 
+        // Refer to a token filter by its type so we get its default configuration
         request.analyzer(null);
         request.tokenizer("whitespace");
-        request.addTokenFilter("lowercase");
-        request.addTokenFilter("word_delimiter");
+        request.addTokenFilter("mock");
         request.text("the qu1ck brown fox");
         analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry, environment);
         tokens = analyze.getTokens();
-        assertEquals(6, tokens.size());
-        assertEquals("qu", tokens.get(1).getTerm());
-        assertEquals("1", tokens.get(2).getTerm());
-        assertEquals("ck", tokens.get(3).getTerm());
+        assertEquals(3, tokens.size());
+        assertEquals("qu1ck", tokens.get(0).getTerm());
+        assertEquals("brown", tokens.get(1).getTerm());
+        assertEquals("fox", tokens.get(2).getTerm());
 
+        // Refer to a char filter by its type so we get its default configuration
         request.analyzer(null);
         request.tokenizer("whitespace");
         request.addCharFilter("html_strip");
-        request.addTokenFilter("lowercase");
-        request.addTokenFilter("word_delimiter");
+        request.addTokenFilter("mock");
         request.text("<p>the qu1ck brown fox</p>");
         analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry, environment);
         tokens = analyze.getTokens();
-        assertEquals(6, tokens.size());
-        assertEquals("the", tokens.get(0).getTerm());
-        assertEquals("qu", tokens.get(1).getTerm());
-        assertEquals("1", tokens.get(2).getTerm());
-        assertEquals("ck", tokens.get(3).getTerm());
-        assertEquals("brown", tokens.get(4).getTerm());
-        assertEquals("fox", tokens.get(5).getTerm());
+        assertEquals(3, tokens.size());
+        assertEquals("qu1ck", tokens.get(0).getTerm());
+        assertEquals("brown", tokens.get(1).getTerm());
+        assertEquals("fox", tokens.get(2).getTerm());
     }
 
     public void testFillsAttributes() throws IOException {

@@ -31,10 +31,8 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -42,9 +40,9 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
@@ -111,7 +109,8 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")).get(), "2");
 
         // Update-becomes-delete with RefreshPolicy.WAIT_UNTIL
-        update = client().prepareUpdate("test", "test", "2").setScript(new Script(ScriptType.INLINE, "native", "delete_plz", emptyMap()))
+        update = client().prepareUpdate("test", "test", "2").setScript(
+            new Script(ScriptType.INLINE, "mockscript", "delete_plz", emptyMap()))
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
@@ -171,43 +170,15 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         return singleton(DeletePlzPlugin.class);
     }
 
-    public static class DeletePlzPlugin extends Plugin implements ScriptPlugin {
+    public static class DeletePlzPlugin extends MockScriptPlugin {
         @Override
-        public List<NativeScriptFactory> getNativeScripts() {
-            return Collections.singletonList(new DeletePlzFactory());
-        }
-    }
-
-    public static class DeletePlzFactory implements NativeScriptFactory {
-        @Override
-        public ExecutableScript newScript(Map<String, Object> params) {
-            return new ExecutableScript() {
-                private Map<String, Object> ctx;
-
-                @Override
-                @SuppressWarnings("unchecked")  // Elasicsearch convention
-                public void setNextVar(String name, Object value) {
-                    if (name.equals("ctx")) {
-                        ctx = (Map<String, Object>) value;
-                    }
-                }
-
-                @Override
-                public Object run() {
-                    ctx.put("op", "delete");
-                    return null;
-                }
-            };
-        }
-
-        @Override
-        public boolean needsScores() {
-            return false;
-        }
-
-        @Override
-        public String getName() {
-            return "delete_plz";
+        public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap("delete_plz", params -> {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> ctx = (Map<String, Object>) params.get("ctx");
+                ctx.put("op", "delete");
+                return null;
+            });
         }
     }
 }

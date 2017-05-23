@@ -68,8 +68,8 @@ public class SuggestionTests extends ESTestCase {
         String name = randomAlphaOfLengthBetween(5, 10);
         // note: size will not be rendered via "toXContent", only passed on internally on transport layer
         int size = randomInt();
-        Supplier<Entry> entrySupplier = null;
-        Suggestion suggestion = null;
+        Supplier<Entry> entrySupplier;
+        Suggestion suggestion;
         if (type == TermSuggestion.class) {
             suggestion = new TermSuggestion(name, size, randomFrom(SortBy.values()));
             entrySupplier = () -> SuggestionEntryTests.createTestItem(TermSuggestion.Entry.class);

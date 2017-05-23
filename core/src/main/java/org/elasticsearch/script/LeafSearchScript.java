@@ -19,18 +19,30 @@
 
 package org.elasticsearch.script;
 
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ScorerAware;
 
 import java.util.Map;
 
 /**
  * A per-segment {@link SearchScript}.
+ *
+ * This is effectively a functional interface, requiring at least implementing {@link #runAsDouble()}.
  */
 public interface LeafSearchScript extends ScorerAware, ExecutableScript {
 
-    void setDocument(int doc);
+    /**
+     * Set the document this script will process next.
+     */
+    default void setDocument(int doc) {}
 
-    void setSource(Map<String, Object> source);
+    @Override
+    default void setScorer(Scorer scorer) {}
+
+    /**
+     * Set the source for the current document.
+     */
+    default void setSource(Map<String, Object> source) {}
     
     /**
      * Sets per-document aggregation {@code _value}.
@@ -44,8 +56,23 @@ public interface LeafSearchScript extends ScorerAware, ExecutableScript {
         setNextVar("_value", value);
     }
 
-    long runAsLong();
+    @Override
+    default void setNextVar(String field, Object value) {}
 
+    /**
+     * Return the result as a long. This is used by aggregation scripts over long fields.
+     */
+    default long runAsLong() {
+        throw new UnsupportedOperationException("runAsLong is not implemented");
+    }
+
+    @Override
+    default Object run() {
+        return runAsDouble();
+    }
+
+    /**
+     * Return the result as a double. This is the main use case of search script, used for document scoring.
+     */
     double runAsDouble();
-
 }

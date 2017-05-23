@@ -93,7 +93,6 @@ public class CloseFuture extends BaseFuture<NioChannel> {
 
     void channelCloseThrewException(NioChannel channel, IOException ex) {
         boolean set = setException(ex);
-        // TODO: What should we do in regards to exception?
         if (set) {
             Consumer<NioChannel> listener = this.listener.get();
             if (listener != null) {

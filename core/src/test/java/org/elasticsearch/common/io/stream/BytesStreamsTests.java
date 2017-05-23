@@ -805,11 +805,41 @@ public class BytesStreamsTests extends ESTestCase {
         }
 
         assertTrue("If we're not compatible with 5.1.1 we can drop the assertion below",
-                Version.CURRENT.minimumCompatibilityVersion().onOrBefore(Version.V_5_1_1_UNRELEASED));
+                Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(Version.V_5_1_1));
         /* Read -1 as serialized by a version of Elasticsearch that supported writing negative numbers with writeVLong. Note that this
          * should be the same test as the first case (when value is negative) but we've kept some bytes so no matter what we do to
          * writeVLong in the future we can be sure we can read bytes as written by Elasticsearch before 5.1.2 */
         StreamInput in = new BytesArray(Base64.getDecoder().decode("////////////AQAAAAAAAA==")).streamInput();
         assertEquals(-1, in.readVLong());
+    }
+
+    public enum TestEnum {
+        ONE,
+        TWO,
+        THREE
+    }
+
+    public void testEnum() throws IOException {
+        TestEnum value = randomFrom(TestEnum.values());
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.writeEnum(value);
+        StreamInput input = output.bytes().streamInput();
+        assertEquals(value, input.readEnum(TestEnum.class));
+        assertEquals(0, input.available());
+    }
+
+    public void testInvalidEnum() throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        int randomNumber = randomInt();
+        boolean validEnum = randomNumber >= 0 && randomNumber < TestEnum.values().length;
+        output.writeVInt(randomNumber);
+        StreamInput input = output.bytes().streamInput();
+        if (validEnum) {
+            assertEquals(TestEnum.values()[randomNumber], input.readEnum(TestEnum.class));
+        } else {
+            IOException ex = expectThrows(IOException.class, () -> input.readEnum(TestEnum.class));
+            assertEquals("Unknown TestEnum ordinal [" + randomNumber + "]", ex.getMessage());
+        }
+        assertEquals(0, input.available());
     }
 }

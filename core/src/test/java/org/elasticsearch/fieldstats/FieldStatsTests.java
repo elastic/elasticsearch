@@ -596,7 +596,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse response = client().prepareFieldStats()
-            .setFields("_id", "_type")
+            .setFields("_uid", "_type")
             .get();
         assertEquals(response.getAllFieldStats().size(), 1);
         assertEquals(response.getAllFieldStats().get("_type").isSearchable(), true);
@@ -606,7 +606,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     public void testSerialization() throws IOException {
         for (Version version : new Version[] {Version.CURRENT, Version.V_5_0_1}){
             for (int i = 0; i < 20; i++) {
-                assertSerialization(randomFieldStats(version.onOrAfter(Version.V_5_2_0_UNRELEASED)), version);
+                assertSerialization(randomFieldStats(version.onOrAfter(Version.V_5_2_0)), version);
             }
         }
     }

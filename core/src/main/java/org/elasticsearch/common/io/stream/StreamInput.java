@@ -901,6 +901,18 @@ public abstract class StreamInput extends InputStream {
         return builder;
     }
 
+    /**
+     * Reads an enum with type E that was serialized based on the value of it's ordinal
+     */
+    public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
+        int ordinal = readVInt();
+        E[] values = enumClass.getEnumConstants();
+        if (ordinal < 0 || ordinal >= values.length) {
+            throw new IOException("Unknown " + enumClass.getSimpleName() + " ordinal [" + ordinal + "]");
+        }
+        return values[ordinal];
+    }
+
     public static StreamInput wrap(byte[] bytes) {
         return wrap(bytes, 0, bytes.length);
     }

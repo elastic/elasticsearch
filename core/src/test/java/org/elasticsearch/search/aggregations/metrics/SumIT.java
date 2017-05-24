@@ -18,37 +18,24 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Scorer;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -57,6 +44,10 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.metrics.MetricAggScriptPlugin.METRIC_SCRIPT_ENGINE;
+import static org.elasticsearch.search.aggregations.metrics.MetricAggScriptPlugin.SUM_VALUES_FIELD_SCRIPT;
+import static org.elasticsearch.search.aggregations.metrics.MetricAggScriptPlugin.VALUE_FIELD_SCRIPT;
+import static org.elasticsearch.search.aggregations.metrics.MetricAggScriptPlugin.VALUE_SCRIPT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -67,7 +58,7 @@ public class SumIT extends AbstractNumericTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ExtractFieldScriptPlugin.class, FieldValueScriptPlugin.class);
+        return Collections.singleton(MetricAggScriptPlugin.class);
     }
 
     @Override
@@ -178,7 +169,7 @@ public class SumIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(sum("sum").field("value").script(
-                    new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", Collections.emptyMap())))
+                    new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_SCRIPT, Collections.emptyMap())))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -195,7 +186,7 @@ public class SumIT extends AbstractNumericTestCase {
         params.put("increment", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(sum("sum").field("value").script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", params)))
+                .addAggregation(sum("sum").field("value").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_SCRIPT, params)))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -211,7 +202,7 @@ public class SumIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(sum("sum").script(
-                    new Script(ScriptType.INLINE, ExtractFieldScriptEngine.NAME, "value", Collections.emptyMap())))
+                    new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_FIELD_SCRIPT, Collections.singletonMap("field", "value"))))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -228,7 +219,7 @@ public class SumIT extends AbstractNumericTestCase {
         params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(sum("sum").script(new Script(ScriptType.INLINE, ExtractFieldScriptEngine.NAME, "value", params)))
+                .addAggregation(sum("sum").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_FIELD_SCRIPT, params)))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -244,7 +235,7 @@ public class SumIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(sum("sum").script(
-                    new Script(ScriptType.INLINE, ExtractFieldScriptEngine.NAME, "values", Collections.emptyMap())))
+                    new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap())))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -262,7 +253,7 @@ public class SumIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        sum("sum").script(new Script(ScriptType.INLINE, ExtractFieldScriptEngine.NAME, "values", params)))
+                        sum("sum").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_VALUES_FIELD_SCRIPT, params)))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -295,7 +286,7 @@ public class SumIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(sum("sum").field("values").script(
-                    new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", Collections.emptyMap())))
+                    new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_SCRIPT, Collections.emptyMap())))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -311,7 +302,8 @@ public class SumIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("increment", 1);
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(sum("sum").field("values").script(new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", params)))
+                .addAggregation(sum("sum").field("values")
+                    .script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_SCRIPT, params)))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -372,7 +364,7 @@ public class SumIT extends AbstractNumericTestCase {
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(sum("foo").field("d").script(
-                    new Script(ScriptType.INLINE, FieldValueScriptEngine.NAME, "", Collections.emptyMap()))).get();
+                    new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_SCRIPT, Collections.emptyMap()))).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -389,208 +381,5 @@ public class SumIT extends AbstractNumericTestCase {
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
-    }
-
-    /**
-     * Mock plugin for the {@link ExtractFieldScriptEngine}
-     */
-    public static class ExtractFieldScriptPlugin extends Plugin implements ScriptPlugin {
-        @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
-            return new ExtractFieldScriptEngine();
-        }
-    }
-
-    /**
-     * This mock script returns the field that is specified by name in the
-     * script body
-     */
-    public static class ExtractFieldScriptEngine implements ScriptEngine {
-
-        public static final String NAME = "extract_field";
-
-        @Override
-        public void close() throws IOException {
-        }
-
-        @Override
-        public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-            return scriptSource;
-        }
-
-        @Override
-        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
-            final long inc;
-            if (vars == null || vars.containsKey("inc") == false) {
-                inc = 0;
-            } else {
-                inc = ((Number) vars.get("inc")).longValue();
-            }
-            return new SearchScript() {
-
-                @Override
-                public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
-
-                    final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
-
-                    return new LeafSearchScript() {
-                        @Override
-                        public void setNextVar(String name, Object value) {
-                        }
-
-                        @Override
-                        public Object run() {
-                            String fieldName = (String) compiledScript.compiled();
-                            List<Long> values = new ArrayList<>();
-                            for (Object v : (List<?>) leafLookup.doc().get(fieldName)) {
-                                values.add(((Number) v).longValue() + inc);
-                            }
-                            return values;
-                        }
-
-                        @Override
-                        public void setScorer(Scorer scorer) {
-                        }
-
-                        @Override
-                        public void setSource(Map<String, Object> source) {
-                        }
-
-                        @Override
-                        public void setDocument(int doc) {
-                            if (leafLookup != null) {
-                                leafLookup.setDocument(doc);
-                            }
-                        }
-
-                        @Override
-                        public long runAsLong() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
-                        public double runAsDouble() {
-                            throw new UnsupportedOperationException();
-                        }
-                    };
-                }
-
-                @Override
-                public boolean needsScores() {
-                    return false;
-                }
-            };
-        }
-    }
-
-    /**
-     * Mock plugin for the {@link FieldValueScriptEngine}
-     */
-    public static class FieldValueScriptPlugin extends Plugin implements ScriptPlugin {
-        @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
-            return new FieldValueScriptEngine();
-        }
-    }
-
-    /**
-     * This mock script returns the field value and adds one to the returned
-     * value
-     */
-    public static class FieldValueScriptEngine implements ScriptEngine {
-
-        public static final String NAME = "field_value";
-
-        @Override
-        public void close() throws IOException {
-        }
-
-        @Override
-        public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-            return scriptSource;
-        }
-
-        @Override
-        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
-            final long inc;
-            if (vars == null || vars.containsKey("inc") == false) {
-                inc = 0;
-            } else {
-                inc = ((Number) vars.get("inc")).longValue();
-            }
-            return new SearchScript() {
-
-                private Map<String, Object> vars = new HashMap<>(2);
-
-                @Override
-                public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
-
-                    final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
-
-                    return new LeafSearchScript() {
-
-                        @Override
-                        public void setNextVar(String name, Object value) {
-                            vars.put(name, value);
-                        }
-
-                        @Override
-                        public Object run() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
-                        public void setScorer(Scorer scorer) {
-                        }
-
-                        @Override
-                        public void setSource(Map<String, Object> source) {
-                        }
-
-                        @Override
-                        public void setDocument(int doc) {
-                            if (leafLookup != null) {
-                                leafLookup.setDocument(doc);
-                            }
-                        }
-
-                        @Override
-                        public long runAsLong() {
-                            return ((Number) vars.get("_value")).longValue() + inc;
-                        }
-
-                        @Override
-                        public double runAsDouble() {
-                            return ((Number) vars.get("_value")).doubleValue() + inc;
-                        }
-                    };
-                }
-
-                @Override
-                public boolean needsScores() {
-                    return false;
-                }
-            };
-        }
     }
 }

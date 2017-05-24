@@ -27,6 +27,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -36,11 +37,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
+import org.elasticsearch.index.shard.TranslogOpToEngineOpConverter;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.io.IOException;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -49,7 +53,6 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 public final class EngineConfig {
     private final ShardId shardId;
-    private final TranslogRecoveryPerformer translogRecoveryPerformer;
     private final IndexSettings indexSettings;
     private final ByteSizeValue indexingBufferSize;
     private volatile boolean enableGcDeletes = true;
@@ -70,6 +73,9 @@ public final class EngineConfig {
     private final ReferenceManager.RefreshListener refreshListeners;
     @Nullable
     private final Sort indexSort;
+    private final TranslogOpToEngineOpConverter translogOpToEngineOpConverter;
+    private final CheckedBiConsumer<Engine, Engine.Operation, IOException> operationApplier;
+    private final RecoveryState.Translog translogStats;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -112,9 +118,11 @@ public final class EngineConfig {
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                        QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
                         TranslogConfig translogConfig, TimeValue flushMergesAfter, ReferenceManager.RefreshListener refreshListeners,
-                        Sort indexSort) {
+                        Sort indexSort, TranslogOpToEngineOpConverter translogOpToEngineOpConverter,
+                        CheckedBiConsumer<Engine, Engine.Operation, IOException> operationApplier,
+                        RecoveryState.Translog translogStats) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -134,7 +142,6 @@ public final class EngineConfig {
         // there are not too many shards allocated to this node.  Instead, IndexingMemoryController periodically checks
         // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
         indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
-        this.translogRecoveryPerformer = translogRecoveryPerformer;
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
@@ -142,6 +149,9 @@ public final class EngineConfig {
         this.openMode = openMode;
         this.refreshListeners = refreshListeners;
         this.indexSort = indexSort;
+        this.translogOpToEngineOpConverter = translogOpToEngineOpConverter;
+        this.operationApplier = operationApplier;
+        this.translogStats = translogStats;
     }
 
     /**
@@ -263,15 +273,6 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the {@link org.elasticsearch.index.shard.TranslogRecoveryPerformer} for this engine. This class is used
-     * to apply transaction log operations to the engine. It encapsulates all the logic to transfer the translog entry into
-     * an indexing operation.
-     */
-    public TranslogRecoveryPerformer getTranslogRecoveryPerformer() {
-        return translogRecoveryPerformer;
-    }
-
-    /**
      * Return the cache to use for queries.
      */
     public QueryCache getQueryCache() {
@@ -339,5 +340,27 @@ public final class EngineConfig {
      */
     public Sort getIndexSort() {
         return indexSort;
+    }
+
+    /**
+     * Return a converter to turn Translog operations into Engine operations.
+     * Used during translog recovery, see also {@link Engine#recoverFromTranslog()}
+     */
+    public TranslogOpToEngineOpConverter getTranslogOpToEngineOpConverter() {
+        return translogOpToEngineOpConverter;
+    }
+
+    /**
+     * Returns applier that applies operation to the engine. Used during translog recovery, see also {@link Engine#recoverFromTranslog()}
+     */
+    public CheckedBiConsumer<Engine, Engine.Operation, IOException> getOperationApplier() {
+        return operationApplier;
+    }
+
+    /**
+     * Returns statistics object for the translog. Used during translog recovery, see also {@link Engine#recoverFromTranslog()}
+     */
+    public RecoveryState.Translog getTranslogStats() {
+        return translogStats;
     }
 }

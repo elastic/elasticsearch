@@ -509,7 +509,7 @@ public class RecoverySourceHandler {
             logger.trace("no translog operations to send");
         }
 
-        final CancellableThreads.Interruptable sendBatch =
+        final CancellableThreads.IOInterruptable sendBatch =
                 () -> targetLocalCheckpoint.set(recoveryTarget.indexTranslogOperations(operations, expectedTotalOps));
 
         // send operations in batches
@@ -535,7 +535,7 @@ public class RecoverySourceHandler {
 
             // check if this request is past bytes threshold, and if so, send it off
             if (size >= chunkSizeInBytes) {
-                cancellableThreads.execute(sendBatch);
+                cancellableThreads.executeIO(sendBatch);
                 logger.trace("sent batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size), expectedTotalOps);
                 ops = 0;
                 size = 0;
@@ -545,7 +545,7 @@ public class RecoverySourceHandler {
 
         if (!operations.isEmpty() || totalSentOps == 0) {
             // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
-            cancellableThreads.execute(sendBatch);
+            cancellableThreads.executeIO(sendBatch);
         }
 
         assert expectedTotalOps == skippedOps + totalSentOps

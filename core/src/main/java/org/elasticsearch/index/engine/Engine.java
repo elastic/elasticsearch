@@ -63,7 +63,6 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
@@ -1015,7 +1014,7 @@ public abstract class Engine implements Closeable {
 
         abstract String id();
 
-        abstract TYPE operationType();
+        public abstract TYPE operationType();
     }
 
     public static class Index extends Operation {
@@ -1057,7 +1056,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.INDEX;
         }
 
@@ -1133,7 +1132,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.DELETE;
         }
 
@@ -1183,7 +1182,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.NO_OP;
         }
 

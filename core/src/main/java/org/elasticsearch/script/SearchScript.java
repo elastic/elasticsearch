@@ -41,7 +41,4 @@ public interface SearchScript {
     interface Compiled {
         SearchScript newInstance(Map<String, Object> params, SearchLookup lookup);
     }
-
-    ScriptContext<SearchScript, Compiled> CONTEXT = new ScriptContext<>("search", SearchScript.class, Compiled.class);
-
 }

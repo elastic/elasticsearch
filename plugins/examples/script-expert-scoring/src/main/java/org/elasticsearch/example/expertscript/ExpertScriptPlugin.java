@@ -22,18 +22,15 @@ package org.elasticsearch.example.expertscript;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptEngine;
@@ -123,13 +120,13 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
 
         @Override
         @SuppressWarnings("unchecked")
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> params) {
-          Function<Map<String,Object>,SearchScript> scriptFactory = (Function<Map<String,Object>,SearchScript>) compiledScript.compiled();
+        public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> params) {
+          Function<Map<String,Object>,SearchScript> scriptFactory = (Function<Map<String,Object>,SearchScript>) compiledScript;
           return scriptFactory.apply(params);
         }
 
         @Override
-        public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> params) {
+        public ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> params) {
             throw new UnsupportedOperationException();
         }
 

@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -93,13 +92,14 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
-        CompiledScript compiledScript = context.scriptService().compile(script, ScriptContext.AGGS);
-        return new ExecutableScriptHeuristic(script, context.scriptService().executable(compiledScript, script.getParams()));
+        ExecutableScript.Compiled compiled = context.scriptService().compile(script, ScriptContext.AGGS_EXECUTABLE);
+        return new ExecutableScriptHeuristic(script, compiled.newInstance(script.getParams()));
     }
 
     @Override
     public SignificanceHeuristic rewrite(SearchContext context) {
-        return new ExecutableScriptHeuristic(script, context.getQueryShardContext().getExecutableScript(script, ScriptContext.AGGS));
+        return new ExecutableScriptHeuristic(script,
+            context.getQueryShardContext().getExecutableScript(script, ScriptContext.AGGS_EXECUTABLE));
     }
 
 

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -91,7 +90,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.AGGS);
+        ExecutableScript.Compiled compiledScript = reduceContext.scriptService().compile(script, ScriptContext.AGGS_EXECUTABLE);
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -112,7 +111,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             if (skipBucket) {
                 newBuckets.add(bucket);
             } else {
-                ExecutableScript executableScript = reduceContext.scriptService().executable(compiledScript, vars);
+                ExecutableScript executableScript = compiledScript.newInstance(vars);
                 Object returned = executableScript.run();
                 if (returned == null) {
                     newBuckets.add(bucket);

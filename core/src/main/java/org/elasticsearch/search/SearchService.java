@@ -48,7 +48,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -686,8 +685,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
-                CompiledScript compile = scriptService.compile(field.script(), ScriptContext.SEARCH);
-                SearchScript searchScript = scriptService.search(context.lookup(), compile, field.script().getParams());
+                SearchScript.Compiled compiled = scriptService.compile(field.script(), ScriptContext.SEARCH);
+                SearchScript searchScript = compiled.newInstance(field.script().getParams(), context.lookup());
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

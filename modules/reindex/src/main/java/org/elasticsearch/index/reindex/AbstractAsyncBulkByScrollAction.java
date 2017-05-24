@@ -49,7 +49,6 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -773,8 +772,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return request;
             }
             if (executable == null) {
-                CompiledScript compiled = scriptService.compile(script, ScriptContext.UPDATE);
-                executable = scriptService.executable(compiled, params);
+                ExecutableScript.Compiled compiled = scriptService.compile(script, ScriptContext.UPDATE);
+                executable = compiled.newInstance(params);
             }
             if (context == null) {
                 context = new HashMap<>();

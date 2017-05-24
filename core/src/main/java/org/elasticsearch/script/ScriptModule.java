@@ -36,7 +36,7 @@ public class ScriptModule {
 
     public ScriptModule(Settings settings, List<ScriptPlugin> scriptPlugins) {
         Map<String, ScriptEngine> engines = new HashMap<>();
-        Map<String, ScriptContext> contexts = new HashMap<>(ScriptContext.BUILTINS);
+        Map<String, ScriptContext<?, ?>> contexts = new HashMap<>(ScriptContext.BUILTINS);
         for (ScriptPlugin plugin : scriptPlugins) {
             for (ScriptContext context : plugin.getContexts()) {
                 ScriptContext oldContext = contexts.put(context.name, context);

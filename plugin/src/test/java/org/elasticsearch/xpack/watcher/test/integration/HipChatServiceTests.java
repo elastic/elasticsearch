@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 @Network
-@TestLogging("org.elasticsearch.watcher.support.http:TRACE")
+@TestLogging("org.elasticsearch.xpack.common.http:TRACE")
 public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean timeWarped() {
@@ -152,7 +152,8 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
                         .setNotify(false);
         }
 
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()
+        String id = randomAlphaOfLength(10);
+        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(id).setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))
                 .input(simpleInput("ref", "HipChatServiceTests#testWatchWithHipChatAction"))
                 .condition(AlwaysCondition.INSTANCE)
@@ -161,11 +162,11 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().trigger("1");
+        timeWarp().trigger(id);
         flush();
         refresh();
 
-        assertWatchWithMinimumPerformedActionsCount("1", 1L, false);
+        assertWatchWithMinimumPerformedActionsCount(id, 1L, false);
 
         SearchResponse response = searchHistory(searchSource().query(boolQuery()
                 .must(termQuery("result.actions.id", "hipchat"))

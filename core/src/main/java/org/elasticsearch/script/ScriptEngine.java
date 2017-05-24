@@ -45,9 +45,9 @@ public interface ScriptEngine extends Closeable {
      */
     Object compile(String name, String code, Map<String, String> params);
 
-    ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);
-
-    SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars);
+    ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars);
+    
+    SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars);
 
     @Override
     default void close() throws IOException {}

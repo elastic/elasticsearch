@@ -19,6 +19,8 @@
 
 package org.elasticsearch.script;
 
+import java.util.Map;
+
 /**
  * An executable script, can't be used concurrently.
  */
@@ -38,4 +40,8 @@ public interface ExecutableScript {
      * Executes the script.
      */
     Object run();
+
+    interface Compiled {
+        ExecutableScript newInstance(Map<String, Object> params);
+    }
 }

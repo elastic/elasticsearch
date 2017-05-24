@@ -27,10 +27,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.io.UTF8StreamWriter;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
@@ -40,7 +37,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Reader;
 import java.io.StringWriter;
-import java.lang.ref.SoftReference;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
@@ -86,14 +82,12 @@ public final class MustacheScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public ExecutableScript executable(CompiledScript compiledScript,
-            @Nullable Map<String, Object> vars) {
-        return new MustacheExecutableScript(compiledScript, vars);
+    public ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars) {
+        return new MustacheExecutableScript((Mustache) compiledScript, vars);
     }
 
     @Override
-    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup,
-            @Nullable Map<String, Object> vars) {
+    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         throw new UnsupportedOperationException();
     }
 
@@ -102,7 +96,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * */
     private class MustacheExecutableScript implements ExecutableScript {
         /** Compiled template object wrapper. */
-        private CompiledScript template;
+        private Mustache template;
         /** Parameters to fill above object with. */
         private Map<String, Object> vars;
 
@@ -110,7 +104,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
          * @param template the compiled template object wrapper
          * @param vars the parameters to fill above object with
          **/
-        MustacheExecutableScript(CompiledScript template, Map<String, Object> vars) {
+        MustacheExecutableScript(Mustache template, Map<String, Object> vars) {
             this.template = template;
             this.vars = vars == null ? Collections.emptyMap() : vars;
         }
@@ -127,7 +121,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
                 // crazy reflection here
                 SpecialPermission.check();
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    ((Mustache) template.compiled()).execute(writer, vars);
+                    template.execute(writer, vars);
                     return null;
                 });
             } catch (Exception e) {

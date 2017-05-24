@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.LeafSearchScript;
@@ -84,12 +83,12 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
+                public ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars) {
                     throw new UnsupportedOperationException();
                 }
 
                 @Override
-                public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+                public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
                     return new SearchScript() {
                         @Override
                         public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {

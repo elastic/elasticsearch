@@ -25,13 +25,11 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.SearchScript;
@@ -1032,8 +1030,8 @@ public class SuggestSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
-            String script = (String) compiledScript.compiled();
+        public ExecutableScript executable(Object compiledScript, Map<String, Object> params) {
+            String script = (String) compiledScript;
             for (Entry<String, Object> entry : params.entrySet()) {
                 script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
             }
@@ -1052,7 +1050,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
+        public SearchScript search(Object compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException("search script not supported");
         }
     }

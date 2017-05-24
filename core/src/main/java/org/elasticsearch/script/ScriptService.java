@@ -45,7 +45,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.template.CompiledTemplate;
 
 import java.io.Closeable;
@@ -82,9 +81,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private final Set<String> contextsAllowed;
 
     private final Map<String, ScriptEngine> engines;
-    private final Map<String, ScriptContext> contexts;
+    private final Map<String, ScriptContext<?,?>> contexts;
 
-    private final Cache<CacheKey, CompiledScript> cache;
+    private final Cache<CacheKey, Object> cache;
 
     private final ScriptMetrics scriptMetrics = new ScriptMetrics();
 
@@ -95,7 +94,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private double scriptsPerMinCounter;
     private double compilesAllowedPerNano;
 
-    public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext> contexts) {
+    public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?,?>> contexts) {
         super(settings);
 
         Objects.requireNonNull(settings);
@@ -176,7 +175,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
 
-        CacheBuilder<CacheKey, CompiledScript> cacheBuilder = CacheBuilder.builder();
+        CacheBuilder<CacheKey, Object> cacheBuilder = CacheBuilder.builder();
         if (cacheMaxSize >= 0) {
             cacheBuilder.setMaximumWeight(cacheMaxSize);
         }
@@ -218,9 +217,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     /**
-     * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
+     * Compiles a script using the given context.
+     *
+     * @return a compiled script which may be used to construct instances of a script for the given context
      */
-    public CompiledScript compile(Script script, ScriptContext context) {
+    public <InstanceType, CompiledType> CompiledType compile(Script script, ScriptContext<InstanceType, CompiledType> context) {
         Objects.requireNonNull(script);
         Objects.requireNonNull(context);
 
@@ -287,11 +288,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             logger.trace("compiling lang: [{}] type: [{}] script: {}", lang, type, idOrCode);
         }
 
-        CacheKey cacheKey = new CacheKey(lang, idOrCode, options);
-        CompiledScript compiledScript = cache.get(cacheKey);
+        CacheKey cacheKey = new CacheKey(lang, idOrCode, context.name, options);
+        Object compiledScript = cache.get(cacheKey);
 
         if (compiledScript != null) {
-            return compiledScript;
+            return context.compiledClazz.cast(compiledScript);
         }
 
         // Synchronize so we don't compile scripts many times during multiple shards all compiling a script
@@ -311,7 +312,14 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     }
                     // Check whether too many compilations have happened
                     checkCompilationLimit();
-                    compiledScript = new CompiledScript(type, id, lang, scriptEngine.compile(id, idOrCode, options));
+                    Object engineCompiled = scriptEngine.compile(id, idOrCode, options);
+                    if (context.instanceClazz == ExecutableScript.class) {
+                        compiledScript = (ExecutableScript.Compiled) params -> scriptEngine.executable(engineCompiled, params);
+                    } else if (context.instanceClazz == SearchScript.class) {
+                        compiledScript = (SearchScript.Compiled) (params, lookup) -> scriptEngine.search(engineCompiled, lookup, params);
+                    } else {
+                        throw new IllegalArgumentException("Script context [" + context.name + "] not supported");
+                    }
                 } catch (ScriptException good) {
                     // TODO: remove this try-catch completely, when all script engines have good exceptions!
                     throw good; // its already good
@@ -325,14 +333,14 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 cache.put(cacheKey, compiledScript);
             }
 
-            return compiledScript;
+            return context.compiledClazz.cast(compiledScript);
         }
     }
 
     /** Compiles a template. Note this will be moved to a separate TemplateService in the future. */
-    public CompiledTemplate compileTemplate(Script script, ScriptContext scriptContext) {
-        CompiledScript compiledScript = compile(script, scriptContext);
-        return params -> (String)executable(compiledScript, params).run();
+    public CompiledTemplate compileTemplate(Script script, ScriptContext<ExecutableScript, ExecutableScript.Compiled> scriptContext) {
+        ExecutableScript.Compiled compiledScript = compile(script, scriptContext);
+        return params -> (String)compiledScript.newInstance(params).run();
     }
 
     /**
@@ -498,21 +506,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
-    /**
-     * Executes a previously compiled script provided as an argument
-     */
-    public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
-        return getEngine(compiledScript.lang()).executable(compiledScript, params);
-    }
-
-    /**
-     * Binds provided parameters to a compiled script returning a
-     * {@link SearchScript} ready for execution
-     */
-    public SearchScript search(SearchLookup lookup, CompiledScript compiledScript,  Map<String, Object> params) {
-        return getEngine(compiledScript.lang()).search(compiledScript, lookup, params);
-    }
-
     public ScriptStats stats() {
         return scriptMetrics.stats();
     }
@@ -527,9 +520,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      * {@code ScriptEngine}'s {@code scriptRemoved} method when the
      * script has been removed from the cache
      */
-    private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, CompiledScript> {
+    private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, Object> {
         @Override
-        public void onRemoval(RemovalNotification<CacheKey, CompiledScript> notification) {
+        public void onRemoval(RemovalNotification<CacheKey, Object> notification) {
             if (logger.isDebugEnabled()) {
                 logger.debug("removed {} from cache, reason: {}", notification.getValue(), notification.getRemovalReason());
             }
@@ -540,11 +533,13 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private static final class CacheKey {
         final String lang;
         final String idOrCode;
+        final String context;
         final Map<String, String> options;
 
-        private CacheKey(String lang, String idOrCode, Map<String, String> options) {
+        private CacheKey(String lang, String idOrCode, String context, Map<String, String> options) {
             this.lang = lang;
             this.idOrCode = idOrCode;
+            this.context = context;
             this.options = options;
         }
 
@@ -552,21 +547,16 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-
-            CacheKey cacheKey = (CacheKey)o;
-
-            if (lang != null ? !lang.equals(cacheKey.lang) : cacheKey.lang != null) return false;
-            if (!idOrCode.equals(cacheKey.idOrCode)) return false;
-            return options != null ? options.equals(cacheKey.options) : cacheKey.options == null;
-
+            CacheKey cacheKey = (CacheKey) o;
+            return Objects.equals(lang, cacheKey.lang) &&
+                Objects.equals(idOrCode, cacheKey.idOrCode) &&
+                Objects.equals(context, cacheKey.context) &&
+                Objects.equals(options, cacheKey.options);
         }
 
         @Override
         public int hashCode() {
-            int result = lang != null ? lang.hashCode() : 0;
-            result = 31 * result + idOrCode.hashCode();
-            result = 31 * result + (options != null ? options.hashCode() : 0);
-            return result;
+            return Objects.hash(lang, idOrCode, context, options);
         }
     }
 }

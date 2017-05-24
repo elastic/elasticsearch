@@ -24,11 +24,10 @@ import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction.OpType;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.junit.Before;
-import org.mockito.Matchers;
 
 import java.util.Map;
 import java.util.function.Consumer;
@@ -36,6 +35,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -56,9 +56,9 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
         ExecutableScript executableScript = new SimpleExecutableScript(scriptBody);
-
-        when(scriptService.executable(any(CompiledScript.class), Matchers.<Map<String, Object>>any()))
-                .thenReturn(executableScript);
+        ExecutableScript.Compiled compiled = params -> executableScript;
+        when(scriptService.compile(any(), eq(ScriptContext.EXECUTABLE))).thenReturn(compiled);
+        when(scriptService.compile(any(), eq(ScriptContext.UPDATE))).thenReturn(compiled);
         AbstractAsyncBulkByScrollAction<Request> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;

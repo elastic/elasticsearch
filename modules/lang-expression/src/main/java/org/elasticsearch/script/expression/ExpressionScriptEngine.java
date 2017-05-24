@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ClassPermission;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
@@ -104,8 +103,8 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
     }
 
     @Override
-    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        Expression expr = (Expression)compiledScript.compiled();
+    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        Expression expr = (Expression)compiledScript;
         MapperService mapper = lookup.doc().mapperService();
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
@@ -227,7 +226,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                 throw convertToScriptException("link error", expr.sourceText, variable, e);
             }
         }
-        return new ExpressionSearchScript(compiledScript, bindings, specialValue, needsScores);
+        return new ExpressionSearchScript(expr, bindings, specialValue, needsScores);
     }
 
     /**
@@ -249,7 +248,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
     }
 
     @Override
-    public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
-        return new ExpressionExecutableScript(compiledScript, vars);
+    public ExecutableScript executable(Object compiledScript, Map<String, Object> vars) {
+        return new ExpressionExecutableScript((Expression) compiledScript, vars);
     }
 }

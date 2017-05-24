@@ -51,7 +51,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     private ScriptEngine scriptEngine;
     private Map<String, ScriptEngine> engines;
-    private Map<String, ScriptContext> contexts;
+    private Map<String, ScriptContext<?,?>> contexts;
     private ScriptService scriptService;
     private Settings baseSettings;
 
@@ -123,11 +123,10 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testInlineScriptCompiledOnceCache() throws IOException {
         buildScriptService(Settings.EMPTY);
-        CompiledScript compiledScript1 = scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()),
-                randomFrom(contexts.values()));
-        CompiledScript compiledScript2 = scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()),
-                randomFrom(contexts.values()));
-        assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
+        Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
+        SearchScript.Compiled compiledScript1 = scriptService.compile(script, ScriptContext.SEARCH);
+        SearchScript.Compiled compiledScript2 = scriptService.compile(script, ScriptContext.SEARCH);
+        assertThat(compiledScript1, sameInstance(compiledScript2));
     }
 
     public void testAllowAllScriptTypeSettings() throws IOException {
@@ -199,22 +198,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    public void testExecutableCountedInCompilationStats() throws IOException {
-        buildScriptService(Settings.EMPTY);
-        Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
-        CompiledScript compiledScript = scriptService.compile(script, randomFrom(contexts.values()));
-        scriptService.executable(compiledScript, script.getParams());
-        assertEquals(1L, scriptService.stats().getCompilations());
-    }
-
-    public void testSearchCountedInCompilationStats() throws IOException {
-        buildScriptService(Settings.EMPTY);
-        Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
-        CompiledScript compile = scriptService.compile(script, randomFrom(contexts.values()));
-        scriptService.search(null, compile, script.getParams());
-        assertEquals(1L, scriptService.stats().getCompilations());
-    }
-
     public void testMultipleCompilationsCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         int numberOfCompilations = randomIntBetween(1, 20);
@@ -230,8 +213,9 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         buildScriptService(builder.build());
         Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
-        scriptService.compile(script, randomFrom(contexts.values()));
-        scriptService.compile(script, randomFrom(contexts.values()));
+        ScriptContext<?, ?> context = randomFrom(contexts.values());
+        scriptService.compile(script, context);
+        scriptService.compile(script, context);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -249,14 +233,6 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(contexts.values()));
         assertEquals(2L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
-    }
-
-    public void testDefaultLanguage() throws IOException {
-        Settings.Builder builder = Settings.builder();
-        buildScriptService(builder.build());
-        CompiledScript script = scriptService.compile(
-            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
-        assertEquals(script.lang(), Script.DEFAULT_SCRIPT_LANG);
     }
 
     public void testStoreScript() throws Exception {

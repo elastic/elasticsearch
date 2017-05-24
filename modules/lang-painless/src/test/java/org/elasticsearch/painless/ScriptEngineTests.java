@@ -19,9 +19,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptType;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -83,8 +81,7 @@ public class ScriptEngineTests extends ScriptTestCase {
 
         Object compiledScript = scriptEngine.compile(null,
                 "return ctx.value;", Collections.emptyMap());
-        ExecutableScript script = scriptEngine.executable(new CompiledScript(ScriptType.INLINE,
-                "testChangingVarsCrossExecution1", "painless", compiledScript), vars);
+        ExecutableScript script = scriptEngine.executable(compiledScript, vars);
 
         ctx.put("value", 1);
         Object o = script.run();
@@ -99,8 +96,7 @@ public class ScriptEngineTests extends ScriptTestCase {
         Map<String, Object> vars = new HashMap<>();
         Object compiledScript = scriptEngine.compile(null, "return params['value'];", Collections.emptyMap());
 
-        ExecutableScript script = scriptEngine.executable(new CompiledScript(ScriptType.INLINE,
-                "testChangingVarsCrossExecution2", "painless", compiledScript), vars);
+        ExecutableScript script = scriptEngine.executable(compiledScript, vars);
 
         script.setNextVar("value", 1);
         Object value = script.run();

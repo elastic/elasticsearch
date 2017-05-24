@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -96,9 +95,9 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
             if (firstAggregation.reduceScript.getParams() != null) {
                 vars.putAll(firstAggregation.reduceScript.getParams());
             }
-            CompiledScript compiledScript = reduceContext.scriptService().compile(
-                firstAggregation.reduceScript, ScriptContext.AGGS);
-            ExecutableScript script = reduceContext.scriptService().executable(compiledScript, vars);
+            ExecutableScript.Compiled compiled = reduceContext.scriptService().compile(
+                firstAggregation.reduceScript, ScriptContext.AGGS_EXECUTABLE);
+            ExecutableScript script = compiled.newInstance(vars);
             aggregation = Collections.singletonList(script.run());
         } else if (reduceContext.isFinalReduce())  {
             aggregation = Collections.singletonList(aggregationObjects);

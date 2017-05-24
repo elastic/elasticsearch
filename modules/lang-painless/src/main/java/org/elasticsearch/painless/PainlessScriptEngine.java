@@ -24,10 +24,8 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
@@ -177,8 +175,8 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
      * @return An {@link ExecutableScript} with the currently specified variables.
      */
     @Override
-    public ExecutableScript executable(final CompiledScript compiledScript, final Map<String, Object> vars) {
-        return new ScriptImpl((GenericElasticsearchScript) compiledScript.compiled(), vars, null);
+    public ExecutableScript executable(final Object compiledScript, final Map<String, Object> vars) {
+        return new ScriptImpl((GenericElasticsearchScript) compiledScript, vars, null);
     }
 
     /**
@@ -189,7 +187,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
      * @return An {@link SearchScript} with the currently specified variables.
      */
     @Override
-    public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, final Map<String, Object> vars) {
+    public SearchScript search(final Object compiledScript, final SearchLookup lookup, final Map<String, Object> vars) {
         return new SearchScript() {
             /**
              * Get the search script that will have access to search field values.
@@ -198,7 +196,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
              */
             @Override
             public LeafSearchScript getLeafSearchScript(final LeafReaderContext context) throws IOException {
-                return new ScriptImpl((GenericElasticsearchScript) compiledScript.compiled(), vars, lookup.getLeafSearchLookup(context));
+                return new ScriptImpl((GenericElasticsearchScript) compiledScript, vars, lookup.getLeafSearchLookup(context));
             }
 
             /**
@@ -206,7 +204,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
              */
             @Override
             public boolean needsScores() {
-                return ((GenericElasticsearchScript) compiledScript.compiled()).uses$_score();
+                return ((GenericElasticsearchScript) compiledScript).uses$_score();
             }
         };
     }

@@ -21,10 +21,8 @@ package org.elasticsearch.script.mustache;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.test.ESTestCase;
@@ -44,7 +42,6 @@ import java.util.Set;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.script.ScriptType.INLINE;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,8 +62,7 @@ public class MustacheTests extends ESTestCase {
         Map<String, Object> params = Collections.singletonMap("boost_val", "0.2");
 
         Mustache mustache = (Mustache) engine.compile(null, template, Collections.emptyMap());
-        CompiledScript compiledScript = new CompiledScript(INLINE, "my-name", "mustache", mustache);
-        ExecutableScript result = engine.executable(compiledScript, params);
+        ExecutableScript result = engine.executable(mustache, params);
         assertEquals(
                 "Mustache templating broken",
                 "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
@@ -77,7 +73,7 @@ public class MustacheTests extends ESTestCase {
 
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
-        CompiledScript mustache = new CompiledScript(INLINE, "inline", "mustache", engine.compile(null, template, Collections.emptyMap()));
+        Object mustache  = engine.compile(null, template, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new String[] { "foo", "bar" },
@@ -97,7 +93,7 @@ public class MustacheTests extends ESTestCase {
 
     public void testArrayInArrayAccess() throws Exception {
         String template = "{{data.0.0}} {{data.0.1}}";
-        CompiledScript mustache = new CompiledScript(INLINE, "inline", "mustache", engine.compile(null, template, Collections.emptyMap()));
+        Object mustache = engine.compile(null, template, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new String[][] { new String[] { "foo", "bar" }},
@@ -110,7 +106,7 @@ public class MustacheTests extends ESTestCase {
 
     public void testMapInArrayAccess() throws Exception {
         String template = "{{data.0.key}} {{data.1.key}}";
-        CompiledScript mustache = new CompiledScript(INLINE, "inline", "mustache", engine.compile(null, template, Collections.emptyMap()));
+        Object mustache = engine.compile(null, template, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new Object[] { singletonMap("key", "foo"), singletonMap("key", "bar") },
@@ -134,7 +130,7 @@ public class MustacheTests extends ESTestCase {
         List<String> randomList = Arrays.asList(generateRandomStringArray(10, 20, false));
 
         String template = "{{data.array.size}} {{data.list.size}}";
-        CompiledScript mustache = new CompiledScript(INLINE, "inline", "mustache", engine.compile(null, template, Collections.emptyMap()));
+        Object mustache = engine.compile(null, template, Collections.emptyMap());
         Map<String, Object> data = new HashMap<>();
         data.put("array", randomArrayValues);
         data.put("list", randomList);
@@ -376,7 +372,7 @@ public class MustacheTests extends ESTestCase {
     }
 
     private void assertScript(String script, Map<String, Object> vars, Matcher<Object> matcher) {
-        Object result = engine.executable(new CompiledScript(INLINE, "inline", "mustache", compile(script)), vars).run();
+        Object result = engine.executable(compile(script), vars).run();
         assertThat(result, matcher);
     }
 

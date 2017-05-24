@@ -735,7 +735,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     public void testEnsureConnected() throws IOException, InterruptedException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
             knownNodes.add(seedTransport.getLocalDiscoNode());

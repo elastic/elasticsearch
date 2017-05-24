@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -80,7 +81,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
 
     public static final ConstructingObjectParser<AnomalyRecord, Void> PARSER =
             new ConstructingObjectParser<>(RESULT_TYPE_VALUE, true,
-                    a -> new AnomalyRecord((String) a[0], (Date) a[1], (long) a[2], (int) a[3]));
+                    a -> new AnomalyRecord((String) a[0], (Date) a[1], (long) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -94,7 +95,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
                     + Result.TIMESTAMP.getPreferredName() + "]");
         }, Result.TIMESTAMP, ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), SEQUENCE_NUM);
         PARSER.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
         PARSER.declareDouble(AnomalyRecord::setRecordScore, RECORD_SCORE);
@@ -115,10 +115,11 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         PARSER.declareString(AnomalyRecord::setOverFieldValue, OVER_FIELD_VALUE);
         PARSER.declareObjectArray(AnomalyRecord::setCauses, AnomalyCause.PARSER, CAUSES);
         PARSER.declareObjectArray(AnomalyRecord::setInfluencers, Influence.PARSER, INFLUENCERS);
+        // For bwc with 5.4
+        PARSER.declareInt((anomalyRecord, sequenceNum) -> {}, SEQUENCE_NUM);
     }
 
     private final String jobId;
-    private final int sequenceNum;
     private int detectorIndex;
     private double probability;
     private String byFieldName;
@@ -147,17 +148,19 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
 
     private List<Influence> influences;
 
-    public AnomalyRecord(String jobId, Date timestamp, long bucketSpan, int sequenceNum) {
+    public AnomalyRecord(String jobId, Date timestamp, long bucketSpan) {
         this.jobId = jobId;
         this.timestamp = ExceptionsHelper.requireNonNull(timestamp, Result.TIMESTAMP.getPreferredName());
         this.bucketSpan = bucketSpan;
-        this.sequenceNum = sequenceNum;
     }
 
     @SuppressWarnings("unchecked")
     public AnomalyRecord(StreamInput in) throws IOException {
         jobId = in.readString();
-        sequenceNum = in.readInt();
+        // bwc for removed sequenceNum field
+        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+            in.readInt();
+        }
         detectorIndex = in.readInt();
         probability = in.readDouble();
         byFieldName = in.readOptionalString();
@@ -192,7 +195,10 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        out.writeInt(sequenceNum);
+        // bwc for removed sequenceNum field
+        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+            out.writeInt(0);
+        }
         out.writeInt(detectorIndex);
         out.writeDouble(probability);
         out.writeOptionalString(byFieldName);
@@ -235,6 +241,12 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(PROBABILITY.getPreferredName(), probability);
@@ -242,7 +254,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         builder.field(INITIAL_RECORD_SCORE.getPreferredName(), initialRecordScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
-        builder.field(SEQUENCE_NUM.getPreferredName(), sequenceNum);
         builder.field(Result.IS_INTERIM.getPreferredName(), isInterim);
         builder.dateField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         if (byFieldName != null) {
@@ -292,8 +303,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         for (String fieldName : inputFields.keySet()) {
             builder.field(fieldName, inputFields.get(fieldName));
         }
-
-        builder.endObject();
         return builder;
     }
 
@@ -332,7 +341,12 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
      * Data store ID of this record.
      */
     public String getId() {
-        return jobId + "_" + timestamp.getTime() + "_" + bucketSpan + "_" + sequenceNum;
+        int valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
+        int length = (byFieldValue == null ? 0 : byFieldValue.length()) +
+                (overFieldValue == null ? 0 : overFieldValue.length()) +
+                (partitionFieldValue == null ? 0 : partitionFieldValue.length());
+
+        return jobId + "_record_" + timestamp.getTime() + "_" + bucketSpan + "_" + detectorIndex + "_" + valuesHash + "_" + length;
     }
 
     public int getDetectorIndex() {
@@ -508,11 +522,11 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, detectorIndex, sequenceNum, bucketSpan, probability,
-                recordScore, initialRecordScore, typical, actual,
-                function, functionDescription, fieldName, byFieldName, byFieldValue, correlatedByFieldValue,
-                partitionFieldName, partitionFieldValue, overFieldName, overFieldValue,
-                timestamp, isInterim, causes, influences, jobId);
+        return Objects.hash(jobId, detectorIndex, bucketSpan, probability, recordScore,
+                initialRecordScore, typical, actual,function, functionDescription, fieldName,
+                byFieldName, byFieldValue, correlatedByFieldValue, partitionFieldName,
+                partitionFieldValue, overFieldName, overFieldValue, timestamp, isInterim,
+                causes, influences, jobId);
     }
 
 
@@ -530,7 +544,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
 
         return Objects.equals(this.jobId, that.jobId)
                 && this.detectorIndex == that.detectorIndex
-                && this.sequenceNum == that.sequenceNum
                 && this.bucketSpan == that.bucketSpan
                 && this.probability == that.probability
                 && this.recordScore == that.recordScore

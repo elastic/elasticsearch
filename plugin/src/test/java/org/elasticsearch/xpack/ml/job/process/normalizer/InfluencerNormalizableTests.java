@@ -18,7 +18,7 @@ public class InfluencerNormalizableTests extends ESTestCase {
 
     @Before
     public void setUpInfluencer() {
-        influencer = new Influencer("foo", "airline", "AAL", new Date(), 600, 1);
+        influencer = new Influencer("foo", "airline", "AAL", new Date(), 600);
         influencer.setInfluencerScore(1.0);
         influencer.setInitialInfluencerScore(2.0);
         influencer.setProbability(0.05);

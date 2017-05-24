@@ -28,12 +28,12 @@ public class BucketNormalizableTests extends ESTestCase {
     public void setUpBucket() {
         bucket = new Bucket("foo", new Date(), 600);
 
-        BucketInfluencer bucketInfluencer1 = new BucketInfluencer("foo", bucket.getTimestamp(), 600, 1);
+        BucketInfluencer bucketInfluencer1 = new BucketInfluencer("foo", bucket.getTimestamp(), 600);
         bucketInfluencer1.setInfluencerFieldName(BucketInfluencer.BUCKET_TIME);
         bucketInfluencer1.setAnomalyScore(42.0);
         bucketInfluencer1.setProbability(0.01);
 
-        BucketInfluencer bucketInfluencer2 = new BucketInfluencer("foo", bucket.getTimestamp(), 600, 2);
+        BucketInfluencer bucketInfluencer2 = new BucketInfluencer("foo", bucket.getTimestamp(), 600);
         bucketInfluencer2.setInfluencerFieldName("foo");
         bucketInfluencer2.setAnomalyScore(88.0);
         bucketInfluencer2.setProbability(0.001);
@@ -42,9 +42,9 @@ public class BucketNormalizableTests extends ESTestCase {
 
         bucket.setAnomalyScore(88.0);
 
-        AnomalyRecord record1 = new AnomalyRecord("foo", bucket.getTimestamp(), 600, 3);
+        AnomalyRecord record1 = new AnomalyRecord("foo", bucket.getTimestamp(), 600);
         record1.setRecordScore(1.0);
-        AnomalyRecord record2 = new AnomalyRecord("foo", bucket.getTimestamp(), 600, 4);
+        AnomalyRecord record2 = new AnomalyRecord("foo", bucket.getTimestamp(), 600);
         record2.setRecordScore(2.0);
         bucket.setRecords(Arrays.asList(record1, record2));
 

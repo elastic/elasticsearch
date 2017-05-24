@@ -109,7 +109,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
     }
 
     public String getId() {
-        return jobId + "_" + timestamp.getTime() + "_" + bucketSpan + "_" + RESULT_TYPE_VALUE;
+        return jobId + "_" + RESULT_TYPE_VALUE + "_" + timestamp.getTime() + "_" + bucketSpan;
     }
 
     public Date getTimestamp() {

@@ -26,8 +26,7 @@ setup:
             "influencer_field_value": "bar",
             "influencer_score": 50.0,
             "result_type" : "influencer",
-            "bucket_span" : 1,
-            "sequence_num" : 1
+            "bucket_span" : 1
           }
 
   - do:
@@ -44,7 +43,6 @@ setup:
             "influencer_score": 80.0,
             "result_type" : "influencer",
             "bucket_span" : 1,
-            "sequence_num" : 2,
             "is_interim": true
           }
 
@@ -61,8 +59,7 @@ setup:
             "influencer_field_value": "zoo",
             "influencer_score": 60.0,
             "result_type" : "influencer",
-            "bucket_span" : 1,
-            "sequence_num" : 2
+            "bucket_span" : 1
           }
 
   - do:

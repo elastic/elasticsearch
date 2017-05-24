@@ -121,8 +121,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context("foo", false, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
-        AnomalyRecord record1 = new AnomalyRecord("foo", new Date(123), 123, 1);
-        AnomalyRecord record2 = new AnomalyRecord("foo", new Date(123), 123, 2);
+        AnomalyRecord record1 = new AnomalyRecord("foo", new Date(123), 123);
+        AnomalyRecord record2 = new AnomalyRecord("foo", new Date(123), 123);
         List<AnomalyRecord> records = Arrays.asList(record1, record2);
         when(result.getRecords()).thenReturn(records);
         processorUnderTest.processResult(context, result);
@@ -139,9 +139,9 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context("foo", true, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
-        AnomalyRecord record1 = new AnomalyRecord("foo", new Date(123), 123, 1);
+        AnomalyRecord record1 = new AnomalyRecord("foo", new Date(123), 123);
         record1.setPartitionFieldValue("pValue");
-        AnomalyRecord record2 = new AnomalyRecord("foo", new Date(123), 123, 2);
+        AnomalyRecord record2 = new AnomalyRecord("foo", new Date(123), 123);
         record2.setPartitionFieldValue("pValue");
         List<AnomalyRecord> records = Arrays.asList(record1, record2);
         when(result.getRecords()).thenReturn(records);
@@ -160,8 +160,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
-        Influencer influencer1 = new Influencer(JOB_ID, "infField", "infValue", new Date(123), 123, 1);
-        Influencer influencer2 = new Influencer(JOB_ID, "infField2", "infValue2", new Date(123), 123, 1);
+        Influencer influencer1 = new Influencer(JOB_ID, "infField", "infValue", new Date(123), 123);
+        Influencer influencer2 = new Influencer(JOB_ID, "infField2", "infValue2", new Date(123), 123);
         List<Influencer> influencers = Arrays.asList(influencer1, influencer2);
         when(result.getInfluencers()).thenReturn(influencers);
         processorUnderTest.processResult(context, result);

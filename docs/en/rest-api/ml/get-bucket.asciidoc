@@ -120,7 +120,6 @@ score and time constraints:
           "probability": 0.00000575042,
           "timestamp": 1454943900000,
           "bucket_span": 300,
-          "sequence_num": 2,
           "is_interim": false
         }
       ],

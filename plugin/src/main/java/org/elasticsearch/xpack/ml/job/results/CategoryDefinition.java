@@ -46,12 +46,8 @@ public class CategoryDefinition extends ToXContentToBytes implements Writeable {
         PARSER.declareStringArray(CategoryDefinition::setExamples, EXAMPLES);
     }
 
-    public static String documentId(String jobId, String categoryId) {
-        return jobId + "-" + categoryId;
-    }
-
     private final String jobId;
-    private long id = 0L;
+    private long categoryId = 0L;
     private String terms = "";
     private String regex = "";
     private long maxMatchingLength = 0L;
@@ -64,7 +60,7 @@ public class CategoryDefinition extends ToXContentToBytes implements Writeable {
 
     public CategoryDefinition(StreamInput in) throws IOException {
         jobId = in.readString();
-        id = in.readLong();
+        categoryId = in.readLong();
         terms = in.readString();
         regex = in.readString();
         maxMatchingLength = in.readLong();
@@ -74,7 +70,7 @@ public class CategoryDefinition extends ToXContentToBytes implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        out.writeLong(id);
+        out.writeLong(categoryId);
         out.writeString(terms);
         out.writeString(regex);
         out.writeLong(maxMatchingLength);
@@ -85,12 +81,16 @@ public class CategoryDefinition extends ToXContentToBytes implements Writeable {
         return jobId;
     }
 
+    public String getId() {
+        return jobId + "_category_definition_" + categoryId;
+    }
+
     public long getCategoryId() {
-        return id;
+        return categoryId;
     }
 
     public void setCategoryId(long categoryId) {
-        id = categoryId;
+        this.categoryId = categoryId;
     }
 
     public String getTerms() {
@@ -134,7 +134,7 @@ public class CategoryDefinition extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
-        builder.field(CATEGORY_ID.getPreferredName(), id);
+        builder.field(CATEGORY_ID.getPreferredName(), categoryId);
         builder.field(TERMS.getPreferredName(), terms);
         builder.field(REGEX.getPreferredName(), regex);
         builder.field(MAX_MATCHING_LENGTH.getPreferredName(), maxMatchingLength);
@@ -153,7 +153,7 @@ public class CategoryDefinition extends ToXContentToBytes implements Writeable {
         }
         CategoryDefinition that = (CategoryDefinition) other;
         return Objects.equals(this.jobId, that.jobId)
-                && Objects.equals(this.id, that.id)
+                && Objects.equals(this.categoryId, that.categoryId)
                 && Objects.equals(this.terms, that.terms)
                 && Objects.equals(this.regex, that.regex)
                 && Objects.equals(this.maxMatchingLength, that.maxMatchingLength)
@@ -162,6 +162,6 @@ public class CategoryDefinition extends ToXContentToBytes implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, id, terms, regex, maxMatchingLength, examples);
+        return Objects.hash(jobId, categoryId, terms, regex, maxMatchingLength, examples);
     }
 }

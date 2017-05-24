@@ -104,6 +104,12 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
         assertFalse(category2.equals(category1));
     }
 
+    public void testId() {
+        CategoryDefinition category = new CategoryDefinition("job-foo");
+        category.setCategoryId(5L);
+        assertEquals("job-foo_category_definition_5", category.getId());
+    }
+
     private static CategoryDefinition createFullyPopulatedCategoryDefinition() {
         CategoryDefinition category = new CategoryDefinition("jobName");
         category.setCategoryId(42);

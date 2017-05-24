@@ -43,7 +43,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         bucket.setProcessingTimeMs(8888);
         bucket.setRecordCount(1);
 
-        BucketInfluencer bi = new BucketInfluencer(JOB_ID, new Date(), 600, 1);
+        BucketInfluencer bi = new BucketInfluencer(JOB_ID, new Date(), 600);
         bi.setAnomalyScore(14.15);
         bi.setInfluencerFieldName("biOne");
         bi.setInitialAnomalyScore(18.12);
@@ -52,7 +52,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         bucket.addBucketInfluencer(bi);
 
         // We are adding a record but it shouldn't be persisted as part of the bucket
-        AnomalyRecord record = new AnomalyRecord(JOB_ID, new Date(), 600, 2);
+        AnomalyRecord record = new AnomalyRecord(JOB_ID, new Date(), 600);
         bucket.setRecords(Arrays.asList(record));
 
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
@@ -83,7 +83,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         Client client = mockClient(captor);
 
         List<AnomalyRecord> records = new ArrayList<>();
-        AnomalyRecord r1 = new AnomalyRecord(JOB_ID, new Date(), 42, 1);
+        AnomalyRecord r1 = new AnomalyRecord(JOB_ID, new Date(), 42);
         records.add(r1);
         List<Double> actuals = new ArrayList<>();
         actuals.add(5.0);
@@ -138,7 +138,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         Client client = mockClient(captor);
 
         List<Influencer> influencers = new ArrayList<>();
-        Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1", new Date(), 600, 1);
+        Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1", new Date(), 600);
         inf.setInfluencerScore(16);
         inf.setInitialInfluencerScore(55.5);
         inf.setProbability(0.4);
@@ -163,7 +163,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
 
         List<Influencer> influencers = new ArrayList<>();
-        Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1", new Date(), 600, 1);
+        Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1", new Date(), 600);
         inf.setInfluencerScore(16);
         inf.setInitialInfluencerScore(55.5);
         inf.setProbability(0.4);

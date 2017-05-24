@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 import org.joda.time.DateTime;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -73,8 +74,13 @@ public class PerPartitionMaxProbabilitiesTests extends AbstractSerializingTestCa
         assertEquals(90.0, ppMax.getMaxProbabilityForPartition("B"), 0.0001);
     }
 
+    public void testId() {
+        PerPartitionMaxProbabilities ppMax = new PerPartitionMaxProbabilities("job-foo", new Date(100L), 300L, Collections.emptyList());
+        assertEquals("job-foo_partition_normalized_probs_100_300", ppMax.getId());
+    }
+
     private AnomalyRecord createAnomalyRecord(String partitionFieldValue, double recordScore) {
-        AnomalyRecord record = new AnomalyRecord("foo", new Date(), 600, 1);
+        AnomalyRecord record = new AnomalyRecord("foo", new Date(), 600);
         record.setPartitionFieldValue(partitionFieldValue);
         record.setRecordScore(recordScore);
         return record;

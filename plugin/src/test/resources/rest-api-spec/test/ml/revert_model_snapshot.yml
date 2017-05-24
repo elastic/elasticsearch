@@ -124,8 +124,7 @@ setup:
             "job_id": "revert-model-snapshot",
             "result_type": "record",
             "timestamp": "2016-06-02T00:00:00Z",
-            "bucket_span":1,
-            "sequence_num":1
+            "bucket_span":1
           }
 
   - do:
@@ -138,8 +137,7 @@ setup:
               "job_id": "revert-model-snapshot",
               "result_type": "record",
               "timestamp": "2016-05-01T00:00:00Z",
-              "bucket_span":1,
-              "sequence_num":2
+              "bucket_span":1
            }
 
   - do:
@@ -154,8 +152,7 @@ setup:
                   "influencer_field_name": "revert-model-snapshot",
                   "influencer_field_value": "zoo",
                   "influencer_score": 50.0,
-                  "bucket_span": 1,
-                  "sequence_num": 3
+                  "bucket_span": 1
                 }
 
   - do:
@@ -171,8 +168,7 @@ setup:
               "influencer_field_name": "revert-model-snapshot",
               "influencer_field_value": "zoo",
               "influencer_score": 50.0,
-              "bucket_span": 1,
-              "sequence_num": 4
+              "bucket_span": 1
             }
 
   - do:

@@ -6,7 +6,9 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
@@ -18,16 +20,17 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecord> {
 
     @Override
     protected AnomalyRecord createTestInstance() {
-        return createTestInstance("foo", 1);
+        return createTestInstance("foo");
     }
 
-    public AnomalyRecord createTestInstance(String jobId, int sequenceNum) {
-        AnomalyRecord anomalyRecord = new AnomalyRecord(jobId, new Date(randomNonNegativeLong()), randomNonNegativeLong(), sequenceNum);
+    public AnomalyRecord createTestInstance(String jobId) {
+        AnomalyRecord anomalyRecord = new AnomalyRecord(jobId, new Date(randomNonNegativeLong()), randomNonNegativeLong());
         anomalyRecord.setActual(Collections.singletonList(randomDouble()));
         anomalyRecord.setTypical(Collections.singletonList(randomDouble()));
         anomalyRecord.setProbability(randomDouble());
@@ -152,5 +155,47 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         Object value = parser.map().get(AnomalyRecord.BUCKET_SPAN.getPreferredName());
         assertNotEquals("bar", value);
         assertEquals((Long)record.getBucketSpan(), (Long)value);
+    }
+
+    public void testId() {
+        AnomalyRecord record = new AnomalyRecord("test-job", new Date(1000), 60L);
+        String byFieldValue = null;
+        String overFieldValue = null;
+        String partitionFieldValue = null;
+
+        int valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
+        assertEquals("test-job_record_1000_60_0_" + valuesHash + "_0", record.getId());
+
+        int length = 0;
+        if (randomBoolean()) {
+            byFieldValue = randomAlphaOfLength(10);
+            length += byFieldValue.length();
+            record.setByFieldValue(byFieldValue);
+        }
+        if (randomBoolean()) {
+            overFieldValue = randomAlphaOfLength(10);
+            length += overFieldValue.length();
+            record.setOverFieldValue(overFieldValue);
+        }
+        if (randomBoolean()) {
+            partitionFieldValue = randomAlphaOfLength(10);
+            length += partitionFieldValue.length();
+            record.setPartitionFieldValue(partitionFieldValue);
+        }
+
+        valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
+        assertEquals("test-job_record_1000_60_0_" + valuesHash + "_" + length, record.getId());
+    }
+
+    public void testParsingv54WithSequenceNumField() throws IOException {
+        AnomalyRecord record = createTestInstance();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject();
+        builder.field(AnomalyRecord.SEQUENCE_NUM.getPreferredName(), 1);
+        record.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        XContentParser parser = createParser(builder);
+        AnomalyRecord serialised = parseInstance(parser);
+        assertEquals(record, serialised);
     }
 }

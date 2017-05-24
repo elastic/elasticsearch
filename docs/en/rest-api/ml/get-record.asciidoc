@@ -95,7 +95,6 @@ time constraints:
       "initial_record_score": 65.7923,
       "bucket_span": 300,
       "detector_index": 0,
-      "sequence_num": 1,
       "is_interim": false,
       "timestamp": 1454944200000,
       "function": "low_sum",

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,14 +43,14 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
     public static final ParseField MODEL_UPPER = new ParseField("model_upper");
     public static final ParseField MODEL_MEDIAN = new ParseField("model_median");
     public static final ParseField ACTUAL = new ParseField("actual");
+    public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
 
     public static final ConstructingObjectParser<ModelPlot, Void> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new ModelPlot((String) a[0]));
+            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new ModelPlot((String) a[0], (Date) a[1], (long) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareString((modelPlot, s) -> {}, Result.RESULT_TYPE);
-        PARSER.declareField(ModelPlot::setTimestamp, p -> {
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -58,6 +59,8 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
                     + Result.TIMESTAMP.getPreferredName() + "]");
         }, Result.TIMESTAMP, ValueType.VALUE);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
+        PARSER.declareString((modelPlot, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareString(ModelPlot::setPartitionFieldName, PARTITION_FIELD_NAME);
         PARSER.declareString(ModelPlot::setPartitionFieldValue, PARTITION_FIELD_VALUE);
         PARSER.declareString(ModelPlot::setOverFieldName, OVER_FIELD_NAME);
@@ -72,8 +75,8 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
     }
 
     private final String jobId;
-    private Date timestamp;
-    private String id;
+    private final Date timestamp;
+    private final long bucketSpan;
     private String partitionFieldName;
     private String partitionFieldValue;
     private String overFieldName;
@@ -86,16 +89,28 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
     private double modelMedian;
     private double actual;
 
-    public ModelPlot(String jobId) {
+    public ModelPlot(String jobId, Date timestamp, long bucketSpan) {
         this.jobId = jobId;
+        this.timestamp = timestamp;
+        this.bucketSpan = bucketSpan;
     }
 
     public ModelPlot(StreamInput in) throws IOException {
         jobId = in.readString();
-        if (in.readBoolean()) {
+        // timestamp isn't optional in v5.5
+        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+            if (in.readBoolean()) {
+                timestamp = new Date(in.readLong());
+            } else {
+                timestamp = new Date();
+            }
+        } else {
             timestamp = new Date(in.readLong());
         }
-        id = in.readOptionalString();
+        // bwc for removed id field
+        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+            in.readOptionalString();
+        }
         partitionFieldName = in.readOptionalString();
         partitionFieldValue = in.readOptionalString();
         overFieldName = in.readOptionalString();
@@ -107,17 +122,30 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
         modelUpper = in.readDouble();
         modelMedian = in.readDouble();
         actual = in.readDouble();
+        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            bucketSpan = in.readLong();
+        } else {
+            bucketSpan = 0;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        boolean hasTimestamp = timestamp != null;
-        out.writeBoolean(hasTimestamp);
-        if (hasTimestamp) {
+        // timestamp isn't optional in v5.5
+        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+            boolean hasTimestamp = timestamp != null;
+            out.writeBoolean(hasTimestamp);
+            if (hasTimestamp) {
+                out.writeLong(timestamp.getTime());
+            }
+        } else {
             out.writeLong(timestamp.getTime());
         }
-        out.writeOptionalString(id);
+        // bwc for removed id field
+        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+            out.writeOptionalString(null);
+        }
         out.writeOptionalString(partitionFieldName);
         out.writeOptionalString(partitionFieldValue);
         out.writeOptionalString(overFieldName);
@@ -129,6 +157,9 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
         out.writeDouble(modelUpper);
         out.writeDouble(modelMedian);
         out.writeDouble(actual);
+        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            out.writeLong(bucketSpan);
+        }
     }
 
     @Override
@@ -136,6 +167,7 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
+        builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         if (timestamp != null) {
             builder.dateField(Result.TIMESTAMP.getPreferredName(), 
                     Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
@@ -174,19 +206,20 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
     }
 
     public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
+        int valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
+        int length = (byFieldValue == null ? 0 : byFieldValue.length()) +
+                (overFieldValue == null ? 0 : overFieldValue.length()) +
+                (partitionFieldValue == null ? 0 : partitionFieldValue.length());
+        return jobId + "_model_plot_" + timestamp.getTime() + "_" + bucketSpan + "_" +
+                (modelFeature == null ? "" : modelFeature) + "_" + valuesHash + "_" + length;
     }
 
     public Date getTimestamp() {
         return timestamp;
     }
 
-    public void setTimestamp(Date timestamp) {
-        this.timestamp = timestamp;
+    public long getBucketSpan() {
+        return bucketSpan;
     }
 
     public String getPartitionFieldName() {
@@ -285,7 +318,6 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
         if (other instanceof ModelPlot == false) {
             return false;
         }
-        // id excluded here as it is generated by the datastore
         ModelPlot that = (ModelPlot) other;
         return Objects.equals(this.jobId, that.jobId) &&
                 Objects.equals(this.timestamp, that.timestamp) &&
@@ -299,14 +331,14 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
                 this.modelLower == that.modelLower &&
                 this.modelUpper == that.modelUpper &&
                 this.modelMedian == that.modelMedian &&
-                this.actual == that.actual;
+                this.actual == that.actual &&
+                this.bucketSpan ==  that.bucketSpan;
     }
 
     @Override
     public int hashCode() {
-        // id excluded here as it is generated by the datastore
         return Objects.hash(jobId, timestamp, partitionFieldName, partitionFieldValue,
                 overFieldName, overFieldValue, byFieldName, byFieldValue,
-                modelFeature, modelLower, modelUpper, modelMedian, actual);
+                modelFeature, modelLower, modelUpper, modelMedian, actual, bucketSpan);
     }
 }

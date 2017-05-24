@@ -24,8 +24,7 @@ setup:
             "result_type": "record",
             "timestamp": "2016-06-01T00:00:00Z",
             "record_score": 60.0,
-            "bucket_span": 1,
-            "sequence_num": 1
+            "bucket_span": 1
           }
 
   - do:
@@ -40,7 +39,6 @@ setup:
               "timestamp": "2016-06-02T00:00:00Z",
               "record_score": 80.0,
               "bucket_span": 1,
-              "sequence_num": 2,
               "is_interim": true
             }
 

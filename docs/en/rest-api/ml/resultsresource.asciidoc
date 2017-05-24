@@ -169,9 +169,6 @@ An bucket influencer object has the following properties:
 `result_type`::
   (string) Internal. This value is always set to `bucket_influencer`.
 
-`sequence_num`::
-  (number) Internal.
-
 `timestamp`::
   (date) The start time of the bucket for which these results were calculated.
 
@@ -243,9 +240,6 @@ An influencer object has the following properties:
 
 `result_type`::
   (string) Internal. This value is always set to `influencer`.
-
-`sequence_num`::
-  (number) Internal.
 
 `timestamp`::
   (date) The start time of the bucket for which these results were calculated.
@@ -373,9 +367,6 @@ A record object has the following properties:
 
 `result_type`::
   (string) Internal. This is always set to `record`.
-
-`sequence_num`::
-  (number) Internal.
 
 `timestamp`::
   (date) The start time of the bucket for which these results were calculated.

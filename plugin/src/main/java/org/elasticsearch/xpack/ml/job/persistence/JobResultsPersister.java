@@ -224,7 +224,8 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistCategoryDefinition(CategoryDefinition category) {
         Persistable persistable = new Persistable(category.getJobId(), category, CategoryDefinition.TYPE.getPreferredName(),
-                CategoryDefinition.documentId(category.getJobId(), Long.toString(category.getCategoryId())));
+                                category.getId());
+
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(category.getJobId())).actionGet();
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
@@ -264,7 +265,7 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistModelSizeStats(ModelSizeStats modelSizeStats) {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
-        Persistable persistable = new Persistable(jobId, modelSizeStats, Result.TYPE.getPreferredName(), modelSizeStats.documentId());
+        Persistable persistable = new Persistable(jobId, modelSizeStats, Result.TYPE.getPreferredName(), modelSizeStats.getId());
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).actionGet();
         // Don't commit as we expect masses of these updates and they're only
         // for information at the API level
@@ -277,7 +278,7 @@ public class JobResultsPersister extends AbstractComponent {
                                       ActionListener<IndexResponse> listener) {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
-        Persistable persistable = new Persistable(jobId, modelSizeStats, Result.TYPE.getPreferredName(), modelSizeStats.documentId());
+        Persistable persistable = new Persistable(jobId, modelSizeStats, Result.TYPE.getPreferredName(), modelSizeStats.getId());
         persistable.setRefreshPolicy(refreshPolicy);
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId), listener);
         // Don't commit as we expect masses of these updates and they're only
@@ -288,7 +289,7 @@ public class JobResultsPersister extends AbstractComponent {
      * Persist model plot output
      */
     public void persistModelPlot(ModelPlot modelPlot) {
-        Persistable persistable = new Persistable(modelPlot.getJobId(), modelPlot, Result.TYPE.getPreferredName(), null);
+        Persistable persistable = new Persistable(modelPlot.getJobId(), modelPlot, Result.TYPE.getPreferredName(), modelPlot.getId());
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(modelPlot.getJobId())).actionGet();
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process

@@ -25,16 +25,6 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
         assertEquals(MemoryStatus.OK, stats.getMemoryStatus());
     }
 
-    public void testDocumentId() {
-        ModelSizeStats.Builder stats1 = new ModelSizeStats.Builder("foo");
-        stats1.setLogTime(new Date(123456789L));
-        assertEquals("foo-model_size_stats-123456789", stats1.build().documentId());
-
-        ModelSizeStats.Builder stats2 = new ModelSizeStats.Builder("bar");
-        stats2.setLogTime(new Date(987654321L));
-        assertEquals("bar-model_size_stats-987654321", stats2.build().documentId());
-    }
-
     public void testSetMemoryStatus_GivenNull() {
         ModelSizeStats.Builder stats = new ModelSizeStats.Builder("foo");
 
@@ -93,5 +83,10 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
     @Override
     protected ModelSizeStats parseInstance(XContentParser parser) {
         return ModelSizeStats.PARSER.apply(parser, null).build();
+    }
+
+    public void testId() {
+        ModelSizeStats stats = new ModelSizeStats.Builder("job-foo").setLogTime(new Date(100)).build();
+        assertEquals("job-foo_model_size_stats_100", stats.getId());
     }
 }

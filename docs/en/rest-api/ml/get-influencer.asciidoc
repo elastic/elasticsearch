@@ -94,7 +94,6 @@ influencer score in descending order:
       "influencer_score": 94.1386,
       "initial_influencer_score": 94.1386,
       "probability": 0.000111612,
-      "sequence_num": 2,
       "bucket_span": 600,
       "is_interim": false,
       "timestamp": 1454943600000

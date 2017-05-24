@@ -48,9 +48,8 @@ public class JobRenormalizedResultsPersisterTests extends ESTestCase {
     private BucketNormalizable createBucketNormalizable() {
         Date now = new Date();
         Bucket bucket = new Bucket("foo", now, 1);
-        int sequenceNum = 0;
-        bucket.addBucketInfluencer(new BucketInfluencer("foo", now, 1, sequenceNum++));
-        bucket.addBucketInfluencer(new BucketInfluencer("foo", now, 1, sequenceNum++));
+        bucket.addBucketInfluencer(new BucketInfluencer("foo", now, 1));
+        bucket.addBucketInfluencer(new BucketInfluencer("foo", now, 1));
         return new BucketNormalizable(bucket, "foo-index");
     }
 }

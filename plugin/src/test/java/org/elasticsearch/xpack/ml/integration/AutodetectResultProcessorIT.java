@@ -281,7 +281,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         int count = randomIntBetween(0, 100);
         Date now = new Date(randomNonNegativeLong());
         for (int i=0; i<count; i++) {
-            AnomalyRecord r = new AnomalyRecord(JOB_ID, now, 3600L, i);
+            AnomalyRecord r = new AnomalyRecord(JOB_ID, now, 3600L);
             r.setByFieldName("by_instance");
             r.setByFieldValue(randomAlphaOfLength(8));
             r.setInterim(isInterim);
@@ -296,7 +296,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         int count = randomIntBetween(0, 100);
         Date now = new Date();
         for (int i=0; i<count; i++) {
-            Influencer influencer = new Influencer(JOB_ID, "influence_field", randomAlphaOfLength(10), now, 3600L, i);
+            Influencer influencer = new Influencer(JOB_ID, "influence_field", randomAlphaOfLength(10), now, 3600L);
             influencer.setInterim(isInterim);
             influencers.add(influencer);
         }

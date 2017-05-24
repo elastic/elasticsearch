@@ -73,7 +73,6 @@ public final class ReservedFieldNames {
             AnomalyRecord.RECORD_SCORE.getPreferredName(),
             AnomalyRecord.INITIAL_RECORD_SCORE.getPreferredName(),
             AnomalyRecord.BUCKET_SPAN.getPreferredName(),
-            AnomalyRecord.SEQUENCE_NUM.getPreferredName(),
 
             Bucket.ANOMALY_SCORE.getPreferredName(),
             Bucket.BUCKET_INFLUENCERS.getPreferredName(),
@@ -119,7 +118,6 @@ public final class ReservedFieldNames {
             Influencer.INITIAL_INFLUENCER_SCORE.getPreferredName(),
             Influencer.INFLUENCER_SCORE.getPreferredName(),
             Influencer.BUCKET_SPAN.getPreferredName(),
-            Influencer.SEQUENCE_NUM.getPreferredName(),
 
             ModelPlot.PARTITION_FIELD_NAME.getPreferredName(), ModelPlot.PARTITION_FIELD_VALUE.getPreferredName(),
             ModelPlot.OVER_FIELD_NAME.getPreferredName(), ModelPlot.OVER_FIELD_VALUE.getPreferredName(),

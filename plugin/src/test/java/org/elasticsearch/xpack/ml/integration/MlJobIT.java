@@ -204,9 +204,9 @@ public class MlJobIT extends ESRestTestCase {
 
         createFarequoteJob(jobId);
 
-        addRecordResult(jobId, "1234", 1, 1);
-        addRecordResult(jobId, "1235", 1, 2);
-        addRecordResult(jobId, "1236", 1, 3);
+        addRecordResult(jobId, "1234", 1);
+        addRecordResult(jobId, "1235", 1);
+        addRecordResult(jobId, "1236", 1);
         Response response = client().performRequest("get",
                 MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/results/records", params);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -551,7 +551,7 @@ public class MlJobIT extends ESRestTestCase {
         // Add some documents to each index to make sure the DBQ clears them out
         String recordResult =
                 String.format(Locale.ROOT,
-                        "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"sequence_num\": %d, \"result_type\":\"record\"}",
+                        "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"result_type\":\"record\"}",
                         jobId, 123, 1, 1);
         client().performRequest("put", indexName + "/result/" + 123,
                 Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
@@ -637,7 +637,7 @@ public class MlJobIT extends ESRestTestCase {
                 Collections.singletonMap("refresh", "true"), new StringEntity(bucketResult, ContentType.APPLICATION_JSON));
     }
 
-    private Response addRecordResult(String jobId, String timestamp, long bucketSpan, int sequenceNum) throws Exception {
+    private Response addRecordResult(String jobId, String timestamp, long bucketSpan) throws Exception {
         try {
             client().performRequest("put",
                     AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT,
@@ -650,8 +650,8 @@ public class MlJobIT extends ESRestTestCase {
 
         String recordResult =
                 String.format(Locale.ROOT,
-                        "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"sequence_num\": %d, \"result_type\":\"record\"}",
-                        jobId, timestamp, bucketSpan, sequenceNum);
+                        "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"result_type\":\"record\"}",
+                        jobId, timestamp, bucketSpan);
         return client().performRequest("put", AnomalyDetectorsIndex.jobResultsAliasedName(jobId) + "/result/" + timestamp,
                 Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
     }

@@ -22,7 +22,7 @@ public class GetRecordsActionResponseTests extends AbstractStreamableTestCase<Ge
         List<AnomalyRecord> hits = new ArrayList<>(listSize);
         String jobId = randomAlphaOfLengthBetween(1, 20);
         for (int j = 0; j < listSize; j++) {
-            AnomalyRecord record = new AnomalyRecord(jobId, new Date(), 600, j + 1);
+            AnomalyRecord record = new AnomalyRecord(jobId, new Date(), 600);
             hits.add(record);
         }
         QueryPage<AnomalyRecord> snapshots = new QueryPage<>(hits, listSize, AnomalyRecord.RESULTS_FIELD);

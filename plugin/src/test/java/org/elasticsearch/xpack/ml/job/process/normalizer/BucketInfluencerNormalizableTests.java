@@ -19,7 +19,7 @@ public class BucketInfluencerNormalizableTests extends ESTestCase {
 
     @Before
     public void setUpBucketInfluencer() {
-        bucketInfluencer = new BucketInfluencer("foo", new Date(), 600, 1);
+        bucketInfluencer = new BucketInfluencer("foo", new Date(), 600);
         bucketInfluencer.setInfluencerFieldName("airline");
         bucketInfluencer.setProbability(0.05);
         bucketInfluencer.setRawAnomalyScore(3.14);
@@ -34,7 +34,7 @@ public class BucketInfluencerNormalizableTests extends ESTestCase {
     public void testGetLevel() {
         assertEquals(Level.BUCKET_INFLUENCER, new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getLevel());
 
-        BucketInfluencer timeInfluencer = new BucketInfluencer("foo", new Date(), 600, 1);
+        BucketInfluencer timeInfluencer = new BucketInfluencer("foo", new Date(), 600);
         timeInfluencer.setInfluencerFieldName(BucketInfluencer.BUCKET_TIME);
         assertEquals(Level.ROOT, new BucketInfluencerNormalizable(timeInfluencer, INDEX_NAME).getLevel());
     }

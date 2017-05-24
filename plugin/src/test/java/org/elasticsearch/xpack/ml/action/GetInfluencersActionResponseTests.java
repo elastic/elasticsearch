@@ -22,7 +22,7 @@ public class GetInfluencersActionResponseTests extends AbstractStreamableTestCas
         List<Influencer> hits = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
             Influencer influencer = new Influencer(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20),
-                    randomAlphaOfLengthBetween(1, 20), new Date(randomNonNegativeLong()), randomNonNegativeLong(), j + 1);
+                    randomAlphaOfLengthBetween(1, 20), new Date(randomNonNegativeLong()), randomNonNegativeLong());
             influencer.setInfluencerScore(randomDouble());
             influencer.setInitialInfluencerScore(randomDouble());
             influencer.setProbability(randomDouble());

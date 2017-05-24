@@ -37,7 +37,7 @@ public class NormalizerTests extends ESTestCase {
     }
 
     private BucketInfluencer createTimeBucketInfluencer(Date timestamp, double probability, double anomalyScore) {
-        BucketInfluencer influencer = new BucketInfluencer(JOB_ID, timestamp, BUCKET_SPAN, 1);
+        BucketInfluencer influencer = new BucketInfluencer(JOB_ID, timestamp, BUCKET_SPAN);
         influencer.setInfluencerFieldName(BucketInfluencer.BUCKET_TIME);
         influencer.setProbability(probability);
         influencer.setInitialAnomalyScore(anomalyScore);

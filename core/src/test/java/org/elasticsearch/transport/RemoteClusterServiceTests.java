@@ -223,7 +223,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-
     public void testRemoteNodeAttribute() throws IOException, InterruptedException {
         final Settings settings =
                 Settings.builder().put("search.remote.node.attr", "gateway").build();

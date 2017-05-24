@@ -267,6 +267,18 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return connection.getConnection(node);
     }
 
+    /**
+     * Ensures that the given cluster alias is connected. If the cluster is connected this operation
+     * will invoke the listener immediately.
+     */
+    public void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
+        RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterAlias);
+        if (remoteClusterConnection == null) {
+            throw new IllegalArgumentException("no such remote cluster: " + clusterAlias);
+        }
+        remoteClusterConnection.ensureConnected(listener);
+    }
+
     public Transport.Connection getConnection(String cluster) {
         RemoteClusterConnection connection = remoteClusters.get(cluster);
         if (connection == null) {

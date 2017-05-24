@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import java.util.regex.Matcher
+
 import org.elasticsearch.gradle.LoggedExec
 
 /**
@@ -81,14 +81,19 @@ if (bwcVersion.endsWith('-SNAPSHOT')) {
     commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]
   }
 
+  File bwcDeb = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.deb")
+  File bwcRpm = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.rpm")
   File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.zip")
   task buildBwcVersion(type: GradleBuild) {
     dependsOn checkoutBwcBranch
     dir = checkoutDir
-    tasks = [':distribution:zip:assemble']
+    tasks = [':distribution:deb:assemble', ':distribution:rpm:assemble', ':distribution:zip:assemble']
   }
 
+
   artifacts {
+    'default' file: bwcDeb, name: 'elasticsearch', type: 'deb', builtBy: buildBwcVersion
+    'default' file: bwcRpm, name: 'elasticsearch', type: 'rpm', builtBy: buildBwcVersion
     'default' file: bwcZip, name: 'elasticsearch', type: 'zip', builtBy: buildBwcVersion
   }
 }

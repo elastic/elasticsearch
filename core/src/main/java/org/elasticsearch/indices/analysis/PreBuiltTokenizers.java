@@ -65,13 +65,6 @@ public enum PreBuiltTokenizers {
         }
     },
 
-    KEYWORD(CachingStrategy.ONE) {
-        @Override
-        protected Tokenizer create(Version version) {
-            return new KeywordTokenizer();
-        }
-    },
-
     LETTER(CachingStrategy.ONE) {
         @Override
         protected Tokenizer create(Version version) {

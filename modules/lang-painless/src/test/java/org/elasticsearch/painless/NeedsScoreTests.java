@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -39,20 +40,20 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY);
         SearchLookup lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
 
-        Object compiled = service.compile(null, "1.2", Collections.emptyMap());
-        SearchScript ss = service.search(compiled, lookup, Collections.emptyMap());
+        SearchScript.Compiled compiled = service.compile(null, "1.2", ScriptContext.SEARCH, Collections.emptyMap());
+        SearchScript ss = compiled.newInstance(Collections.emptyMap(), lookup);
         assertFalse(ss.needsScores());
 
-        compiled = service.compile(null, "doc['d'].value", Collections.emptyMap());
-        ss = service.search(compiled, lookup, Collections.emptyMap());
+        compiled = service.compile(null, "doc['d'].value", ScriptContext.SEARCH, Collections.emptyMap());
+        ss = compiled.newInstance(Collections.emptyMap(), lookup);
         assertFalse(ss.needsScores());
 
-        compiled = service.compile(null, "1/_score", Collections.emptyMap());
-        ss = service.search(compiled, lookup, Collections.emptyMap());
+        compiled = service.compile(null, "1/_score", ScriptContext.SEARCH, Collections.emptyMap());
+        ss = compiled.newInstance(Collections.emptyMap(), lookup);
         assertTrue(ss.needsScores());
 
-        compiled = service.compile(null, "doc['d'].value * _score", Collections.emptyMap());
-        ss = service.search(compiled, lookup, Collections.emptyMap());
+        compiled = service.compile(null, "doc['d'].value * _score", ScriptContext.SEARCH, Collections.emptyMap());
+        ss = compiled.newInstance(Collections.emptyMap(), lookup);
         assertTrue(ss.needsScores());
     }
 

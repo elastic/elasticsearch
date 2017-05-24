@@ -43,7 +43,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
     public static ScriptSortBuilder randomScriptSortBuilder() {
         ScriptSortType type = randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
-        ScriptSortBuilder builder = new ScriptSortBuilder(mockScript(randomAlphaOfLengthBetween(5, 10)),
+        ScriptSortBuilder builder = new ScriptSortBuilder(mockScript("dummy"),
                 type);
         if (randomBoolean()) {
                 builder.order(randomFrom(SortOrder.values()));

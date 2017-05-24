@@ -276,8 +276,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
                     .addAggregation(terms("class").field(CLASS_FIELD)
                             .subAggregation(significantText("sig_terms", TEXT_FIELD)));            
-        }else
-        {
+        } else {
             request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
                     .addAggregation(terms("class").field(CLASS_FIELD)
                             .subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)));            

@@ -74,7 +74,6 @@ public class DuplicateByteSequenceSpotter {
     private final TreeNode root;
     private boolean sequenceBufferFilled = false;
     private final byte[] sequenceBuffer = new byte[TREE_DEPTH];
-    private final byte[] lastSequenceSearchBuffer = new byte[4];
     private int nextFreePos = 0;
 
     // ==Performance info
@@ -113,7 +112,7 @@ public class DuplicateByteSequenceSpotter {
     }
 
     /**
-     * 
+     * Add a byte to the sequence.
      * @param b
      *            the next byte in a sequence
      * @return number of times this byte and the preceding 6 bytes have been
@@ -128,7 +127,7 @@ public class DuplicateByteSequenceSpotter {
             nextFreePos = 0;
             sequenceBufferFilled = true;
         }
-        if (!sequenceBufferFilled) {
+        if (sequenceBufferFilled == false) {
             return 0;
         }
         TreeNode node = root;
@@ -147,20 +146,14 @@ public class DuplicateByteSequenceSpotter {
         // The final 3 bytes in the sequence are represented in an int
         // where the 4th byte will contain a hit count.
 
-        // Fill last 3 bytes in search buffer
-        for (int i = 0; i < 3; i++) {
-            p = nextBufferPos(p);
-            lastSequenceSearchBuffer[i] = sequenceBuffer[p];
-        }
-        // The last byte is unused
-        assert (lastSequenceSearchBuffer[3] == 0);
-        short hitCount = node.add(byteSequenceAsInt(lastSequenceSearchBuffer));
-        return (short) (hitCount - 1);
-    }
-
-    // packing an array of 4 bytes to an int, big endian
-    private static int byteSequenceAsInt(byte[] bytes) {
-        return bytes[0] << 24 | (bytes[1] & 0xFF) << 16 | (bytes[2] & 0xFF) << 8 | (bytes[3] & 0xFF);
+        
+        p = nextBufferPos(p);
+        int sequence = 0xFF & sequenceBuffer[p];
+        p = nextBufferPos(p);
+        sequence = sequence << 8 | (0xFF & sequenceBuffer[p]);
+        p = nextBufferPos(p);
+        sequence = sequence << 8 | (0xFF & sequenceBuffer[p]);
+        return (short) (node.add(sequence << 8) - 1);
     }
 
     private int nextBufferPos(int p) {
@@ -215,7 +208,7 @@ public class DuplicateByteSequenceSpotter {
                 children = new TreeNode[256];
                 bytesAllocated += (RamUsageEstimator.NUM_BYTES_OBJECT_REF * 256);
             }
-            int bIndex = b + 128;
+            int bIndex = 0xFF & b;
             TreeNode node = children[bIndex];
             if (node == null) {
                 if (depth <= 1) {
@@ -270,7 +263,7 @@ public class DuplicateByteSequenceSpotter {
             for (int i = 0; i < children.length; i++) {
                 int child = children[i];
                 if (byteSequence == (child & 0xFFFFFF00)) {
-                    short hitCount = (short) (child & 0xFF);
+                    int hitCount = child & 0xFF;
                     if (hitCount < MAX_HIT_COUNT) {
                         children[i]++;
                     }

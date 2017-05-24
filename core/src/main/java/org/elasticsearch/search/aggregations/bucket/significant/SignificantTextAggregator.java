@@ -149,12 +149,10 @@ public class SignificantTextAggregator extends BucketsAggregator {
                                 }
                             }
                         }
-                    }
-                    finally{
+                    } finally{
                         Releasables.close(inDocTerms);
                     }
-                }
-                finally{
+                } finally{
                     ts.close();
                 }
             }
@@ -165,11 +163,7 @@ public class SignificantTextAggregator extends BucketsAggregator {
                     throw new IllegalArgumentException("Aggregation [" + name + "] cannot process field ["+indexedFieldName
                             +"] since it is not present");                    
                 }
-                
-                if (sourceFieldNames == null){
-                    sourceFieldNames = new String [] { fieldType.name() }; 
-                }
-                
+
                 SourceLookup sourceLookup = context.lookup().source();
                 sourceLookup.setSegmentAndDocument(ctx, doc);
                 

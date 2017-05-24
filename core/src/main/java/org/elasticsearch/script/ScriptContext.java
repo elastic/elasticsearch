@@ -32,7 +32,7 @@ import java.util.Map;
  * There are two related classes which must be supplied to construct a {@link ScriptContext}.
  * <p>
  * The <i>InstanceType</i> is a class, possibly stateful, that is an instance of a script. Instances of
- * the <i><InstanceType/i> may be executed multiple times by a caller with different arguments. This
+ * the <i>InstanceType</i> may be executed multiple times by a caller with different arguments. This
  * class must have an abstract method named <i>execute</i> which {@link ScriptEngine} implementations
  * will define.
  * <p>

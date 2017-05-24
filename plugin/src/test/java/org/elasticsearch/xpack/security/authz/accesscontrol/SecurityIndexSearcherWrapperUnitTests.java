@@ -458,7 +458,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                 };
 
         CompiledTemplate compiledScript = mock(CompiledTemplate.class);
-        when(scriptService.compileTemplate(any(Script.class), eq(ScriptContext.SEARCH))).thenReturn(compiledScript);
+        when(scriptService.compileTemplate(any(Script.class), eq(ScriptContext.EXECUTABLE))).thenReturn(compiledScript);
 
         XContentBuilder builder = jsonBuilder();
         String query = new TermQueryBuilder("field", "{{_user.username}}").toXContent(builder, ToXContent.EMPTY_PARAMS).string();
@@ -469,7 +469,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
         securityIndexSearcherWrapper.evaluateTemplate(querySource);
         ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
-        verify(scriptService).compileTemplate(argument.capture(), eq(ScriptContext.SEARCH));
+        verify(scriptService).compileTemplate(argument.capture(), eq(ScriptContext.EXECUTABLE));
         Script usedScript = argument.getValue();
         assertThat(usedScript.getIdOrCode(), equalTo(script.getIdOrCode()));
         assertThat(usedScript.getType(), equalTo(script.getType()));

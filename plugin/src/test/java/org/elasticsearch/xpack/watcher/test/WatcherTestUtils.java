@@ -237,7 +237,7 @@ public final class WatcherTestUtils {
                 .put("path.home", createTempDir())
                 .build();
         Map<String, ScriptContext> contexts = new HashMap<>(ScriptContext.BUILTINS);
-        contexts.put(Watcher.SCRIPT_CONTEXT.name, Watcher.SCRIPT_CONTEXT);
+        contexts.put(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
         return new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
     }
 

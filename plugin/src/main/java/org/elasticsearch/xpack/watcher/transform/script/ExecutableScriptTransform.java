@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.transform.script;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,7 +32,7 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
         this.scriptService = scriptService;
         Script script = transform.getScript();
         // try to compile so we catch syntax errors early
-        scriptService.compile(script, Watcher.SCRIPT_CONTEXT);
+        scriptService.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
     }
 
     @Override
@@ -54,9 +52,10 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
             model.putAll(script.getParams());
         }
         model.putAll(createCtxModel(ctx, payload));
-        CompiledScript compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT);
-        ExecutableScript executable = scriptService.executable(compiledScript, model);
+        ExecutableScript.Compiled compiledScript = scriptService.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        ExecutableScript executable = compiledScript.newInstance(model);
         Object value = executable.run();
+        // TODO: deprecate one of these styles (returning a map or returning an opaque value below)
         if (value instanceof Map) {
             return new ScriptTransform.Result(new Payload.Simple((Map<String, Object>) value));
         }

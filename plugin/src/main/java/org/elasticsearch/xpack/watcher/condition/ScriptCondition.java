@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.condition;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -17,7 +16,6 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
@@ -32,7 +30,7 @@ public final class ScriptCondition extends Condition {
 
     private final ScriptService scriptService;
     private final Script script;
-    private final CompiledScript compiledScript;
+    private final ExecutableScript.Compiled compiledScript;
 
     public ScriptCondition(Script script) {
         super(TYPE);
@@ -45,7 +43,7 @@ public final class ScriptCondition extends Condition {
         super(TYPE);
         this.scriptService = scriptService;
         this.script = script;
-        compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT);
+        compiledScript = scriptService.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
     }
 
     public Script getScript() {
@@ -72,7 +70,7 @@ public final class ScriptCondition extends Condition {
         if (script.getParams() != null && !script.getParams().isEmpty()) {
             parameters.putAll(script.getParams());
         }
-        ExecutableScript executable = scriptService.executable(compiledScript, parameters);
+        ExecutableScript executable = compiledScript.newInstance(parameters);
         Object value = executable.run();
         if (value instanceof Boolean) {
             return (Boolean) value ? MET : UNMET;

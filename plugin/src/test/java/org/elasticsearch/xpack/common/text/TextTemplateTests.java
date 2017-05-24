@@ -5,14 +5,11 @@
  */
 package org.elasticsearch.xpack.common.text;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -60,7 +57,7 @@ public class TextTemplateTests extends ESTestCase {
         CompiledTemplate compiledTemplate = templateParams -> "rendered_text";
         when(service.compileTemplate(new Script(type, lang, templateText,
                 type == ScriptType.INLINE ? Collections.singletonMap("content_type", "text/plain") : null,
-                merged), Watcher.SCRIPT_CONTEXT)).thenReturn(compiledTemplate);
+                merged), Watcher.SCRIPT_EXECUTABLE_CONTEXT)).thenReturn(compiledTemplate);
 
         TextTemplate template = templateBuilder(type, templateText, params);
         assertThat(engine.render(template, model), is("rendered_text"));
@@ -75,7 +72,7 @@ public class TextTemplateTests extends ESTestCase {
         CompiledTemplate compiledTemplate = templateParams -> "rendered_text";
         when(service.compileTemplate(new Script(type, lang, templateText,
                 type == ScriptType.INLINE ? Collections.singletonMap("content_type", "text/plain") : null,
-                model), Watcher.SCRIPT_CONTEXT)).thenReturn(compiledTemplate);
+                model), Watcher.SCRIPT_EXECUTABLE_CONTEXT)).thenReturn(compiledTemplate);
 
         TextTemplate template = templateBuilder(type, templateText, params);
         assertThat(engine.render(template, model), is("rendered_text"));
@@ -87,7 +84,7 @@ public class TextTemplateTests extends ESTestCase {
 
         CompiledTemplate compiledTemplate = templateParams -> "rendered_text";
         when(service.compileTemplate(new Script(ScriptType.INLINE, lang, templateText,
-                Collections.singletonMap("content_type", "text/plain"), model), Watcher.SCRIPT_CONTEXT))
+                Collections.singletonMap("content_type", "text/plain"), model), Watcher.SCRIPT_EXECUTABLE_CONTEXT))
                 .thenReturn(compiledTemplate);
 
         TextTemplate template = new TextTemplate(templateText);

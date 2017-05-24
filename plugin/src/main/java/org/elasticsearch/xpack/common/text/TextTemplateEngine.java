@@ -5,19 +5,15 @@
  */
 package org.elasticsearch.xpack.common.text;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.template.CompiledTemplate;
 import org.elasticsearch.xpack.watcher.Watcher;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -56,7 +52,7 @@ public class TextTemplateEngine extends AbstractComponent {
             options.put(Script.CONTENT_TYPE_OPTION, mediaType);
         }
         Script script = new Script(textTemplate.getType(), "mustache", template, options, mergedModel);
-        CompiledTemplate compiledTemplate = service.compileTemplate(script, Watcher.SCRIPT_CONTEXT);
+        CompiledTemplate compiledTemplate = service.compileTemplate(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
         return compiledTemplate.run(model);
     }
 

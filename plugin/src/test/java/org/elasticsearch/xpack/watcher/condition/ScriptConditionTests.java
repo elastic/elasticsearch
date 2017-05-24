@@ -84,7 +84,7 @@ public class ScriptConditionTests extends ESTestCase {
 
         ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);
         scriptService = new ScriptService(Settings.EMPTY, Collections.singletonMap(engine.getType(), engine),
-            Collections.singletonMap(Watcher.SCRIPT_CONTEXT.name, Watcher.SCRIPT_CONTEXT));
+            Collections.singletonMap(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT));
 
         ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
         clusterState.metaData(MetaData.builder().putCustom(ScriptMetaData.TYPE, new ScriptMetaData.Builder(null).build()));

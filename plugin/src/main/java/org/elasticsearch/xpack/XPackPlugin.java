@@ -112,6 +112,7 @@ import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -335,7 +336,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     @Override
     public List<ScriptContext> getContexts() {
-        return Collections.singletonList(Watcher.SCRIPT_CONTEXT);
+        return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
     }
 
     @Override

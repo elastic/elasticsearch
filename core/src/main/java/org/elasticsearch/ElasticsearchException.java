@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TcpTransport;
 

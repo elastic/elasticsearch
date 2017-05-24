@@ -233,7 +233,7 @@ public class ScoresUpdaterTests extends ESTestCase {
     }
 
     public void testUpdate_GivenShutdown() throws IOException {
-        Influencer influencer = new Influencer(JOB_ID, "n", "v", new Date(DEFAULT_START_TIME), 600, 1);
+        Influencer influencer = new Influencer(JOB_ID, "n", "v", new Date(DEFAULT_START_TIME), 600);
 
         Deque<Influencer> influencers = new ArrayDeque<>();
         influencers.add(influencer);

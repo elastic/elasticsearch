@@ -18,8 +18,8 @@ scrolled searches and reindexing of documents from one index to another:
 
 Perl::
 
-    See https://metacpan.org/pod/Search::Elasticsearch::Bulk[Search::Elasticsearch::Bulk]
-    and https://metacpan.org/pod/Search::Elasticsearch::Scroll[Search::Elasticsearch::Scroll]
+    See https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Bulk[Search::Elasticsearch::Client::5_0::Bulk]
+    and https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Scroll[Search::Elasticsearch::Client::5_0::Scroll]
 
 Python::
 

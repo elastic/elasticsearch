@@ -54,7 +54,6 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
         compiled = service.compile(null, "doc['d'].value * _score", Collections.emptyMap());
         ss = service.search(compiled, lookup, Collections.emptyMap());
         assertTrue(ss.needsScores());
-        service.close();
     }
 
 }

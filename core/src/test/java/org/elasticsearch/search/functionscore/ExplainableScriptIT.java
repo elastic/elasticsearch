@@ -100,9 +100,6 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                         }
                     };
                 }
-
-                @Override
-                public void close() {}
             };
         }
     }

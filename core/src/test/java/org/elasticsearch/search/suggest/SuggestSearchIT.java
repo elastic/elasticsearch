@@ -1020,10 +1020,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
         public static final String NAME = "mustache";
 
         @Override
-        public void close() throws IOException {
-        }
-
-        @Override
         public String getType() {
             return NAME;
         }

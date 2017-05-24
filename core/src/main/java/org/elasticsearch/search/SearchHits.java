@@ -133,10 +133,10 @@ public class SearchHits implements Streamable, ToXContent, Iterable<SearchHit> {
         return this.hits;
     }
 
-    static final class Fields {
-        static final String HITS = "hits";
-        static final String TOTAL = "total";
-        static final String MAX_SCORE = "max_score";
+    public static final class Fields {
+        public static final String HITS = "hits";
+        public static final String TOTAL = "total";
+        public static final String MAX_SCORE = "max_score";
     }
 
     @Override

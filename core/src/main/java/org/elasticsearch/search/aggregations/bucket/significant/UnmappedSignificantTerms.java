@@ -79,7 +79,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return SignificantStringTerms.NAME;
     }
 

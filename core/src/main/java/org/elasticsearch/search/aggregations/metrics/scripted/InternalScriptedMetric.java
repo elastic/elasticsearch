@@ -123,7 +123,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return builder.field("value", aggregation());
+        return builder.field(CommonFields.VALUE.getPreferredName(), aggregation());
     }
 
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -134,16 +135,18 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     static class Fields {
-        public static final String CENTROID = "location";
-        public static final String COUNT = "count";
+        static final ParseField CENTROID = new ParseField("location");
+        static final ParseField COUNT = new ParseField("count");
+        static final ParseField CENTROID_LAT = new ParseField("lat");
+        static final ParseField CENTROID_LON = new ParseField("lon");
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (centroid != null) {
-            builder.startObject(Fields.CENTROID).field("lat", centroid.lat()).field("lon", centroid.lon()).endObject();
+            builder.startObject(Fields.CENTROID.getPreferredName()).field("lat", centroid.lat()).field("lon", centroid.lon()).endObject();
         }
-        builder.field(Fields.COUNT, count);
+        builder.field(Fields.COUNT.getPreferredName(), count);
         return builder;
     }
 }

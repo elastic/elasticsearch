@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -77,23 +78,19 @@ public class XContentTestUtilsTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testInsertInto() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.endObject();
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, builder.bytes(), builder.contentType())) {
-            builder = XContentTestUtils.insertIntoXContent(parser, Collections.singletonList(""), () -> "inner1", () -> new HashMap<>());
-        }
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, builder.bytes(), builder.contentType())) {
-            builder = XContentTestUtils.insertIntoXContent(parser, Collections.singletonList(""), () -> "field1", () -> "value1");
-        }
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, builder.bytes(), builder.contentType())) {
-            builder = XContentTestUtils.insertIntoXContent(parser, Collections.singletonList("inner1"), () -> "inner2",
-                    () -> new HashMap<>());
-        }
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, builder.bytes(), builder.contentType())) {
-            builder = XContentTestUtils.insertIntoXContent(parser, Collections.singletonList("inner1"), () -> "field2", () -> "value2");
-        }
+        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), builder.bytes(), Collections.singletonList(""),
+                () -> "inner1", () -> new HashMap<>());
+        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), builder.bytes(), Collections.singletonList(""),
+                () -> "field1", () -> "value1");
+        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), builder.bytes(), Collections.singletonList("inner1"),
+                () -> "inner2", () -> new HashMap<>());
+        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), builder.bytes(), Collections.singletonList("inner1"),
+                () -> "field2", () -> "value2");
         try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, builder.bytes(), builder.contentType())) {
             Map<String, Object> map = parser.map();
             assertEquals(2, map.size());

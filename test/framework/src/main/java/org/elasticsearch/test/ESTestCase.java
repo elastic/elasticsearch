@@ -951,11 +951,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      * }
      * </pre>
      */
-    public XContentBuilder insertRandomFields(XContentType contentType, BytesReference xContent, Predicate<String> excludeFilter)
+    public BytesReference insertRandomFields(XContentType contentType, BytesReference xContent, Predicate<String> excludeFilter)
             throws IOException {
         List<String> insertPaths = new ArrayList<>();
         if (excludeFilter == null) {
-            excludeFilter = path -> false;
+            excludeFilter = (path -> false);
         }
         try (XContentParser parser = createParser(contentType.xContent(), xContent)) {
             List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser);
@@ -973,7 +973,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                     }
                 }
             };
-            return XContentTestUtils.insertIntoXContent(parser, insertPaths, () -> randomAlphaOfLength(10), value);
+            return XContentTestUtils.insertIntoXContent(contentType.xContent(), xContent, insertPaths, () -> randomAlphaOfLength(10),
+                    value).bytes();
         }
     }
 

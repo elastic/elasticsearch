@@ -909,8 +909,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
             return builder;
         }
 
-        private static final ConstructingObjectParser<NestedIdentity, Void> PARSER = new ConstructingObjectParser<>(
-                "nested_identity", true,
+        private static final ConstructingObjectParser<NestedIdentity, Void> PARSER = new ConstructingObjectParser<>("nested_identity", true,
                 ctorArgs -> new NestedIdentity((String) ctorArgs[0], (int) ctorArgs[1], (NestedIdentity) ctorArgs[2]));
         static {
             PARSER.declareString(constructorArg(), new ParseField(FIELD));

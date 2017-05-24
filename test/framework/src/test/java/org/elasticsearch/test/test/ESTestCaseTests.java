@@ -100,16 +100,20 @@ public class ESTestCaseTests extends ESTestCase {
                 builder.field("field2", "value2");
                 {
                     builder.startObject("object1");
-                    builder.field("inner1", "value1");
-                    builder.field("inner2", "value2");
-                    builder.field("inner3", "value3");
+                    {
+                        builder.field("inner1", "value1");
+                        builder.field("inner2", "value2");
+                        builder.field("inner3", "value3");
+                    }
                     builder.endObject();
                 }
                 {
                     builder.startObject("object2");
-                    builder.field("inner4", "value4");
-                    builder.field("inner5", "value5");
-                    builder.field("inner6", "value6");
+                    {
+                        builder.field("inner4", "value4");
+                        builder.field("inner5", "value5");
+                        builder.field("inner6", "value6");
+                    }
                     builder.endObject();
                 }
             }
@@ -167,26 +171,39 @@ public class ESTestCaseTests extends ESTestCase {
     public void testInsertRandomXContent() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
+        {
             builder.startObject("foo");
+            {
                 builder.field("bar", 1);
+            }
             builder.endObject();
             builder.startObject("foo1");
+            {
                 builder.startObject("foo2");
+                {
                     builder.field("buzz", 1);
+                }
                 builder.endObject();
+            }
             builder.endObject();
             builder.field("foo3", 2);
             builder.startArray("foo4");
+            {
                 builder.startObject();
+                {
                     builder.field("foo5", 1);
+                }
                 builder.endObject();
+            }
             builder.endArray();
+        }
         builder.endObject();
 
         Map<String, Object> resultMap;
 
         Predicate<String> pathsToExclude = path -> path.endsWith("foo1");
-        try (XContentParser parser = createParser(insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude))) {
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(),
+                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude))) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());
@@ -199,7 +216,8 @@ public class ESTestCaseTests extends ESTestCase {
         assertEquals(2, ((Map<String, Object>) foo4List.get(0)).keySet().size());
 
         pathsToExclude = path -> path.contains("foo1");
-        try (XContentParser parser = createParser(insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude))) {
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(),
+                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude))) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());

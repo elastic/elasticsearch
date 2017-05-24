@@ -19,11 +19,14 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -167,34 +170,13 @@ public final class XContentTestUtils {
         return validPaths;
     }
 
-    public static XContentBuilder insertIntoXContent(XContentParser original, List<String> paths, Supplier<String> key,
+    public static XContentBuilder insertIntoXContent(XContent xContent, BytesReference original, List<String> paths, Supplier<String> key,
             Supplier<Object> value) throws IOException {
-        Map<String, Object> originalMap = original.mapOrdered();
+        ObjectPath object = ObjectPath.createFromXContent(xContent, original);
         for (String path : paths) {
-            Object insertObject = originalMap;
-            // an empty path means we want to insert into this map directly
-            if (path.isEmpty() == false) {
-                String[] pathParts = path.contains(".") ? path.split("\\.") : new String[] { path };
-                for (String pathPart : pathParts) {
-                    if (insertObject instanceof Map) {
-                        insertObject = ((Map<String, Object>) insertObject).get(pathPart);
-                        if (insertObject == null) {
-                            throw new IllegalStateException("Not a valid insert path: " + paths);
-                        }
-                    } else if (insertObject instanceof List) {
-                        int position = Integer.parseInt(pathPart);
-                        List<Object> insertList = (List<Object>) insertObject;
-                        if (position > insertList.size()) {
-                            throw new IllegalStateException("Not a valid insert path: " + paths);
-                        }
-                        insertObject = insertList.get(position);
-                    }
-                }
-            }
-            ((Map<String, Object>) insertObject).put(key.get(), value.get());
+            Map<String, Object> insertMap = object.evaluate(path);
+            insertMap.put(key.get(), value.get());
         }
-        XContentBuilder builder = XContentBuilder.builder(original.contentType().xContent());
-        builder.map(originalMap);
-        return builder;
+        return object.toXContentBuilder(xContent);
     }
 }

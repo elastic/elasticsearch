@@ -812,7 +812,7 @@ public class ElasticsearchAssertions {
      * Compares two maps recursively, using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
     private static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual) {
-        assertEquals("expected maps differ in size: [" + expected + "] vs [" + actual + "]", expected.size(), actual.size());
+        assertEquals(expected.size(), actual.size());
         for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {
             String expectedKey = expectedEntry.getKey();
             Object expectedValue = expectedEntry.getValue();

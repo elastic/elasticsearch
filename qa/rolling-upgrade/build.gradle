@@ -57,6 +57,12 @@ task bwcTest {
   group = 'verification'
 }
 
+task copyTestNodeKeystore(type: Copy) {
+    from project(':x-pack-elasticsearch:plugin')
+            .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    into outputDir
+}
+
 for (Version version : wireCompatVersions) {
   String baseName = "v${version}"
 
@@ -66,6 +72,7 @@ for (Version version : wireCompatVersions) {
 
   Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
   configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
+    dependsOn copyTestNodeKeystore
     plugin ':x-pack-elasticsearch:plugin'
     distribution = 'zip'
     bwcVersion = version
@@ -168,15 +175,8 @@ task copyXPackRestSpec(type: Copy) {
     into project.sourceSets.test.output.resourcesDir
 }
 
-task copyTestNodeKeystore(type: Copy) {
-    dependsOn(copyXPackRestSpec)
-    from project(':x-pack-elasticsearch:plugin')
-            .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-    into outputDir
-}
-
 task copyXPackPluginProps(type: Copy) {
-    dependsOn(copyTestNodeKeystore)
+    dependsOn(copyXPackRestSpec)
     from project(':x-pack-elasticsearch:plugin').file('src/main/plugin-metadata')
     from project(':x-pack-elasticsearch:plugin').tasks.pluginProperties
     into outputDir

@@ -382,7 +382,7 @@ found index aliases.
 Possible options:
 [horizontal]
 `index`::
-    The index name to get aliases for. Partially names are
+    The index name to get aliases for. Partial names are
     supported via wildcards, also multiple index names can be specified
     separated with a comma. Also the alias name for an index can be used.
 

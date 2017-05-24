@@ -27,13 +27,16 @@ import org.elasticsearch.gradle.LoggedExec
  * without relying on snapshots.
  */
 
-String bwcVersion = wireCompatVersions[-1]
+int bwcVersionIndex = project.name == 'bwc' ? -1 : -2
+String bwcVersion = indexCompatVersions[bwcVersionIndex]
 if (bwcVersion.endsWith('-SNAPSHOT')) {
   apply plugin: 'distribution'
 
   def (String major, String minor, String bugfix) = bwcVersion.split('\\.')
-  String bwcBranch = bugfix == '0-SNAPSHOT' ? "${major}.x" : "${major}.${minor}"
+  String bwcBranch = bwcVersionIndex == -1 && bugfix == '0-SNAPSHOT' ?
+      "${major}.x" : "${major}.${minor}"
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
+
   task createClone(type: LoggedExec) {
     onlyIf { checkoutDir.exists() == false }
     commandLine = ['git', 'clone', rootDir, checkoutDir]

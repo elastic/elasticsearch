@@ -17,7 +17,7 @@ setup:
       index:
         index:  .ml-anomalies-update-model-snapshot
         type:   model_snapshot
-        id:     "update-model-snapshot-snapshot-1"
+        id:     "update-model-snapshot_model_snapshot_snapshot-1"
         body: >
           {
             "job_id" : "update-model-snapshot",
@@ -31,7 +31,7 @@ setup:
       index:
         index:  .ml-anomalies-update-model-snapshot
         type:   model_snapshot
-        id:     "update-model-snapshot-snapshot-2"
+        id:     "update-model-snapshot_model_snapshot_snapshot-2"
         body: >
           {
             "job_id": "update-model-snapshot",

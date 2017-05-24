@@ -172,7 +172,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     private static DataCounts getDataCountsFromIndex(String jobId) {
         SearchResponse searchResponse = client().prepareSearch()
                 .setTypes(DataCounts.TYPE.getPreferredName())
-                .setQuery(QueryBuilders.idsQuery().addIds(jobId + "-data-counts"))
+                .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
                 .get();
         if (searchResponse.getHits().getTotalHits() != 1) {
             return new DataCounts(jobId);

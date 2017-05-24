@@ -402,3 +402,49 @@
         index: .ml-anomalies-foo
   - match: {count: 2}
 
+---
+"Test delete removes 5.4 and 5.5 quantiles":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: index-layout-quantiles-job
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent"
+            }
+          }
+  - match: { job_id: "index-layout-quantiles-job" }
+
+  - do:
+      index:
+        index: .ml-state
+        type: quantiles
+        id: index-layout-quantiles-job_quantiles
+        body:
+          state: quantile-state
+
+  - do:
+      index:
+        index: .ml-state
+        type: quantiles
+        id: index-layout-quantiles-job-quantiles
+        body:
+          state: quantile-state
+
+  - do:
+      xpack.ml.delete_job:
+        job_id: "index-layout-quantiles-job"
+  - match: { acknowledged: true }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      count:
+        index: .ml-state
+  - match: {count: 0}

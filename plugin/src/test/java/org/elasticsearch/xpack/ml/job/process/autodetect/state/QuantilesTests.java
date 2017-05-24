@@ -54,6 +54,11 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
         assertEquals(quantiles1.hashCode(), quantiles2.hashCode());
     }
 
+    public void testDocumentId() {
+        Quantiles quantiles = createTestInstance();
+        String jobId = quantiles.getJobId();
+        assertEquals(jobId + "_quantiles", Quantiles.documentId(jobId));
+    }
 
     @Override
     protected Quantiles createTestInstance() {

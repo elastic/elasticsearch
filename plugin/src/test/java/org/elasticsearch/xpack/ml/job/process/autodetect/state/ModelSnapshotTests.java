@@ -176,9 +176,9 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         ModelSnapshot snapshot2 = new ModelSnapshot.Builder("foo").setSnapshotId("2").build();
         ModelSnapshot snapshot3 = new ModelSnapshot.Builder("bar").setSnapshotId("1").build();
 
-        assertEquals("foo-1", ModelSnapshot.documentId(snapshot1));
-        assertEquals("foo-2", ModelSnapshot.documentId(snapshot2));
-        assertEquals("bar-1", ModelSnapshot.documentId(snapshot3));
+        assertEquals("foo_model_snapshot_1", ModelSnapshot.documentId(snapshot1));
+        assertEquals("foo_model_snapshot_2", ModelSnapshot.documentId(snapshot2));
+        assertEquals("bar_model_snapshot_1", ModelSnapshot.documentId(snapshot3));
     }
 
     public void testStateDocumentIds_GivenDocCountIsOne() {

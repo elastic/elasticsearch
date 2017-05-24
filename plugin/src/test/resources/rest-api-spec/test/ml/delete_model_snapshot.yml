@@ -29,7 +29,7 @@ setup:
       index:
         index:  .ml-anomalies-delete-model-snapshot
         type:   model_snapshot
-        id:     "delete-model-snapshot-inactive-snapshot"
+        id:     "delete-model-snapshot_model_snapshot_inactive-snapshot"
         body: >
           {
             "job_id": "delete-model-snapshot",
@@ -65,7 +65,7 @@ setup:
       index:
         index:  .ml-anomalies-delete-model-snapshot
         type:   model_snapshot
-        id:     "delete-model-snapshot-active-snapshot"
+        id:     "delete-model-snapshot_model_snapshot_active-snapshot"
         body: >
           {
             "job_id": "delete-model-snapshot",

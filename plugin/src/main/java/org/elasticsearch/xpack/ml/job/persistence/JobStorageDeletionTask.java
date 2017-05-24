@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -94,7 +95,7 @@ public class JobStorageDeletionTask extends Task {
                 failureHandler);
 
         // Step 3. Delete quantiles done, delete the categorizer state
-        ActionListener<DeleteResponse> deleteQuantilesHandler = ActionListener.wrap(
+        ActionListener<Boolean> deleteQuantilesHandler = ActionListener.wrap(
                 response -> deleteCategorizerState(jobId, client, deleteCategorizerStateHandler),
                 failureHandler);
 
@@ -107,14 +108,19 @@ public class JobStorageDeletionTask extends Task {
         deleteModelState(jobId, client, deleteStateHandler);
     }
 
-    private void deleteQuantiles(String jobId, Client client, ActionListener<DeleteResponse> finishedHandler) {
-        client.prepareDelete(AnomalyDetectorsIndex.jobStateIndexName(), Quantiles.TYPE.getPreferredName(), Quantiles.documentId(jobId))
-                .execute(ActionListener.wrap(
-                        finishedHandler::onResponse,
+    private void deleteQuantiles(String jobId, Client client, ActionListener<Boolean> finishedHandler) {
+        // The quantiles doc Id changed in v5.5 so delete both the old and new format
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobStateIndexName(), Quantiles.TYPE.getPreferredName(),
+                Quantiles.documentId(jobId)));
+        bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobStateIndexName(), Quantiles.TYPE.getPreferredName(),
+                jobId + "-" + Quantiles.TYPE.getPreferredName()));
+        bulkRequestBuilder.execute(ActionListener.wrap(
+                        response -> finishedHandler.onResponse(true),
                         e -> {
                             // It's not a problem for us if the index wasn't found - it's equivalent to document not found
                             if (e instanceof IndexNotFoundException) {
-                                finishedHandler.onResponse(new DeleteResponse());
+                                finishedHandler.onResponse(true);
                             } else {
                                 finishedHandler.onFailure(e);
                             }

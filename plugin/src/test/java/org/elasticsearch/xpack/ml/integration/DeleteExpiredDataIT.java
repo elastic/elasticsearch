@@ -109,7 +109,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             assertThat(getRecords(job.getId()).size(), equalTo(1));
             List<ModelSnapshot> modelSnapshots = getModelSnapshots(job.getId());
             assertThat(modelSnapshots.size(), equalTo(1));
-            String snapshotDocId = job.getId() + "-" + modelSnapshots.get(0).getSnapshotId();
+            String snapshotDocId = ModelSnapshot.documentId(modelSnapshots.get(0));
 
             // Update snapshot timestamp to force it out of snapshot retention window
             String snapshotUpdate = "{ \"timestamp\": " + oneDayAgo + "}";

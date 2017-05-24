@@ -29,7 +29,7 @@ setup:
       index:
         index:  .ml-anomalies-revert-model-snapshot
         type:   model_snapshot
-        id:     "revert-model-snapshot-first"
+        id:     "revert-model-snapshot_model_snapshot_first"
         body: >
           {
             "job_id": "revert-model-snapshot",
@@ -54,7 +54,7 @@ setup:
       index:
         index:  .ml-anomalies-revert-model-snapshot
         type:   model_snapshot
-        id:     "revert-model-snapshot-second"
+        id:     "revert-model-snapshot_model_snapshot_second"
         body: >
           {
             "job_id": "revert-model-snapshot",

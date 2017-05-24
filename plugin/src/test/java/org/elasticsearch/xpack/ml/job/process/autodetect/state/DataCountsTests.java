@@ -134,6 +134,12 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
         assertEquals(new Date(100L), counts.getEarliestRecordTimeStamp());
     }
 
+    public void testDocumentId() {
+        DataCounts dataCounts = createTestInstance();
+        String jobId = dataCounts.getJobid();
+        assertEquals(jobId + "_data_counts", DataCounts.documentId(jobId));
+    }
+
     private void assertAllFieldsEqualZero(DataCounts stats) throws Exception {
         assertEquals(0L, stats.getProcessedRecordCount());
         assertEquals(0L, stats.getProcessedFieldCount());

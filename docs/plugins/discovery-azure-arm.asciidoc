@@ -37,22 +37,17 @@ The node must be stopped before removing the plugin.
 ==== Usage
 
 Azure VM discovery allows to use the azure ARM APIs to perform automatic discovery of other nodes.
-Here is a simple sample configuration:
+It requires that you first store credentials in the {ref}/secure-settings.html[elasticsearch keystore]
+as explained in <<discovery-azure-arm-credentials>>.
+
+Here is a minimal configuration of `elasticsearch.yml` file to use azure-arm for discovery:
 
 [source,yaml]
 ----
-cloud:
-    azure-arm:
-        client_id: FILL_WITH_YOUR_CLIENT_ID
-        secret: FILL_WITH_YOUR_SECRET
-        tenant_id: FILL_WITH_YOUR_TENANT
-        subscription_id: FILL_WITH_YOUR_SUBSCRIPTION_ID
-
 discovery.zen.hosts_provider: azure-arm
 ----
 
-See <<discovery-azure-arm-credentials>> and <<discovery-azure-arm-discovery-settings>> for more
-details about this configuration.
+See <<discovery-azure-arm-discovery-settings>> for more details about this configuration.
 
 [IMPORTANT]
 .Binding the network host
@@ -69,22 +64,23 @@ You can use {ref}/modules-network.html[core network host settings]. For example 
 
 TODO: Martijn, can you explain here how to create and get this information from Azure Management Portal?
 
-The following are a list of settings that can be set to allow Azure ARM plugin to access Azure platform APIs
-in order to be able to fetch the list of nodes which can potentially be declared to the node which is starting:
+The following are a list of {ref}/secure-settings.html[secure settings] that must be set to allow Azure ARM plugin
+to access Azure platform APIs in order to be able to fetch the list of nodes which can potentially be declared to the
+node which is starting:
 
-`cloud.azure-arm.client_id`::
-
-    TODO Explain here
-
-`cloud.azure-arm.secret`::
+`discovery.azure-arm.client_id`::
 
     TODO Explain here
 
-`cloud.azure-arm.tenant_id`::
+`discovery.azure-arm.secret`::
 
     TODO Explain here
 
-`cloud.azure-arm.subscription_id`::
+`discovery.azure-arm.tenant_id`::
+
+    TODO Explain here
+
+`discovery.azure-arm.subscription_id`::
 
     TODO Explain here
 

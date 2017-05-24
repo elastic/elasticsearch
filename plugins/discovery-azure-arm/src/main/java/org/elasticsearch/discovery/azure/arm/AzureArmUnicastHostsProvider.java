@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.azure.arm.AzureManagementService;
-import org.elasticsearch.cloud.azure.arm.AzureManagementService.Discovery;
 import org.elasticsearch.cloud.azure.arm.AzureVirtualMachine;
 import org.elasticsearch.cloud.azure.arm.AzureVirtualMachine.PowerState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,8 +41,13 @@ import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HOST_NAME_SETTING;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HOST_RESOURCE_GROUP_SETTING;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HOST_TYPE_SETTING;
 import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HostType.PRIVATE_IP;
 import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HostType.PUBLIC_IP;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.REFRESH_SETTING;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.REGION_SETTING;
 
 public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
 
@@ -63,7 +67,7 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
         this.azureManagementService = azureManagementService;
         this.transportService = transportService;
 
-        if (Discovery.REGION_SETTING.exists(settings) == false) {
+        if (REGION_SETTING.exists(settings) == false) {
             logger.debug("starting discover without region set. This should be avoided if some nodes can be started in multiple regions.");
         }
     }
@@ -77,7 +81,7 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
     @Override
     public List<DiscoveryNode> buildDynamicNodes() {
         // Evaluating refresh settings here will allow live update of this setting
-        TimeValue refreshInterval = Discovery.REFRESH_SETTING.get(settings);
+        TimeValue refreshInterval = REFRESH_SETTING.get(settings);
         if (refreshInterval.millis() != 0) {
             if (cachedDiscoNodes != null &&
                     (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
@@ -91,7 +95,7 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
         cachedDiscoNodes = new ArrayList<>();
 
         List<AzureVirtualMachine> vms;
-        String groupName = Discovery.HOST_RESOURCE_GROUP_SETTING.get(settings);
+        String groupName = HOST_RESOURCE_GROUP_SETTING.get(settings);
         // We can filter by resource group only if we are not using a wildcard
         // We will filter the resources manually later then
         if (Strings.isNotEmpty(groupName) && Regex.isSimpleMatchPattern(groupName)) {
@@ -108,8 +112,8 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
             }
 
             // If provided, we check the region name.
-            if (Discovery.REGION_SETTING.exists(settings)) {
-                String region = Discovery.REGION_SETTING.get(settings);
+            if (REGION_SETTING.exists(settings)) {
+                String region = REGION_SETTING.get(settings);
                 if (region.equals(vm.getRegion()) == false) {
                     logger.debug("Skipping machine [{}/{}] as region [{}] does not match [{}]", vm.getName(), vm.getPrivateIp(),
                         vm.getRegion(), region);
@@ -136,8 +140,8 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
             }
 
             // If provided, we check the host name. It can be a wildcard
-            if (Discovery.HOST_NAME_SETTING.exists(settings)) {
-                String hostName = Discovery.HOST_NAME_SETTING.get(settings);
+            if (HOST_NAME_SETTING.exists(settings)) {
+                String hostName = HOST_NAME_SETTING.get(settings);
                 boolean match;
                 if (Regex.isSimpleMatchPattern(hostName)) {
                     match = Regex.simpleMatch(hostName, vm.getName());
@@ -155,7 +159,7 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
             String networkAddress = null;
             InetAddress ip = null;
             // Let's detect if we want to use public or private IP
-            AzureManagementService.HostType hostType = Discovery.HOST_TYPE_SETTING.get(settings);
+            AzureManagementService.HostType hostType = HOST_TYPE_SETTING.get(settings);
             if (hostType.equals(PRIVATE_IP)) {
                 if (vm.getPrivateIp() == null) {
                     logger.trace("no private ip available. ignoring [{}]...", vm.getName());

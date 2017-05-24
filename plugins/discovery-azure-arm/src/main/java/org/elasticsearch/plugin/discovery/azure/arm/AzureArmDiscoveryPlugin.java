@@ -66,14 +66,14 @@ public class AzureArmDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-            AzureManagementService.Management.CLIENT_ID_SETTING,
-            AzureManagementService.Management.SECRET_SETTING,
-            AzureManagementService.Management.SUBSCRIPTION_ID_SETTING,
-            AzureManagementService.Management.TENANT_ID_SETTING,
-            AzureManagementService.Discovery.HOST_RESOURCE_GROUP_SETTING,
-            AzureManagementService.Discovery.HOST_NAME_SETTING,
-            AzureManagementService.Discovery.HOST_TYPE_SETTING,
-            AzureManagementService.Discovery.REFRESH_SETTING,
-            AzureManagementService.Discovery.REGION_SETTING);
+            AzureManagementService.CLIENT_ID_SETTING,
+            AzureManagementService.SECRET_SETTING,
+            AzureManagementService.SUBSCRIPTION_ID_SETTING,
+            AzureManagementService.TENANT_ID_SETTING,
+            AzureManagementService.HOST_RESOURCE_GROUP_SETTING,
+            AzureManagementService.HOST_NAME_SETTING,
+            AzureManagementService.HOST_TYPE_SETTING,
+            AzureManagementService.REFRESH_SETTING,
+            AzureManagementService.REGION_SETTING);
     }
 }

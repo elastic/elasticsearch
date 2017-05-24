@@ -21,6 +21,7 @@ package org.elasticsearch.cloud.azure.arm;
 
 import okhttp3.OkHttpClient;
 import okio.AsyncTimeout;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -28,10 +29,10 @@ import org.junit.BeforeClass;
 
 import java.util.List;
 
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Management.CLIENT_ID_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Management.SECRET_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Management.SUBSCRIPTION_ID_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Management.TENANT_ID_SETTING;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.CLIENT_ID_SETTING;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.SECRET_SETTING;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.SUBSCRIPTION_ID_SETTING;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.TENANT_ID_SETTING;
 
 /**
  * This is not really a real test. It's just there to help when we have to write code
@@ -54,12 +55,12 @@ public class AzureArmClientTests extends ESTestCase {
                 TENANT.startsWith("FILL_WITH_YOUR_") ||
                 SUBSCRIPTION_ID.startsWith("FILL_WITH_YOUR_"));
 
-        Settings settings = Settings.builder()
-            .put(CLIENT_ID_SETTING.getKey(), CLIENT_ID)
-            .put(TENANT_ID_SETTING.getKey(), TENANT)
-            .put(SECRET_SETTING.getKey(), SECRET)
-            .put(SUBSCRIPTION_ID_SETTING.getKey(), SUBSCRIPTION_ID)
-            .build();
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(CLIENT_ID_SETTING.getKey(), CLIENT_ID);
+        secureSettings.setString(TENANT_ID_SETTING.getKey(), TENANT);
+        secureSettings.setString(SECRET_SETTING.getKey(), SECRET);
+        secureSettings.setString(SUBSCRIPTION_ID_SETTING.getKey(), SUBSCRIPTION_ID);
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
 
         service = new AzureManagementServiceImpl(settings);
     }

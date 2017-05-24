@@ -21,16 +21,17 @@ package org.elasticsearch.cloud.azure.arm;
 
 import com.microsoft.azure.AzureEnvironment;
 import com.microsoft.azure.PagedList;
+import com.microsoft.azure.RestClient;
 import com.microsoft.azure.credentials.ApplicationTokenCredentials;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.VirtualMachine;
 import com.microsoft.azure.management.compute.VirtualMachines;
 import com.microsoft.azure.management.network.PublicIpAddress;
-import com.microsoft.azure.RestClient;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -38,11 +39,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Management.CLIENT_ID_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Management.SECRET_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Management.SUBSCRIPTION_ID_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Management.TENANT_ID_SETTING;
 
 /**
  * Azure Management Service Implementation
@@ -58,20 +54,24 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
     final RestClient restClient;
 
     public AzureManagementServiceImpl(Settings settings) {
-        this.restClient = initializeRestClient(settings);
-        this.client = initialize(settings, restClient);
+        try (SecureString clientId = CLIENT_ID_SETTING.get(settings);
+             SecureString tenantId = TENANT_ID_SETTING.get(settings);
+             SecureString secret = SECRET_SETTING.get(settings);
+             SecureString subscriptionId = SUBSCRIPTION_ID_SETTING.get(settings)) {
+            this.restClient = initializeRestClient(clientId.toString(), tenantId.toString(), secret.toString());
+            this.client = initialize(restClient, tenantId.toString(), subscriptionId.toString());
+        }
     }
 
     /**
      * Create a client instance
-     * @param settings Settings we will read the configuration from
+     * @param restClient        Rest client to use
+     * @param tenantId          Tenant ID
+     * @param subscriptionId    Subscription ID
      * @return a client Instance
-     * @see Management for client properties
      */
-    private static Azure initialize(Settings settings, RestClient restClient) {
+    private static Azure initialize(RestClient restClient, String tenantId, String subscriptionId) {
         logger.debug("Initializing azure client");
-        String tenantId = TENANT_ID_SETTING.get(settings);
-        String subscriptionId = SUBSCRIPTION_ID_SETTING.get(settings);
 
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -86,15 +86,13 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
 
     /**
      * Create a rest client instance
-     * @param settings Settings we will read the configuration from
+     * @param clientId  Client ID
+     * @param tenantId  Tenant ID
+     * @param secret    Secret
      * @return a rest client Instance
      */
-    private static RestClient initializeRestClient(Settings settings) {
+    private static RestClient initializeRestClient(String clientId, String tenantId, String secret) {
         logger.debug("Initializing azure client");
-        String clientId = CLIENT_ID_SETTING.get(settings);
-        String tenantId = TENANT_ID_SETTING.get(settings);
-        String secret = SECRET_SETTING.get(settings);
-
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());

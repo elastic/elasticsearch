@@ -52,14 +52,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Discovery.HOST_RESOURCE_GROUP_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Discovery.HOST_NAME_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Discovery.HOST_TYPE_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Discovery.REGION_SETTING;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HOST_NAME_SETTING;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HOST_RESOURCE_GROUP_SETTING;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HOST_TYPE_SETTING;
 import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HostType.PRIVATE_IP;
 import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HostType.PUBLIC_IP;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.REGION_SETTING;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;

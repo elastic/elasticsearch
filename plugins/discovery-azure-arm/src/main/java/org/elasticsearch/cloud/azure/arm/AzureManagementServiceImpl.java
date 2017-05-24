@@ -26,6 +26,7 @@ import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.VirtualMachine;
 import com.microsoft.azure.management.compute.VirtualMachines;
 import com.microsoft.azure.management.network.PublicIpAddress;
+import com.microsoft.azure.RestClient;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
@@ -53,8 +54,12 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
     // Should it be final or should we able to reinitialize it sometimes?
     private final Azure client;
 
+    // Package private for test purposes
+    final RestClient restClient;
+
     public AzureManagementServiceImpl(Settings settings) {
-        this.client = initialize(settings);
+        this.restClient = initializeRestClient(settings);
+        this.client = initialize(settings, restClient);
     }
 
     /**
@@ -63,11 +68,9 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
      * @return a client Instance
      * @see Management for client properties
      */
-    private static Azure initialize(Settings settings) {
+    private static Azure initialize(Settings settings, RestClient restClient) {
         logger.debug("Initializing azure client");
-        String clientId = CLIENT_ID_SETTING.get(settings);
         String tenantId = TENANT_ID_SETTING.get(settings);
-        String secret = SECRET_SETTING.get(settings);
         String subscriptionId = SUBSCRIPTION_ID_SETTING.get(settings);
 
         SecurityManager sm = System.getSecurityManager();
@@ -75,11 +78,36 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
             sm.checkPermission(new SpecialPermission());
         }
         Azure client = AccessController.doPrivileged((PrivilegedAction<Azure>) () ->
-            Azure.authenticate(new ApplicationTokenCredentials(clientId, tenantId, secret, AzureEnvironment.AZURE))
-                .withSubscription(subscriptionId));
+            Azure.authenticate(restClient, tenantId).withSubscription(subscriptionId));
 
         logger.debug("Azure client initialized");
         return client;
+    }
+
+    /**
+     * Create a rest client instance
+     * @param settings Settings we will read the configuration from
+     * @return a rest client Instance
+     */
+    private static RestClient initializeRestClient(Settings settings) {
+        logger.debug("Initializing azure client");
+        String clientId = CLIENT_ID_SETTING.get(settings);
+        String tenantId = TENANT_ID_SETTING.get(settings);
+        String secret = SECRET_SETTING.get(settings);
+
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        return AccessController.doPrivileged((PrivilegedAction<RestClient>) () -> {
+            RestClient restClient = new RestClient.Builder()
+                .withBaseUrl(AzureEnvironment.AZURE, AzureEnvironment.Endpoint.RESOURCE_MANAGER)
+                .withCredentials(new ApplicationTokenCredentials(clientId, tenantId, secret, AzureEnvironment.AZURE))
+                .build();
+
+            logger.debug("Rest client initialized");
+            return restClient;
+        });
     }
 
 

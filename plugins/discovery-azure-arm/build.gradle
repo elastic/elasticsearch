@@ -54,7 +54,7 @@ dependencies {
   compile "com.squareup.retrofit2:retrofit:${versions.retrofit}"
   compile "com.squareup.retrofit2:adapter-rxjava:${versions.retrofit}"
   compile "io.reactivex:rxjava:1.1.8"
-  compile "com.squareup.okio:okio:1.8.0"
+  compile "com.squareup.okio:okio:1.13.0"
   // TODO should we declare jackson version ${versions.jackson} instead? but warning we have a 2.8.x in global settings
   compile "com.fasterxml.jackson.core:jackson-databind:2.7.2"
   compile "com.fasterxml.jackson.datatype:jackson-datatype-joda:2.7.2"

@@ -101,10 +101,9 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
         }
 
         for (AzureVirtualMachine vm : vms) {
-            // We check current power state
-            // No needs to include VMs which are stopped or going to be stopped
+            // We just consider RUNNING or STARTING machines. No needs to include VMs which are stopped or going to be stopped
             if (vm.getPowerState() != PowerState.STARTING && vm.getPowerState() != PowerState.RUNNING) {
-                logger.debug("[{}] status is [{}]. skipping...", vm.getName(), vm.getPowerState());
+                logger.debug("Ignoring machine [{}/{}] because of [{}] power status", vm.getName(), vm.getPrivateIp(), vm.getPowerState());
                 continue;
             }
 
@@ -112,7 +111,8 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
             if (Discovery.REGION_SETTING.exists(settings)) {
                 String region = Discovery.REGION_SETTING.get(settings);
                 if (region.equals(vm.getRegion()) == false) {
-                    logger.debug("current region [{}] does not match [{}]. skipping...", vm.getRegion(), region);
+                    logger.debug("Skipping machine [{}/{}] as region [{}] does not match [{}]", vm.getName(), vm.getPrivateIp(),
+                        vm.getRegion(), region);
                     continue;
                 }
             }

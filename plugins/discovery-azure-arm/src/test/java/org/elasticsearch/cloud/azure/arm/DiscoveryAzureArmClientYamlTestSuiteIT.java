@@ -33,7 +33,7 @@ public class DiscoveryAzureArmClientYamlTestSuiteIT extends ESClientYamlSuiteTes
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException {
+    public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }

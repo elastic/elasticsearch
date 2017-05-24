@@ -19,8 +19,12 @@
 
 package org.elasticsearch.cloud.azure.arm;
 
+import okhttp3.OkHttpClient;
+import okio.AsyncTimeout;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.util.List;
 
@@ -40,7 +44,10 @@ public class AzureArmClientTests extends ESTestCase {
     private static final String TENANT = "FILL_WITH_YOUR_TENANT";
     private static final String SUBSCRIPTION_ID = "FILL_WITH_YOUR_SUBSCRIPTION_ID";
 
-    public void testConnectWithKeySecret() {
+    private static AzureManagementServiceImpl service;
+
+    @BeforeClass
+    public static void createAzureClient() {
         assumeFalse("Test is skipped unless you use with real credentials",
             CLIENT_ID.startsWith("FILL_WITH_YOUR_") ||
                 SECRET.startsWith("FILL_WITH_YOUR_") ||
@@ -54,11 +61,40 @@ public class AzureArmClientTests extends ESTestCase {
             .put(SUBSCRIPTION_ID_SETTING.getKey(), SUBSCRIPTION_ID)
             .build();
 
-        AzureManagementServiceImpl service = new AzureManagementServiceImpl(settings);
+        service = new AzureManagementServiceImpl(settings);
+    }
+
+    public void testConnectWithKeySecret() {
         List<AzureVirtualMachine> vms = service.getVirtualMachines(null);
 
         for (AzureVirtualMachine vm : vms) {
             logger.info(" -> {}", vm);
         }
+    }
+
+    /**
+     * This is super ugly. The HTTP client which is used behind the scene
+     * by the azure client does not close its resources.
+     * The only workaround for now is to wait for 60s so the client
+     * will shutdown "normally".
+     * See discussion on https://github.com/Azure/azure-sdk-for-java/issues/1387
+     */
+    @AfterClass
+    public static void waitForHttpClientToClose() throws InterruptedException {
+        if (service != null) {
+            OkHttpClient okHttpClient = service.restClient.httpClient();
+            okHttpClient.dispatcher().executorService().shutdown();
+            okHttpClient.connectionPool().evictAll();
+            synchronized (okHttpClient.connectionPool()) {
+                okHttpClient.connectionPool().notifyAll();
+            }
+            synchronized (AsyncTimeout.class) {
+                AsyncTimeout.class.notifyAll();
+            }
+
+            Thread.sleep(60000);
+        }
+
+        service = null;
     }
 }

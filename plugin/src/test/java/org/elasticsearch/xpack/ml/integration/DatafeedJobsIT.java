@@ -110,6 +110,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/1536")
     public void testRealtime_multipleStopCalls() throws Exception {
         String jobId = "realtime-job-multiple-stop";
         final String datafeedId = jobId + "-datafeed";

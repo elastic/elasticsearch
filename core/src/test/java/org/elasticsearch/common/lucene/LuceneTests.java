@@ -75,7 +75,7 @@ public class LuceneTests extends ESTestCase {
                 } catch (InterruptedException e) {
                     // ignore interruptions
                 } catch (Exception e) {
-                    fail("should have been able to create the engine! " + e.getMessage());
+                    fail("should have been able to get the engine! " + e.getMessage());
                 }
             }
         });

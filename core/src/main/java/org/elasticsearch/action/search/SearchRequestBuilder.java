@@ -363,11 +363,18 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Applies when sorting, and controls if scores will be tracked as well. Defaults to
-     * <tt>false</tt>.
+     * Applies when sorting, and controls if scores will be tracked as well. Defaults to <tt>false</tt>.
      */
     public SearchRequestBuilder setTrackScores(boolean trackScores) {
         sourceBuilder().trackScores(trackScores);
+        return this;
+    }
+
+    /**
+     * Indicates if the total hit count for the query should be tracked. Defaults to <tt>true</tt>
+     */
+    public SearchRequestBuilder setTrackTotalHits(boolean trackTotalHits) {
+        sourceBuilder().trackTotalHits(trackTotalHits);
         return this;
     }
 

@@ -197,6 +197,10 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
         }
 
+        if (request.hasParam("track_total_hits")) {
+            searchSourceBuilder.trackTotalHits(request.paramAsBoolean("track_total_hits", true));
+        }
+
         String sSorts = request.param("sort");
         if (sSorts != null) {
             String[] sorts = Strings.splitStringByCommaToArray(sSorts);

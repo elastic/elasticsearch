@@ -40,7 +40,7 @@ import java.util.Collection;
 abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
     protected final String field;
 
-    CollapsingDocValuesSource(String field) throws IOException {
+    CollapsingDocValuesSource(String field) {
         this.field = field;
     }
 
@@ -58,7 +58,7 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
         private long value;
         private boolean hasValue;
 
-        Numeric(String field) throws IOException {
+        Numeric(String field) {
             super(field);
         }
 
@@ -148,7 +148,7 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
         private SortedDocValues values;
         private int ord;
 
-        Keyword(String field) throws IOException {
+        Keyword(String field) {
             super(field);
         }
 

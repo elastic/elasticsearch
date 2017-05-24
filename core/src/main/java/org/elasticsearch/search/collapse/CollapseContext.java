@@ -56,7 +56,7 @@ public class CollapseContext {
         return innerHits;
     }
 
-    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, boolean trackMaxScore) throws IOException {
+    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, boolean trackMaxScore) {
         if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
             return CollapsingTopDocsCollector.createKeyword(fieldType.name(), sort, topN, trackMaxScore);
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {

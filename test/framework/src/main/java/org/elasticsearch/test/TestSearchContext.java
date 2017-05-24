@@ -60,6 +60,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,11 +82,15 @@ public class TestSearchContext extends SearchContext {
     Query query;
     Float minScore;
     SearchTask task;
+    SortAndFormats sort;
+    boolean trackScores = false;
+    boolean trackTotalHits = true;
 
     ContextIndexSearcher searcher;
     int size;
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private SearchContextAggregations aggregations;
+    private ScrollContext scrollContext;
 
     private final long originNanoTime = System.nanoTime();
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
@@ -161,12 +166,13 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public ScrollContext scrollContext() {
-        return null;
+        return scrollContext;
     }
 
     @Override
     public SearchContext scrollContext(ScrollContext scrollContext) {
-        throw new UnsupportedOperationException();
+        this.scrollContext = scrollContext;
+        return this;
     }
 
     @Override
@@ -210,7 +216,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public List<RescoreSearchContext> rescore() {
-        return null;
+        return Collections.emptyList();
     }
 
     @Override
@@ -336,22 +342,35 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext sort(SortAndFormats sort) {
-        return null;
+        this.sort = sort;
+        return this;
     }
 
     @Override
     public SortAndFormats sort() {
-        return null;
+        return sort;
     }
 
     @Override
     public SearchContext trackScores(boolean trackScores) {
-        return null;
+        this.trackScores = trackScores;
+        return this;
     }
 
     @Override
     public boolean trackScores() {
-        return false;
+        return trackScores;
+    }
+
+    @Override
+    public SearchContext trackTotalHits(boolean trackTotalHits) {
+        this.trackTotalHits = trackTotalHits;
+        return this;
+    }
+
+    @Override
+    public boolean trackTotalHits() {
+        return trackTotalHits;
     }
 
     @Override

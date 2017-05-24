@@ -635,6 +635,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         context.trackScores(source.trackScores());
+        context.trackTotalHits(source.trackTotalHits());
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
         }

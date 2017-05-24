@@ -252,7 +252,4 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
         return new ExpressionExecutableScript(compiledScript, vars);
     }
-
-    @Override
-    public void close() {}
 }

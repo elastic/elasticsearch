@@ -69,7 +69,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
         scripts.put("script", p -> null);
         scriptEngine = new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, scripts);
-
         //prevent duplicates using map
         contexts = new HashMap<>(ScriptContext.BUILTINS);
         engines = new HashMap<>();
@@ -316,5 +315,4 @@ public class ScriptServiceTests extends ESTestCase {
                 notNullValue()
         );
     }
-
 }

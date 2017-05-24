@@ -90,10 +90,6 @@ public class MockScriptEngine implements ScriptEngine {
         return compiled.createSearchScript(vars, lookup);
     }
 
-    @Override
-    public void close() throws IOException {
-    }
-
     public class MockCompiledScript {
 
         private final String name;

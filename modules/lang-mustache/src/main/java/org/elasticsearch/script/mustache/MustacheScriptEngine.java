@@ -97,11 +97,6 @@ public final class MustacheScriptEngine implements ScriptEngine {
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public void close() {
-        // Nothing to do here
-    }
-
     /**
      * Used at query execution time by script service in order to execute a query template.
      * */

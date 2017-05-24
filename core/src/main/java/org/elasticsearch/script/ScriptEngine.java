@@ -23,6 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -47,4 +48,7 @@ public interface ScriptEngine extends Closeable {
     ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);
 
     SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars);
+
+    @Override
+    default void close() throws IOException {}
 }

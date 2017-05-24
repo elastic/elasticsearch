@@ -211,14 +211,6 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         };
     }
 
-    /**
-     * Action taken when the engine is closed.
-     */
-    @Override
-    public void close() {
-        // Nothing to do.
-    }
-
     private ScriptException convertToScriptException(String scriptName, String scriptSource, Throwable t) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();

@@ -203,6 +203,15 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         expectThrows(ResourceNotFoundException.class, () -> builder.putDatafeed(datafeedConfig1));
     }
 
+    public void testPutDatafeed_failBecauseJobIsBeingDeleted() {
+        Job job1 = createDatafeedJob().setDeleted(true).build(new Date());
+        DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
+        MlMetadata.Builder builder = new MlMetadata.Builder();
+        builder.putJob(job1, false);
+
+        expectThrows(ResourceNotFoundException.class, () -> builder.putDatafeed(datafeedConfig1));
+    }
+
     public void testPutDatafeed_failBecauseDatafeedIdIsAlreadyTaken() {
         Job job1 = createDatafeedJob().build(new Date());
         DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();

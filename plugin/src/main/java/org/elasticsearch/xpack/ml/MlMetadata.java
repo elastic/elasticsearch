@@ -276,7 +276,7 @@ public class MlMetadata implements MetaData.Custom {
 
         private void checkJobIsAvailableForDatafeed(String jobId) {
             Job job = jobs.get(jobId);
-            if (job == null) {
+            if (job == null || job.isDeleted()) {
                 throw ExceptionsHelper.missingJobException(jobId);
             }
             Optional<DatafeedConfig> existingDatafeed = getDatafeedByJobId(jobId);

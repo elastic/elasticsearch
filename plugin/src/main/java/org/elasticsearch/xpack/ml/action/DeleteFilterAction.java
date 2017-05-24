@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -178,7 +179,7 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
                         + currentlyUsedBy);
             }
 
-            DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filterId);
+            DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, MlFilter.documentId(filterId));
             BulkRequest bulkRequest = new BulkRequest();
             bulkRequest.add(deleteRequest);
             transportAction.execute(bulkRequest, new ActionListener<BulkResponse>() {

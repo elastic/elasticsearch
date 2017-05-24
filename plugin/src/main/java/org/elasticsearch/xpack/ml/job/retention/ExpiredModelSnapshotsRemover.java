@@ -67,12 +67,12 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
-        searchRequest.types(ModelSnapshot.TYPE.getPreferredName());
 
         QueryBuilder activeSnapshotFilter = QueryBuilders.termQuery(
                 ModelSnapshot.SNAPSHOT_ID.getPreferredName(), job.getModelSnapshotId());
         QueryBuilder retainFilter = QueryBuilders.termQuery(ModelSnapshot.RETAIN.getPreferredName(), true);
         QueryBuilder query = createQuery(job.getId(), cutoffEpochMs)
+                .filter(QueryBuilders.existsQuery(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName()))
                 .mustNot(activeSnapshotFilter)
                 .mustNot(retainFilter);
 

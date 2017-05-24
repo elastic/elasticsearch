@@ -245,7 +245,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         }
 
         private void getFilter(String filterId, ActionListener<Response> listener) {
-            GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filterId);
+            GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, MlFilter.documentId(filterId));
             transportGetAction.execute(getRequest, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse getDocResponse) {

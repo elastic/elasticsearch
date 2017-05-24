@@ -143,7 +143,11 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
     }
 
     public String getId() {
-        return jobId + "_model_size_stats_" + logTime.getTime();
+        return documentIdPrefix(jobId) + logTime.getTime();
+    }
+
+    public static String documentIdPrefix(String jobId) {
+        return jobId + "_model_size_stats_";
     }
 
     @Override

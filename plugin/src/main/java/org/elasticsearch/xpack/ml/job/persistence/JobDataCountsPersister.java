@@ -47,7 +47,7 @@ public class JobDataCountsPersister extends AbstractComponent {
      */
     public void persistDataCounts(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
         try (XContentBuilder content = serialiseCounts(counts)) {
-            client.prepareIndex(AnomalyDetectorsIndex.resultsWriteAlias(jobId), DataCounts.TYPE.getPreferredName(),
+            client.prepareIndex(AnomalyDetectorsIndex.resultsWriteAlias(jobId), ElasticsearchMappings.DOC_TYPE,
                     DataCounts.documentId(jobId))
             .setSource(content).execute(new ActionListener<IndexResponse>() {
                 @Override

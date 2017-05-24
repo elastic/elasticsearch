@@ -274,12 +274,16 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         return stateDocumentIds;
     }
 
+    public static String documentIdPrefix(String jobId) {
+        return jobId + "_model_snapshot_";
+    }
+
     public static String documentId(ModelSnapshot snapshot) {
         return documentId(snapshot.getJobId(), snapshot.getSnapshotId());
     }
 
     public static String documentId(String jobId, String snapshotId) {
-        return jobId + "_model_snapshot_" + snapshotId;
+        return documentIdPrefix(jobId) + snapshotId;
     }
 
     public static ModelSnapshot fromJson(BytesReference bytesReference) {

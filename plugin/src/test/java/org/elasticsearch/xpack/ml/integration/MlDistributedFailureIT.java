@@ -171,7 +171,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     // are what we expect them to be:
     private static DataCounts getDataCountsFromIndex(String jobId) {
         SearchResponse searchResponse = client().prepareSearch()
-                .setTypes(DataCounts.TYPE.getPreferredName())
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
                 .get();
         if (searchResponse.getHits().getTotalHits() != 1) {

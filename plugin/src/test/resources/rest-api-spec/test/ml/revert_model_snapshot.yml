@@ -28,7 +28,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-revert-model-snapshot
-        type:   model_snapshot
+        type:   doc
         id:     "revert-model-snapshot_model_snapshot_first"
         body: >
           {
@@ -53,7 +53,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-revert-model-snapshot
-        type:   model_snapshot
+        type:   doc
         id:     "revert-model-snapshot_model_snapshot_second"
         body: >
           {
@@ -78,7 +78,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-revert-model-snapshot
-        type:   result
+        type:   doc
         id:     "revert-model-snapshot_1464825600000_1"
         body: >
           {
@@ -91,7 +91,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-revert-model-snapshot
-        type:   result
+        type:   doc
         id:     "revert-model-snapshot_1464782400000_1"
         body: >
           {
@@ -104,7 +104,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-revert-model-snapshot
-        type:   result
+        type:   doc
         id:     "revert-model-snapshot_1462060800000_1"
         body: >
           {
@@ -117,7 +117,7 @@ setup:
   - do:
        index:
         index:  .ml-anomalies-revert-model-snapshot
-        type:   result
+        type:   doc
         id:     "revert-model-snapshot_1464825600000_1_1"
         body: >
           {
@@ -130,7 +130,7 @@ setup:
   - do:
        index:
          index:  .ml-anomalies-revert-model-snapshot
-         type:   result
+         type:   doc
          id:     "revert-model-snapshot_1462060800000_1_2"
          body: >
            {
@@ -143,7 +143,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-revert-model-snapshot
-        type:   result
+        type:   doc
         id:     "revert-model-snapshot_1464825600000_1_3"
         body:   {
                   "job_id": "revert-model-snapshot",
@@ -158,7 +158,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-revert-model-snapshot
-        type:   result
+        type:   doc
         id:     "revert-model-snapshot_1462060800000_1_4"
         body:
            {

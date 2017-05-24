@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
@@ -52,6 +51,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * using whitespace.
  */
 public class ElasticsearchMappings {
+
+    public static final String DOC_TYPE = "doc";
+
     /**
      * String constants used in mappings
      */
@@ -97,25 +99,56 @@ public class ElasticsearchMappings {
      * so that the per-job term fields will not be automatically added
      * as fields of type 'text' to the index mappings of newly rolled indices.
      *
-     * @return The default mapping
      * @throws IOException On write error
      */
-    public static XContentBuilder defaultMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                    .startObject(MapperService.DEFAULT_MAPPING)
-                        .startArray("dynamic_templates")
-                            .startObject()
-                                .startObject("strings_as_keywords")
-                                    .field("match", "*")
-                                    .startObject("mapping")
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                .endObject()
+    public static void addDefaultMapping(XContentBuilder builder) throws IOException {
+        builder.startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("strings_as_keywords")
+                            .field("match", "*")
+                            .startObject("mapping")
+                                .field(TYPE, KEYWORD)
                             .endObject()
-                        .endArray()
+                        .endObject()
                     .endObject()
-                .endObject();
+                .endArray();
+    }
+
+    public static XContentBuilder docMapping() throws IOException {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        builder.startObject(DOC_TYPE);
+        addDefaultMapping(builder);
+        builder.startObject(PROPERTIES);
+
+        // Add result all field for easy searches in kibana
+        builder.startObject(ALL_FIELD_VALUES)
+            .field(TYPE, TEXT)
+            .field(ANALYZER, WHITESPACE)
+        .endObject();
+
+        builder.startObject(Job.ID.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .field(COPY_TO, ALL_FIELD_VALUES)
+        .endObject();
+
+        builder.startObject(Result.TIMESTAMP.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject();
+
+        addResultsMapping(builder);
+        addCategoryDefinitionMapping(builder);
+        addDataCountsMapping(builder);
+        addModelSnapshotMapping(builder);
+
+        // end properties
+        builder.endObject();
+        // end mapping
+        builder.endObject();
+        // end doc
+        builder.endObject();
+
+        return builder;
     }
 
     /**
@@ -142,145 +175,120 @@ public class ElasticsearchMappings {
      *     <li>Influencer.influencer_field_value</li>
      * </ul>
      *
-     * @return The mapping
      * @throws IOException On write error
      */
-    public static XContentBuilder resultsMapping() throws IOException {
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                    .startObject(Result.TYPE.getPreferredName())
-                        .startObject(PROPERTIES)
-                            .startObject(ALL_FIELD_VALUES)
-                                .field(TYPE, TEXT)
-                                .field(ANALYZER, WHITESPACE)
-                            .endObject()
-                            .startObject(Result.RESULT_TYPE.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(Job.ID.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                                .field(COPY_TO, ALL_FIELD_VALUES)
-                            .endObject()
-                            .startObject(Result.TIMESTAMP.getPreferredName())
-                                .field(TYPE, DATE)
-                            .endObject()
-                            .startObject(Bucket.ANOMALY_SCORE.getPreferredName())
-                                .field(TYPE, DOUBLE)
-                            .endObject()
-                            .startObject(BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName())
-                                .field(TYPE, DOUBLE)
-                            .endObject()
-                            .startObject(Bucket.INITIAL_ANOMALY_SCORE.getPreferredName())
-                                .field(TYPE, DOUBLE)
-                            .endObject()
-                            .startObject(Result.IS_INTERIM.getPreferredName())
-                                .field(TYPE, BOOLEAN)
-                            .endObject()
-                            .startObject(Bucket.RECORD_COUNT.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(Bucket.EVENT_COUNT.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(Bucket.BUCKET_SPAN.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(Bucket.PROCESSING_TIME_MS.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(Bucket.PARTITION_SCORES.getPreferredName())
-                                .field(TYPE, NESTED)
-                                .startObject(PROPERTIES)
-                                    .startObject(AnomalyRecord.PARTITION_FIELD_NAME.getPreferredName())
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                    .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                    .startObject(Bucket.INITIAL_ANOMALY_SCORE.getPreferredName())
-                                        .field(TYPE, DOUBLE)
-                                    .endObject()
-                                    .startObject(AnomalyRecord.PROBABILITY.getPreferredName())
-                                        .field(TYPE, DOUBLE)
-                                    .endObject()
-                                .endObject()
-                            .endObject()
+    private static void addResultsMapping(XContentBuilder builder) throws IOException {
+        builder.startObject(Result.RESULT_TYPE.getPreferredName())
+                .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(Bucket.ANOMALY_SCORE.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(Bucket.INITIAL_ANOMALY_SCORE.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(Result.IS_INTERIM.getPreferredName())
+                .field(TYPE, BOOLEAN)
+            .endObject()
+            .startObject(Bucket.RECORD_COUNT.getPreferredName())
+                .field(TYPE, LONG)
+            .endObject()
+            .startObject(Bucket.EVENT_COUNT.getPreferredName())
+                .field(TYPE, LONG)
+            .endObject()
+            .startObject(Bucket.BUCKET_SPAN.getPreferredName())
+                .field(TYPE, LONG)
+            .endObject()
+            .startObject(Bucket.PROCESSING_TIME_MS.getPreferredName())
+                .field(TYPE, LONG)
+            .endObject()
+            .startObject(Bucket.PARTITION_SCORES.getPreferredName())
+                .field(TYPE, NESTED)
+                .startObject(PROPERTIES)
+                    .startObject(AnomalyRecord.PARTITION_FIELD_NAME.getPreferredName())
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                    .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                    .startObject(Bucket.INITIAL_ANOMALY_SCORE.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                    .startObject(AnomalyRecord.PROBABILITY.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                .endObject()
+            .endObject()
 
-                            .startObject(Bucket.BUCKET_INFLUENCERS.getPreferredName())
-                                .field(TYPE, NESTED)
-                                .startObject(PROPERTIES)
-                                    .startObject(Job.ID.getPreferredName())
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                    .startObject(Result.RESULT_TYPE.getPreferredName())
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                    .startObject(BucketInfluencer.INFLUENCER_FIELD_NAME.getPreferredName())
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                    .startObject(BucketInfluencer.INITIAL_ANOMALY_SCORE.getPreferredName())
-                                        .field(TYPE, DOUBLE)
-                                    .endObject()
-                                    .startObject(BucketInfluencer.ANOMALY_SCORE.getPreferredName())
-                                        .field(TYPE, DOUBLE)
-                                    .endObject()
-                                    .startObject(BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName())
-                                        .field(TYPE, DOUBLE)
-                                    .endObject()
-                                    .startObject(BucketInfluencer.PROBABILITY.getPreferredName())
-                                        .field(TYPE, DOUBLE)
-                                    .endObject()
-                                    .startObject(Result.TIMESTAMP.getPreferredName())
-                                        .field(TYPE, DATE)
-                                    .endObject()
-                                    .startObject(BucketInfluencer.BUCKET_SPAN.getPreferredName())
-                                        .field(TYPE, LONG)
-                                    .endObject()
-                                    .startObject(Result.IS_INTERIM.getPreferredName())
-                                        .field(TYPE, BOOLEAN)
-                                    .endObject()
-                                .endObject()
-                            .endObject()
+            .startObject(Bucket.BUCKET_INFLUENCERS.getPreferredName())
+                .field(TYPE, NESTED)
+                .startObject(PROPERTIES)
+                    .startObject(Job.ID.getPreferredName())
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                    .startObject(Result.RESULT_TYPE.getPreferredName())
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                    .startObject(BucketInfluencer.INFLUENCER_FIELD_NAME.getPreferredName())
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                    .startObject(BucketInfluencer.INITIAL_ANOMALY_SCORE.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                    .startObject(BucketInfluencer.ANOMALY_SCORE.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                    .startObject(BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                    .startObject(BucketInfluencer.PROBABILITY.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                    .startObject(Result.TIMESTAMP.getPreferredName())
+                        .field(TYPE, DATE)
+                    .endObject()
+                    .startObject(BucketInfluencer.BUCKET_SPAN.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                    .startObject(Result.IS_INTERIM.getPreferredName())
+                        .field(TYPE, BOOLEAN)
+                    .endObject()
+                .endObject()
+            .endObject()
 
-                            // per-partition max probabilities mapping
-                            .startObject(PerPartitionMaxProbabilities.PER_PARTITION_MAX_PROBABILITIES.getPreferredName())
-                                .field(TYPE, NESTED)
-                                .startObject(PROPERTIES)
-                                    .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                    .startObject(PerPartitionMaxProbabilities.MAX_RECORD_SCORE.getPreferredName())
-                                        .field(TYPE, DOUBLE)
-                                    .endObject()
-                                .endObject()
-                            .endObject()
+            // per-partition max probabilities mapping
+            .startObject(PerPartitionMaxProbabilities.PER_PARTITION_MAX_PROBABILITIES.getPreferredName())
+                .field(TYPE, NESTED)
+                .startObject(PROPERTIES)
+                    .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                    .startObject(PerPartitionMaxProbabilities.MAX_RECORD_SCORE.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                .endObject()
+            .endObject()
 
-                            // Model Plot Output
-                            .startObject(ModelPlot.MODEL_FEATURE.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(ModelPlot.MODEL_LOWER.getPreferredName())
-                                .field(TYPE, DOUBLE)
-                            .endObject()
-                            .startObject(ModelPlot.MODEL_UPPER.getPreferredName())
-                                .field(TYPE, DOUBLE)
-                            .endObject()
-                            .startObject(ModelPlot.MODEL_MEDIAN.getPreferredName())
-                                .field(TYPE, DOUBLE)
-                            .endObject();
+            // Model Plot Output
+            .startObject(ModelPlot.MODEL_FEATURE.getPreferredName())
+                .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(ModelPlot.MODEL_LOWER.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(ModelPlot.MODEL_UPPER.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(ModelPlot.MODEL_MEDIAN.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject();
 
         addAnomalyRecordFieldsToMapping(builder);
         addInfluencerFieldsToMapping(builder);
         addModelSizeStatsFieldsToMapping(builder);
-
-        // End result properties
-        builder.endObject();
-        // End result
-        builder.endObject();
-        // End mapping
-        builder.endObject();
-
-        return builder;
     }
 
     static XContentBuilder termFieldsMapping(String type, Collection<String> termFields) {
@@ -312,11 +320,9 @@ public class ElasticsearchMappings {
     /**
      * AnomalyRecord fields to be added under the 'properties' section of the mapping
      * @param builder Add properties to this builder
-     * @return builder
      * @throws IOException On write error
      */
-    private static XContentBuilder addAnomalyRecordFieldsToMapping(XContentBuilder builder)
-            throws IOException {
+    private static void addAnomalyRecordFieldsToMapping(XContentBuilder builder) throws IOException {
         builder.startObject(AnomalyRecord.DETECTOR_INDEX.getPreferredName())
             .field(TYPE, INTEGER)
         .endObject()
@@ -426,11 +432,9 @@ public class ElasticsearchMappings {
                 .endObject()
             .endObject()
         .endObject();
-
-        return builder;
     }
 
-    private static XContentBuilder addInfluencerFieldsToMapping(XContentBuilder builder) throws IOException {
+    private static void addInfluencerFieldsToMapping(XContentBuilder builder) throws IOException {
         builder.startObject(Influencer.INFLUENCER_SCORE.getPreferredName())
             .field(TYPE, DOUBLE)
         .endObject()
@@ -444,8 +448,6 @@ public class ElasticsearchMappings {
             .field(TYPE, KEYWORD)
             .field(COPY_TO, ALL_FIELD_VALUES)
         .endObject();
-
-        return builder;
     }
 
     /**
@@ -453,68 +455,57 @@ public class ElasticsearchMappings {
      * The type is disabled so {@link DataCounts} aren't searchable and
      * the '_all' field is disabled
      *
-     * @return The builder
      * @throws IOException On builder write error
      */
-    public static XContentBuilder dataCountsMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                    .startObject(DataCounts.TYPE.getPreferredName())
-                        .startObject(PROPERTIES)
-                            .startObject(Job.ID.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(DataCounts.PROCESSED_RECORD_COUNT.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(DataCounts.PROCESSED_FIELD_COUNT.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(DataCounts.INPUT_BYTES.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(DataCounts.INPUT_RECORD_COUNT.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(DataCounts.INPUT_FIELD_COUNT.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(DataCounts.INVALID_DATE_COUNT.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(DataCounts.MISSING_FIELD_COUNT.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(DataCounts.OUT_OF_ORDER_TIME_COUNT.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(DataCounts.EMPTY_BUCKET_COUNT.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(DataCounts.SPARSE_BUCKET_COUNT.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(DataCounts.BUCKET_COUNT.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(DataCounts.EARLIEST_RECORD_TIME.getPreferredName())
-                                .field(TYPE, DATE)
-                            .endObject()
-                            .startObject(DataCounts.LATEST_RECORD_TIME.getPreferredName())
-                                .field(TYPE, DATE)
-                            .endObject()
-                            .startObject(DataCounts.LATEST_EMPTY_BUCKET_TIME.getPreferredName())
-                                .field(TYPE, DATE)
-                            .endObject()
-                            .startObject(DataCounts.LATEST_SPARSE_BUCKET_TIME.getPreferredName())
-                                .field(TYPE, DATE)
-                            .endObject()
-                            .startObject(DataCounts.LAST_DATA_TIME.getPreferredName())
-                                .field(TYPE, DATE)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject();
+    private static void addDataCountsMapping(XContentBuilder builder) throws IOException {
+        builder.startObject(DataCounts.PROCESSED_RECORD_COUNT.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(DataCounts.PROCESSED_FIELD_COUNT.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(DataCounts.INPUT_BYTES.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(DataCounts.INPUT_RECORD_COUNT.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(DataCounts.INPUT_FIELD_COUNT.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(DataCounts.INVALID_DATE_COUNT.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(DataCounts.MISSING_FIELD_COUNT.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(DataCounts.OUT_OF_ORDER_TIME_COUNT.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(DataCounts.EMPTY_BUCKET_COUNT.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(DataCounts.SPARSE_BUCKET_COUNT.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(DataCounts.BUCKET_COUNT.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(DataCounts.EARLIEST_RECORD_TIME.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject()
+        .startObject(DataCounts.LATEST_RECORD_TIME.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject()
+        .startObject(DataCounts.LATEST_EMPTY_BUCKET_TIME.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject()
+        .startObject(DataCounts.LATEST_SPARSE_BUCKET_TIME.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject()
+        .startObject(DataCounts.LAST_DATA_TIME.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject();
     }
 
     /**
@@ -554,35 +545,24 @@ public class ElasticsearchMappings {
      * Create the Elasticsearch mapping for {@linkplain CategoryDefinition}.
      * The '_all' field is disabled as the document isn't meant to be searched.
      *
-     * @return The builder
      * @throws IOException On builder error
      */
-    public static XContentBuilder categoryDefinitionMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                    .startObject(CategoryDefinition.TYPE.getPreferredName())
-                        .startObject(PROPERTIES)
-                            .startObject(CategoryDefinition.CATEGORY_ID.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(Job.ID.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(CategoryDefinition.TERMS.getPreferredName())
-                                .field(TYPE, TEXT)
-                            .endObject()
-                            .startObject(CategoryDefinition.REGEX.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(CategoryDefinition.EXAMPLES.getPreferredName())
-                                .field(TYPE, TEXT)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject();
+    private static void addCategoryDefinitionMapping(XContentBuilder builder) throws IOException {
+        builder.startObject(CategoryDefinition.CATEGORY_ID.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(CategoryDefinition.TERMS.getPreferredName())
+            .field(TYPE, TEXT)
+        .endObject()
+        .startObject(CategoryDefinition.REGEX.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject()
+        .startObject(CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(CategoryDefinition.EXAMPLES.getPreferredName())
+            .field(TYPE, TEXT)
+        .endObject();
     }
 
     /**
@@ -605,91 +585,76 @@ public class ElasticsearchMappings {
      * Create the Elasticsearch mapping for {@linkplain ModelSnapshot}.
      * The '_all' field is disabled but the type is searchable
      */
-    public static XContentBuilder modelSnapshotMapping() throws IOException {
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                    .startObject(ModelSnapshot.TYPE.getPreferredName())
-                        .startObject(PROPERTIES)
-                            .startObject(Job.ID.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(ModelSnapshot.TIMESTAMP.getPreferredName())
-                                .field(TYPE, DATE)
-                            .endObject()
-                            .startObject(ModelSnapshot.DESCRIPTION.getPreferredName())
-                                .field(TYPE, TEXT)
-                            .endObject()
-                            .startObject(ModelSnapshot.SNAPSHOT_ID.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName())
-                                .field(TYPE, INTEGER)
-                            .endObject()
-                            .startObject(ModelSnapshot.RETAIN.getPreferredName())
-                                .field(TYPE, BOOLEAN)
-                            .endObject()
-                            .startObject(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName())
-                                .startObject(PROPERTIES)
-                                    .startObject(Job.ID.getPreferredName())
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                    .startObject(Result.RESULT_TYPE.getPreferredName())
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                    .startObject(ModelSizeStats.TIMESTAMP_FIELD.getPreferredName())
-                                        .field(TYPE, DATE)
-                                    .endObject();
+    private static void addModelSnapshotMapping(XContentBuilder builder) throws IOException {
+        builder.startObject(ModelSnapshot.DESCRIPTION.getPreferredName())
+            .field(TYPE, TEXT)
+        .endObject()
+        .startObject(ModelSnapshot.SNAPSHOT_ID.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject()
+        .startObject(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName())
+            .field(TYPE, INTEGER)
+        .endObject()
+        .startObject(ModelSnapshot.RETAIN.getPreferredName())
+            .field(TYPE, BOOLEAN)
+        .endObject()
+        .startObject(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject(Job.ID.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(Result.RESULT_TYPE.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(ModelSizeStats.TIMESTAMP_FIELD.getPreferredName())
+                    .field(TYPE, DATE)
+                .endObject();
 
         addModelSizeStatsFieldsToMapping(builder);
 
-        builder.endObject()
-                            .endObject()
-                            .startObject(Quantiles.TYPE.getPreferredName())
-                                .field(ENABLED, false)
-                            .endObject()
-                            .startObject(ModelSnapshot.LATEST_RECORD_TIME.getPreferredName())
-                                .field(TYPE, DATE)
-                            .endObject()
-                            .startObject(ModelSnapshot.LATEST_RESULT_TIME.getPreferredName())
-                                .field(TYPE, DATE)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject();
+        // end model size stats properties
+        builder.endObject();
+        // end model size stats mapping
+        builder.endObject();
 
-        return builder;
+        builder.startObject(Quantiles.TYPE.getPreferredName())
+            .field(ENABLED, false)
+        .endObject()
+        .startObject(ModelSnapshot.LATEST_RECORD_TIME.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject()
+        .startObject(ModelSnapshot.LATEST_RESULT_TIME.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject();
     }
 
     /**
      * {@link ModelSizeStats} fields to be added under the 'properties' section of the mapping
      * @param builder Add properties to this builder
-     * @return builder
      * @throws IOException On write error
      */
-    private static XContentBuilder addModelSizeStatsFieldsToMapping(XContentBuilder builder) throws IOException {
+    private static void addModelSizeStatsFieldsToMapping(XContentBuilder builder) throws IOException {
         builder.startObject(ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName())
-                    .field(TYPE, LONG)
-                .endObject()
-                .startObject(ModelSizeStats.TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName())
-                    .field(TYPE, LONG)
-                .endObject()
-                .startObject(ModelSizeStats.TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName())
-                    .field(TYPE, LONG)
-                .endObject()
-                .startObject(ModelSizeStats.TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName())
-                    .field(TYPE, LONG)
-                .endObject()
-                .startObject(ModelSizeStats.BUCKET_ALLOCATION_FAILURES_COUNT_FIELD.getPreferredName())
-                    .field(TYPE, LONG)
-                .endObject()
-                .startObject(ModelSizeStats.MEMORY_STATUS_FIELD.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(ModelSizeStats.LOG_TIME_FIELD.getPreferredName())
-                    .field(TYPE, DATE)
-                .endObject();
-
-        return builder;
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(ModelSizeStats.TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(ModelSizeStats.TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(ModelSizeStats.TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(ModelSizeStats.BUCKET_ALLOCATION_FAILURES_COUNT_FIELD.getPreferredName())
+            .field(TYPE, LONG)
+        .endObject()
+        .startObject(ModelSizeStats.MEMORY_STATUS_FIELD.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject()
+        .startObject(ModelSizeStats.LOG_TIME_FIELD.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject();
     }
 
     public static XContentBuilder auditMessageMapping() throws IOException {

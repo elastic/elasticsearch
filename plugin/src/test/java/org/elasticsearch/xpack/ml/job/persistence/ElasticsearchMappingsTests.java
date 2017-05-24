@@ -33,30 +33,8 @@ import java.util.Set;
 
 
 public class ElasticsearchMappingsTests extends ESTestCase {
-    private void parseJson(JsonParser parser, Set<String> expected) throws IOException {
-        try {
-            JsonToken token = parser.nextToken();
-            while (token != null && token != JsonToken.END_OBJECT) {
-                switch (token) {
-                    case START_OBJECT:
-                        parseJson(parser, expected);
-                        break;
-                    case FIELD_NAME:
-                        String fieldName = parser.getCurrentName();
-                        expected.add(fieldName);
-                        break;
-                    default:
-                        break;
-                }
-                token = parser.nextToken();
-            }
-        } catch (JsonParseException e) {
-            fail("Cannot parse JSON: " + e);
-        }
-    }
 
-    public void testReservedFields()
-            throws IOException, ClassNotFoundException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+    public void testReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>();
 
         // These are not reserved because they're Elasticsearch keywords, not
@@ -78,30 +56,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(ModelSnapshot.TYPE.getPreferredName());
         overridden.add(Quantiles.TYPE.getPreferredName());
 
-        Set<String> expected = new HashSet<>();
-
-        // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
-
-        XContentBuilder builder = ElasticsearchMappings.resultsMapping();
-        BufferedInputStream inputStream =
-                new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        JsonParser parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.categoryDefinitionMapping();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.dataCountsMapping();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.modelSnapshotMapping();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
+        Set<String> expected = collectResultsDocFieldNames();
 
         expected.removeAll(overridden);
 
@@ -146,5 +101,42 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         // check no mapping for the reserved field
         instanceMapping = (Map<String, Object>) properties.get(AnomalyRecord.BUCKET_SPAN.getPreferredName());
         assertNull(instanceMapping);
+    }
+
+    private Set<String> collectResultsDocFieldNames() throws IOException {
+        // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
+
+        XContentBuilder builder = ElasticsearchMappings.docMapping();
+        BufferedInputStream inputStream =
+                new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
+        JsonParser parser = new JsonFactory().createParser(inputStream);
+        Set<String> fieldNames = new HashSet<>();
+        boolean isAfterPropertiesStart = false;
+        try {
+            JsonToken token = parser.nextToken();
+            while (token != null) {
+                switch (token) {
+                    case START_OBJECT:
+                        break;
+                    case FIELD_NAME:
+                        String fieldName = parser.getCurrentName();
+                        if (isAfterPropertiesStart) {
+                            fieldNames.add(fieldName);
+                        } else {
+                            if (ElasticsearchMappings.PROPERTIES.equals(fieldName)) {
+                                isAfterPropertiesStart = true;
+                            }
+                        }
+                        break;
+                    default:
+                        break;
+                }
+                token = parser.nextToken();
+            }
+        } catch (JsonParseException e) {
+            fail("Cannot parse JSON: " + e);
+        }
+
+        return fieldNames;
     }
 }

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
@@ -21,9 +20,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
@@ -38,12 +34,10 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -402,24 +396,6 @@ public class JobManager extends AbstractComponent {
                 return updateClusterState(builder.build(), true, currentState);
             }
         });
-    }
-
-    /**
-     * Update a persisted model snapshot metadata document to match the
-     * argument supplied.
-     *
-     * @param modelSnapshot         the updated model snapshot object to be stored
-     */
-    public void updateModelSnapshot(Result<ModelSnapshot> modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
-        IndexRequest indexRequest = new IndexRequest(modelSnapshot.index, ModelSnapshot.TYPE.getPreferredName(),
-                ModelSnapshot.documentId(modelSnapshot.result));
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            modelSnapshot.result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            indexRequest.source(builder);
-        } catch (IOException e) {
-            errorHandler.accept(e);
-        }
-        client.index(indexRequest, ActionListener.wrap(r -> handler.accept(true), errorHandler));
     }
 
     private static MlMetadata.Builder createMlMetadataBuilder(ClusterState currentState) {

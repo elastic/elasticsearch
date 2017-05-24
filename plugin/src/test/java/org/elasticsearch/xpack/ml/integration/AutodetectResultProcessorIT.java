@@ -150,9 +150,9 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         assertEquals(1, persistedDefinition.count());
         assertEquals(categoryDefinition, persistedDefinition.results().get(0));
 
-        QueryPage<ModelPlot> persistedmodelPlot = jobProvider.modelPlot(JOB_ID, 0, 100);
-        assertEquals(1, persistedmodelPlot.count());
-        assertEquals(modelPlot, persistedmodelPlot.results().get(0));
+        QueryPage<ModelPlot> persistedModelPlot = jobProvider.modelPlot(JOB_ID, 0, 100);
+        assertEquals(1, persistedModelPlot.count());
+        assertEquals(modelPlot, persistedModelPlot.results().get(0));
 
         ModelSizeStats persistedModelSizeStats = getModelSizeStats();
         assertEquals(modelSizeStats, persistedModelSizeStats);

@@ -35,6 +35,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
@@ -138,8 +139,9 @@ public class JobProvider {
         if (!state.getMetaData().hasIndex(indexName)) {
             LOGGER.trace("ES API CALL: create index {}", indexName);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-            String type = Result.TYPE.getPreferredName();
-            createIndexRequest.mapping(type, ElasticsearchMappings.termFieldsMapping(type, termFields));
+            try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(ElasticsearchMappings.DOC_TYPE, termFields)) {
+                createIndexRequest.mapping(ElasticsearchMappings.DOC_TYPE, termFieldsMapping);
+            }
             client.admin().indices().create(createIndexRequest,
                     ActionListener.wrap(
                             r -> createAliasListener.onResponse(r.isAcknowledged()),
@@ -209,19 +211,21 @@ public class JobProvider {
     }
 
     private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields, ActionListener<Boolean> listener) {
-        client.admin().indices().preparePutMapping(indexName).setType(Result.TYPE.getPreferredName())
-                .setSource(ElasticsearchMappings.termFieldsMapping(null, termFields))
-                .execute(new ActionListener<PutMappingResponse>() {
-                    @Override
-                    public void onResponse(PutMappingResponse putMappingResponse) {
-                        listener.onResponse(putMappingResponse.isAcknowledged());
-                    }
+        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(null, termFields)) {
+            client.admin().indices().preparePutMapping(indexName).setType(ElasticsearchMappings.DOC_TYPE)
+                    .setSource(termFieldsMapping)
+                    .execute(new ActionListener<PutMappingResponse>() {
+                        @Override
+                        public void onResponse(PutMappingResponse putMappingResponse) {
+                            listener.onResponse(putMappingResponse.isAcknowledged());
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+        }
     }
 
     /**
@@ -251,12 +255,11 @@ public class JobProvider {
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
                 .add(createLatestDataCountsSearch(resultsIndex, jobId))
                 .add(createLatestModelSizeStatsSearch(resultsIndex))
-                .add(createDocIdSearch(resultsIndex, ModelSnapshot.TYPE.getPreferredName(),
-                        ModelSnapshot.documentId(jobId, job.getModelSnapshotId())))
-                .add(createDocIdSearch(stateIndex, Quantiles.TYPE.getPreferredName(), Quantiles.documentId(jobId)));
+                .add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, job.getModelSnapshotId())))
+                .add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
 
         for (String filterId : job.getAnalysisConfig().extractReferencedFilters()) {
-            msearch.add(createDocIdSearch(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filterId));
+            msearch.add(createDocIdSearch(MlMetaIndex.INDEX_NAME, filterId));
         }
 
         msearch.execute(ActionListener.wrap(
@@ -284,7 +287,7 @@ public class JobProvider {
                                     SearchRequest searchRequest = msearch.request().requests().get(i);
                                     LOGGER.debug("Found 0 hits for [{}/{}]", searchRequest.indices(), searchRequest.types());
                                 } else if (hitsCount == 1) {
-                                    parseAutodetectParamSearchHit(paramsBuilder, hits.getAt(0), errorHandler);
+                                    parseAutodetectParamSearchHit(jobId, paramsBuilder, hits.getAt(0), errorHandler);
                                 } else if (hitsCount > 1) {
                                     errorHandler.accept(new IllegalStateException("Expected hits count to be 0 or 1, but got ["
                                             + hitsCount + "]"));
@@ -298,30 +301,30 @@ public class JobProvider {
         ));
     }
 
-    private SearchRequestBuilder createDocIdSearch(String index, String type, String id) {
+    private SearchRequestBuilder createDocIdSearch(String index, String id) {
         return client.prepareSearch(index).setSize(1)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(QueryBuilders.idsQuery(type).addIds(id))
+                .setQuery(QueryBuilders.idsQuery().addIds(id))
                 .setRouting(id);
     }
 
-    private void parseAutodetectParamSearchHit(AutodetectParams.Builder paramsBuilder,
-                                               SearchHit hit, Consumer<Exception> errorHandler) {
-        String type = hit.getType();
-        if (DataCounts.TYPE.getPreferredName().equals(type)) {
+    private void parseAutodetectParamSearchHit(String jobId, AutodetectParams.Builder paramsBuilder, SearchHit hit,
+                                               Consumer<Exception> errorHandler) {
+        String hitId = hit.getId();
+        if (DataCounts.documentId(jobId).equals(hitId)) {
             paramsBuilder.setDataCounts(parseSearchHit(hit, DataCounts.PARSER, errorHandler));
-        } else if (Result.TYPE.getPreferredName().equals(type)) {
+        } else if (hitId.startsWith(ModelSizeStats.documentIdPrefix(jobId))) {
             ModelSizeStats.Builder modelSizeStats = parseSearchHit(hit, ModelSizeStats.PARSER, errorHandler);
             paramsBuilder.setModelSizeStats(modelSizeStats == null ? null : modelSizeStats.build());
-        } else if (ModelSnapshot.TYPE.getPreferredName().equals(type)) {
+        } else if (hitId.startsWith(ModelSnapshot.documentIdPrefix(jobId))) {
             ModelSnapshot.Builder modelSnapshot = parseSearchHit(hit, ModelSnapshot.PARSER, errorHandler);
             paramsBuilder.setModelSnapshot(modelSnapshot == null ? null : modelSnapshot.build());
-        } else if (Quantiles.TYPE.getPreferredName().equals(type)) {
+        } else if (Quantiles.documentId(jobId).equals(hit.getId())) {
             paramsBuilder.setQuantiles(parseSearchHit(hit, Quantiles.PARSER, errorHandler));
-        } else if (MlFilter.TYPE.getPreferredName().equals(type)) {
+        } else if (hitId.startsWith(MlFilter.DOCUMENT_ID_PREFIX)) {
             paramsBuilder.addFilter(parseSearchHit(hit, MlFilter.PARSER, errorHandler).build());
         } else {
-            errorHandler.accept(new IllegalStateException("Unexpected type [" + type + "]"));
+            errorHandler.accept(new IllegalStateException("Unexpected type [" + hit.getType() + "]"));
         }
     }
 
@@ -644,7 +647,6 @@ public class JobProvider {
 
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.indicesOptions(addIgnoreUnavailable(searchRequest.indicesOptions()));
-        searchRequest.types(Result.TYPE.getPreferredName());
         searchRequest.source(new SearchSourceBuilder()
                 .from(from)
                 .size(size)
@@ -703,7 +705,6 @@ public class JobProvider {
 
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.indicesOptions(addIgnoreUnavailable(searchRequest.indicesOptions()));
-        searchRequest.types(Result.TYPE.getPreferredName());
         FieldSortBuilder sb = query.getSortField() == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)
                 : new FieldSortBuilder(query.getSortField()).order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
         searchRequest.source(new SearchSourceBuilder().query(qb).from(query.getFrom()).size(query.getSize()).sort(sb));
@@ -744,8 +745,7 @@ public class JobProvider {
             return;
         }
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        SearchRequestBuilder search = createDocIdSearch(resultsIndex, ModelSnapshot.TYPE.getPreferredName(),
-                ModelSnapshot.documentId(jobId, modelSnapshotId));
+        SearchRequestBuilder search = createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, modelSnapshotId));
         searchSingleResult(jobId, ModelSnapshot.TYPE.getPreferredName(), search, ModelSnapshot.PARSER,
                 result -> handler.accept(result.result == null ? null : new Result(result.index, result.result.build())),
                 errorHandler, () -> null);
@@ -814,7 +814,7 @@ public class JobProvider {
                 .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        LOGGER.trace("ES API CALL: search all of type {} from index {} sort ascending {} with filter after sort from {} size {}",
+        LOGGER.trace("ES API CALL: search all {}s from index {} sort ascending {} with filter after sort from {} size {}",
                 ModelSnapshot.TYPE, indexName, sortField, from, size);
 
         SearchRequest searchRequest = new SearchRequest(indexName);
@@ -909,7 +909,6 @@ public class JobProvider {
 
         searchResponse = client.prepareSearch(indexName)
                 .setIndicesOptions(addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
-                .setTypes(Result.TYPE.getPreferredName())
                 .setQuery(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), ModelPlot.RESULT_TYPE_VALUE))
                 .setFrom(from).setSize(size)
                 .get();

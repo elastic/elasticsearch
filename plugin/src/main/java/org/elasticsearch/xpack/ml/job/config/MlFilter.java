@@ -23,6 +23,8 @@ import java.util.Objects;
 
 public class MlFilter extends ToXContentToBytes implements Writeable {
 
+    public static final String DOCUMENT_ID_PREFIX = "filter_";
+
     public static final String INCLUDE_TYPE_KEY = "include_type";
     public static final String FILTER_TYPE = "filter";
 
@@ -97,6 +99,14 @@ public class MlFilter extends ToXContentToBytes implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(id, items);
+    }
+
+    public String documentId() {
+        return documentId(id);
+    }
+
+    public static String documentId(String filterId) {
+        return DOCUMENT_ID_PREFIX + filterId;
     }
 
     public static class Builder {

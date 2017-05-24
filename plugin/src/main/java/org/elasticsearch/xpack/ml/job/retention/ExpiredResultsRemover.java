@@ -86,9 +86,10 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         request.setSlices(5);
 
         searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
-        searchRequest.types(Result.TYPE.getPreferredName());
         QueryBuilder excludeFilter = QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_VALUE);
-        QueryBuilder query = createQuery(job.getId(), cutoffEpochMs).mustNot(excludeFilter);
+        QueryBuilder query = createQuery(job.getId(), cutoffEpochMs)
+                .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
+                .mustNot(excludeFilter);
         searchRequest.source(new SearchSourceBuilder().query(query));
         return request;
     }

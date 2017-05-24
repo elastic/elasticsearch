@@ -5,7 +5,7 @@ setup:
       index:
         index: .ml-meta
         type: doc
-        id: imposter-filter
+        id: filter_imposter-filter
         body: >
           {
             "filter_id": "imposter",

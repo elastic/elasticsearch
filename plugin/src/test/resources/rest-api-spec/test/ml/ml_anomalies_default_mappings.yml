@@ -19,7 +19,7 @@
   - do:
       index:
         index:  .ml-anomalies-shared
-        type:   result
+        type:   doc
         id:     "new_doc"
         body: >
           {
@@ -33,6 +33,6 @@
   - do:
       indices.get_field_mapping:
         index: .ml-anomalies-shared
-        type: result
+        type: doc
         fields: new_field
-  - match: {\.ml-anomalies-shared.mappings.result.new_field.mapping.new_field.type: keyword}
+  - match: {\.ml-anomalies-shared.mappings.doc.new_field.mapping.new_field.type: keyword}

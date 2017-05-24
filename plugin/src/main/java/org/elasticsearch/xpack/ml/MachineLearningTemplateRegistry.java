@@ -30,12 +30,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
-import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
@@ -220,8 +216,9 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
         templateRequest.patterns(Collections.singletonList(MlMetaIndex.INDEX_NAME));
         templateRequest.settings(mlNotificationIndexSettings());
         templateRequest.version(Version.CURRENT.id);
-        try (XContentBuilder defaultMapping = ElasticsearchMappings.defaultMapping()) {
-            templateRequest.mapping(MapperService.DEFAULT_MAPPING, defaultMapping);
+
+        try (XContentBuilder docMapping = MlMetaIndex.docMapping()) {
+            templateRequest.mapping(MlMetaIndex.TYPE, docMapping);
         } catch (IOException e) {
             String msg = "Error creating template mappings for the " + MlMetaIndex.INDEX_NAME + " index";
             logger.error(msg, e);
@@ -255,20 +252,12 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
     }
 
     void putJobResultsIndexTemplate(BiConsumer<Boolean, Exception> listener) {
-        try (XContentBuilder defaultMapping = ElasticsearchMappings.defaultMapping();
-             XContentBuilder resultsMapping = ElasticsearchMappings.resultsMapping();
-             XContentBuilder categoryDefinitionMapping = ElasticsearchMappings.categoryDefinitionMapping();
-             XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
-             XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping()) {
+        try (XContentBuilder docMapping = ElasticsearchMappings.docMapping()) {
 
             PutIndexTemplateRequest templateRequest = new PutIndexTemplateRequest(AnomalyDetectorsIndex.jobResultsIndexPrefix());
             templateRequest.patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"));
             templateRequest.settings(mlResultsIndexSettings());
-            templateRequest.mapping(MapperService.DEFAULT_MAPPING, defaultMapping);
-            templateRequest.mapping(Result.TYPE.getPreferredName(), resultsMapping);
-            templateRequest.mapping(CategoryDefinition.TYPE.getPreferredName(), categoryDefinitionMapping);
-            templateRequest.mapping(DataCounts.TYPE.getPreferredName(), dataCountsMapping);
-            templateRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
+            templateRequest.mapping(ElasticsearchMappings.DOC_TYPE, docMapping);
             templateRequest.version(Version.CURRENT.id);
 
             client.admin().indices().putTemplate(templateRequest,

@@ -28,7 +28,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-delete-model-snapshot
-        type:   model_snapshot
+        type:   doc
         id:     "delete-model-snapshot_model_snapshot_inactive-snapshot"
         body: >
           {
@@ -64,7 +64,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-delete-model-snapshot
-        type:   model_snapshot
+        type:   doc
         id:     "delete-model-snapshot_model_snapshot_active-snapshot"
         body: >
           {

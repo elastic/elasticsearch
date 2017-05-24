@@ -12,6 +12,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -26,13 +30,14 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.results.Result;
@@ -40,6 +45,7 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.Request,
         UpdateModelSnapshotAction.Response, UpdateModelSnapshotAction.RequestBuilder> {
@@ -257,15 +263,15 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final JobManager jobManager;
         private final JobProvider jobProvider;
+        private final TransportBulkAction transportBulkAction;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager, JobProvider jobProvider) {
+                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider, TransportBulkAction transportBulkAction) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
-            this.jobManager = jobManager;
             this.jobProvider = jobProvider;
+            this.transportBulkAction = transportBulkAction;
         }
 
         @Override
@@ -277,7 +283,7 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
                             Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())));
                 } else {
                     Result<ModelSnapshot> updatedSnapshot = applyUpdate(request, modelSnapshot);
-                    jobManager.updateModelSnapshot(updatedSnapshot, b -> {
+                    indexModelSnapshot(updatedSnapshot, b -> {
                         // The quantiles can be large, and totally dominate the output -
                         // it's clearer to remove them
                         listener.onResponse(new Response(new ModelSnapshot.Builder(updatedSnapshot.result).setQuantiles(null).build()));
@@ -295,6 +301,30 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
                 updatedSnapshotBuilder.setRetain(request.getRetain());
             }
             return new Result(target.index, updatedSnapshotBuilder.build());
+        }
+
+        private void indexModelSnapshot(Result<ModelSnapshot> modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
+            IndexRequest indexRequest = new IndexRequest(modelSnapshot.index, ElasticsearchMappings.DOC_TYPE,
+                    ModelSnapshot.documentId(modelSnapshot.result));
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                modelSnapshot.result.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                indexRequest.source(builder);
+            } catch (IOException e) {
+                errorHandler.accept(e);
+                return;
+            }
+            BulkRequest bulkRequest = new BulkRequest().add(indexRequest);
+            transportBulkAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
+                @Override
+                public void onResponse(BulkResponse indexResponse) {
+                    handler.accept(true);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    errorHandler.accept(e);
+                }
+            });
         }
     }
 }

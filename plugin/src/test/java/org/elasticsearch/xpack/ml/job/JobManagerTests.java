@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
@@ -15,9 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -28,15 +24,11 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshotTests;
-import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
 
@@ -161,28 +153,6 @@ public class JobManagerTests extends ESTestCase {
                 fail(e.toString());
             }
         });
-    }
-
-    public void testUpdateModelSnapshot() {
-        ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
-        doAnswer(invocationOnMock -> null).when(client).index(indexRequestCaptor.capture(), any());
-
-        ModelSnapshot modelSnapshot = ModelSnapshotTests.createRandomized();
-        JobManager jobManager = createJobManager();
-
-        jobManager.updateModelSnapshot(new Result("snapshot-index", modelSnapshot), response -> {}, error -> {});
-
-        IndexRequest indexRequest = indexRequestCaptor.getValue();
-        assertThat(indexRequest.index(), equalTo("snapshot-index"));
-
-        // Assert snapshot was correctly serialised in the request by parsing it back and comparing to original
-        try (XContentParser parser = XContentFactory.xContent(indexRequest.source()).createParser(NamedXContentRegistry.EMPTY,
-                indexRequest.source())) {
-            ModelSnapshot requestSnapshot = ModelSnapshot.PARSER.apply(parser, null).build();
-            assertThat(requestSnapshot, equalTo(modelSnapshot));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     private Job.Builder createJob() {

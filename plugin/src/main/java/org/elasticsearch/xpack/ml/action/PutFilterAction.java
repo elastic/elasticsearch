@@ -174,8 +174,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
             MlFilter filter = request.getFilter();
-            final String filterId = filter.getId();
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filterId);
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 Payload.XContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlFilter.INCLUDE_TYPE_KEY, "true"));
                 indexRequest.source(filter.toXContent(builder, params));
@@ -192,7 +191,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(new ResourceNotFoundException("Could not create filter with ID [" + filterId + "]", e));
+                    listener.onFailure(new ResourceNotFoundException("Could not create filter with ID [" + filter.getId() + "]", e));
                 }
             });
         }

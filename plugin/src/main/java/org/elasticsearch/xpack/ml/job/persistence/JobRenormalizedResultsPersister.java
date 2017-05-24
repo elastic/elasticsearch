@@ -17,12 +17,12 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.BucketNormalizable;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
-import org.elasticsearch.xpack.ml.job.results.Result;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 
 
 /**
@@ -66,7 +66,7 @@ public class JobRenormalizedResultsPersister extends AbstractComponent {
 
     public void updateResult(String id, String index, ToXContent resultDoc) {
         try (XContentBuilder content = toXContentBuilder(resultDoc)) {
-            bulkRequest.add(new IndexRequest(index, Result.TYPE.getPreferredName(), id).source(content));
+            bulkRequest.add(new IndexRequest(index, DOC_TYPE, id).source(content));
         } catch (IOException e) {
             logger.error("Error serialising result", e);
         }

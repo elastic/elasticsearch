@@ -113,8 +113,10 @@ public class MockWebServer implements Closeable {
                     byte[] responseAsBytes = response.getBody().getBytes(StandardCharsets.UTF_8);
                     s.sendResponseHeaders(response.getStatusCode(), responseAsBytes.length);
                     sleepIfNeeded(response.getBodyDelay());
-                    try (OutputStream responseBody = s.getResponseBody()) {
-                        responseBody.write(responseAsBytes);
+                    if ("HEAD".equals(request.getMethod()) == false) {
+                        try (OutputStream responseBody = s.getResponseBody()) {
+                            responseBody.write(responseAsBytes);
+                        }
                     }
                 }
             } catch (Exception e) {

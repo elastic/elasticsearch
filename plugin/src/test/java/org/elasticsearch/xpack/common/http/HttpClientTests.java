@@ -447,4 +447,40 @@ public class HttpClientTests extends ESTestCase {
         IOException e = expectThrows(IOException.class, () -> httpClient.execute(requestBuilder.build()));
         assertThat(e.getMessage(), startsWith("Maximum limit of"));
     }
+
+    public void testThatGetRedirectIsFollowed() throws Exception {
+        String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/foo";
+        webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
+        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.HEAD);
+
+        if (method == HttpMethod.GET) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldBeRead"));
+        } else if (method == HttpMethod.HEAD) {
+            webServer.enqueue(new MockResponse().setResponseCode(200));
+        }
+
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path("/")
+                .method(method)
+                .build();
+        HttpResponse response = httpClient.execute(request);
+
+        assertThat(webServer.requests(), hasSize(2));
+        if (method == HttpMethod.GET) {
+            assertThat(response.body().utf8ToString(), is("shouldBeRead"));
+        } else if (method == HttpMethod.HEAD) {
+            assertThat(response.body(), is(nullValue()));
+        }
+    }
+
+    // not allowed by RFC, only allowed for GET or HEAD
+    public void testThatPostRedirectIsNotFollowed() throws Exception {
+        String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/foo";
+        webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldNeverBeRead"));
+
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path("/").method(HttpMethod.POST).build();
+        HttpResponse response = httpClient.execute(request);
+        assertThat(response.body(), is(nullValue()));
+        assertThat(webServer.requests(), hasSize(1));
+    }
 }

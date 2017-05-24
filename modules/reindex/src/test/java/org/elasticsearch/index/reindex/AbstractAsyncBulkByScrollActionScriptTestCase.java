@@ -35,6 +35,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -56,7 +57,8 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
         ExecutableScript executableScript = new SimpleExecutableScript(scriptBody);
         ExecutableScript.Compiled compiled = params -> executableScript;
-        when(scriptService.compile(any(), ScriptContext.EXECUTABLE)).thenReturn(compiled);
+        when(scriptService.compile(any(), eq(ScriptContext.EXECUTABLE))).thenReturn(compiled);
+        when(scriptService.compile(any(), eq(ScriptContext.UPDATE))).thenReturn(compiled);
         AbstractAsyncBulkByScrollAction<Request> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;

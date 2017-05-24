@@ -98,13 +98,13 @@ public class MockScriptEngine implements ScriptEngine {
 
         private final String name;
         private final String source;
-        private final Map<String, String> params;
+        private final Map<String, String> options;
         private final Function<Map<String, Object>, Object> script;
 
-        public MockCompiledScript(String name, Map<String, String> params, String source, Function<Map<String, Object>, Object> script) {
+        public MockCompiledScript(String name, Map<String, String> options, String source, Function<Map<String, Object>, Object> script) {
             this.name = name;
             this.source = source;
-            this.params = params;
+            this.options = options;
             this.script = script;
         }
 
@@ -112,24 +112,28 @@ public class MockScriptEngine implements ScriptEngine {
             return name;
         }
 
-        public ExecutableScript createExecutableScript(Map<String, Object> vars) {
+        public ExecutableScript createExecutableScript(Map<String, Object> params) {
             Map<String, Object> context = new HashMap<>();
-            if (params != null) {
-                context.putAll(params);
+            if (options != null) {
+                context.putAll(options); // TODO: remove this once scripts know to look for options under options key
+                context.put("options", options);
             }
-            if (vars != null) {
-                context.putAll(vars);
+            if (params != null) {
+                context.putAll(params); // TODO: remove this once scripts know to look for params under params key
+                context.put("params", params);
             }
             return new MockExecutableScript(context, script != null ? script : ctx -> source);
         }
 
-        public SearchScript createSearchScript(Map<String, Object> vars, SearchLookup lookup) {
+        public SearchScript createSearchScript(Map<String, Object> params, SearchLookup lookup) {
             Map<String, Object> context = new HashMap<>();
-            if (params != null) {
-                context.putAll(params);
+            if (options != null) {
+                context.putAll(options); // TODO: remove this once scripts know to look for options under options key
+                context.put("options", options);
             }
-            if (vars != null) {
-                context.putAll(vars);
+            if (params != null) {
+                context.putAll(params); // TODO: remove this once scripts know to look for params under params key
+                context.put("params", params);
             }
             return new MockSearchScript(lookup, context, script != null ? script : ctx -> source);
         }

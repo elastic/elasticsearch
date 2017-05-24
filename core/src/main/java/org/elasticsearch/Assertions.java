@@ -38,7 +38,9 @@ public final class Assertions {
          * If assertions are enabled, the following line will be evaluated and enabled will have the value true, otherwise when assertions
          * are disabled enabled will have the value false.
          */
+        // noinspection ConstantConditions,AssertWithSideEffects
         assert enabled = true;
+        // noinspection ConstantConditions
         ENABLED = enabled;
     }
 

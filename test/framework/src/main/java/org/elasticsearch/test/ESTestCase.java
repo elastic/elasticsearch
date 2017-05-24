@@ -997,15 +997,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    /**
-     * Returns true iff assertions for elasticsearch packages are enabled
-     */
-    public static boolean assertionsEnabled() {
-        boolean enabled = false;
-        assert (enabled = true);
-        return enabled;
-    }
-
     public void assertAllIndicesRemovedAndDeletionCompleted(Iterable<IndicesService> indicesServices) throws Exception {
         for (IndicesService indicesService : indicesServices) {
             assertBusy(() -> assertFalse(indicesService.iterator().hasNext()), 1, TimeUnit.MINUTES);

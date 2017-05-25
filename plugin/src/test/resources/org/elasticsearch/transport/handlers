@@ -130,6 +130,7 @@ internal:indices/flush/synced/sync
 internal:admin/repository/verify
 internal:transport/handshake
 cluster:admin/reindex/rethrottle[n]
+cluster:admin/xpack/upgrade
 indices:data/write/update/byquery
 indices:data/write/delete/byquery
 indices:data/write/reindex

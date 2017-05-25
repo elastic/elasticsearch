@@ -23,61 +23,24 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class IndexUpgradeServiceTests extends ESTestCase {
 
-    private IndexUpgradeCheck upgradeBarCheck = new IndexUpgradeCheck() {
-        @Override
-        public String getName() {
-            return "upgrade_bar";
-        }
+    private IndexUpgradeCheck upgradeBarCheck = new IndexUpgradeCheck("upgrade_bar", Settings.EMPTY,
+            indexAndParams -> "bar".equals(indexAndParams.v1().getSettings().get("test.setting")),
+            UpgradeActionRequired.UPGRADE, UpgradeActionRequired.NOT_APPLICABLE);
 
-        @Override
-        public UpgradeActionRequired actionRequired(IndexMetaData indexMetaData, Map<String, String> params, ClusterState state) {
-            if ("bar".equals(indexMetaData.getSettings().get("test.setting"))) {
-                return UpgradeActionRequired.UPGRADE;
-            }
-            return UpgradeActionRequired.NOT_APPLICABLE;
-        }
-    };
+    private IndexUpgradeCheck reindexFooCheck = new IndexUpgradeCheck("reindex_foo", Settings.EMPTY,
+            indexAndParams -> "foo".equals(indexAndParams.v1().getSettings().get("test.setting")),
+            UpgradeActionRequired.REINDEX, UpgradeActionRequired.NOT_APPLICABLE);
 
-    private IndexUpgradeCheck reindexFooCheck = new IndexUpgradeCheck() {
-        @Override
-        public String getName() {
-            return "reindex_foo";
-        }
+    private IndexUpgradeCheck everythingIsFineCheck = new IndexUpgradeCheck("everything_is_fine", Settings.EMPTY,
+            indexAndParams -> true,
+            UpgradeActionRequired.UP_TO_DATE, UpgradeActionRequired.NOT_APPLICABLE);
 
-        @Override
-        public UpgradeActionRequired actionRequired(IndexMetaData indexMetaData, Map<String, String> params, ClusterState state) {
-            if ("foo".equals(indexMetaData.getSettings().get("test.setting"))) {
-                return UpgradeActionRequired.REINDEX;
-            }
-            return UpgradeActionRequired.NOT_APPLICABLE;
-        }
-    };
+    private IndexUpgradeCheck unreachableCheck = new IndexUpgradeCheck("unreachable", Settings.EMPTY,
+            indexAndParams -> {
+                fail("Unreachable check is called");
+                return false;
+            }, UpgradeActionRequired.UP_TO_DATE, UpgradeActionRequired.NOT_APPLICABLE);
 
-    private IndexUpgradeCheck everythingIsFineCheck = new IndexUpgradeCheck() {
-        @Override
-        public String getName() {
-            return "everything_is_fine";
-        }
-
-        @Override
-        public UpgradeActionRequired actionRequired(IndexMetaData indexMetaData, Map<String, String> params, ClusterState state) {
-            return UpgradeActionRequired.UP_TO_DATE;
-        }
-    };
-
-    private IndexUpgradeCheck unreachableCheck = new IndexUpgradeCheck() {
-
-        @Override
-        public String getName() {
-            return "unreachable";
-        }
-
-        @Override
-        public UpgradeActionRequired actionRequired(IndexMetaData indexMetaData, Map<String, String> params, ClusterState state) {
-            fail("Unreachable check is called");
-            return null;
-        }
-    };
 
     public void testIndexUpgradeServiceMultipleCheck() {
         IndexUpgradeService service;
@@ -138,7 +101,6 @@ public class IndexUpgradeServiceTests extends ESTestCase {
     }
 
     public void testEarlierChecksWin() {
-
         IndexUpgradeService service = new IndexUpgradeService(Settings.EMPTY, Arrays.asList(
                 everythingIsFineCheck,
                 upgradeBarCheck,

@@ -19,7 +19,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class IndexUpgradeCheckTests extends ESTestCase {
 
     public void testGenericUpgradeCheck() {
-        IndexUpgradeCheck check = new GenericIndexUpgradeCheck();
+        IndexUpgradeCheck check = Upgrade.getGenericCheckFactory(Settings.EMPTY).v2().apply(null, null);
         assertThat(check.getName(), equalTo("generic"));
         IndexMetaData goodIndex = newTestIndexMeta("good", Settings.EMPTY);
         IndexMetaData badIndex = newTestIndexMeta("bad",
@@ -31,9 +31,9 @@ public class IndexUpgradeCheckTests extends ESTestCase {
                 equalTo(UpgradeActionRequired.REINDEX));
     }
 
-    public void testInternalUpgradeCheck() {
-        IndexUpgradeCheck check = new InternalIndexUpgradeCheck();
-        assertThat(check.getName(), equalTo("inner"));
+    public void testKibanaUpgradeCheck() {
+        IndexUpgradeCheck check = Upgrade.getKibanaUpgradeCheckFactory(Settings.EMPTY).v2().apply(null, null);
+        assertThat(check.getName(), equalTo("kibana"));
         IndexMetaData goodKibanaIndex = newTestIndexMeta(".kibana", Settings.EMPTY);
         assertThat(check.actionRequired(goodKibanaIndex, Collections.emptyMap(), ClusterState.EMPTY_STATE),
                 equalTo(UpgradeActionRequired.UPGRADE));
@@ -50,11 +50,11 @@ public class IndexUpgradeCheckTests extends ESTestCase {
 
         IndexMetaData watcherIndex = newTestIndexMeta(".watches", Settings.EMPTY);
         assertThat(check.actionRequired(watcherIndex, Collections.singletonMap("kibana_indices", ".kibana*"), ClusterState.EMPTY_STATE),
-                equalTo(UpgradeActionRequired.UPGRADE));
+                equalTo(UpgradeActionRequired.NOT_APPLICABLE));
 
         IndexMetaData securityIndex = newTestIndexMeta(".security", Settings.EMPTY);
         assertThat(check.actionRequired(securityIndex, Collections.singletonMap("kibana_indices", ".kibana*"), ClusterState.EMPTY_STATE),
-                equalTo(UpgradeActionRequired.UPGRADE));
+                equalTo(UpgradeActionRequired.NOT_APPLICABLE));
     }
 
     public static IndexMetaData newTestIndexMeta(String name, Settings indexSettings) {

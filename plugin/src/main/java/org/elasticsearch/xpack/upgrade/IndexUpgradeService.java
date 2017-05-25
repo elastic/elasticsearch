@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.upgrade;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -12,12 +13,15 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class IndexUpgradeService extends AbstractComponent {
+    public static final IndicesOptions UPGRADE_INDEX_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 
     private final List<IndexUpgradeCheck> upgradeChecks;
 
@@ -69,6 +73,35 @@ public class IndexUpgradeService extends AbstractComponent {
             }
         }
         return results;
+    }
+
+    public void upgrade(String index, Map<String, String> params, ClusterState state,
+                        ActionListener<BulkByScrollResponse> listener) {
+        IndexMetaData indexMetaData = state.metaData().index(index);
+        if (indexMetaData == null) {
+            throw new IndexNotFoundException(index);
+        }
+        for (IndexUpgradeCheck check : upgradeChecks) {
+            UpgradeActionRequired upgradeActionRequired = check.actionRequired(indexMetaData, params, state);
+            switch (upgradeActionRequired) {
+                case UPGRADE:
+                    // this index needs to be upgraded - start the upgrade procedure
+                    check.upgrade(indexMetaData, params, state, listener);
+                    return;
+                case REINDEX:
+                    // this index needs to be re-indexed
+                    throw new IllegalStateException("Index [" + index + "] cannot be upgraded, it should be reindex instead");
+                case UP_TO_DATE:
+                    throw new IllegalStateException("Index [" + index + "] cannot be upgraded, it is up to date");
+                case NOT_APPLICABLE:
+                    // this action is not applicable to this index - skipping to the next one
+                    break;
+                default:
+                    throw new IllegalStateException("unknown upgrade action [" + upgradeActionRequired + "] for the index [" + index + "]");
+
+            }
+        }
+        throw new IllegalStateException("Index [" + index + "] cannot be upgraded");
     }
 
 }

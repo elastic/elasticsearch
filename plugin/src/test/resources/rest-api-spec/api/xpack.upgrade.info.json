@@ -28,10 +28,6 @@
           "type" : "boolean",
           "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
         },
-        "wait_for_completion": {
-          "type" : "boolean",
-          "description" : "Specify whether the request should block until the all segments are upgraded (default: false)"
-        },
         "kibana_indices": {
           "type": "list",
           "description": "A comma separated list of indices that should be treated as kibana indices"

@@ -6,21 +6,15 @@
 package org.elasticsearch.xpack.upgrade;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.AbstractLicensesIntegrationTestCase;
-import org.elasticsearch.license.License;
-import org.elasticsearch.license.TestUtils;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction.Response;
 import org.junit.Before;
 
-import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -28,52 +22,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-public class IndexUpgradeIT extends AbstractLicensesIntegrationTestCase {
+public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
 
     @Before
     public void resetLicensing() throws Exception {
         enableLicensing();
     }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        settings.put(MachineLearning.AUTODETECT_PROCESS.getKey(), false);
-        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        return settings.build();
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
-        settings.put(MachineLearning.AUTODETECT_PROCESS.getKey(), false);
-        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        return settings.build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(XPackPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
 
     public void testIndexUpgradeInfo() {
         assertAcked(client().admin().indices().prepareCreate("test").get());
@@ -99,29 +53,21 @@ public class IndexUpgradeIT extends AbstractLicensesIntegrationTestCase {
         assertThat(response.getActions().entrySet(), empty());
     }
 
-    private static String randomValidLicenseType() {
-        return randomFrom("platinum", "gold", "standard", "basic");
+    public void testUpgradeInternalIndex() throws Exception {
+        String testIndex = ".kibana";
+        String testType = "doc";
+        assertAcked(client().admin().indices().prepareCreate(testIndex).get());
+        indexRandom(true,
+                client().prepareIndex(testIndex, testType, "1").setSource("{\"foo\":\"bar\"}", XContentType.JSON),
+                client().prepareIndex(testIndex, testType, "2").setSource("{\"foo\":\"baz\"}", XContentType.JSON)
+        );
+        ensureYellow(testIndex);
+
+        BulkByScrollResponse response = client().prepareExecute(IndexUpgradeAction.INSTANCE).setIndex(testIndex).get();
+        assertThat(response.getCreated(), equalTo(2L));
+
+        SearchResponse searchResponse = client().prepareSearch(testIndex).get();
+        assertEquals(2L, searchResponse.getHits().getTotalHits());
     }
 
-    private static String randomInvalidLicenseType() {
-        return randomFrom("missing", "trial");
-    }
-
-    public void disableLicensing() throws Exception {
-        updateLicensing(randomInvalidLicenseType());
-    }
-
-    public void enableLicensing() throws Exception {
-        updateLicensing(randomValidLicenseType());
-    }
-
-    public void updateLicensing(String licenseType) throws Exception {
-        wipeAllLicenses();
-        if (licenseType.equals("missing")) {
-            putLicenseTombstone();
-        } else {
-            License license = TestUtils.generateSignedLicense(licenseType, TimeValue.timeValueMinutes(1));
-            putLicense(license);
-        }
-    }
 }

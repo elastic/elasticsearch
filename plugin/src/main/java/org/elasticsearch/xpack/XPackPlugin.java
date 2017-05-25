@@ -101,7 +101,6 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.upgrade.Upgrade;
-import org.elasticsearch.xpack.upgrade.InternalIndexUpgradeCheck;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
 
@@ -223,7 +222,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.machineLearning = new MachineLearning(settings, env, licenseState);
         this.logstash = new Logstash(settings);
         this.deprecation = new Deprecation();
-        this.upgrade = new Upgrade(settings, Collections.singletonList(new InternalIndexUpgradeCheck()));
+        this.upgrade = new Upgrade(settings);
         // Check if the node is a transport client.
         if (transportClientMode == false) {
             this.extensionsService = new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
@@ -270,7 +269,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.add(internalClient);
 
         LicenseService licenseService = new LicenseService(settings, clusterService, getClock(),
-            env, resourceWatcherService, licenseState);
+                env, resourceWatcherService, licenseState);
         components.add(licenseService);
         components.add(licenseState);
 
@@ -576,4 +575,5 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     public List<BootstrapCheck> getBootstrapChecks() {
         return security.getBootstrapChecks();
     }
+
 }

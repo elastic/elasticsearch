@@ -366,20 +366,29 @@ public class StopDatafeedAction
                                      ActionListener<Response> listener) {
             DatafeedState taskStatus = DatafeedState.STOPPING;
             datafeedTaskTask.updatePersistentStatus(taskStatus, ActionListener.wrap(task -> {
-                // we need to fork because we are now on a network threadpool
-                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
+                        // we need to fork because we are now on a network threadpool
+                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
+                            }
 
-                    @Override
-                    protected void doRun() throws Exception {
-                        datafeedTaskTask.stop("stop_datafeed (api)", request.getStopTimeout());
-                        listener.onResponse(new Response(true));
+                            @Override
+                            protected void doRun() throws Exception {
+                                datafeedTaskTask.stop("stop_datafeed (api)", request.getStopTimeout());
+                                listener.onResponse(new Response(true));
+                            }
+                        });
+                    },
+                    e -> {
+                        if (e instanceof ResourceNotFoundException) {
+                            // the task has disappeared so must have stopped
+                            listener.onResponse(new Response(true));
+                        } else {
+                            listener.onFailure(e);
+                        }
                     }
-                });
-            }, listener::onFailure));
+            ));
         }
 
         private void sendResponseOrFailure(String datafeedId, ActionListener<Response> listener,

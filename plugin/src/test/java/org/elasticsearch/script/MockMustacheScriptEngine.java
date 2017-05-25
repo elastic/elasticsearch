@@ -39,11 +39,13 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
     }
 
     @Override
-    public Object compile(String name, String script, Map<String, String> params) {
+    public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> params) {
         if (script.contains("{{") && script.contains("}}")) {
             throw new IllegalArgumentException("Fix your test to not rely on mustache");
         }
-        // We always return the script's source as it is
-        return new MockCompiledScript(name, params, script, null);
+        if (context.instanceClazz.equals(ExecutableScript.class) == false) {
+            throw new IllegalArgumentException("mock mustache only understands template scripts, not [" + context.name + "]");
+        }
+        return context.compiledClazz.cast((ExecutableScript.Compiled) vars -> new MockExecutableScript(vars, p -> script));
     }
 }

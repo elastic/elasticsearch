@@ -6,9 +6,12 @@
 package org.elasticsearch.xpack.monitoring.test;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.SearchScript;
 
 import java.util.Collections;
 import java.util.Map;
@@ -39,8 +42,12 @@ public class MockPainlessScriptEngine extends MockScriptEngine {
     }
 
     @Override
-    public Object compile(String name, String script, Map<String, String> params) {
-        // We always return the script's source as it is
-        return new MockCompiledScript(name, params, script, null);
+    public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> params) {
+        if (context.instanceClazz.equals(ExecutableScript.class)) {
+            return context.compiledClazz.cast((ExecutableScript.Compiled) vars -> new MockExecutableScript(vars, p -> script));
+        } else if (context.instanceClazz.equals(SearchScript.class)) {
+            return context.compiledClazz.cast((SearchScript.Compiled) (vars, lookup) -> new MockSearchScript(lookup, vars, p -> script));
+        }
+        throw new IllegalArgumentException("mock painless does not know how to handle context [" + context.name + "]");
     }
 }

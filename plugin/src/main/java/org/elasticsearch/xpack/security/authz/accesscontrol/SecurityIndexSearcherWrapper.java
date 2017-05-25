@@ -56,6 +56,7 @@ import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -274,7 +275,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 params.put("_user", userModel);
                 // Always enforce mustache script lang:
                 script = new Script(script.getType(), "mustache", script.getIdOrCode(), script.getOptions(), params);
-                CompiledTemplate compiledTemplate = scriptService.compileTemplate(script, ScriptContext.EXECUTABLE);
+                CompiledTemplate compiledTemplate = scriptService.compileTemplate(script, ExecutableScript.CONTEXT);
                 return compiledTemplate.run(script.getParams());
             } else {
                 return querySource;

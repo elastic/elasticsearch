@@ -68,6 +68,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -458,7 +459,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                 };
 
         CompiledTemplate compiledScript = mock(CompiledTemplate.class);
-        when(scriptService.compileTemplate(any(Script.class), eq(ScriptContext.EXECUTABLE))).thenReturn(compiledScript);
+        when(scriptService.compileTemplate(any(Script.class), eq(ExecutableScript.CONTEXT))).thenReturn(compiledScript);
 
         XContentBuilder builder = jsonBuilder();
         String query = new TermQueryBuilder("field", "{{_user.username}}").toXContent(builder, ToXContent.EMPTY_PARAMS).string();
@@ -469,7 +470,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
         securityIndexSearcherWrapper.evaluateTemplate(querySource);
         ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
-        verify(scriptService).compileTemplate(argument.capture(), eq(ScriptContext.EXECUTABLE));
+        verify(scriptService).compileTemplate(argument.capture(), eq(ExecutableScript.CONTEXT));
         Script usedScript = argument.getValue();
         assertThat(usedScript.getIdOrCode(), equalTo(script.getIdOrCode()));
         assertThat(usedScript.getType(), equalTo(script.getType()));

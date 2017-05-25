@@ -21,7 +21,9 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
@@ -34,28 +36,31 @@ public class WriteOperation {
 
     private final NioSocketChannel channel;
     private final ActionListener<NioChannel> listener;
-    private BytesReference reference;
-    private ByteBuffer[] buffers;
+    private final CompositeNetworkBuffer networkBuffer;
     private long bytesRemaining = 0;
 
     public WriteOperation(NioSocketChannel channel, BytesReference reference, ActionListener<NioChannel> listener) {
         this.channel = channel;
         this.listener = listener;
-        this.reference = reference;
         this.bytesRemaining = reference.length();
+
+        networkBuffer = new CompositeNetworkBuffer();
+        BytesRefIterator byteRefIterator = reference.iterator();
+        BytesRef r;
+        try {
+            ArrayList<ByteBufferReference> references = new ArrayList<>(3);
+            while ((r = byteRefIterator.next()) != null) {
+                references.add(ByteBufferReference.heap(new BytesArray(r), r.length, 0));
+            }
+            networkBuffer.addBuffers(references.toArray(new ByteBufferReference[references.size()]));
+        } catch (IOException e) {
+            // this is really an error since we don't do IO in our bytesreferences
+            throw new AssertionError("won't happen", e);
+        }
     }
 
-    public ByteBuffer[] getBuffers() throws IOException {
-        if (buffers == null) {
-            ArrayList<ByteBuffer> buffers = new ArrayList<>(3);
-            BytesRefIterator byteRefIterator = reference.iterator();
-            BytesRef r;
-            while ((r = byteRefIterator.next()) != null) {
-                buffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
-            }
-            this.buffers = buffers.toArray(new ByteBuffer[buffers.size()]);
-        }
-        return buffers;
+    public CompositeNetworkBuffer getNetworkBuffer() throws IOException {
+        return networkBuffer;
     }
 
     public ActionListener<NioChannel> getListener() {
@@ -72,6 +77,24 @@ public class WriteOperation {
 
     public long bytesRemaining() {
         return bytesRemaining;
+    }
+
+    public int flush() throws IOException {
+        ByteBuffer[] buffers = networkBuffer.getReadByteBuffers();
+
+        int written;
+        if (buffers.length == 1) {
+            written = channel.write(buffers[0]);
+        } else {
+            written = (int) channel.vectorizedWrite(buffers);
+        }
+        networkBuffer.incrementRead(written);
+
+        return written;
+    }
+
+    public boolean isFullyFlushed() {
+        return networkBuffer.getReadRemaining() == 0;
     }
 
 }

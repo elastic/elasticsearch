@@ -82,7 +82,7 @@ public class TcpWriteContextTests extends ESTestCase {
 
         assertSame(listener, writeOp.getListener());
         assertSame(channel, writeOp.getChannel());
-        assertEquals(ByteBuffer.wrap(bytes), writeOp.getBuffers()[0]);
+        assertEquals(ByteBuffer.wrap(bytes), writeOp.getNetworkBuffer().getReadByteBuffers()[0]);
     }
 
     public void testSendMessageFromSameThreadIsQueuedInChannel() throws Exception {
@@ -99,7 +99,7 @@ public class TcpWriteContextTests extends ESTestCase {
 
         assertSame(listener, writeOp.getListener());
         assertSame(channel, writeOp.getChannel());
-        assertEquals(ByteBuffer.wrap(bytes), writeOp.getBuffers()[0]);
+        assertEquals(ByteBuffer.wrap(bytes), writeOp.getNetworkBuffer().getReadByteBuffers()[0]);
     }
 
     public void testWriteIsQueuedInChannel() throws Exception {
@@ -126,139 +126,64 @@ public class TcpWriteContextTests extends ESTestCase {
     }
 
     public void testQueuedWriteIsFlushedInFlushCall() throws Exception {
-        ConsumeAllChannel consumeAllChannel = new ConsumeAllChannel();
-        byte[] expectedBytes = generateBytes(10);
-
         assertFalse(writeContext.hasQueuedWriteOps());
 
-        writeContext.queueWriteOperations(new WriteOperation(channel,  new BytesArray(expectedBytes), listener));
+        WriteOperation writeOperation = mock(WriteOperation.class);
+        writeContext.queueWriteOperations(writeOperation);
 
         assertTrue(writeContext.hasQueuedWriteOps());
 
-        when(channel.write(any(ByteBuffer.class))).thenAnswer(invocationOnMock ->
-            consumeAllChannel.write((ByteBuffer) invocationOnMock.getArguments()[0]));
+        when(writeOperation.isFullyFlushed()).thenReturn(true);
+        when(writeOperation.getListener()).thenReturn(listener);
         writeContext.flushChannel();
 
+        verify(writeOperation).flush();
         verify(listener).onResponse(channel);
-        assertArrayEquals(expectedBytes, consumeAllChannel.bytes);
-        assertFalse(writeContext.hasQueuedWriteOps());
-    }
-
-    public void testQueuedWriteWithMultipleBuffersIsFlushedInFlushCall() throws Exception {
-        ConsumeAllChannel consumeAllChannel = new ConsumeAllChannel();
-        byte[] expectedBytes = generateBytes(10);
-        byte[] expectedBytes2 = generateBytes(10);
-        CompositeBytesReference reference = new CompositeBytesReference(new BytesArray(expectedBytes), new BytesArray(expectedBytes2));
-
-        assertFalse(writeContext.hasQueuedWriteOps());
-
-        writeContext.queueWriteOperations(new WriteOperation(channel,  reference, listener));
-
-        assertTrue(writeContext.hasQueuedWriteOps());
-
-        when(channel.vectorizedWrite(any())).thenAnswer(invocationOnMock ->
-            consumeAllChannel.vectorizedWrite((ByteBuffer[]) invocationOnMock.getArguments()[0]));
-        writeContext.flushChannel();
-
-        verify(listener).onResponse(channel);
-        assertArrayEquals(expectedBytes, consumeAllChannel.bytes);
-        assertArrayEquals(expectedBytes2, consumeAllChannel.bytes2);
         assertFalse(writeContext.hasQueuedWriteOps());
     }
 
     public void testPartialFlush() throws IOException {
-        HalfConsumeChannel halfConsumeChannel = new HalfConsumeChannel();
-        byte[] expectedBytes = generateBytes(10);
-        byte[] expectedBytes2 = generateBytes(10);
-        CompositeBytesReference reference = new CompositeBytesReference(new BytesArray(expectedBytes), new BytesArray(expectedBytes2));
-
         assertFalse(writeContext.hasQueuedWriteOps());
 
-        writeContext.queueWriteOperations(new WriteOperation(channel,  reference, listener));
+        WriteOperation writeOperation = mock(WriteOperation.class);
+        writeContext.queueWriteOperations(writeOperation);
 
         assertTrue(writeContext.hasQueuedWriteOps());
 
-        when(channel.vectorizedWrite(any())).thenAnswer(invocationOnMock ->
-            halfConsumeChannel.vectorizedWrite((ByteBuffer[]) invocationOnMock.getArguments()[0]));
+        when(writeOperation.isFullyFlushed()).thenReturn(false);
         writeContext.flushChannel();
 
         verify(listener, times(0)).onResponse(channel);
-        assertArrayEquals(expectedBytes, halfConsumeChannel.bytes);
-        assertArrayEquals(new byte[expectedBytes2.length], halfConsumeChannel.bytes2);
         assertTrue(writeContext.hasQueuedWriteOps());
-    }
-
-    public void testMultiplePartialFlushes() throws IOException {
-        HalfConsumeChannel halfConsumeChannel = new HalfConsumeChannel();
-        byte[] expectedBytes = generateBytes(10);
-        byte[] expectedBytes2 = generateBytes(10);
-        CompositeBytesReference reference = new CompositeBytesReference(new BytesArray(expectedBytes), new BytesArray(expectedBytes2));
-
-        assertFalse(writeContext.hasQueuedWriteOps());
-
-        writeContext.queueWriteOperations(new WriteOperation(channel,  reference, listener));
-
-        assertTrue(writeContext.hasQueuedWriteOps());
-
-        when(channel.vectorizedWrite(any())).thenAnswer(invocationOnMock ->
-            halfConsumeChannel.vectorizedWrite((ByteBuffer[]) invocationOnMock.getArguments()[0]));
-        writeContext.flushChannel();
-
-        assertArrayEquals(expectedBytes, halfConsumeChannel.bytes);
-        assertArrayEquals(new byte[expectedBytes2.length], halfConsumeChannel.bytes2);
-
-        assertTrue(writeContext.hasQueuedWriteOps());
-
-        writeContext.flushChannel();
-
-        verify(listener).onResponse(channel);
-
-        assertArrayEquals(expectedBytes, halfConsumeChannel.bytes);
-        assertArrayEquals(expectedBytes2, halfConsumeChannel.bytes2);
-        assertFalse(writeContext.hasQueuedWriteOps());
     }
 
     @SuppressWarnings("unchecked")
     public void testMultipleWritesPartialFlushes() throws IOException {
-        MultiWriteChannel multiWriteChannel = new MultiWriteChannel();
-        byte[] expectedBytes = generateBytes(10);
-        byte[] expectedBytes2 = generateBytes(10);
-        byte[] expectedBytes3 = generateBytes(10);
-        byte[] expectedBytes4 = generateBytes(10);
-        CompositeBytesReference reference = new CompositeBytesReference(new BytesArray(expectedBytes), new BytesArray(expectedBytes2));
-        CompositeBytesReference reference2 = new CompositeBytesReference(new BytesArray(expectedBytes3), new BytesArray(expectedBytes4));
-
         assertFalse(writeContext.hasQueuedWriteOps());
 
         ActionListener listener2 = mock(ActionListener.class);
-        writeContext.queueWriteOperations(new WriteOperation(channel,  reference, listener));
-        writeContext.queueWriteOperations(new WriteOperation(channel,  reference2, listener2));
+        WriteOperation writeOperation1 = mock(WriteOperation.class);
+        WriteOperation writeOperation2 = mock(WriteOperation.class);
+        when(writeOperation1.getListener()).thenReturn(listener);
+        when(writeOperation2.getListener()).thenReturn(listener2);
+        writeContext.queueWriteOperations(writeOperation1);
+        writeContext.queueWriteOperations(writeOperation2);
 
         assertTrue(writeContext.hasQueuedWriteOps());
 
-        when(channel.vectorizedWrite(any())).thenAnswer(invocationOnMock ->
-            multiWriteChannel.vectorizedWrite((ByteBuffer[]) invocationOnMock.getArguments()[0]));
+        when(writeOperation1.isFullyFlushed()).thenReturn(true);
+        when(writeOperation2.isFullyFlushed()).thenReturn(false);
         writeContext.flushChannel();
 
         verify(listener).onResponse(channel);
         verify(listener2, times(0)).onResponse(channel);
-
-        assertArrayEquals(expectedBytes, multiWriteChannel.write1Bytes);
-        assertArrayEquals(expectedBytes2, multiWriteChannel.write1Bytes2);
-        assertArrayEquals(expectedBytes3, multiWriteChannel.write2Bytes1);
-        assertArrayEquals(new byte[expectedBytes4.length], multiWriteChannel.write2Bytes2);
-
         assertTrue(writeContext.hasQueuedWriteOps());
+
+        when(writeOperation2.isFullyFlushed()).thenReturn(true);
 
         writeContext.flushChannel();
 
         verify(listener2).onResponse(channel);
-
-        assertArrayEquals(expectedBytes, multiWriteChannel.write1Bytes);
-        assertArrayEquals(expectedBytes2, multiWriteChannel.write1Bytes2);
-        assertArrayEquals(expectedBytes3, multiWriteChannel.write2Bytes1);
-        assertArrayEquals(expectedBytes4, multiWriteChannel.write2Bytes2);
-
         assertFalse(writeContext.hasQueuedWriteOps());
     }
 

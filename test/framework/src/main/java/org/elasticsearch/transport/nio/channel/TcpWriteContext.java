@@ -65,9 +65,10 @@ public class TcpWriteContext implements WriteContext {
     @Override
     public void flushChannel() throws IOException {
         assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to flush writes";
-        if (queued.size() == 1) {
+        int ops = queued.size();
+        if (ops == 1) {
             singleFlush(queued.pop());
-        } else {
+        } else if (ops > 1) {
             multiFlush();
         }
     }
@@ -88,64 +89,21 @@ public class TcpWriteContext implements WriteContext {
     }
 
     private void singleFlush(WriteOperation headOp) throws IOException {
-        ByteBuffer[] buffers = headOp.getBuffers();
-        long remaining = headOp.bytesRemaining();
-        long written;
-        if (buffers.length == 1) {
-            written = channel.write(buffers[0]);
-        } else {
-            written = channel.vectorizedWrite(buffers);
-        }
+        headOp.flush();
 
-        if (written < remaining) {
-            headOp.decrementRemaining(written);
-            queued.push(headOp);
-        } else {
+        if (headOp.isFullyFlushed()) {
             headOp.getListener().onResponse(channel);
+        } else {
+            queued.push(headOp);
         }
     }
 
     private void multiFlush() throws IOException {
-        int writeCount = queued.size();
-        int bufferCount = 0;
-        long totalBytes = 0;
-        WriteOperation[] ops = new WriteOperation[writeCount];
-        for (int i = 0; i < writeCount; ++i) {
+        boolean lastOpCompleted = true;
+        while (lastOpCompleted && queued.isEmpty() == false) {
             WriteOperation op = queued.pop();
-            totalBytes += op.bytesRemaining();
-            ops[i] = op;
-            bufferCount += op.getBuffers().length;
-        }
-
-        ByteBuffer[] buffers = new ByteBuffer[bufferCount];
-        int j = 0;
-        for (int i = 0; i < writeCount; ++i) {
-            WriteOperation op = ops[i];
-            for (ByteBuffer buffer : op.getBuffers()) {
-                buffers[j] = buffer;
-                ++j;
-            }
-        }
-
-        long bytesWritten = channel.vectorizedWrite(buffers);
-
-        long remainingBytes = bytesWritten;
-        if (totalBytes != bytesWritten) {
-            for (WriteOperation operation : ops) {
-                long operationBytesRemaining = operation.bytesRemaining();
-                if (remainingBytes < operationBytesRemaining) {
-                    operation.decrementRemaining(remainingBytes);
-                    queued.add(operation);
-                    remainingBytes -= remainingBytes;
-                } else {
-                    operation.getListener().onResponse(channel);
-                    remainingBytes -= operationBytesRemaining;
-                }
-            }
-        } else {
-            for (WriteOperation operation : ops) {
-                operation.getListener().onResponse(channel);
-            }
+            singleFlush(op);
+            lastOpCompleted = op.isFullyFlushed();
         }
     }
 }

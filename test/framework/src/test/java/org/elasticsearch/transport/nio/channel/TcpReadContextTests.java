@@ -43,7 +43,6 @@ public class TcpReadContextTests extends ESTestCase {
     private int messageLength;
     private NioSocketChannel channel;
     private TcpReadContext readContext;
-    private TcpFrameDecoder frameDecoder;
 
     @Before
     public void init() throws IOException {
@@ -120,8 +119,6 @@ public class TcpReadContextTests extends ESTestCase {
             assertSame(ioException, ex);
         }
     }
-
-    // TODO: More extensive testing.
 
     private static byte[] combineMessageAndHeader(byte[] bytes) {
         return combineMessageAndHeader(bytes, bytes.length);

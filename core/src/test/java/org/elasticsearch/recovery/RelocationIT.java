@@ -454,6 +454,7 @@ public class RelocationIT extends ESIntegTestCase {
                     + "org.elasticsearch.action.search:TRACE,"
                     + "org.elasticsearch.cluster.service:TRACE,"
                     + "org.elasticsearch.index.seqno:TRACE")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/24599")
     public void testIndexAndRelocateConcurrently() throws ExecutionException, InterruptedException {
         int halfNodes = randomIntBetween(1, 3);
         Settings[] nodeSettings = Stream.concat(

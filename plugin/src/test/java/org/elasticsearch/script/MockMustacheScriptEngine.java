@@ -8,6 +8,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
@@ -23,7 +24,7 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
 
     public static class TestPlugin extends MockScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
             return new MockMustacheScriptEngine();
         }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.SearchScript;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
@@ -26,7 +27,7 @@ public class MockPainlessScriptEngine extends MockScriptEngine {
 
     public static class TestPlugin extends MockScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
             return new MockPainlessScriptEngine();
         }
 

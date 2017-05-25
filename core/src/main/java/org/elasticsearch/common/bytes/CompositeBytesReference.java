@@ -26,6 +26,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -141,7 +142,6 @@ public final class CompositeBytesReference extends BytesReference {
         } else {
             return () -> null;
         }
-
     }
 
     @Override

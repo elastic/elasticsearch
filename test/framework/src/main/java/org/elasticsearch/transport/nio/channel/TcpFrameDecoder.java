@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.nio.CompositeNetworkBuffer;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
@@ -65,7 +66,6 @@ public class TcpFrameDecoder {
             if (appearsToBeHTTP(headerBuffer)) {
                 throw new TcpTransport.HttpOnTransportException("This is not a HTTP port");
             }
-            byte b = headerBuffer.get(0);
 
             throw new StreamCorruptedException("invalid internal transport message format, got ("
                 + Integer.toHexString(headerBuffer.get(0) & 0xFF) + ","

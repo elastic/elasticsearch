@@ -70,7 +70,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
 
     public static class ExplainableScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
             return new ScriptEngine() {
                 @Override
                 public String getType() {

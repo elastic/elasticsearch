@@ -1009,7 +1009,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     public static class DummyTemplatePlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
             return new DummyTemplateScriptEngine();
         }
     }

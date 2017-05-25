@@ -440,27 +440,26 @@ public class JobProvider {
     }
 
     /**
-     * Returns a {@link BatchedDocumentsIterator} that allows querying
+     * Returns a {@link BatchedResultsIterator} that allows querying
      * and iterating over a large number of buckets of the given job.
      * The bucket and source indexes are returned by the iterator.
      *
      * @param jobId the id of the job for which buckets are requested
-     * @return a bucket {@link BatchedDocumentsIterator}
+     * @return a bucket {@link BatchedResultsIterator}
      */
-    public BatchedDocumentsIterator<Result<Bucket>> newBatchedBucketsIterator(String jobId) {
+    public BatchedResultsIterator<Bucket> newBatchedBucketsIterator(String jobId) {
         return new BatchedBucketsIterator(client, jobId);
     }
 
     /**
-     * Returns a {@link BatchedDocumentsIterator} that allows querying
+     * Returns a {@link BatchedResultsIterator} that allows querying
      * and iterating over a large number of records in the given job
      * The records and source indexes are returned by the iterator.
      *
      * @param jobId the id of the job for which buckets are requested
-     * @return a record {@link BatchedDocumentsIterator}
+     * @return a record {@link BatchedResultsIterator}
      */
-    public BatchedDocumentsIterator<Result<AnomalyRecord>>
-    newBatchedRecordsIterator(String jobId) {
+    public BatchedResultsIterator<AnomalyRecord> newBatchedRecordsIterator(String jobId) {
         return new BatchedRecordsIterator(client, jobId);
     }
 
@@ -672,13 +671,13 @@ public class JobProvider {
     }
 
     /**
-     * Returns a {@link BatchedDocumentsIterator} that allows querying
+     * Returns a {@link BatchedResultsIterator} that allows querying
      * and iterating over a large number of influencers of the given job
      *
      * @param jobId the id of the job for which influencers are requested
-     * @return an influencer {@link BatchedDocumentsIterator}
+     * @return an influencer {@link BatchedResultsIterator}
      */
-    public BatchedDocumentsIterator<Result<Influencer>> newBatchedInfluencersIterator(String jobId) {
+    public BatchedResultsIterator<Influencer> newBatchedInfluencersIterator(String jobId) {
         return new BatchedInfluencersIterator(client, jobId);
     }
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.ml.job.results.Result;
 
 import java.util.Deque;
 import java.util.List;
@@ -15,34 +16,35 @@ import java.util.NoSuchElementException;
 
 import static org.mockito.Mockito.mock;
 
-public class MockBatchedDocumentsIterator<T> extends BatchedDocumentsIterator<T> {
-    private final List<Deque<T>> batches;
+public class MockBatchedDocumentsIterator<T> extends BatchedResultsIterator<T> {
+
+    private final List<Deque<Result<T>>> batches;
     private int index;
     private boolean wasTimeRangeCalled;
     private Boolean includeInterim;
     private Boolean requireIncludeInterim;
 
-    public MockBatchedDocumentsIterator(List<Deque<T>> batches) {
-        super(mock(Client.class), "foo");
+    public MockBatchedDocumentsIterator(List<Deque<Result<T>>> batches, String resultType) {
+        super(mock(Client.class), "foo", resultType);
         this.batches = batches;
         index = 0;
         wasTimeRangeCalled = false;
     }
 
     @Override
-    public BatchedDocumentsIterator<T> timeRange(long startEpochMs, long endEpochMs) {
+    public BatchedResultsIterator<T> timeRange(long startEpochMs, long endEpochMs) {
         wasTimeRangeCalled = true;
         return this;
     }
 
     @Override
-    public BatchedDocumentsIterator<T> includeInterim(boolean includeInterim) {
+    public BatchedResultsIterator<T> includeInterim(boolean includeInterim) {
         this.includeInterim = includeInterim;
         return this;
     }
 
     @Override
-    public Deque<T> next() {
+    public Deque<Result<T>> next() {
         if (requireIncludeInterim != null && requireIncludeInterim != includeInterim) {
             throw new IllegalStateException("Required include interim value [" + requireIncludeInterim + "]; actual was ["
                     + includeInterim + "]");
@@ -54,12 +56,7 @@ public class MockBatchedDocumentsIterator<T> extends BatchedDocumentsIterator<T>
     }
 
     @Override
-    protected String getType() {
-        return null;
-    }
-
-    @Override
-    protected T map(SearchHit hit) {
+    protected Result<T> map(SearchHit hit) {
         return null;
     }
 

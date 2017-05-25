@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -24,7 +25,7 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
         ExtractedField arrayField = ExtractedField.newField("array", ExtractedField.ExtractionMethod.DOC_VALUE);
         ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField, missingField, singleField, arrayField));
 
-        SearchHit hit = new ExtractedFieldTests.SearchHitBuilder(8)
+        SearchHit hit = new SearchHitBuilder(8)
                 .addField("time", 1000L)
                 .addField("single", "a")
                 .addField("array", Arrays.asList("b", "c"))
@@ -42,13 +43,13 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
         ExtractedField arrayField = ExtractedField.newField("array", ExtractedField.ExtractionMethod.DOC_VALUE);
         ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField, missingField, singleField, arrayField));
 
-        SearchHit hit1 = new ExtractedFieldTests.SearchHitBuilder(8)
+        SearchHit hit1 = new SearchHitBuilder(8)
                 .addField("time", 1000L)
                 .addField("single", "a1")
                 .addField("array", Arrays.asList("b1", "c1"))
                 .build();
 
-        SearchHit hit2 = new ExtractedFieldTests.SearchHitBuilder(8)
+        SearchHit hit2 = new SearchHitBuilder(8)
                 .addField("time", 2000L)
                 .addField("single", "a2")
                 .addField("array", Arrays.asList("b2", "c2"))

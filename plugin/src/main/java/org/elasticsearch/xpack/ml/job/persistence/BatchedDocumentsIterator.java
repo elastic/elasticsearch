@@ -15,7 +15,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.xpack.ml.job.results.Result;
 
 import java.util.ArrayDeque;
 import java.util.Arrays;
@@ -35,49 +34,17 @@ public abstract class BatchedDocumentsIterator<T>  {
 
     private final Client client;
     private final String index;
-    private final ResultsFilterBuilder filterBuilder;
     private volatile long count;
     private volatile long totalHits;
     private volatile String scrollId;
     private volatile boolean isScrollInitialised;
 
-    public BatchedDocumentsIterator(Client client, String index) {
-        this(client, index, new ResultsFilterBuilder());
-    }
-
-    protected BatchedDocumentsIterator(Client client, String index, QueryBuilder queryBuilder) {
-        this(client, index, new ResultsFilterBuilder(queryBuilder));
-    }
-
-    private BatchedDocumentsIterator(Client client, String index, ResultsFilterBuilder resultsFilterBuilder) {
+    protected BatchedDocumentsIterator(Client client, String index) {
         this.client = Objects.requireNonNull(client);
         this.index = Objects.requireNonNull(index);
-        totalHits = 0;
-        count = 0;
-        filterBuilder = Objects.requireNonNull(resultsFilterBuilder);
-        isScrollInitialised = false;
-    }
-
-    /**
-     * Query documents whose timestamp is within the given time range
-     *
-     * @param startEpochMs the start time as epoch milliseconds (inclusive)
-     * @param endEpochMs the end time as epoch milliseconds (exclusive)
-     * @return the iterator itself
-     */
-    public BatchedDocumentsIterator<T> timeRange(long startEpochMs, long endEpochMs) {
-        filterBuilder.timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs);
-        return this;
-    }
-
-    /**
-     * Sets whether interim results should be included
-     *
-     * @param includeInterim Whether interim results should be included
-     */
-    public BatchedDocumentsIterator<T> includeInterim(boolean includeInterim) {
-        filterBuilder.interim(includeInterim);
-        return this;
+        this.totalHits = 0;
+        this.count = 0;
+        this.isScrollInitialised = false;
     }
 
     /**
@@ -118,17 +85,16 @@ public abstract class BatchedDocumentsIterator<T>  {
     }
 
     private SearchResponse initScroll() {
-        LOGGER.trace("ES API CALL: search all of type {} from index {}", getType(), index);
+        LOGGER.trace("ES API CALL: search index {}", index);
 
         isScrollInitialised = true;
 
         SearchRequest searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(JobProvider.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
-        searchRequest.types(getType());
         searchRequest.scroll(CONTEXT_ALIVE_DURATION);
         searchRequest.source(new SearchSourceBuilder()
                 .size(BATCH_SIZE)
-                .query(filterBuilder.build())
+                .query(getQuery())
                 .sort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)));
 
         SearchResponse searchResponse = client.search(searchRequest).actionGet();
@@ -155,7 +121,11 @@ public abstract class BatchedDocumentsIterator<T>  {
         return results;
     }
 
-    protected abstract String getType();
+    /**
+     * Get the query to use for the search
+     * @return the search query
+     */
+    protected abstract QueryBuilder getQuery();
 
     /**
      * Maps the search hit to the document type

@@ -39,7 +39,7 @@ public class WatcherTemplateIT extends ESTestCase {
     public void init() throws Exception {
         MustacheScriptEngine engine = new MustacheScriptEngine();
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
-        Map<String, ScriptContext<?, ?>> contexts =
+        Map<String, ScriptContext<?>> contexts =
             Collections.singletonMap(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
         ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
         textTemplateEngine = new TextTemplateEngine(Settings.EMPTY, scriptService);

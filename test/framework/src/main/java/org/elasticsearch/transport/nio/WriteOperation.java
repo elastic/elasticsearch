@@ -39,22 +39,13 @@ public class WriteOperation {
     private final CompositeNetworkBuffer networkBuffer;
 
     public WriteOperation(NioSocketChannel channel, BytesReference reference, ActionListener<NioChannel> listener) {
+        this(channel, createNetworkBuffer(reference), listener);
+    }
+
+    public WriteOperation(NioSocketChannel channel, CompositeNetworkBuffer networkBuffer, ActionListener<NioChannel> listener) {
         this.channel = channel;
         this.listener = listener;
-
-        networkBuffer = new CompositeNetworkBuffer();
-        BytesRefIterator byteRefIterator = reference.iterator();
-        BytesRef r;
-        try {
-            ArrayList<ByteBufferReference> references = new ArrayList<>(3);
-            while ((r = byteRefIterator.next()) != null) {
-                references.add(ByteBufferReference.heap(new BytesArray(r), r.length, 0));
-            }
-            networkBuffer.addBuffers(references.toArray(new ByteBufferReference[references.size()]));
-        } catch (IOException e) {
-            // this is really an error since we don't do IO in our bytesreferences
-            throw new AssertionError("won't happen", e);
-        }
+        this.networkBuffer = networkBuffer;
     }
 
     public CompositeNetworkBuffer getNetworkBuffer() throws IOException {
@@ -107,5 +98,22 @@ public class WriteOperation {
             networkBuffer.incrementRead(written);
         }
         return totalWritten;
+    }
+
+    private static CompositeNetworkBuffer createNetworkBuffer(BytesReference reference) {
+        CompositeNetworkBuffer networkBuffer = new CompositeNetworkBuffer();
+        BytesRefIterator byteRefIterator = reference.iterator();
+        BytesRef r;
+        try {
+            ArrayList<ByteBufferReference> references = new ArrayList<>(3);
+            while ((r = byteRefIterator.next()) != null) {
+                references.add(ByteBufferReference.heap(new BytesArray(r), r.length, 0));
+            }
+            networkBuffer.addBuffers(references.toArray(new ByteBufferReference[references.size()]));
+            return networkBuffer;
+        } catch (IOException e) {
+            // this is really an error since we don't do IO in our bytesreferences
+            throw new AssertionError("won't happen", e);
+        }
     }
 }

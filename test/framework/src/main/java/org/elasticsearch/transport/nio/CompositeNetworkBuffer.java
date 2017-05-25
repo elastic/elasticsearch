@@ -47,7 +47,7 @@ public class CompositeNetworkBuffer extends BytesReference {
 
     public CompositeNetworkBuffer(ByteBufferReference... newReferences) {
         this.references = new ObjectArrayDeque<>(Math.max(8, newReferences.length));
-        this.offsets = new int[newReferences.length];
+        this.offsets = new int[0];
         this.length = 0;
 
         addBuffers(newReferences);

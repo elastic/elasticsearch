@@ -320,7 +320,6 @@ class BuildPlugin implements Plugin<Project> {
      * </ul>
      */
     private static Closure fixupDependencies(Project project) {
-        // TODO: revisit this when upgrading to Gradle 2.14+, see Javadoc comment above
         return { XmlProvider xml ->
             // first find if we have dependencies at all, and grab the node
             NodeList depsNodes = xml.asNode().get('dependencies')

@@ -86,7 +86,8 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
                 in.setVersion(version);
                 PutIndexTemplateRequest serialized = new PutIndexTemplateRequest();
                 serialized.readFrom(in);
-                assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), serialized.mappings().get("bar"));
+                assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML),
+                    serialized.mappings().get("bar"));
             }
         }
     }

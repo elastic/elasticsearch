@@ -184,8 +184,10 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
                         deleter.deleteModelSnapshots(Collections.singletonList(deleteCandidate), new ActionListener<BulkResponse>() {
                             @Override
                             public void onResponse(BulkResponse bulkResponse) {
-                                auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED,
-                                        deleteCandidate.getDescription()));
+                                String msg = Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED, deleteCandidate.getSnapshotId(),
+                                        deleteCandidate.getDescription());
+                                auditor.info(request.getJobId(), msg);
+                                logger.debug("[{}] {}", request.getJobId(), msg);
                                 // We don't care about the bulk response, just that it succeeded
                                 listener.onResponse(new DeleteModelSnapshotAction.Response(true));
                             }

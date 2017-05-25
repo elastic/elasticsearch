@@ -56,14 +56,16 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     @Override
     protected void removeDataBefore(Job job, long cutoffEpochMs, Runnable onFinish) {
-        LOGGER.info("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
+        LOGGER.debug("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
         DeleteByQueryRequest request = createDBQRequest(job, cutoffEpochMs);
 
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 try {
-                    auditResultsWereDeleted(job.getId(), cutoffEpochMs);
+                    if (bulkByScrollResponse.getDeleted() > 0) {
+                        auditResultsWereDeleted(job.getId(), cutoffEpochMs);
+                    }
                     onFinish.run();
                 } catch (Exception e) {
                     onFailure(e);
@@ -99,6 +101,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(instant, ZoneOffset.systemDefault());
         String formatted = DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(zonedDateTime);
         String msg = Messages.getMessage(Messages.JOB_AUDIT_OLD_RESULTS_DELETED, formatted);
+        LOGGER.debug("[{}] {}", jobId, msg);
         auditor.info(jobId, msg);
     }
 }

@@ -274,7 +274,7 @@ public class JobManager extends AbstractComponent {
         // -------
         CheckedConsumer<Boolean, Exception> apiResponseHandler = jobDeleted -> {
             if (jobDeleted) {
-                logger.info("Job [" + jobId + "] deleted.");
+                logger.info("Job [" + jobId + "] deleted");
                 auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DELETED));
                 actionListener.onResponse(new DeleteJobAction.Response(true));
             } else {

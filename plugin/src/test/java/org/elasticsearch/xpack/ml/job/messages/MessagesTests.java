@@ -18,7 +18,7 @@ public class MessagesTests extends ESTestCase {
         String formattedMessage = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "field-name", "field-value");
         assertEquals("Invalid field-name value 'field-value' in datafeed configuration", formattedMessage);
 
-        formattedMessage = Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED, "foo-job");
-        assertEquals("Job model snapshot 'foo-job' deleted", formattedMessage);
+        formattedMessage = Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED, "snapshot_foo", "snapshot description");
+        assertEquals("Model snapshot [snapshot_foo] with description 'snapshot description' deleted", formattedMessage);
     }
 }

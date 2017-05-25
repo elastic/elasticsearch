@@ -51,7 +51,7 @@ public final class Messages {
     public static final String JOB_AUDIT_DELETED = "Job deleted";
     public static final String JOB_AUDIT_OLD_RESULTS_DELETED = "Deleted results prior to {1}";
     public static final String JOB_AUDIT_REVERTED = "Job model snapshot reverted to ''{0}''";
-    public static final String JOB_AUDIT_SNAPSHOT_DELETED = "Job model snapshot ''{0}'' deleted";
+    public static final String JOB_AUDIT_SNAPSHOT_DELETED = "Model snapshot [{0}] with description ''{1}'' deleted";
 
     public static final String JOB_CONFIG_BYFIELD_INCOMPATIBLE_FUNCTION = "by_field_name cannot be used with function ''{0}''";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";

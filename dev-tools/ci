@@ -93,16 +93,34 @@ if [ -z ${USE_EXISTING_ES:+x} ]; then
         echo "Either define 'USE_EXISTING_ES' or remove the existing 'elasticsearch' sibling."
         exit 1
     fi
-    BRANCH=${PR_SOURCE_BRANCH:-${GIT_BRANCH#*/}} # GIT_BRANCH starts with the repo, i.e., origin/master
-    BRANCH=${BRANCH:-master} # fall back to CI branch if not testing a PR
-    echo "Checking if branch '$BRANCH' has elasticsearch sibling..."
-    if [[ -z "$(git ls-remote --heads https://github.com/elastic/elasticsearch.git $BRANCH)" ]]; then
-      echo "No sibling branch, using PR target branch"
-      BRANCH=$PR_TARGET_BRANCH
-    fi
-    echo "Checking out Elasticsearch '$BRANCH' branch..."
-    git clone -b $BRANCH https://github.com/elastic/elasticsearch.git
-    printf "Checked out Elasticsearch revision: %s\n" "$(git -C elasticsearch rev-parse HEAD)"
+
+    function pick_clone_target {
+      echo "picking which branch of elasticsearch to clone"
+
+      # PR_* are provided by the CI git plugin for pull requests
+      if [[ -n "$PR_AUTHOR" && -n "$PR_SOURCE_BRANCH" ]]; then
+        GH_USER="$PR_AUTHOR"
+        BRANCH="$PR_SOURCE_BRANCH"
+        echo " -> using pull request author $GH_USER and branch $BRANCH"
+        if [[ -n "$(git ls-remote --heads https://github.com/$GH_USER/elasticsearch.git $BRANCH 2>/dev/null)" ]]; then
+          return
+        fi
+      fi
+      GH_USER="elastic"
+      # GIT_BRANCH is provided by normal CI runs. It starts with the repo, i.e., origin/master
+      # If we are not in CI, we fall back to the master branch
+      BRANCH="${PR_TARGET_BRANCH:-${GIT_BRANCH#*/}}"
+      BRANCH="${BRANCH:-master}"
+      echo " -> using CI branch $BRANCH from elastic repo"
+    }
+
+    pick_clone_target
+
+    echo " -> checking out '$BRANCH' branch from $GH_USER/elasticsearch..."
+    git clone -b $BRANCH "https://github.com/$GH_USER/elasticsearch.git" --depth=1
+    echo " -> checked out elasticsearch revision: $(git -C elasticsearch rev-parse HEAD)"
+    echo
+
 else
     if [ -d "./elasticsearch" ]; then
         echo "Using existing 'elasticsearch' checkout"

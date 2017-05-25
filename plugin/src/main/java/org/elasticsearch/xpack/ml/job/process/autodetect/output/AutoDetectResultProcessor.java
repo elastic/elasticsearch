@@ -67,6 +67,7 @@ public class AutoDetectResultProcessor {
     final Semaphore updateModelSnapshotIdSemaphore = new Semaphore(1);
     private final FlushListener flushListener;
     private volatile boolean processKilled;
+    private volatile boolean failed;
 
     /**
      * New model size stats are read as the process is running
@@ -124,6 +125,8 @@ public class AutoDetectResultProcessor {
 
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
         } catch (Exception e) {
+            failed = true;
+
             if (processKilled) {
                 // Don't log the stack trace in this case.  Log just enough to hint
                 // that it would have been better to close jobs before shutting down,
@@ -288,6 +291,9 @@ public class AutoDetectResultProcessor {
      * @return {@code true} if the flush has completed or the parsing finished; {@code false} if the timeout expired
      */
     public boolean waitForFlushAcknowledgement(String flushId, Duration timeout) {
+        if (failed) {
+            return false;
+        }
         return flushListener.waitForFlush(flushId, timeout);
     }
 
@@ -297,6 +303,14 @@ public class AutoDetectResultProcessor {
 
     public void waitUntilRenormalizerIsIdle() {
         renormalizer.waitUntilIdle();
+    }
+
+    /**
+     * If failed then there was an error parsing the results that cannot be recovered from
+     * @return true if failed
+     */
+    public boolean isFailed() {
+        return failed;
     }
 
     static class Context {

@@ -65,6 +65,16 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         }
     }
 
+    public void testWaitForFlushReturnsIfParserFails() throws IOException {
+        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
+        when(process.isProcessAlive()).thenReturn(true);
+        AutoDetectResultProcessor processor = mock(AutoDetectResultProcessor.class);
+        when(processor.isFailed()).thenReturn(true);
+        when(processor.waitForFlushAcknowledgement(anyString(), any())).thenReturn(false);
+        AutodetectCommunicator communicator = createAutodetectCommunicator(process, processor);
+        expectThrows(ElasticsearchException.class, () -> communicator.waitFlushToCompletion("foo"));
+    }
+
     public void testFlushJob_throwsIfProcessIsDead() throws IOException {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         when(process.isProcessAlive()).thenReturn(false);

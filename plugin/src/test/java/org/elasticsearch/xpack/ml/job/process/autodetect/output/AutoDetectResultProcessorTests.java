@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.action.UpdateJobAction;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 import org.junit.Before;
 import org.mockito.InOrder;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
@@ -325,6 +328,21 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
         processorUnderTest.process(process);
         verify(persister, times(2)).persistModelSizeStats(any());
+    }
+
+    public void testParsingErrorSetsFailed() {
+        @SuppressWarnings("unchecked")
+        Iterator<AutodetectResult> iterator = mock(Iterator.class);
+        when(iterator.hasNext()).thenThrow(new ElasticsearchParseException("this test throws"));
+        AutodetectProcess process = mock(AutodetectProcess.class);
+        when(process.readAutodetectResults()).thenReturn(iterator);
+
+        assertFalse(processorUnderTest.isFailed());
+        processorUnderTest.process(process);
+        assertTrue(processorUnderTest.isFailed());
+
+        // Wait for flush should return immediately
+        assertFalse(processorUnderTest.waitForFlushAcknowledgement("foo", Duration.of(300, ChronoUnit.SECONDS)));
     }
 
     public void testKill() throws TimeoutException {

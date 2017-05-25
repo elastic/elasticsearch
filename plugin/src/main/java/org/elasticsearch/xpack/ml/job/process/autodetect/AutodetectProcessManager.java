@@ -190,7 +190,8 @@ public class AutodetectProcessManager extends AbstractComponent {
         if (communicator == null) {
             String message = String.format(Locale.ROOT, "Cannot flush because job [%s] is not open", jobTask.getJobId());
             logger.debug(message);
-            throw ExceptionsHelper.conflictStatusException(message);
+            handler.accept(ExceptionsHelper.conflictStatusException(message));
+            return;
         }
 
         communicator.flushJob(params, (aVoid, e) -> {

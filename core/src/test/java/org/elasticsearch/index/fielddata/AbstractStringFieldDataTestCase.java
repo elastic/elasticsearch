@@ -457,6 +457,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         refreshReader();
         IndexOrdinalsFieldData ifd = getForField("string", "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
+        assertNotNull(globalOrdinals.getOrdinalMap());
         assertThat(topLevelReader.leaves().size(), equalTo(3));
 
         // First segment
@@ -584,6 +585,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         refreshReader();
         IndexOrdinalsFieldData ifd = getForField("string", "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
+        assertNotNull(globalOrdinals.getOrdinalMap());
         assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));
         // 3 b/c 1 segment level caches and 1 top level cache
         // in case of doc values, we don't cache atomic FD, so only the top-level cache is there

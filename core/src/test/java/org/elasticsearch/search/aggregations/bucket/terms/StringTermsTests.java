@@ -22,9 +22,10 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -35,17 +36,17 @@ import java.util.Set;
 public class StringTermsTests extends InternalTermsTestCase {
 
     @Override
-    protected InternalTerms<?, ?> createTestInstance(
-            String name,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+    protected InternalTerms<?, ?> createTestInstance(String name,
+                                                     List<PipelineAggregator> pipelineAggregators,
+                                                     Map<String, Object> metaData,
+                                                     InternalAggregations aggregations,
+                                                     boolean showTermDocCountError,
+                                                     long docCountError) {
         BucketOrder order = BucketOrder.count(false);
         long minDocCount = 1;
         int requiredSize = 3;
         int shardSize = requiredSize + 2;
         DocValueFormat format = DocValueFormat.RAW;
-        boolean showTermDocCountError = false;
-        long docCountError = -1;
         long otherDocCount = 0;
         List<StringTerms.Bucket> buckets = new ArrayList<>();
         final int numBuckets = randomInt(shardSize);
@@ -53,8 +54,7 @@ public class StringTermsTests extends InternalTermsTestCase {
         for (int i = 0; i < numBuckets; ++i) {
             BytesRef term = randomValueOtherThanMany(b -> terms.add(b) == false, () -> new BytesRef(randomAlphaOfLength(10)));
             int docCount = randomIntBetween(1, 100);
-            buckets.add(new StringTerms.Bucket(term, docCount, InternalAggregations.EMPTY,
-                    showTermDocCountError, docCountError, format));
+            buckets.add(new StringTerms.Bucket(term, docCount, aggregations, showTermDocCountError, docCountError, format));
         }
         return new StringTerms(name, order, requiredSize, minDocCount, pipelineAggregators,
                 metaData, format, shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
@@ -65,4 +65,8 @@ public class StringTermsTests extends InternalTermsTestCase {
         return StringTerms::new;
     }
 
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedStringTerms.class;
+    }
 }

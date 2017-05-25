@@ -706,13 +706,19 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
+    protected static QueryBuilder assertSerialization(QueryBuilder testQuery) throws IOException {
+        return assertSerialization(testQuery, Version.CURRENT);
+    }
+
     /**
      * Serialize the given query builder and asserts that both are equal
      */
-    protected static QueryBuilder assertSerialization(QueryBuilder testQuery) throws IOException {
+    protected static QueryBuilder assertSerialization(QueryBuilder testQuery, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(version);
             output.writeNamedWriteable(testQuery);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), serviceHolder.namedWriteableRegistry)) {
+                in.setVersion(version);
                 QueryBuilder deserializedQuery = in.readNamedWriteable(QueryBuilder.class);
                 assertEquals(testQuery, deserializedQuery);
                 assertEquals(testQuery.hashCode(), deserializedQuery.hashCode());
@@ -1013,10 +1019,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     new Class[]{Client.class},
                     clientInvocationHandler);
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
-            List<Setting<?>> scriptSettings = scriptModule.getSettings();
-            scriptSettings.addAll(pluginsService.getPluginSettings());
-            scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
-            SettingsModule settingsModule = new SettingsModule(nodeSettings, scriptSettings, pluginsService.getPluginSettingsFilter());
+            List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
+            additionalSettings.add(InternalSettingsPlugin.VERSION_CREATED);
+            SettingsModule settingsModule = new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter());
             searchModule = new SearchModule(nodeSettings, false, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
@@ -1087,7 +1092,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             if (scriptPlugins == null || scriptPlugins.isEmpty()) {
                 return newTestScriptModule();
             }
-            return ScriptModule.create(Settings.EMPTY, scriptPlugins);
+            return new ScriptModule(Settings.EMPTY, scriptPlugins);
         }
     }
 }

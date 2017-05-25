@@ -24,10 +24,11 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,10 +38,20 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     private static List<HyperLogLogPlusPlus> algos;
     private static int p;
 
-    @Before
-    public void setup() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         algos = new ArrayList<>();
         p = randomIntBetween(HyperLogLogPlusPlus.MIN_PRECISION, HyperLogLogPlusPlus.MAX_PRECISION);
+    }
+
+    @After //we force @After to have it run before ESTestCase#after otherwise it fails
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        Releasables.close(algos);
+        algos.clear();
+        algos = null;
     }
 
     @Override
@@ -73,10 +84,12 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
         }
     }
 
-    @After
-    public void cleanup() {
-        Releasables.close(algos);
-        algos.clear();
-        algos = null;
+    @Override
+    protected void assertFromXContent(InternalCardinality aggregation, ParsedAggregation parsedAggregation) {
+        assertTrue(parsedAggregation instanceof ParsedCardinality);
+        ParsedCardinality parsed = (ParsedCardinality) parsedAggregation;
+
+        assertEquals(aggregation.getValue(), parsed.getValue(), Double.MIN_VALUE);
+        assertEquals(aggregation.getValueAsString(), parsed.getValueAsString());
     }
 }

@@ -111,10 +111,9 @@ public final class XContentParserUtils {
     }
 
     /**
-     * This method expects that the current token is a {@code XContentParser.Token.FIELD_NAME} and
-     * that the current field name is the concatenation of a type, delimiter and name (ex: terms#foo
-     * where "terms" refers to the type of a registered {@link NamedXContentRegistry.Entry}, "#" is
-     * the delimiter and "foo" the name of the object to parse).
+     * This method expects that the current field name is the concatenation of a type, a delimiter and a name
+     * (ex: terms#foo where "terms" refers to the type of a registered {@link NamedXContentRegistry.Entry},
+     * "#" is the delimiter and "foo" the name of the object to parse).
      *
      * The method splits the field's name to extract the type and name and then parses the object
      * using the {@link XContentParser#namedObject(Class, String, Object)} method.
@@ -128,7 +127,6 @@ public final class XContentParserUtils {
      *                     from the field's name
      */
     public static <T> T parseTypedKeysObject(XContentParser parser, String delimiter, Class<T> objectClass) throws IOException {
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String currentFieldName = parser.currentName();
         if (Strings.hasLength(currentFieldName)) {
             int position = currentFieldName.indexOf(delimiter);

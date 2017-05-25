@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -52,7 +51,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -179,8 +177,8 @@ public abstract class TransportReplicationAction<
             Request shardRequest, IndexShard primary) throws Exception;
 
     /**
-     * Synchronous replica operation on nodes with replica copies. This is done under the lock form
-     * {@link IndexShard#acquireReplicaOperationLock(long, ActionListener, String)}
+     * Synchronously execute the specified replica operation. This is done under a permit from
+     * {@link IndexShard#acquireReplicaOperationPermit(long, ActionListener, String)}.
      *
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
@@ -584,7 +582,7 @@ public abstract class TransportReplicationAction<
                 throw new ShardNotFoundException(this.replica.shardId(), "expected aID [{}] but found [{}]", targetAllocationID,
                     actualAllocationId);
             }
-            replica.acquireReplicaOperationLock(request.primaryTerm, this, executor);
+            replica.acquireReplicaOperationPermit(request.primaryTerm, this, executor);
         }
 
         /**
@@ -921,7 +919,7 @@ public abstract class TransportReplicationAction<
             }
         };
 
-        indexShard.acquirePrimaryOperationLock(onAcquired, executor);
+        indexShard.acquirePrimaryOperationPermit(onAcquired, executor);
     }
 
     class ShardReference implements Releasable {

@@ -339,14 +339,14 @@ parameters and Java which uses the compile time types of the parameters.
 The consequence of this that Painless doesn't support overloaded methods like
 Java, leading to some trouble when it whitelists classes from the Java
 standard library. For example, in Java and Groovy, `Matcher` has two methods:
-`group(int)` and `group(String)`. Painless can't whitelist both of them methods
+`group(int)` and `group(String)`. Painless can't whitelist both of these methods
 because they have the same name and the same number of parameters. So instead it
 has `group(int)` and `namedGroup(String)`.
 
 We have a few justifications for this different way of dispatching methods:
 
 1. It makes operating on `def` types simpler and, presumably, faster. Using
-receiver, name, and arity means when Painless sees a call on a `def` objects it
+receiver, name, and arity means that when Painless sees a call on a `def` object it
 can dispatch the appropriate method without having to do expensive comparisons
 of the types of the parameters. The same is true for invocations with `def`
 typed parameters.

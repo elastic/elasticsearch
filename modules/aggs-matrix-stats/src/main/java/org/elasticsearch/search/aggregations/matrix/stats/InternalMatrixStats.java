@@ -139,6 +139,10 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         return results.getCorrelation(fieldX, fieldY);
     }
 
+    RunningStats getStats() {
+        return stats;
+    }
+
     MatrixStatsResults getResults() {
         return results;
     }

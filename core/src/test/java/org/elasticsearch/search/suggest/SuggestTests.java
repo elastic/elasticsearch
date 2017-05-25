@@ -49,15 +49,26 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SuggestTests extends ESTestCase {
 
-    static NamedXContentRegistry getSuggestersRegistry() {
-        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
+    private static final NamedXContentRegistry xContentRegistry;
+    private static final List<NamedXContentRegistry.Entry> namedXContents;
+
+    static {
+        namedXContents = new ArrayList<>();
         namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("term"),
                 (parser, context) -> TermSuggestion.fromXContent(parser, (String)context)));
         namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("phrase"),
                 (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
         namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("completion"),
                 (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
-        return new NamedXContentRegistry(namedXContents);
+        xContentRegistry = new NamedXContentRegistry(namedXContents);
+    }
+
+    public static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
+        return namedXContents;
+    }
+
+    static NamedXContentRegistry getSuggestersRegistry() {
+        return xContentRegistry;
     }
 
     @Override

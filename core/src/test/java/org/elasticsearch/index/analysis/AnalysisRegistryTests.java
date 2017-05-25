@@ -41,7 +41,6 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -50,24 +49,28 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class AnalysisRegistryTests extends ESTestCase {
-
-    private Environment emptyEnvironment;
     private AnalysisRegistry emptyRegistry;
-    private IndexSettings emptyIndexSettingsOfCurrentVersion;
 
     private static AnalyzerProvider<?> analyzerProvider(final String name) {
         return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDEX, new EnglishAnalyzer());
     }
 
+    private static AnalysisRegistry emptyAnalysisRegistry(Settings settings) {
+        return new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
+                emptyMap());
+    }
+
+    private static IndexSettings indexSettingsOfCurrentVersion(Settings.Builder settings) {
+        return IndexSettingsModule.newIndexSettings("index", settings
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build());
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        emptyEnvironment = new Environment(Settings.builder()
+        emptyRegistry = emptyAnalysisRegistry(Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build());
-        emptyRegistry = new AnalysisRegistry(emptyEnvironment, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
-        emptyIndexSettingsOfCurrentVersion = IndexSettingsModule.newIndexSettings("index", Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build());
     }
 
@@ -191,32 +194,12 @@ public class AnalysisRegistryTests extends ESTestCase {
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-        IndexAnalyzers indexAnalyzers =
-                new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
-                    .build(idxSettings);
-        IndexAnalyzers otherIndexAnalyzers =
-                new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
-                    .build(idxSettings);
+        IndexAnalyzers indexAnalyzers = emptyAnalysisRegistry(settings).build(idxSettings);
+        IndexAnalyzers otherIndexAnalyzers = emptyAnalysisRegistry(settings).build(idxSettings);
         final int numIters = randomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {
             PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(random(), PreBuiltAnalyzers.values());
             assertSame(indexAnalyzers.get(preBuiltAnalyzers.name()), otherIndexAnalyzers.get(preBuiltAnalyzers.name()));
-        }
-    }
-
-    public void testPreConfiguredTokenFiltersAreCached() throws IOException {
-        AtomicBoolean built = new AtomicBoolean(false);
-        PreConfiguredTokenFilter assertsBuiltOnce = PreConfiguredTokenFilter.singleton("asserts_built_once", false, tokenStream -> {
-                    if (false == built.compareAndSet(false, true)) {
-                        fail("Attempted to build the token filter twice when it should have been cached");
-                    }
-                    return new MockTokenFilter(tokenStream, MockTokenFilter.EMPTY_STOPSET);
-                });
-        try (AnalysisRegistry registryWithPreBuiltTokenFilter = new AnalysisRegistry(emptyEnvironment, emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap(), singletonMap("asserts_built_once", assertsBuiltOnce))) {
-            IndexAnalyzers indexAnalyzers = registryWithPreBuiltTokenFilter.build(emptyIndexSettingsOfCurrentVersion);
-            IndexAnalyzers otherIndexAnalyzers = registryWithPreBuiltTokenFilter.build(emptyIndexSettingsOfCurrentVersion);
-            assertSame(indexAnalyzers.get("asserts_built_once"), otherIndexAnalyzers.get("asserts_built_once"));
         }
     }
 
@@ -231,14 +214,12 @@ public class AnalysisRegistryTests extends ESTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-                new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
-                    .build(idxSettings));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> emptyAnalysisRegistry(settings).build(idxSettings));
         assertThat(e.getMessage(), equalTo("analyzer [test_analyzer] must specify either an analyzer type, or a tokenizer"));
     }
 
     public void testCloseIndexAnalyzersMultipleTimes() throws IOException {
-        IndexAnalyzers indexAnalyzers = emptyRegistry.build(emptyIndexSettingsOfCurrentVersion);
+        IndexAnalyzers indexAnalyzers = emptyRegistry.build(indexSettingsOfCurrentVersion(Settings.builder()));
         indexAnalyzers.close();
         indexAnalyzers.close();
     }

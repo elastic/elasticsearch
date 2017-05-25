@@ -25,10 +25,9 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.antlr.Walker;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -87,9 +86,8 @@ public abstract class ScriptTestCase extends ESTestCase {
                     definition, null);
         }
         // test actual script execution
-        Object object = scriptEngine.compile(null, script, compileParams);
-        CompiledScript compiled = new CompiledScript(ScriptType.INLINE, getTestName(), "painless", object);
-        ExecutableScript executableScript = scriptEngine.executable(compiled, vars);
+        ExecutableScript.Compiled compiled = scriptEngine.compile(null, script, ScriptContext.EXECUTABLE, compileParams);
+        ExecutableScript executableScript = compiled.newInstance(vars);
         if (scorer != null) {
             ((ScorerAware)executableScript).setScorer(scorer);
         }

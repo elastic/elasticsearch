@@ -94,6 +94,8 @@ thread_pool:
 [float]
 ==== `fixed_auto_queue_size`
 
+experimental[]
+
 The `fixed_auto_queue_size` thread pool holds a fixed size of threads to handle
 the requests with a bounded queue for pending requests that have no threads to
 service them. It's similar to the `fixed` threadpool, however, the `queue_size`

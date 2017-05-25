@@ -28,8 +28,8 @@ import java.io.IOException;
 
 /**
  * ScriptType represents the way a script is stored and retrieved from the {@link ScriptService}.
- * It's also used to by {@link ScriptSettings} and {@link ScriptModes} to determine whether or not
- * a {@link Script} is allowed to be executed based on both default and user-defined settings.
+ * It's also used to by {@link ScriptService} to determine whether or not a {@link Script} is
+ * allowed to be executed based on both default and user-defined settings.
  */
 public enum ScriptType implements Writeable {
 

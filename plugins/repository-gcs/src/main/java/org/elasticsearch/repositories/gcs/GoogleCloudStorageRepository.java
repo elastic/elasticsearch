@@ -62,8 +62,6 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
             byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope, Property.Dynamic);
     static final Setting<String> APPLICATION_NAME =
             new Setting<>("application_name", GoogleCloudStoragePlugin.NAME, Function.identity(), Property.NodeScope, Property.Dynamic);
-    static final Setting<String> SERVICE_ACCOUNT =
-            new Setting<>("service_account", "_default_", Function.identity(), Property.NodeScope, Property.Dynamic, Property.Deprecated);
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
     static final Setting<TimeValue> HTTP_READ_TIMEOUT =
             timeSetting("http.read_timeout", NO_TIMEOUT, Property.NodeScope, Property.Dynamic);
@@ -82,7 +80,6 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
         String bucket = getSetting(BUCKET, metadata);
         String application = getSetting(APPLICATION_NAME, metadata);
-        String serviceAccount = SERVICE_ACCOUNT.get(metadata.settings());
         String clientName = CLIENT_NAME.get(metadata.settings());
 
         String basePath = BASE_PATH.get(metadata.settings());
@@ -115,7 +112,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}], application [{}]",
                 bucket, basePath, chunkSize, compress, application);
 
-        Storage client = storageService.createClient(serviceAccount, clientName, application, connectTimeout, readTimeout);
+        Storage client = storageService.createClient(clientName, application, connectTimeout, readTimeout);
         this.blobStore = new GoogleCloudStorageBlobStore(settings, bucket, client);
     }
 

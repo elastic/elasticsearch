@@ -363,6 +363,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
+        public void updatePrimaryTerm(long primaryTerm) {
+            term = primaryTerm;
+        }
+
+        @Override
         public void updateAllocationIdsFromMaster(Set<String> activeAllocationIds, Set<String> initializingAllocationIds) {
             this.activeAllocationIds = activeAllocationIds;
             this.initializingAllocationIds = initializingAllocationIds;

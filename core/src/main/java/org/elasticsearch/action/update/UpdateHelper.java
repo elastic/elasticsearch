@@ -300,7 +300,7 @@ public class UpdateHelper extends AbstractComponent {
     private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript.Compiled compiledScript = scriptService.compile(script, ScriptContext.UPDATE);
+                ExecutableScript.Compiled compiledScript = scriptService.compile(script, ExecutableScript.UPDATE_CONTEXT);
                 ExecutableScript executableScript = compiledScript.newInstance(script.getParams());
                 executableScript.setNextVar(ContextFields.CTX, ctx);
                 executableScript.run();

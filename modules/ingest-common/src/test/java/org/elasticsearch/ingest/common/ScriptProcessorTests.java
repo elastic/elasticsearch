@@ -48,7 +48,7 @@ public class ScriptProcessorTests extends ESTestCase {
         Script script = mockScript("_script");
         ExecutableScript.Compiled compiledScript = mock(ExecutableScript.Compiled.class);
         ExecutableScript executableScript = mock(ExecutableScript.class);
-        when(scriptService.compile(script, ScriptContext.INGEST)).thenReturn(compiledScript);
+        when(scriptService.compile(script, ExecutableScript.INGEST_CONTEXT)).thenReturn(compiledScript);
         when(compiledScript.newInstance(any())).thenReturn(executableScript);
 
         Map<String, Object> document = new HashMap<>();

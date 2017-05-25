@@ -41,4 +41,8 @@ public interface SearchScript {
     interface Compiled {
         SearchScript newInstance(Map<String, Object> params, SearchLookup lookup);
     }
+
+    ScriptContext<Compiled> CONTEXT = new ScriptContext<>("search", Compiled.class);
+    // TODO: remove aggs context when it has its own interface
+    ScriptContext<SearchScript.Compiled> AGGS_CONTEXT = new ScriptContext<>("aggs", Compiled.class);
 }

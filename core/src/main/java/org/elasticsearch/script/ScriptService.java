@@ -264,7 +264,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         // TODO: fix this through some API or something, that's wrong
         // special exception to prevent expressions from compiling as update or mapping scripts
         boolean expression = "expression".equals(script.getLang());
-        boolean notSupported = context.name.equals(ScriptContext.UPDATE.name);
+        boolean notSupported = context.name.equals(ExecutableScript.UPDATE_CONTEXT.name);
         if (expression && notSupported) {
             throw new UnsupportedOperationException("scripts of type [" + script.getType() + "]," +
                 " operation [" + context.name + "] and lang [" + lang + "] are not supported");
@@ -433,7 +433,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     "cannot put [" + ScriptType.STORED + "] script, no script contexts are enabled");
             } else {
                 // TODO: executable context here is just a placeholder, replace with optional context name passed into PUT stored script req
-                Object compiled = scriptEngine.compile(request.id(), source.getCode(), ScriptContext.EXECUTABLE, Collections.emptyMap());
+                Object compiled = scriptEngine.compile(request.id(), source.getCode(), ExecutableScript.CONTEXT, Collections.emptyMap());
 
                 if (compiled == null) {
                     throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]" +

@@ -62,7 +62,7 @@ public class MustacheTests extends ESTestCase {
             + "}}, \"negative_boost\": {{boost_val}} } }}";
         Map<String, Object> params = Collections.singletonMap("boost_val", "0.2");
 
-        ExecutableScript.Compiled compiled = engine.compile(null, template, ScriptContext.EXECUTABLE, Collections.emptyMap());
+        ExecutableScript.Compiled compiled = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
         ExecutableScript result = compiled.newInstance(params);
         assertEquals(
                 "Mustache templating broken",
@@ -74,7 +74,7 @@ public class MustacheTests extends ESTestCase {
 
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
-        ExecutableScript.Compiled compiled  = engine.compile(null, template, ScriptContext.EXECUTABLE, Collections.emptyMap());
+        ExecutableScript.Compiled compiled  = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new String[] { "foo", "bar" },
@@ -94,7 +94,7 @@ public class MustacheTests extends ESTestCase {
 
     public void testArrayInArrayAccess() throws Exception {
         String template = "{{data.0.0}} {{data.0.1}}";
-        ExecutableScript.Compiled compiled = engine.compile(null, template, ScriptContext.EXECUTABLE, Collections.emptyMap());
+        ExecutableScript.Compiled compiled = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new String[][] { new String[] { "foo", "bar" }},
@@ -107,7 +107,7 @@ public class MustacheTests extends ESTestCase {
 
     public void testMapInArrayAccess() throws Exception {
         String template = "{{data.0.key}} {{data.1.key}}";
-        ExecutableScript.Compiled compiled= engine.compile(null, template, ScriptContext.EXECUTABLE, Collections.emptyMap());
+        ExecutableScript.Compiled compiled= engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new Object[] { singletonMap("key", "foo"), singletonMap("key", "bar") },
@@ -131,7 +131,7 @@ public class MustacheTests extends ESTestCase {
         List<String> randomList = Arrays.asList(generateRandomStringArray(10, 20, false));
 
         String template = "{{data.array.size}} {{data.list.size}}";
-        ExecutableScript.Compiled compiled = engine.compile(null, template, ScriptContext.EXECUTABLE, Collections.emptyMap());
+        ExecutableScript.Compiled compiled = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> data = new HashMap<>();
         data.put("array", randomArrayValues);
         data.put("list", randomList);
@@ -379,6 +379,6 @@ public class MustacheTests extends ESTestCase {
 
     private ExecutableScript.Compiled compile(String script) {
         assertThat("cannot compile null or empty script", script, not(isEmptyOrNullString()));
-        return engine.compile(null, script, ScriptContext.EXECUTABLE, Collections.emptyMap());
+        return engine.compile(null, script, ExecutableScript.CONTEXT, Collections.emptyMap());
     }
 }

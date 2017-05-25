@@ -70,7 +70,7 @@ public class ScriptServiceTests extends ESTestCase {
         scripts.put("script", p -> null);
         scriptEngine = new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, scripts);
         //prevent duplicates using map
-        contexts = new HashMap<>(ScriptContext.BUILTINS);
+        contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
         engines = new HashMap<>();
         engines.put(scriptEngine.getType(), scriptEngine);
         engines.put("test", new MockScriptEngine("test", scripts));
@@ -124,25 +124,25 @@ public class ScriptServiceTests extends ESTestCase {
     public void testInlineScriptCompiledOnceCache() throws IOException {
         buildScriptService(Settings.EMPTY);
         Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
-        SearchScript.Compiled compiledScript1 = scriptService.compile(script, ScriptContext.SEARCH);
-        SearchScript.Compiled compiledScript2 = scriptService.compile(script, ScriptContext.SEARCH);
+        SearchScript.Compiled compiledScript1 = scriptService.compile(script, SearchScript.CONTEXT);
+        SearchScript.Compiled compiledScript2 = scriptService.compile(script, SearchScript.CONTEXT);
         assertThat(compiledScript1, sameInstance(compiledScript2));
     }
 
     public void testAllowAllScriptTypeSettings() throws IOException {
         buildScriptService(Settings.EMPTY);
 
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.SEARCH);
-        assertCompileAccepted("painless", "script", ScriptType.STORED, ScriptContext.SEARCH);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.STORED, SearchScript.CONTEXT);
     }
 
     public void testAllowAllScriptContextSettings() throws IOException {
         buildScriptService(Settings.EMPTY);
 
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.SEARCH);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.AGGS);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.UPDATE);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.INGEST);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, ExecutableScript.UPDATE_CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, ExecutableScript.INGEST_CONTEXT);
     }
 
     public void testAllowSomeScriptTypeSettings() throws IOException {
@@ -150,8 +150,8 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put("script.allowed_types", "inline");
         buildScriptService(builder.build());
 
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.SEARCH);
-        assertCompileRejected("painless", "script", ScriptType.STORED, ScriptContext.SEARCH);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileRejected("painless", "script", ScriptType.STORED, SearchScript.CONTEXT);
     }
 
     public void testAllowSomeScriptContextSettings() throws IOException {
@@ -159,9 +159,9 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put("script.allowed_contexts", "search, aggs");
         buildScriptService(builder.build());
 
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.SEARCH);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.AGGS);
-        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.UPDATE);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, ExecutableScript.UPDATE_CONTEXT);
     }
 
     public void testAllowNoScriptTypeSettings() throws IOException {
@@ -169,8 +169,8 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put("script.allowed_types", "none");
         buildScriptService(builder.build());
 
-        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.SEARCH);
-        assertCompileRejected("painless", "script", ScriptType.STORED, ScriptContext.SEARCH);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileRejected("painless", "script", ScriptType.STORED, SearchScript.CONTEXT);
     }
 
     public void testAllowNoScriptContextSettings() throws IOException {
@@ -178,18 +178,18 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put("script.allowed_contexts", "none");
         buildScriptService(builder.build());
 
-        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.SEARCH);
-        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.AGGS);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
     }
 
     public void testCompileNonRegisteredContext() throws IOException {
-        contexts.remove(ScriptContext.INGEST.name);
+        contexts.remove(ExecutableScript.INGEST_CONTEXT.name);
         buildScriptService(Settings.EMPTY);
 
         String type = scriptEngine.getType();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            scriptService.compile(new Script(randomFrom(ScriptType.values()), type, "test", Collections.emptyMap()), ScriptContext.INGEST));
-        assertThat(e.getMessage(), containsString("script context [" + ScriptContext.INGEST.name + "] not supported"));
+            scriptService.compile(new Script(randomFrom(ScriptType.values()), type, "test", Collections.emptyMap()), ExecutableScript.INGEST_CONTEXT));
+        assertThat(e.getMessage(), containsString("script context [" + ExecutableScript.INGEST_CONTEXT.name + "] not supported"));
     }
 
     public void testCompileCountedInCompilationStats() throws IOException {

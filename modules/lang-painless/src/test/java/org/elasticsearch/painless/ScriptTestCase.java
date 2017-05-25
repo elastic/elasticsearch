@@ -86,7 +86,7 @@ public abstract class ScriptTestCase extends ESTestCase {
                     definition, null);
         }
         // test actual script execution
-        ExecutableScript.Compiled compiled = scriptEngine.compile(null, script, ScriptContext.EXECUTABLE, compileParams);
+        ExecutableScript.Compiled compiled = scriptEngine.compile(null, script, ExecutableScript.CONTEXT, compileParams);
         ExecutableScript executableScript = compiled.newInstance(vars);
         if (scorer != null) {
             ((ScorerAware)executableScript).setScorer(scorer);

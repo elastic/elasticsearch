@@ -44,4 +44,11 @@ public interface ExecutableScript {
     interface Compiled {
         ExecutableScript newInstance(Map<String, Object> params);
     }
+
+    ScriptContext<Compiled> CONTEXT = new ScriptContext<>("executable", Compiled.class);
+
+    // TODO: remove these once each has its own script interface
+    ScriptContext<Compiled> AGGS_CONTEXT = new ScriptContext<>("aggs_executable", Compiled.class);
+    ScriptContext<Compiled> UPDATE_CONTEXT = new ScriptContext<>("update", Compiled.class);
+    ScriptContext<Compiled> INGEST_CONTEXT = new ScriptContext<>("ingest", Compiled.class);
 }

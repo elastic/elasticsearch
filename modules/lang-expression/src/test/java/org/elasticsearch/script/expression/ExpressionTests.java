@@ -43,7 +43,7 @@ public class ExpressionTests extends ESSingleNodeTestCase {
     }
 
     private SearchScript compile(String expression) {
-        SearchScript.Compiled compiled = service.compile(null, expression, ScriptContext.SEARCH, Collections.emptyMap());
+        SearchScript.Compiled compiled = service.compile(null, expression, SearchScript.CONTEXT, Collections.emptyMap());
         return compiled.newInstance(Collections.emptyMap(), lookup);
     }
 

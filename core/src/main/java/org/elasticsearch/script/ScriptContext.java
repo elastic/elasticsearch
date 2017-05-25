@@ -45,32 +45,6 @@ import java.util.Map;
  */
 public final class ScriptContext<CompiledType> {
 
-    public static final ScriptContext<SearchScript.Compiled> AGGS =
-        new ScriptContext<>("aggs", SearchScript.Compiled.class);
-    public static final ScriptContext<SearchScript.Compiled> SEARCH =
-        new ScriptContext<>("search", SearchScript.Compiled.class);
-    // TODO: remove this once each agg calling scripts has its own context
-    public static final ScriptContext<ExecutableScript.Compiled> AGGS_EXECUTABLE =
-        new ScriptContext<>("aggs_executable", ExecutableScript.Compiled.class);
-    public static final ScriptContext<ExecutableScript.Compiled> UPDATE =
-        new ScriptContext<>("update", ExecutableScript.Compiled.class);
-    public static final ScriptContext<ExecutableScript.Compiled> INGEST =
-        new ScriptContext<>("ingest", ExecutableScript.Compiled.class);
-    public static final ScriptContext<ExecutableScript.Compiled> EXECUTABLE =
-        new ScriptContext<>("executable", ExecutableScript.Compiled.class);
-
-    public static final Map<String, ScriptContext<?>> BUILTINS;
-    static {
-        Map<String, ScriptContext<?>> builtins = new HashMap<>();
-        builtins.put(AGGS.name, AGGS);
-        builtins.put(SEARCH.name, SEARCH);
-        builtins.put(AGGS_EXECUTABLE.name, AGGS_EXECUTABLE);
-        builtins.put(UPDATE.name, UPDATE);
-        builtins.put(INGEST.name, INGEST);
-        builtins.put(EXECUTABLE.name, EXECUTABLE);
-        BUILTINS = Collections.unmodifiableMap(builtins);
-    }
-
     /** A unique identifier for this context. */
     public final String name;
 

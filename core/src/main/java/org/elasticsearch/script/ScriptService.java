@@ -81,7 +81,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private final Set<String> contextsAllowed;
 
     private final Map<String, ScriptEngine> engines;
-    private final Map<String, ScriptContext<?,?>> contexts;
+    private final Map<String, ScriptContext<?>> contexts;
 
     private final Cache<CacheKey, Object> cache;
 
@@ -94,7 +94,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private double scriptsPerMinCounter;
     private double compilesAllowedPerNano;
 
-    public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?,?>> contexts) {
+    public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
         super(settings);
 
         Objects.requireNonNull(settings);
@@ -221,7 +221,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      *
      * @return a compiled script which may be used to construct instances of a script for the given context
      */
-    public <InstanceType, CompiledType> CompiledType compile(Script script, ScriptContext<InstanceType, CompiledType> context) {
+    public <CompiledType> CompiledType compile(Script script, ScriptContext<CompiledType> context) {
         Objects.requireNonNull(script);
         Objects.requireNonNull(context);
 
@@ -338,7 +338,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     /** Compiles a template. Note this will be moved to a separate TemplateService in the future. */
-    public CompiledTemplate compileTemplate(Script script, ScriptContext<ExecutableScript, ExecutableScript.Compiled> scriptContext) {
+    public CompiledTemplate compileTemplate(Script script, ScriptContext<ExecutableScript.Compiled> scriptContext) {
         ExecutableScript.Compiled compiledScript = compile(script, scriptContext);
         return params -> (String)compiledScript.newInstance(params).run();
     }

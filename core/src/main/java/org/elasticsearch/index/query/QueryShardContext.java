@@ -329,7 +329,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public final SearchScript getSearchScript(Script script, ScriptContext<SearchScript, SearchScript.Compiled> context) {
+    public final SearchScript getSearchScript(Script script, ScriptContext<SearchScript.Compiled> context) {
         failIfFrozen();
         SearchScript.Compiled compiled = scriptService.compile(script, context);
         return compiled.newInstance(script.getParams(), lookup());
@@ -339,7 +339,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * parameters are available.
      */
     public final Function<Map<String, Object>, SearchScript> getLazySearchScript(
-        Script script, ScriptContext<SearchScript, SearchScript.Compiled> context) {
+        Script script, ScriptContext<SearchScript.Compiled> context) {
         // TODO: this "lazy" binding can be removed once scripted metric aggs have their own contexts, which take _agg/_aggs as a parameter
         failIfFrozen();
         SearchScript.Compiled compiled = scriptService.compile(script, context);
@@ -350,7 +350,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public final ExecutableScript getExecutableScript(Script script, ScriptContext<ExecutableScript, ExecutableScript.Compiled> context) {
+    public final ExecutableScript getExecutableScript(Script script, ScriptContext<ExecutableScript.Compiled> context) {
         failIfFrozen();
         ExecutableScript.Compiled compiled = scriptService.compile(script, context);
         return compiled.newInstance(script.getParams());
@@ -361,7 +361,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * parameters are available.
      */
     public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(
-        Script script, ScriptContext<ExecutableScript, ExecutableScript.Compiled> context) {
+        Script script, ScriptContext<ExecutableScript.Compiled> context) {
         // TODO: this "lazy" binding can be removed once scripted metric aggs have their own contexts, which take _agg/_aggs as a parameter
         failIfFrozen();
         ExecutableScript.Compiled compiled = scriptService.compile(script, context);

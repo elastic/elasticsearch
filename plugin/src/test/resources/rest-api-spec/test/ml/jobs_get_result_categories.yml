@@ -70,6 +70,32 @@ setup:
   - match: { categories.0.category_id: 2 }
 
 ---
+"Test post get categories with pagination":
+  - do:
+      xpack.ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        body: >
+          {
+            "page": { "size": 1}
+          }
+
+  - length: { categories: 1 }
+  - match: { categories.0.job_id: jobs-get-result-categories }
+  - match: { categories.0.category_id: 1 }
+
+  - do:
+     xpack.ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        body: >
+          {
+            "page": { "from":1, "size": 1}
+          }
+
+  - length: { categories: 1 }
+  - match: { categories.0.job_id: jobs-get-result-categories }
+  - match: { categories.0.category_id: 2 }
+
+---
 "Test get category by id":
   - do:
       xpack.ml.get_categories:

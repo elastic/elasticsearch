@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.results;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -44,10 +43,9 @@ public class RestGetCategoriesAction extends BaseRestHandler {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         Long categoryId = restRequest.hasParam(Request.CATEGORY_ID.getPreferredName()) ? Long.parseLong(
                 restRequest.param(Request.CATEGORY_ID.getPreferredName())) : null;
-        BytesReference bodyBytes = restRequest.content();
 
-        if (bodyBytes != null && bodyBytes.length() > 0) {
-            XContentParser parser = restRequest.contentParser();
+        if (restRequest.hasContentOrSourceParam()) {
+            XContentParser parser = restRequest.contentOrSourceParamParser();
             request = GetCategoriesAction.Request.parseRequest(jobId, parser);
             if (categoryId != null) {
                 request.setCategoryId(categoryId);
@@ -62,8 +60,8 @@ public class RestGetCategoriesAction extends BaseRestHandler {
                     || categoryId == null){
 
                 request.setPageParams(new PageParams(
-                        restRequest.paramAsInt(Request.FROM.getPreferredName(), 0),
-                        restRequest.paramAsInt(Request.SIZE.getPreferredName(), 100)
+                        restRequest.paramAsInt(Request.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                        restRequest.paramAsInt(Request.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
                 ));
             }
         }

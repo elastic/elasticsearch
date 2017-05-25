@@ -81,6 +81,41 @@ setup:
   - match: { influencers.2.timestamp: 1464739200000 }
 
 ---
+"Test get influencers with paging":
+  - do:
+      xpack.ml.get_influencers:
+        job_id: "get-influencers-test"
+        from: 1
+        size: 2
+
+  - match: { count: 3 }
+  - length: { influencers: 2 }
+  - match: { influencers.0.influencer_score: 60 }
+  - match: { influencers.0.timestamp: 1464912000000 }
+  - match: { influencers.1.influencer_score: 50 }
+  - match: { influencers.1.timestamp: 1464739200000 }
+
+---
+"Test get influencers with paging in body":
+  - do:
+      xpack.ml.get_influencers:
+        job_id: "get-influencers-test"
+        body:  >
+          {
+            "page": {
+              "from": 1,
+              "size": 2
+            }
+          }
+
+  - match: { count: 3 }
+  - length: { influencers: 2 }
+  - match: { influencers.0.influencer_score: 60 }
+  - match: { influencers.0.timestamp: 1464912000000 }
+  - match: { influencers.1.influencer_score: 50 }
+  - match: { influencers.1.timestamp: 1464739200000 }
+
+---
 "Test get influencers given exclude_interim false":
   - do:
       xpack.ml.get_influencers:

@@ -93,6 +93,41 @@ setup:
   - is_false: buckets.2.partition_scores
 
 ---
+"Test get buckets with paging":
+  - do:
+      xpack.ml.get_buckets:
+        job_id: "jobs-get-result-buckets"
+        from: 1
+        size: 2
+
+  - match: { count: 3 }
+  - length: { buckets: 2 }
+  - match: { buckets.0.timestamp: 1470009600000 }
+  - match: { buckets.0.result_type: bucket}
+  - match: { buckets.1.timestamp: 1470096000000 }
+  - match: { buckets.1.result_type: bucket}
+
+---
+"Test get buckets with paging in body":
+  - do:
+      xpack.ml.get_buckets:
+        job_id: "jobs-get-result-buckets"
+        body:  >
+          {
+            "page": {
+              "from": 1,
+              "size": 2
+            }
+          }
+
+  - match: { count: 3 }
+  - length: { buckets: 2 }
+  - match: { buckets.0.timestamp: 1470009600000 }
+  - match: { buckets.0.result_type: bucket}
+  - match: { buckets.1.timestamp: 1470096000000 }
+  - match: { buckets.1.result_type: bucket}
+
+---
 "Test get buckets given exclude_interim is false":
   - do:
       xpack.ml.get_buckets:

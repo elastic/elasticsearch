@@ -41,8 +41,8 @@ public class RestGetBucketsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         final GetBucketsAction.Request request;
-        if (restRequest.hasContent()) {
-            XContentParser parser = restRequest.contentParser();
+        if (restRequest.hasContentOrSourceParam()) {
+            XContentParser parser = restRequest.contentOrSourceParamParser();
             request = GetBucketsAction.Request.parseRequest(jobId, parser);
         } else {
             request = new GetBucketsAction.Request(jobId);

@@ -14,9 +14,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.GetInfluencersAction;
-import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
+import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 
@@ -37,21 +36,23 @@ public class RestGetInfluencersAction extends BaseRestHandler {
         String start = restRequest.param(GetInfluencersAction.Request.START.getPreferredName());
         String end = restRequest.param(GetInfluencersAction.Request.END.getPreferredName());
         final GetInfluencersAction.Request request;
-        if (restRequest.hasContent()) {
-            XContentParser parser = restRequest.contentParser();
+        if (restRequest.hasContentOrSourceParam()) {
+            XContentParser parser = restRequest.contentOrSourceParamParser();
             request = GetInfluencersAction.Request.parseRequest(jobId, parser);
         } else {
             request = new GetInfluencersAction.Request(jobId);
             request.setStart(start);
             request.setEnd(end);
-            request.setExcludeInterim(restRequest.paramAsBoolean(GetInfluencersAction.Request.EXCLUDE_INTERIM.getPreferredName(), false));
+            request.setExcludeInterim(restRequest.paramAsBoolean(GetInfluencersAction.Request.EXCLUDE_INTERIM.getPreferredName(),
+                    request.isExcludeInterim()));
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
             request.setInfluencerScore(
-                    Double.parseDouble(restRequest.param(GetInfluencersAction.Request.INFLUENCER_SCORE.getPreferredName(), "0.0")));
-            request.setSort(restRequest.param(GetInfluencersAction.Request.SORT_FIELD.getPreferredName(),
-                    Influencer.INFLUENCER_SCORE.getPreferredName()));
-            request.setDescending(restRequest.paramAsBoolean(GetInfluencersAction.Request.DESCENDING_SORT.getPreferredName(), true));
+                    Double.parseDouble(restRequest.param(GetInfluencersAction.Request.INFLUENCER_SCORE.getPreferredName(),
+                            String.valueOf(request.getInfluencerScore()))));
+            request.setSort(restRequest.param(GetInfluencersAction.Request.SORT_FIELD.getPreferredName(), request.getSort()));
+            request.setDescending(restRequest.paramAsBoolean(GetInfluencersAction.Request.DESCENDING_SORT.getPreferredName(),
+                    request.isDescending()));
         }
 
         return channel -> client.execute(GetInfluencersAction.INSTANCE, request, new RestToXContentListener<>(channel));

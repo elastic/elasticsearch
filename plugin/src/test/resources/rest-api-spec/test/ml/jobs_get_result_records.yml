@@ -61,6 +61,39 @@ setup:
   - match: { records.1.result_type: record}
 
 ---
+"Test get records with paging":
+  - do:
+      xpack.ml.get_records:
+        job_id: "jobs-get-result-records"
+        from: 1
+        size: 1
+
+  - match: { count: 2 }
+  - length: { records: 1 }
+  - match: { records.0.timestamp: 1464739200000 }
+  - match: { records.0.job_id: jobs-get-result-records}
+  - match: { records.0.result_type: record}
+
+---
+"Test get records with paging in body":
+  - do:
+      xpack.ml.get_records:
+        job_id: "jobs-get-result-records"
+        body:  >
+          {
+            "page": {
+              "from": 1,
+              "size": 1
+            }
+          }
+
+  - match: { count: 2 }
+  - length: { records: 1 }
+  - match: { records.0.timestamp: 1464739200000 }
+  - match: { records.0.job_id: jobs-get-result-records}
+  - match: { records.0.result_type: record}
+
+---
 "Test get records given exclude_interim is false":
   - do:
       xpack.ml.get_records:

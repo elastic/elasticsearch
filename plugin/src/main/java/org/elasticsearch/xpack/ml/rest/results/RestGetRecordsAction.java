@@ -34,8 +34,8 @@ public class RestGetRecordsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         final GetRecordsAction.Request request;
-        if (restRequest.hasContent()) {
-            XContentParser parser = restRequest.contentParser();
+        if (restRequest.hasContentOrSourceParam()) {
+            XContentParser parser = restRequest.contentOrSourceParamParser();
             request = GetRecordsAction.Request.parseRequest(jobId, parser);
         }
         else {
@@ -47,7 +47,8 @@ public class RestGetRecordsAction extends BaseRestHandler {
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
             request.setRecordScore(
-                    Double.parseDouble(restRequest.param(GetRecordsAction.Request.RECORD_SCORE_FILTER.getPreferredName(), "0.0")));
+                    Double.parseDouble(restRequest.param(GetRecordsAction.Request.RECORD_SCORE_FILTER.getPreferredName(),
+                            String.valueOf(request.getRecordScoreFilter()))));
             request.setSort(restRequest.param(GetRecordsAction.Request.SORT.getPreferredName(),
                     AnomalyRecord.RECORD_SCORE.getPreferredName()));
             request.setDescending(restRequest.paramAsBoolean(GetRecordsAction.Request.DESCENDING.getPreferredName(),

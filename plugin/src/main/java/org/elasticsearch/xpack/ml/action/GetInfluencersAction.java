@@ -98,7 +98,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         private PageParams pageParams = new PageParams();
         private double influencerScore = 0.0;
         private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
-        private boolean descending = false;
+        private boolean descending = true;
 
         Request() {
         }

@@ -33,12 +33,12 @@ public class TcpFrameDecoderTests extends ESTestCase {
 
     private TcpFrameDecoder frameDecoder = new TcpFrameDecoder();
 
-    public void testDefaultReadLengthIs16KB() {
-        assertEquals(1024 * 16, frameDecoder.nextReadLength());
+    public void testDefaultExceptedMessageLengthIsNegative1() {
+        assertEquals(-1, frameDecoder.expectedMessageLength());
     }
 
     public void testDecodeWithIncompleteHeader() throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput(frameDecoder.nextReadLength());
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
         streamOutput.write(1);
@@ -47,23 +47,23 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write(0);
 
         assertNull(frameDecoder.decode(streamOutput.bytes(), 4));
-        assertEquals(1024 * 16 - 4, frameDecoder.nextReadLength());
+        assertEquals(-1, frameDecoder.expectedMessageLength());
     }
 
     public void testDecodePing() throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput(frameDecoder.nextReadLength());
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
         streamOutput.writeInt(-1);
 
         BytesReference message = frameDecoder.decode(streamOutput.bytes(), 6);
 
-        assertEquals(1024 * 16, frameDecoder.nextReadLength());
+        assertEquals(-1, frameDecoder.expectedMessageLength());
         assertEquals(streamOutput.bytes(), message);
     }
 
     public void testDecodePingWithStartOfSecondMessage() throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput(frameDecoder.nextReadLength());
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
         streamOutput.writeInt(-1);
@@ -77,7 +77,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
     }
 
     public void testDecodeMessage() throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput(frameDecoder.nextReadLength());
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
         streamOutput.writeInt(2);
@@ -86,12 +86,12 @@ public class TcpFrameDecoderTests extends ESTestCase {
 
         BytesReference message = frameDecoder.decode(streamOutput.bytes(), 8);
 
-        assertEquals(1024 * 16, frameDecoder.nextReadLength());
+        assertEquals(-1, frameDecoder.expectedMessageLength());
         assertEquals(streamOutput.bytes(), message);
     }
 
     public void testDecodeIncompleteMessage() throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput(frameDecoder.nextReadLength());
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
         streamOutput.writeInt(3);
@@ -100,12 +100,12 @@ public class TcpFrameDecoderTests extends ESTestCase {
 
         BytesReference message = frameDecoder.decode(streamOutput.bytes(), 8);
 
-        assertEquals(1, frameDecoder.nextReadLength());
+        assertEquals(9, frameDecoder.expectedMessageLength());
         assertNull(message);
     }
 
     public void testInvalidLength() throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput(frameDecoder.nextReadLength());
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
         streamOutput.writeInt(-2);
@@ -122,7 +122,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
     }
 
     public void testInvalidHeader() throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput(frameDecoder.nextReadLength());
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('C');
         byte byte1 = randomByte();
@@ -149,7 +149,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         String[] httpHeaders = {"GET", "POST", "PUT", "HEAD", "DELETE", "OPTIONS", "PATCH", "TRACE"};
 
         for (String httpHeader : httpHeaders) {
-            BytesStreamOutput streamOutput = new BytesStreamOutput(frameDecoder.nextReadLength());
+            BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
 
             for (char c : httpHeader.toCharArray()) {
                 streamOutput.write((byte) c);

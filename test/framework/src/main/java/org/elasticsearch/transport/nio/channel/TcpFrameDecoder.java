@@ -25,7 +25,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.nio.CompositeNetworkBuffer;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
@@ -33,32 +32,31 @@ import java.io.StreamCorruptedException;
 public class TcpFrameDecoder {
 
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
-    private static final int DEFAULT_READ_LENGTH = 1 << 14;
     private static final int HEADER_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
 
-    private int nextReadLength = DEFAULT_READ_LENGTH;
+    private int expectedMessageLength = -1;
 
     public BytesReference decode(BytesReference bytesReference, int currentBufferSize) throws IOException {
         if (currentBufferSize >= 6) {
             int messageLength = readHeaderBuffer(bytesReference);
             int totalLength = messageLength + HEADER_SIZE;
             if (totalLength > currentBufferSize) {
-                nextReadLength = totalLength - currentBufferSize;
+                expectedMessageLength = totalLength;
                 return null;
             } else if (totalLength == bytesReference.length()) {
-                nextReadLength = DEFAULT_READ_LENGTH;
+                expectedMessageLength = -1;
                 return bytesReference;
             } else {
+                expectedMessageLength = -1;
                 return bytesReference.slice(0, totalLength);
             }
         } else {
-            nextReadLength = DEFAULT_READ_LENGTH - currentBufferSize;
             return null;
         }
     }
 
-    public int nextReadLength() {
-        return nextReadLength;
+    public int expectedMessageLength() {
+        return expectedMessageLength;
     }
 
     private int readHeaderBuffer(BytesReference headerBuffer) throws IOException {

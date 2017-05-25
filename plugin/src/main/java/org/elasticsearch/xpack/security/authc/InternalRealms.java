@@ -69,8 +69,7 @@ public class InternalRealms {
                 resourceWatcherService, nativeRoleMappingStore, threadPool));
         map.put(LdapRealm.LDAP_TYPE, config -> new LdapRealm(LdapRealm.LDAP_TYPE, config,
                 sslService, resourceWatcherService, nativeRoleMappingStore, threadPool));
-        map.put(PkiRealm.TYPE, config -> new PkiRealm(config, sslService, resourceWatcherService,
-                nativeRoleMappingStore));
+        map.put(PkiRealm.TYPE, config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore));
         return Collections.unmodifiableMap(map);
     }
 

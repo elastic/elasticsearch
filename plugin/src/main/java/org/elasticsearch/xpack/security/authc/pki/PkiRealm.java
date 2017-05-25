@@ -16,14 +16,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
-import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.ssl.CertUtils;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
-import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.Realm;
@@ -56,27 +53,23 @@ public class PkiRealm extends Realm {
     private static final SSLConfigurationSettings SSL_SETTINGS = SSLConfigurationSettings.withoutPrefix();
 
     // For client based cert validation, the auth type must be specified but UNKNOWN is an acceptable value
-    public static final String AUTH_TYPE = "UNKNOWN";
+    private static final String AUTH_TYPE = "UNKNOWN";
 
     private final X509TrustManager trustManager;
     private final Pattern principalPattern;
     private final UserRoleMapper roleMapper;
 
 
-    public PkiRealm(RealmConfig config, SSLService sslService,
-                    ResourceWatcherService watcherService,
-                    NativeRoleMappingStore nativeRoleMappingStore) {
-        this(config, new CompositeRoleMapper(TYPE, config, watcherService, nativeRoleMappingStore),
-                sslService);
+    public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, NativeRoleMappingStore nativeRoleMappingStore) {
+        this(config, new CompositeRoleMapper(TYPE, config, watcherService, nativeRoleMappingStore));
     }
 
     // pkg private for testing
-    PkiRealm(RealmConfig config, UserRoleMapper roleMapper, SSLService sslService) {
+    PkiRealm(RealmConfig config, UserRoleMapper roleMapper) {
         super(TYPE, config);
         this.trustManager = trustManagers(config);
         this.principalPattern = USERNAME_PATTERN_SETTING.get(config.settings());
         this.roleMapper = roleMapper;
-        checkSSLEnabled(config, sslService);
     }
 
     @Override
@@ -200,45 +193,6 @@ public class PkiRealm extends Realm {
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load certificate authorities for PKI realm", e);
         }
-    }
-
-    /**
-     * Checks to see if both SSL and Client authentication are enabled on at least one network communication layer. If
-     * not an exception will be thrown
-     *
-     * @param config this realm's configuration
-     * @param sslService the SSLService to use for ssl configurations
-     */
-    // TODO move this to a Bootstrap check!
-    static void checkSSLEnabled(RealmConfig config, SSLService sslService) {
-        Settings settings = config.globalSettings();
-
-        // HTTP
-        final boolean httpSsl = HTTP_SSL_ENABLED.get(settings);
-        Settings httpSSLSettings = SSLService.getHttpTransportSSLSettings(settings);
-        final boolean httpClientAuth = sslService.isSSLClientAuthEnabled(httpSSLSettings);
-        if (httpSsl && httpClientAuth) {
-            return;
-        }
-
-        // Default Transport
-        final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
-        final boolean clientAuthEnabled = sslService.isSSLClientAuthEnabled(transportSSLSettings);
-        if (clientAuthEnabled) {
-            return;
-        }
-
-        // Transport Profiles
-        Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
-        for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
-            Settings profileSettings = entry.getValue().getByPrefix(Security.settingPrefix());
-            if (sslService.isSSLClientAuthEnabled(SecurityNetty4Transport.profileSslSettings(profileSettings), transportSSLSettings)) {
-                return;
-            }
-        }
-
-        throw new IllegalStateException("PKI realm [" + config.name() + "] is enabled but cannot be used as neither HTTP or Transport " +
-                "has SSL with client authentication enabled");
     }
 
     /**

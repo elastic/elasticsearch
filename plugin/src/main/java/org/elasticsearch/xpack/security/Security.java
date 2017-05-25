@@ -503,7 +503,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
                 new DefaultPasswordBootstrapCheck(settings),
                 new SSLBootstrapCheck(sslService, settings, env),
                 new TokenPassphraseBootstrapCheck(settings),
-                new TokenSSLBootstrapCheck(settings)
+                new TokenSSLBootstrapCheck(settings),
+                new PkiRealmBootstrapCheck(settings, sslService)
             );
         } else {
             return Collections.emptyList();

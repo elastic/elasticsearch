@@ -31,12 +31,9 @@ This section summarizes the changes in each release.
 * <<release-notes-5.0.0-alpha1-2x>>
 
 --
-<<<<<<< HEAD
 include::release-notes/5.4.1.asciidoc[]
 include::release-notes/5.4.0.asciidoc[]
-=======
 include::release-notes/5.3.3.asciidoc[]
->>>>>>> cda04b4382... Added release notes for 5.3.3
 include::release-notes/5.3.2.asciidoc[]
 include::release-notes/5.3.1.asciidoc[]
 include::release-notes/5.3.0.asciidoc[]

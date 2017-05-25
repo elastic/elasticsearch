@@ -1,0 +1,29 @@
+[[release-notes-5.3.3]]
+== 5.3.3 Release Notes
+
+See https://www.elastic.co/blog/multi-data-path-bug-in-elasticsearch-5-3-0[Multi data path bug in Elasticsearch 5.3.0].
+
+Also see <<breaking-changes-5.3>>.
+
+[[enhancement-5.3.3]]
+[float]
+=== Enhancements
+
+Network::
+* Disable the Netty recycler in the client {pull}24793[#24793] (issues: {issue}22452[#22452], {issue}24721[#24721])
+
+
+
+[[bug-5.3.3]]
+[float]
+=== Bug fixes
+
+Index APIs::
+* Fix legacy GeoPointField decoding in FieldStats {pull}24534[#24534] (issue: {issue}24275[#24275])
+
+Packaging::
+* Handle parentheses in batch file path {pull}24731[#24731] (issue: {issue}24712[#24712])
+
+Search::
+* Fix RangeFieldMapper rangeQuery to properly handle relations {pull}24808[#24808] (issue: {issue}24744[#24744])
+

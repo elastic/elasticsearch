@@ -21,6 +21,7 @@ package org.elasticsearch.example.expertscript;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -45,7 +46,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
 
     @Override
-    public ScriptEngine getScriptEngine(Settings settings) {
+    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         return new MyExpertScriptEngine();
     }
 

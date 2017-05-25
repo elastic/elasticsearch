@@ -61,7 +61,9 @@ public class ScriptModule {
                     throw new IllegalArgumentException("Context name [" + context.name + "] defined twice");
                 }
             }
-            ScriptEngine engine = plugin.getScriptEngine(settings);
+        }
+        for (ScriptPlugin plugin : scriptPlugins) {
+            ScriptEngine engine = plugin.getScriptEngine(settings, contexts.values());
             if (engine != null) {
                 ScriptEngine existing = engines.put(engine.getType(), engine);
                 if (existing != null) {

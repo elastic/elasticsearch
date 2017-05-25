@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
 
 import java.io.IOException;
@@ -166,28 +165,6 @@ public class JobResultsPersister extends AbstractComponent {
                 }
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error serialising influencers", new Object[] {jobId}), e);
-            }
-
-            return this;
-        }
-
-        /**
-         * Persist {@link PerPartitionMaxProbabilities}
-         *
-         * @param partitionProbabilities The probabilities to persist
-         * @return this
-         */
-        public Builder persistPerPartitionMaxProbabilities(PerPartitionMaxProbabilities partitionProbabilities) {
-            try (XContentBuilder builder = toXContentBuilder(partitionProbabilities)) {
-                logger.trace("[{}] ES API CALL: index result type {} to index {} at timestamp {} with ID {}",
-                        jobId, PerPartitionMaxProbabilities.RESULT_TYPE_VALUE, indexName, partitionProbabilities.getTimestamp(),
-                        partitionProbabilities.getId());
-                bulkRequest.add(
-                        new IndexRequest(indexName, DOC_TYPE, partitionProbabilities.getId()).source(builder));
-
-            } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] error serialising bucket per partition max normalized scores",
-                        new Object[]{jobId}), e);
             }
 
             return this;

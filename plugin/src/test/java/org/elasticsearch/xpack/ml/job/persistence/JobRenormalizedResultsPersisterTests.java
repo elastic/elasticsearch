@@ -33,7 +33,7 @@ public class JobRenormalizedResultsPersisterTests extends ESTestCase {
         BucketNormalizable bn = createBucketNormalizable();
         JobRenormalizedResultsPersister persister = createJobRenormalizedResultsPersister();
         persister.updateBucket(bn);
-        persister.executeRequest("foo");
+        persister.executeRequest();
         assertEquals(0, persister.getBulkRequest().numberOfActions());
     }
 
@@ -42,7 +42,7 @@ public class JobRenormalizedResultsPersisterTests extends ESTestCase {
         when(bulkResponse.hasFailures()).thenReturn(false);
 
         Client client = new MockClientBuilder("cluster").bulk(bulkResponse).build();
-        return new JobRenormalizedResultsPersister(Settings.EMPTY, client);
+        return new JobRenormalizedResultsPersister("foo", Settings.EMPTY, client);
     }
 
     private BucketNormalizable createBucketNormalizable() {

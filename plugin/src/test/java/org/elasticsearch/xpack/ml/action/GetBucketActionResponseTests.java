@@ -16,9 +16,7 @@ import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class GetBucketActionResponseTests extends AbstractStreamableTestCase<GetBucketsAction.Response> {
 
@@ -63,14 +61,6 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
                             randomDouble(), randomDouble(), randomDouble()));
                 }
                 bucket.setPartitionScores(partitionScores);
-            }
-            if (randomBoolean()) {
-                int size = randomInt(10);
-                Map<String, Double> perPartitionMaxProbability = new HashMap<>(size);
-                for (int i = 0; i < size; i++) {
-                    perPartitionMaxProbability.put(randomAlphaOfLengthBetween(1, 20), randomDouble());
-                }
-                bucket.setPerPartitionMaxProbability(perPartitionMaxProbability);
             }
             if (randomBoolean()) {
                 bucket.setProcessingTimeMs(randomLong());

@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
@@ -83,7 +82,7 @@ public class BucketNormalizableTests extends ESTestCase {
     }
 
     public void testGetProbability() {
-        expectThrows(IllegalStateException.class, () -> new BucketNormalizable(bucket, INDEX_NAME).getProbability());
+        expectThrows(UnsupportedOperationException.class, () -> new BucketNormalizable(bucket, INDEX_NAME).getProbability());
     }
 
     public void testGetNormalizedScore() {
@@ -101,23 +100,17 @@ public class BucketNormalizableTests extends ESTestCase {
 
     public void testGetChildren() {
         BucketNormalizable bn = new BucketNormalizable(bucket, INDEX_NAME);
-        bn.setRecords(bucket.getRecords().stream().map(r -> new RecordNormalizable(r, INDEX_NAME))
-                .collect(Collectors.toList()));
 
         List<Normalizable> children = bn.getChildren();
-        assertEquals(6, children.size());
+        assertEquals(4, children.size());
         assertTrue(children.get(0) instanceof BucketInfluencerNormalizable);
         assertEquals(42.0, children.get(0).getNormalizedScore(), EPSILON);
         assertTrue(children.get(1) instanceof BucketInfluencerNormalizable);
         assertEquals(88.0, children.get(1).getNormalizedScore(), EPSILON);
-        assertTrue(children.get(2) instanceof RecordNormalizable);
-        assertEquals(1.0, children.get(2).getNormalizedScore(), EPSILON);
-        assertTrue(children.get(3) instanceof RecordNormalizable);
-        assertEquals(2.0, children.get(3).getNormalizedScore(), EPSILON);
-        assertTrue(children.get(4) instanceof PartitionScoreNormalizable);
-        assertEquals(0.2, children.get(4).getNormalizedScore(), EPSILON);
-        assertTrue(children.get(5) instanceof PartitionScoreNormalizable);
-        assertEquals(0.4, children.get(5).getNormalizedScore(), EPSILON);
+        assertTrue(children.get(2) instanceof PartitionScoreNormalizable);
+        assertEquals(0.2, children.get(2).getNormalizedScore(), EPSILON);
+        assertTrue(children.get(3) instanceof PartitionScoreNormalizable);
+        assertEquals(0.4, children.get(3).getNormalizedScore(), EPSILON);
     }
 
     public void testGetChildren_GivenTypeBucketInfluencer() {
@@ -131,24 +124,11 @@ public class BucketNormalizableTests extends ESTestCase {
         assertEquals(88.0, children.get(1).getNormalizedScore(), EPSILON);
     }
 
-    public void testGetChildren_GivenTypeRecord() {
-        BucketNormalizable bn = new BucketNormalizable(bucket, INDEX_NAME);
-        bn.setRecords(bucket.getRecords().stream().map(r -> new RecordNormalizable(r, INDEX_NAME))
-                .collect(Collectors.toList()));
-        List<Normalizable> children = bn.getChildren(Normalizable.ChildType.RECORD);
-
-        assertEquals(2, children.size());
-        assertTrue(children.get(0) instanceof RecordNormalizable);
-        assertEquals(1.0, children.get(0).getNormalizedScore(), EPSILON);
-        assertTrue(children.get(1) instanceof RecordNormalizable);
-        assertEquals(2.0, children.get(1).getNormalizedScore(), EPSILON);
-    }
-
     public void testSetMaxChildrenScore_GivenDifferentScores() {
         BucketNormalizable bucketNormalizable = new BucketNormalizable(bucket, INDEX_NAME);
 
         assertTrue(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 95.0));
-        assertFalse(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.RECORD, 42.0));
+        assertFalse(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.PARTITION_SCORE, 42.0));
 
         assertEquals(95.0, bucket.getAnomalyScore(), EPSILON);
     }
@@ -157,13 +137,13 @@ public class BucketNormalizableTests extends ESTestCase {
         BucketNormalizable bucketNormalizable = new BucketNormalizable(bucket, INDEX_NAME);
 
         assertFalse(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 88.0));
-        assertFalse(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.RECORD, 2.0));
+        assertFalse(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.PARTITION_SCORE, 2.0));
 
         assertEquals(88.0, bucket.getAnomalyScore(), EPSILON);
     }
 
     public void testSetParentScore() {
-        expectThrows(IllegalStateException.class, () -> new BucketNormalizable(bucket, INDEX_NAME).setParentScore(42.0));
+        expectThrows(UnsupportedOperationException.class, () -> new BucketNormalizable(bucket, INDEX_NAME).setParentScore(42.0));
     }
 
     public void testResetBigChangeFlag() {

@@ -11,23 +11,19 @@ import org.elasticsearch.xpack.ml.job.results.Bucket;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable.ChildType.BUCKET_INFLUENCER;
 import static org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable.ChildType.PARTITION_SCORE;
-import static org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable.ChildType.RECORD;
 
 
 public class BucketNormalizable extends Normalizable {
 
-    private static final List<ChildType> CHILD_TYPES = Arrays.asList(BUCKET_INFLUENCER, RECORD, PARTITION_SCORE);
+    private static final List<ChildType> CHILD_TYPES = Arrays.asList(BUCKET_INFLUENCER, PARTITION_SCORE);
 
     private final Bucket bucket;
-
-    private List<RecordNormalizable> records = Collections.emptyList();
 
     public BucketNormalizable(Bucket bucket, String indexName) {
         super(indexName);
@@ -80,7 +76,7 @@ public class BucketNormalizable extends Normalizable {
 
     @Override
     public double getProbability() {
-        throw new IllegalStateException("Bucket is container only");
+        throw new UnsupportedOperationException("Bucket is container only");
     }
 
     @Override
@@ -91,14 +87,6 @@ public class BucketNormalizable extends Normalizable {
     @Override
     public void setNormalizedScore(double normalizedScore) {
         bucket.setAnomalyScore(normalizedScore);
-    }
-
-    public List<RecordNormalizable> getRecords() {
-        return records;
-    }
-
-    public void setRecords(List<RecordNormalizable> records) {
-        this.records = records;
     }
 
     @Override
@@ -124,9 +112,6 @@ public class BucketNormalizable extends Normalizable {
                         .map(bi -> new BucketInfluencerNormalizable(bi, getOriginatingIndex()))
                         .collect(Collectors.toList()));
                 break;
-            case RECORD:
-                children.addAll(records);
-                break;
             case PARTITION_SCORE:
                 children.addAll(bucket.getPartitionScores().stream()
                         .map(ps -> new PartitionScoreNormalizable(ps, getOriginatingIndex()))
@@ -145,7 +130,6 @@ public class BucketNormalizable extends Normalizable {
                 double oldScore = bucket.getAnomalyScore();
                 bucket.setAnomalyScore(maxScore);
                 return maxScore != oldScore;
-            case RECORD:
             case PARTITION_SCORE:
                 return false;
             default:
@@ -156,7 +140,7 @@ public class BucketNormalizable extends Normalizable {
 
     @Override
     public void setParentScore(double parentScore) {
-        throw new IllegalStateException("Bucket has no parent");
+        throw new UnsupportedOperationException("Bucket has no parent");
     }
 
     @Override

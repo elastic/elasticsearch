@@ -22,7 +22,7 @@ public class PartitionScoreNormalizable extends AbstractLeafNormalizable {
 
     @Override
     public String getId() {
-        throw new IllegalStateException("PartitionScore has no ID as is should not be persisted outside of the owning bucket");
+        throw new UnsupportedOperationException("PartitionScore has no ID as it should not be persisted outside of the owning bucket");
     }
 
     @Override

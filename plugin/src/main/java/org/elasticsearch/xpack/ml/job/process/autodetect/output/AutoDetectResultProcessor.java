@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 
 import java.time.Duration;
 import java.util.Iterator;
@@ -40,7 +39,7 @@ import java.util.concurrent.TimeoutException;
 
 /**
  * A runnable class that reads the autodetect process output in the
- * {@link #process(AutodetectProcess, boolean)} method and persists parsed
+ * {@link #process(AutodetectProcess)} method and persists parsed
  * results via the {@linkplain JobResultsPersister} passed in the constructor.
  * <p>
  * Has methods to register and remove alert observers.
@@ -89,8 +88,8 @@ public class AutoDetectResultProcessor {
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
     }
 
-    public void process(AutodetectProcess process, boolean isPerPartitionNormalization) {
-        Context context = new Context(jobId, isPerPartitionNormalization, persister.bulkPersisterBuilder(jobId));
+    public void process(AutodetectProcess process) {
+        Context context = new Context(jobId, persister.bulkPersisterBuilder(jobId));
 
         // If a function call in this throws for some reason we don't want it
         // to kill the results reader thread as autodetect will be blocked
@@ -175,9 +174,6 @@ public class AutoDetectResultProcessor {
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && !records.isEmpty()) {
             context.bulkResultsPersister.persistRecords(records);
-            if (context.isPerPartitionNormalization) {
-                context.bulkResultsPersister.persistPerPartitionMaxProbabilities(new PerPartitionMaxProbabilities(records));
-            }
         }
         List<Influencer> influencers = result.getInfluencers();
         if (influencers != null && !influencers.isEmpty()) {
@@ -306,14 +302,12 @@ public class AutoDetectResultProcessor {
     static class Context {
 
         private final String jobId;
-        private final boolean isPerPartitionNormalization;
         private JobResultsPersister.Builder bulkResultsPersister;
 
         boolean deleteInterimRequired;
 
-        Context(String jobId, boolean isPerPartitionNormalization, JobResultsPersister.Builder bulkResultsPersister) {
+        Context(String jobId, JobResultsPersister.Builder bulkResultsPersister) {
             this.jobId = jobId;
-            this.isPerPartitionNormalization = isPerPartitionNormalization;
             this.deleteInterimRequired = true;
             this.bulkResultsPersister = bulkResultsPersister;
         }

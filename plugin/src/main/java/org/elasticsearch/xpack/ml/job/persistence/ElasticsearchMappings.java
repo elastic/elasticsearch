@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influence;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.AuditMessage;
@@ -255,19 +254,6 @@ public class ElasticsearchMappings {
                     .endObject()
                     .startObject(Result.IS_INTERIM.getPreferredName())
                         .field(TYPE, BOOLEAN)
-                    .endObject()
-                .endObject()
-            .endObject()
-
-            // per-partition max probabilities mapping
-            .startObject(PerPartitionMaxProbabilities.PER_PARTITION_MAX_PROBABILITIES.getPreferredName())
-                .field(TYPE, NESTED)
-                .startObject(PROPERTIES)
-                    .startObject(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(PerPartitionMaxProbabilities.MAX_RECORD_SCORE.getPreferredName())
-                        .field(TYPE, DOUBLE)
                     .endObject()
                 .endObject()
             .endObject()

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -93,7 +94,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     private boolean isInterim;
     private List<BucketInfluencer> bucketInfluencers = new ArrayList<>(); // Can't use emptyList as might be appended to
     private long processingTimeMs;
-    private Map<String, Double> perPartitionMaxProbability = Collections.emptyMap();
     private List<PartitionScore> partitionScores = Collections.emptyList();
 
     public Bucket(String jobId, Date timestamp, long bucketSpan) {
@@ -114,11 +114,9 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         this.isInterim = other.isInterim;
         this.bucketInfluencers = new ArrayList<>(other.bucketInfluencers);
         this.processingTimeMs = other.processingTimeMs;
-        this.perPartitionMaxProbability = other.perPartitionMaxProbability;
         this.partitionScores = new ArrayList<>(other.partitionScores);
     }
 
-    @SuppressWarnings("unchecked")
     public Bucket(StreamInput in) throws IOException {
         jobId = in.readString();
         timestamp = new Date(in.readLong());
@@ -131,7 +129,10 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         isInterim = in.readBoolean();
         bucketInfluencers = in.readList(BucketInfluencer::new);
         processingTimeMs = in.readLong();
-        perPartitionMaxProbability = (Map<String, Double>) in.readGenericValue();
+        // bwc for perPartitionMaxProbability
+        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+            in.readGenericValue();
+        }
         partitionScores = in.readList(PartitionScore::new);
     }
 
@@ -148,7 +149,10 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         out.writeBoolean(isInterim);
         out.writeList(bucketInfluencers);
         out.writeLong(processingTimeMs);
-        out.writeGenericValue(perPartitionMaxProbability);
+        // bwc for perPartitionMaxProbability
+        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+            out.writeGenericValue(Collections.emptyMap());
+        }
         out.writeList(partitionScores);
     }
 
@@ -290,14 +294,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         partitionScores = Objects.requireNonNull(scores);
     }
 
-    public Map<String, Double> getPerPartitionMaxProbability() {
-        return perPartitionMaxProbability;
-    }
-
-    public void setPerPartitionMaxProbability(Map<String, Double> perPartitionMaxProbability) {
-        this.perPartitionMaxProbability = Objects.requireNonNull(perPartitionMaxProbability);
-    }
-
     public double partitionInitialAnomalyScore(String partitionValue) {
         Optional<PartitionScore> first = partitionScores.stream().filter(s -> partitionValue.equals(s.getPartitionFieldValue()))
                 .findFirst();
@@ -315,7 +311,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(jobId, timestamp, eventCount, initialAnomalyScore, anomalyScore, recordCount, records,
-                isInterim, bucketSpan, bucketInfluencers);
+                isInterim, bucketSpan, bucketInfluencers, partitionScores, processingTimeMs);
     }
 
     /**
@@ -338,18 +334,20 @@ public class Bucket extends ToXContentToBytes implements Writeable {
                 && (this.recordCount == that.recordCount)
                 && (this.anomalyScore == that.anomalyScore) && (this.initialAnomalyScore == that.initialAnomalyScore)
                 && Objects.equals(this.records, that.records) && Objects.equals(this.isInterim, that.isInterim)
-                && Objects.equals(this.bucketInfluencers, that.bucketInfluencers);
+                && Objects.equals(this.bucketInfluencers, that.bucketInfluencers)
+                && Objects.equals(this.partitionScores, that.partitionScores)
+                && (this.processingTimeMs == that.processingTimeMs);
     }
 
     /**
-     * This method encapsulated the logic for whether a bucket should be
-     * normalized.  Buckets that have no records and a score of
-     * zero should not be normalized as their score will not change and they
+     * This method encapsulated the logic for whether a bucket should be normalized.
+     * Buckets that have a zero anomaly score themselves and no partition scores with
+     * non-zero score should not be normalized as their score will not change and they
      * will just add overhead.
      *
      * @return true if the bucket should be normalized or false otherwise
      */
     public boolean isNormalizable() {
-        return anomalyScore > 0.0 || recordCount > 0;
+        return anomalyScore > 0.0 || partitionScores.stream().anyMatch(s -> s.getRecordScore() > 0);
     }
 }

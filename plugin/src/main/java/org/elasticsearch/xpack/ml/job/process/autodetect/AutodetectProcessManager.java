@@ -293,8 +293,8 @@ public class AutodetectProcessManager extends AbstractComponent {
         ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
         DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, autodetectParams.dataCounts(),
                 jobDataCountsPersister);
-        ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobProvider, new JobRenormalizedResultsPersister(settings, client),
-                normalizerFactory);
+        ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobProvider,
+                new JobRenormalizedResultsPersister(job.getId(), settings, client), normalizerFactory);
         ExecutorService renormalizerExecutorService = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
         Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
                 renormalizerExecutorService, job.getAnalysisConfig().getUsePerPartitionNormalization());
@@ -302,13 +302,12 @@ public class AutodetectProcessManager extends AbstractComponent {
         AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams.modelSnapshot(),
                 autodetectParams.quantiles(), autodetectParams.filters(), ignoreDowntime,
                 autoDetectExecutorService, () -> setJobState(jobTask, JobState.FAILED));
-        boolean usePerPartitionNormalization = job.getAnalysisConfig().getUsePerPartitionNormalization();
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
                 client, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
         ExecutorService autodetectWorkerExecutor;
         try {
             autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);
-            autoDetectExecutorService.submit(() -> processor.process(process, usePerPartitionNormalization));
+            autoDetectExecutorService.submit(() -> processor.process(process));
         } catch (EsRejectedExecutionException e) {
             // If submitting the operation to read the results from the process fails we need to close
             // the process too, so that other submitted operations to threadpool are stopped.

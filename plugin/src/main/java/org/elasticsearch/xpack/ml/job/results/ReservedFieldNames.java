@@ -141,9 +141,6 @@ public final class ReservedFieldNames {
             ModelSnapshot.LATEST_RESULT_TIME.getPreferredName(),
             ModelSnapshot.RETAIN.getPreferredName(),
 
-            PerPartitionMaxProbabilities.PER_PARTITION_MAX_PROBABILITIES.getPreferredName(),
-            PerPartitionMaxProbabilities.MAX_RECORD_SCORE.getPreferredName(),
-
             Result.RESULT_TYPE.getPreferredName(),
             Result.TIMESTAMP.getPreferredName(),
             Result.IS_INTERIM.getPreferredName()

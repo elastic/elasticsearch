@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -73,7 +72,6 @@ import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.security.support.Exceptions;
@@ -388,24 +386,9 @@ public class JobProvider {
             searchSourceBuilder.sort(Result.TIMESTAMP.getPreferredName(), query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
         }
         searchRequest.source(searchSourceBuilder);
+        searchRequest.indicesOptions(addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
 
-
-        MultiSearchRequest mrequest = new MultiSearchRequest();
-        mrequest.indicesOptions(addIgnoreUnavailable(mrequest.indicesOptions()));
-        mrequest.add(searchRequest);
-        if (Strings.hasLength(query.getPartitionValue())) {
-            mrequest.add(createPartitionMaxNormailizedProbabilitiesRequest(jobId, query.getStart(), query.getEnd(),
-                    query.getPartitionValue()));
-        }
-
-        client.multiSearch(mrequest, ActionListener.wrap(mresponse -> {
-            MultiSearchResponse.Item item1 = mresponse.getResponses()[0];
-            if (item1.isFailure()) {
-                errorHandler.accept(mapAuthFailure(item1.getFailure(), jobId, GetBucketsAction.NAME));
-                return;
-            }
-
-            SearchResponse searchResponse = item1.getResponse();
+        client.search(searchRequest, ActionListener.wrap(searchResponse -> {
             SearchHits hits = searchResponse.getHits();
             if (query.getTimestamp() != null) {
                 if (hits.getTotalHits() == 0) {
@@ -433,29 +416,15 @@ public class JobProvider {
             }
 
             QueryPage<Bucket> buckets = new QueryPage<>(results, searchResponse.getHits().getTotalHits(), Bucket.RESULTS_FIELD);
-            if (Strings.hasLength(query.getPartitionValue())) {
-                MultiSearchResponse.Item item2 = mresponse.getResponses()[1];
-                if (item2.isFailure()) {
-                    errorHandler.accept(item2.getFailure());
-                    return;
-                }
 
-                if (query.isExpand()) {
-                    Iterator<Bucket> bucketsToExpand = buckets.results().stream()
-                            .filter(bucket -> bucket.getRecordCount() > 0).iterator();
-                    expandBuckets(jobId, query, buckets, bucketsToExpand, handler, errorHandler, client);
-                    return;
-                }
+            if (query.isExpand()) {
+                Iterator<Bucket> bucketsToExpand = buckets.results().stream()
+                        .filter(bucket -> bucket.getRecordCount() > 0).iterator();
+                expandBuckets(jobId, query, buckets, bucketsToExpand, handler, errorHandler, client);
             } else {
-                if (query.isExpand()) {
-                    Iterator<Bucket> bucketsToExpand = buckets.results().stream()
-                            .filter(bucket -> bucket.getRecordCount() > 0).iterator();
-                    expandBuckets(jobId, query, buckets, bucketsToExpand, handler, errorHandler, client);
-                    return;
-                }
+                handler.accept(buckets);
             }
-            handler.accept(buckets);
-        }, errorHandler));
+        }, e -> { errorHandler.accept(mapAuthFailure(e, jobId, GetBucketsAction.NAME)); }));
     }
 
     private void expandBuckets(String jobId, BucketsQuery query, QueryPage<Bucket> buckets, Iterator<Bucket> bucketsToExpand,
@@ -468,28 +437,6 @@ public class JobProvider {
         } else {
             handler.accept(buckets);
         }
-    }
-
-    private SearchRequest createPartitionMaxNormailizedProbabilitiesRequest(String jobId, Object epochStart, Object epochEnd,
-                                                                            String partitionFieldValue) {
-        QueryBuilder timeRangeQuery = new ResultsFilterBuilder()
-                .timeRange(Result.TIMESTAMP.getPreferredName(), epochStart, epochEnd)
-                .build();
-
-        QueryBuilder boolQuery = new BoolQueryBuilder()
-                .filter(timeRangeQuery)
-                .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), PerPartitionMaxProbabilities.RESULT_TYPE_VALUE))
-                .filter(new TermsQueryBuilder(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue));
-
-        FieldSortBuilder sb = new FieldSortBuilder(Result.TIMESTAMP.getPreferredName()).order(SortOrder.ASC);
-        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.sort(sb);
-        sourceBuilder.query(boolQuery);
-        SearchRequest searchRequest = new SearchRequest(indexName);
-        searchRequest.source(sourceBuilder);
-        searchRequest.indicesOptions(addIgnoreUnavailable(searchRequest.indicesOptions()));
-        return searchRequest;
     }
 
     /**

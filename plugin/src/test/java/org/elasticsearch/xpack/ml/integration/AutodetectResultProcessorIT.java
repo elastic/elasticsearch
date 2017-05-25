@@ -129,7 +129,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         Quantiles quantiles = createQuantiles();
         builder.addQuantiles(quantiles);
 
-        resultProcessor.process(builder.buildTestProcess(), false);
+        resultProcessor.process(builder.buildTestProcess());
         jobResultsPersister.commitResultWrites(JOB_ID);
 
         BucketsQueryBuilder.BucketsQuery bucketsQuery = new BucketsQueryBuilder().includeInterim(true).build();
@@ -179,7 +179,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
                 .addFlushAcknowledgement(createFlushAcknowledgement())
                 .addBucket(nonInterimBucket); // and this will delete the interim results
 
-        resultProcessor.process(resultBuilder.buildTestProcess(), false);
+        resultProcessor.process(resultBuilder.buildTestProcess());
         jobResultsPersister.commitResultWrites(JOB_ID);
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
@@ -212,7 +212,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
                 .addRecords(finalAnomalyRecords)
                 .addBucket(finalBucket); // this deletes the previous interim and persists final bucket & records
 
-        resultProcessor.process(resultBuilder.buildTestProcess(), false);
+        resultProcessor.process(resultBuilder.buildTestProcess());
         jobResultsPersister.commitResultWrites(JOB_ID);
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
@@ -237,7 +237,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
                 .addBucket(bucket)  // bucket triggers persistence
                 .addRecords(secondSetOfRecords);
 
-        resultProcessor.process(resultBuilder.buildTestProcess(), false);
+        resultProcessor.process(resultBuilder.buildTestProcess());
         jobResultsPersister.commitResultWrites(JOB_ID);
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());

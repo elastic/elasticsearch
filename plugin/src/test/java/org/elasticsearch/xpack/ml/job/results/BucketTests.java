@@ -13,9 +13,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class BucketTests extends AbstractSerializingTestCase<Bucket> {
 
@@ -60,14 +58,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
                         randomDouble(), randomDouble()));
             }
             bucket.setPartitionScores(partitionScores);
-        }
-        if (randomBoolean()) {
-            int size = randomInt(10);
-            Map<String, Double> perPartitionMaxProbability = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                perPartitionMaxProbability.put(randomAlphaOfLengthBetween(1, 20), randomDouble());
-            }
-            bucket.setPerPartitionMaxProbability(perPartitionMaxProbability);
         }
         if (randomBoolean()) {
             bucket.setProcessingTimeMs(randomLong());
@@ -244,11 +234,11 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         assertFalse(bucket.isNormalizable());
     }
 
-    public void testIsNormalizable_GivenAnomalyScoreIsZeroAndRecordCountIsNonZero() {
+    public void testIsNormalizable_GivenAnomalyScoreIsZeroAndPartitionsScoresAreNonZero() {
         Bucket bucket = new Bucket("foo", new Date(123), 123);
         bucket.addBucketInfluencer(new BucketInfluencer("foo", new Date(123), 123));
         bucket.setAnomalyScore(0.0);
-        bucket.setRecordCount(1);
+        bucket.setPartitionScores(Collections.singletonList(new PartitionScore("n", "v", 50.0, 40.0, 0.01)));
 
         assertTrue(bucket.isNormalizable());
     }

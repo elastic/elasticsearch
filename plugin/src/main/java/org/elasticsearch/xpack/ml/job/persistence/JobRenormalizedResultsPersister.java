@@ -36,11 +36,18 @@ import static org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings.D
  */
 public class JobRenormalizedResultsPersister extends AbstractComponent {
 
+    /**
+     * Execute bulk requests when they reach this size
+     */
+    private static final int BULK_LIMIT = 10000;
+
+    private final String jobId;
     private final Client client;
     private BulkRequest bulkRequest;
 
-    public JobRenormalizedResultsPersister(Settings settings, Client client) {
+    public JobRenormalizedResultsPersister(String jobId, Settings settings, Client client) {
         super(settings);
+        this.jobId = jobId;
         this.client = client;
         bulkRequest = new BulkRequest();
     }
@@ -70,6 +77,9 @@ public class JobRenormalizedResultsPersister extends AbstractComponent {
         } catch (IOException e) {
             logger.error("Error serialising result", e);
         }
+        if (bulkRequest.numberOfActions() >= BULK_LIMIT) {
+            executeRequest();
+        }
     }
 
     private XContentBuilder toXContentBuilder(ToXContent obj) throws IOException {
@@ -80,10 +90,8 @@ public class JobRenormalizedResultsPersister extends AbstractComponent {
 
     /**
      * Execute the bulk action
-     *
-     * @param jobId The job Id
      */
-    public void executeRequest(String jobId) {
+    public void executeRequest() {
         if (bulkRequest.numberOfActions() == 0) {
             return;
         }

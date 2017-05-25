@@ -74,7 +74,7 @@ public class InfluencerNormalizableTests extends ESTestCase {
     }
 
     public void testGetChildren_ByType() {
-        expectThrows(IllegalStateException.class, () -> new InfluencerNormalizable(influencer, INDEX_NAME)
+        expectThrows(UnsupportedOperationException.class, () -> new InfluencerNormalizable(influencer, INDEX_NAME)
                 .getChildren(Normalizable.ChildType.BUCKET_INFLUENCER));
     }
 
@@ -83,7 +83,7 @@ public class InfluencerNormalizableTests extends ESTestCase {
     }
 
     public void testSetMaxChildrenScore() {
-        expectThrows(IllegalStateException.class, () -> new InfluencerNormalizable(influencer, INDEX_NAME)
+        expectThrows(UnsupportedOperationException.class, () -> new InfluencerNormalizable(influencer, INDEX_NAME)
                 .setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 42.0));
     }
 

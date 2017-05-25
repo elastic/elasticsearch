@@ -52,7 +52,7 @@ public class Normalizer {
      *                                  normalizer
      */
     public void normalize(Integer bucketSpan, boolean perPartitionNormalization,
-                          List<Normalizable> results, String quantilesState) {
+                          List<? extends Normalizable> results, String quantilesState) {
         NormalizerProcess process = processFactory.createNormalizerProcess(jobId, quantilesState, bucketSpan,
                 perPartitionNormalization, executorService);
         NormalizerResultHandler resultsHandler = process.createNormalizedResultsHandler();
@@ -123,7 +123,7 @@ public class Normalizer {
      * Updates the normalized scores on the results.
      */
     private void mergeNormalizedScoresIntoResults(List<NormalizerResult> normalizedScores,
-                                                  List<Normalizable> results) {
+                                                  List<? extends Normalizable> results) {
         Iterator<NormalizerResult> scoresIter = normalizedScores.iterator();
         for (Normalizable result : results) {
             mergeRecursively(scoresIter, null, false, result);

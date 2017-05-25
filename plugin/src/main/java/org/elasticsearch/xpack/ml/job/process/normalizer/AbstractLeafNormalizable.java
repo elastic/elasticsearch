@@ -31,11 +31,11 @@ abstract class AbstractLeafNormalizable extends Normalizable {
 
     @Override
     public final List<Normalizable> getChildren(ChildType type) {
-        throw new IllegalStateException(getClass().getSimpleName() + " has no children");
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " has no children");
     }
 
     @Override
     public final boolean setMaxChildrenScore(ChildType childrenType, double maxScore) {
-        throw new IllegalStateException(getClass().getSimpleName() + " has no children");
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " has no children");
     }
 }

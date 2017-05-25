@@ -83,6 +83,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         scoresUpdater = new ScoresUpdater(job, jobProvider, jobRenormalizedResultsPersister, normalizerFactory);
 
         givenProviderReturnsNoBuckets();
+        givenProviderReturnsNoRecords();
         givenProviderReturnsNoInfluencers();
         givenNormalizerFactoryReturnsMock();
         givenNormalizerRaisesBigChangeFlag();
@@ -153,10 +154,10 @@ public class ScoresUpdaterTests extends ESTestCase {
 
         scoresUpdater.update(QUANTILES_STATE, 3600, 0, false);
 
-        verifyNormalizerWasInvoked(1);
+        verifyNormalizerWasInvoked(2);
         verify(jobRenormalizedResultsPersister, times(1)).updateBucket(any());
         verify(jobRenormalizedResultsPersister, times(1)).updateResults(any());
-        verify(jobRenormalizedResultsPersister, times(2)).executeRequest(anyString());
+        verify(jobRenormalizedResultsPersister, times(1)).executeRequest();
     }
 
     public void testUpdate_GivenEnoughBucketsForTwoBatchesButOneNormalization() throws IOException {
@@ -229,7 +230,7 @@ public class ScoresUpdaterTests extends ESTestCase {
 
         verifyNormalizerWasInvoked(1);
         verify(jobRenormalizedResultsPersister, times(1)).updateResults(any());
-        verify(jobRenormalizedResultsPersister, times(1)).executeRequest(anyString());
+        verify(jobRenormalizedResultsPersister, times(1)).executeRequest();
     }
 
     public void testUpdate_GivenShutdown() throws IOException {
@@ -379,6 +380,10 @@ public class ScoresUpdaterTests extends ESTestCase {
                 new MockBatchedDocumentsIterator<>(batchesWithIndex);
         bucketIter.requireIncludeInterim(false);
         when(jobProvider.newBatchedBucketsIterator(JOB_ID)).thenReturn(bucketIter);
+    }
+
+    private void givenProviderReturnsNoRecords() {
+        givenProviderReturnsRecords(new ArrayDeque<>());
     }
 
     private void givenProviderReturnsRecords(Deque<AnomalyRecord> records) {

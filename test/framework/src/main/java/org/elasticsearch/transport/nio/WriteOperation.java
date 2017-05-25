@@ -37,12 +37,10 @@ public class WriteOperation {
     private final NioSocketChannel channel;
     private final ActionListener<NioChannel> listener;
     private final CompositeNetworkBuffer networkBuffer;
-    private long bytesRemaining = 0;
 
     public WriteOperation(NioSocketChannel channel, BytesReference reference, ActionListener<NioChannel> listener) {
         this.channel = channel;
         this.listener = listener;
-        this.bytesRemaining = reference.length();
 
         networkBuffer = new CompositeNetworkBuffer();
         BytesRefIterator byteRefIterator = reference.iterator();
@@ -71,30 +69,43 @@ public class WriteOperation {
         return channel;
     }
 
-    public void decrementRemaining(long delta) {
-        bytesRemaining -= delta;
-    }
-
-    public long bytesRemaining() {
-        return bytesRemaining;
+    public boolean isFullyFlushed() {
+        return networkBuffer.getReadRemaining() == 0;
     }
 
     public int flush() throws IOException {
         ByteBuffer[] buffers = networkBuffer.getReadByteBuffers();
 
-        int written;
         if (buffers.length == 1) {
-            written = channel.write(buffers[0]);
+            return singleFlush(buffers[0]);
         } else {
-            written = (int) channel.vectorizedWrite(buffers);
+            return vectorizedFlush(buffers);
         }
-        networkBuffer.incrementRead(written);
-
-        return written;
     }
 
-    public boolean isFullyFlushed() {
-        return networkBuffer.getReadRemaining() == 0;
+    private int singleFlush(ByteBuffer buffer) throws IOException {
+        int totalWritten = 0;
+        while (networkBuffer.getReadRemaining() != 0) {
+            int written = channel.write(buffer);
+            if (written <= 0) {
+                break;
+            }
+            totalWritten += written;
+            networkBuffer.incrementRead(written);
+        }
+        return totalWritten;
     }
 
+    private int vectorizedFlush(ByteBuffer[] buffers) throws IOException {
+        int totalWritten = 0;
+        while (networkBuffer.getReadRemaining() != 0) {
+            int written = (int) channel.vectorizedWrite(buffers);
+            if (written <= 0) {
+                break;
+            }
+            totalWritten += written;
+            networkBuffer.incrementRead(written);
+        }
+        return totalWritten;
+    }
 }

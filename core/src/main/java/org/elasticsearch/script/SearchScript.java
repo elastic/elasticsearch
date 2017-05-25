@@ -19,8 +19,10 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * A search script.
@@ -36,4 +38,7 @@ public interface SearchScript {
      */
     boolean needsScores();
 
+    interface Compiled {
+        SearchScript newInstance(Map<String, Object> params, SearchLookup lookup);
+    }
 }

@@ -338,6 +338,58 @@ for (int i = 0; i < 50; i++) {
 }
 buildRestTests.setups['stackoverflow'] += """
 """
+// Used by significant_text aggregation docs
+buildRestTests.setups['news'] = '''
+  - do:
+        indices.create:
+          index: news
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              question:
+                properties:
+                  source:
+                    type: keyword
+                  content:
+                    type: text
+  - do:
+        bulk:
+          index: news
+          type: article
+          refresh: true
+          body: |'''
+
+// Make h5n1 strongly connected to bird flu
+
+for (int i = 0; i < 100; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "very_relevant_$i", "content": "bird flu h5n1"}"""
+}
+for (int i = 0; i < 100; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "filler_$i", "content": "bird dupFiller "}"""
+}
+for (int i = 0; i < 100; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "filler_$i", "content": "flu dupFiller "}"""
+}
+for (int i = 0; i < 20; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "partially_relevant_$i", "content": "elasticsearch dupFiller dupFiller dupFiller dupFiller pozmantier"}"""
+}
+for (int i = 0; i < 10; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "partially_relevant_$i", "content": "elasticsearch logstash kibana"}"""
+}
+buildRestTests.setups['news'] += """
+"""
 
 // Used by some aggregations
 buildRestTests.setups['exams'] = '''

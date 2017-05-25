@@ -44,7 +44,6 @@ import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -301,8 +300,8 @@ public class UpdateHelper extends AbstractComponent {
     private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                CompiledScript compiledScript = scriptService.compile(script, ScriptContext.UPDATE);
-                ExecutableScript executableScript = scriptService.executable(compiledScript, script.getParams());
+                ExecutableScript.Compiled compiledScript = scriptService.compile(script, ScriptContext.UPDATE);
+                ExecutableScript executableScript = compiledScript.newInstance(script.getParams());
                 executableScript.setNextVar(ContextFields.CTX, ctx);
                 executableScript.run();
             }

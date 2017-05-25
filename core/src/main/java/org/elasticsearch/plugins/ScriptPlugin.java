@@ -20,7 +20,6 @@ package org.elasticsearch.plugins;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptContext;

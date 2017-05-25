@@ -356,7 +356,7 @@ public class ChildrenIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch(indexName).setTypes(masterType)
                 .setQuery(hasChildQuery(childType, termQuery("color", "orange"), ScoreMode.None))
-.addAggregation(children("my-refinements", childType)
+                        .addAggregation(children("my-refinements", childType)
                                 .subAggregation(terms("my-colors").field("color"))
                                 .subAggregation(terms("my-sizes").field("size"))
                 ).get();

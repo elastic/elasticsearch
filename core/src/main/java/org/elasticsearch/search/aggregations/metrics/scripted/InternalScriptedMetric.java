@@ -96,7 +96,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
                 vars.putAll(firstAggregation.reduceScript.getParams());
             }
             ExecutableScript.Compiled compiled = reduceContext.scriptService().compile(
-                firstAggregation.reduceScript, ScriptContext.AGGS_EXECUTABLE);
+                firstAggregation.reduceScript, ExecutableScript.AGGS_CONTEXT);
             ExecutableScript script = compiled.newInstance(vars);
             aggregation = Collections.singletonList(script.run());
         } else if (reduceContext.isFinalReduce())  {

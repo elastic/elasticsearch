@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -44,7 +45,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.script.ScriptContext.EXECUTABLE;
+import static org.elasticsearch.script.ExecutableScript.CONTEXT;
 
 public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse> {
 
@@ -100,7 +101,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
                                  NamedXContentRegistry xContentRegistry) throws IOException {
         Script script = new Script(searchTemplateRequest.getScriptType(), TEMPLATE_LANG, searchTemplateRequest.getScript(),
                 searchTemplateRequest.getScriptParams() == null ? Collections.emptyMap() : searchTemplateRequest.getScriptParams());
-        CompiledTemplate compiledScript = scriptService.compileTemplate(script, EXECUTABLE);
+        CompiledTemplate compiledScript = scriptService.compileTemplate(script, ExecutableScript.CONTEXT);
         String source = compiledScript.run(script.getParams());
         response.setSource(new BytesArray(source));
 

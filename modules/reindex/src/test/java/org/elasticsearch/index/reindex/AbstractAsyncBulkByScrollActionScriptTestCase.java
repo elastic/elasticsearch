@@ -57,8 +57,8 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
         ExecutableScript executableScript = new SimpleExecutableScript(scriptBody);
         ExecutableScript.Compiled compiled = params -> executableScript;
-        when(scriptService.compile(any(), eq(ScriptContext.EXECUTABLE))).thenReturn(compiled);
-        when(scriptService.compile(any(), eq(ScriptContext.UPDATE))).thenReturn(compiled);
+        when(scriptService.compile(any(), eq(ExecutableScript.CONTEXT))).thenReturn(compiled);
+        when(scriptService.compile(any(), eq(ExecutableScript.UPDATE_CONTEXT))).thenReturn(compiled);
         AbstractAsyncBulkByScrollAction<Request> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;

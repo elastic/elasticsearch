@@ -78,7 +78,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public <T, C> C compile(String scriptName, String scriptSource, ScriptContext<T, C> context, Map<String, String> params) {
+                public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
                     assert context == ScriptContext.SEARCH;
                     SearchScript.Compiled compiled = (p, lookup) -> new SearchScript() {

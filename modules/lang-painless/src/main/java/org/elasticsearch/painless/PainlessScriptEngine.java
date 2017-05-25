@@ -98,7 +98,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
     static final String INLINE_NAME = "<inline>";
 
     @Override
-    public <T, C> C compile(String scriptName, String scriptSource, ScriptContext<T, C> context, Map<String, String> params) {
+    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         GenericElasticsearchScript painlessScript = compile(GenericElasticsearchScript.class, scriptName, scriptSource, params);
         if (context.instanceClazz.equals(SearchScript.class)) {
             SearchScript.Compiled compiled = (p, lookup) -> new SearchScript() {

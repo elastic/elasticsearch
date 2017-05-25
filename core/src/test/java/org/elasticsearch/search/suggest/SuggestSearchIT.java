@@ -1026,7 +1026,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public <T, C> C compile(String scriptName, String scriptSource, ScriptContext<T, C> context, Map<String, String> params) {
+        public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
             if (context.instanceClazz != ExecutableScript.class) {
                 throw new UnsupportedOperationException();
             }

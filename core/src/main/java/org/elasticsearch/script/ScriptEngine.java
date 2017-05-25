@@ -41,8 +41,7 @@ public interface ScriptEngine extends Closeable {
      * @param params compile-time parameters (such as flags to the compiler)
      * @return A compiled script of the CompiledType from {@link ScriptContext}
      */
-    <InstanceType, CompiledType>
-    CompiledType compile(String name, String code, ScriptContext<InstanceType, CompiledType> context, Map<String, String> params);
+    <CompiledType> CompiledType compile(String name, String code, ScriptContext<CompiledType> context, Map<String, String> params);
 
     @Override
     default void close() throws IOException {}

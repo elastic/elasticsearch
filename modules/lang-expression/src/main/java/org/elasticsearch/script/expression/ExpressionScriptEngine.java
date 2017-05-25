@@ -73,7 +73,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
     }
 
     @Override
-    public <T, C> C compile(String scriptName, String scriptSource, ScriptContext<T, C> context, Map<String, String> params) {
+    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         SpecialPermission.check();

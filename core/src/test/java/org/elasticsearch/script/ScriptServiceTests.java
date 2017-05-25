@@ -51,7 +51,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     private ScriptEngine scriptEngine;
     private Map<String, ScriptEngine> engines;
-    private Map<String, ScriptContext<?,?>> contexts;
+    private Map<String, ScriptContext<?>> contexts;
     private ScriptService scriptService;
     private Settings baseSettings;
 
@@ -213,7 +213,7 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         buildScriptService(builder.build());
         Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
-        ScriptContext<?, ?> context = randomFrom(contexts.values());
+        ScriptContext<?> context = randomFrom(contexts.values());
         scriptService.compile(script, context);
         scriptService.compile(script, context);
         assertEquals(1L, scriptService.stats().getCompilations());

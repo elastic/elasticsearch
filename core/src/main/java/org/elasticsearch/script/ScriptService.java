@@ -312,14 +312,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     }
                     // Check whether too many compilations have happened
                     checkCompilationLimit();
-                    Object engineCompiled = scriptEngine.compile(id, idOrCode, options);
-                    if (context.instanceClazz == ExecutableScript.class) {
-                        compiledScript = (ExecutableScript.Compiled) params -> scriptEngine.executable(engineCompiled, params);
-                    } else if (context.instanceClazz == SearchScript.class) {
-                        compiledScript = (SearchScript.Compiled) (params, lookup) -> scriptEngine.search(engineCompiled, lookup, params);
-                    } else {
-                        throw new IllegalArgumentException("Script context [" + context.name + "] not supported");
-                    }
+                    compiledScript = scriptEngine.compile(id, idOrCode, context, options);
                 } catch (ScriptException good) {
                     // TODO: remove this try-catch completely, when all script engines have good exceptions!
                     throw good; // its already good
@@ -439,7 +432,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 throw new IllegalArgumentException(
                     "cannot put [" + ScriptType.STORED + "] script, no script contexts are enabled");
             } else {
-                Object compiled = scriptEngine.compile(request.id(), source.getCode(), Collections.emptyMap());
+                // TODO: executable context here is just a placeholder, replace with optional context name passed into PUT stored script req
+                Object compiled = scriptEngine.compile(request.id(), source.getCode(), ScriptContext.EXECUTABLE, Collections.emptyMap());
 
                 if (compiled == null) {
                     throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]" +

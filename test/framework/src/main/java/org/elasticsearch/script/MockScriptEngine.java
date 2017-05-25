@@ -67,7 +67,7 @@ public class MockScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public Object compile(String name, String source, Map<String, String> options) {
+    public <T> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
         // Scripts are always resolved using the script's source. For inline scripts, it's easy because they don't have names and the
         // source is always provided. For stored and file scripts, the source of the script must match the key of a predefined script.
         Function<Map<String, Object>, Object> script = scripts.get(source);
@@ -75,19 +75,15 @@ public class MockScriptEngine implements ScriptEngine {
             throw new IllegalArgumentException("No pre defined script matching [" + source + "] for script with name [" + name + "], " +
                     "did you declare the mocked script?");
         }
-        return new MockCompiledScript(name, options, source, script);
-    }
-
-    @Override
-    public ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars) {
-        MockCompiledScript compiled = (MockCompiledScript) compiledScript;
-        return compiled.createExecutableScript(vars);
-    }
-
-    @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        MockCompiledScript compiled = (MockCompiledScript) compiledScript;
-        return compiled.createSearchScript(vars, lookup);
+        MockCompiledScript mockCompiled = new MockCompiledScript(name, params, source, script);
+        if (context.instanceClazz.equals(SearchScript.class)) {
+            SearchScript.Compiled compiled = mockCompiled::createSearchScript;
+            return context.compiledClazz.cast(compiled);
+        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
+            ExecutableScript.Compiled compiled = mockCompiled::createExecutableScript;
+            return context.compiledClazz.cast(compiled);
+        }
+        throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
 
     public class MockCompiledScript {

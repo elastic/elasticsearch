@@ -23,6 +23,7 @@ import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.expressions.js.VariableContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
 import org.apache.lucene.search.SortField;
@@ -38,11 +39,14 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -69,11 +73,11 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
     }
 
     @Override
-    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         SpecialPermission.check();
-        return AccessController.doPrivileged(new PrivilegedAction<Expression>() {
+        Expression expr = AccessController.doPrivileged(new PrivilegedAction<Expression>() {
             @Override
             public Expression run() {
                 try {
@@ -100,11 +104,17 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                 }
             }
         });
+        if (context.instanceClazz.equals(SearchScript.class)) {
+            SearchScript.Compiled compiled = (p, lookup) -> newSearchScript(expr, lookup, p);
+            return context.compiledClazz.cast(compiled);
+        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
+            ExecutableScript.Compiled compiled = (p) -> new ExpressionExecutableScript(expr, p);
+            return context.compiledClazz.cast(compiled);
+        }
+        throw new IllegalArgumentException("painless does not know how to handle context [" + context.name + "]");
     }
 
-    @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        Expression expr = (Expression)compiledScript;
+    private SearchScript newSearchScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         MapperService mapper = lookup.doc().mapperService();
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
@@ -245,10 +255,5 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         pointer.append("^---- HERE");
         stack.add(pointer.toString());
         throw new ScriptException(message, cause, stack, source, NAME);
-    }
-
-    @Override
-    public ExecutableScript executable(Object compiledScript, Map<String, Object> vars) {
-        return new ExpressionExecutableScript((Expression) compiledScript, vars);
     }
 }

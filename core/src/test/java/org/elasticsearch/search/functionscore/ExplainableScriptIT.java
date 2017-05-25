@@ -34,6 +34,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
@@ -77,19 +78,10 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+                public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
-                    return null;
-                }
-
-                @Override
-                public ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-                    return new SearchScript() {
+                    assert context == ScriptContext.SEARCH;
+                    SearchScript.Compiled compiled = (p, lookup) -> new SearchScript() {
                         @Override
                         public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
                             return new MyScript(lookup.doc().getLeafDocLookup(context));
@@ -99,6 +91,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                             return false;
                         }
                     };
+                    return context.compiledClazz.cast(compiled);
                 }
             };
         }

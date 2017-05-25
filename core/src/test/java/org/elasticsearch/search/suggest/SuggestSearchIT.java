@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -1025,33 +1026,29 @@ public class SuggestSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-            return scriptSource;
-        }
-
-        @Override
-        public ExecutableScript executable(Object compiledScript, Map<String, Object> params) {
-            String script = (String) compiledScript;
-            for (Entry<String, Object> entry : params.entrySet()) {
-                script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
+        public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+            if (context.instanceClazz != ExecutableScript.class) {
+                throw new UnsupportedOperationException();
             }
-            String result = script;
-            return new ExecutableScript() {
-                @Override
-                public void setNextVar(String name, Object value) {
-                    throw new UnsupportedOperationException("setNextVar not supported");
+            ExecutableScript.Compiled compiled = p -> {
+                String script = scriptSource;
+                for (Entry<String, Object> entry : p.entrySet()) {
+                    script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
                 }
+                String result = script;
+                return new ExecutableScript() {
+                    @Override
+                    public void setNextVar(String name, Object value) {
+                        throw new UnsupportedOperationException("setNextVar not supported");
+                    }
 
-                @Override
-                public Object run() {
-                    return result;
-                }
+                    @Override
+                    public Object run() {
+                        return result;
+                    }
+                };
             };
-        }
-
-        @Override
-        public SearchScript search(Object compiledScript, SearchLookup lookup, Map<String, Object> vars) {
-            throw new UnsupportedOperationException("search script not supported");
+            return context.compiledClazz.cast(compiled);
         }
     }
 

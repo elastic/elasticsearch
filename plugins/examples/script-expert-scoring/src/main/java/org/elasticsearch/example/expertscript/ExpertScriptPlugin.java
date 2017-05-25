@@ -33,8 +33,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 /**
@@ -56,10 +58,13 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         }
 
         @Override
-        public Function<Map<String,Object>,SearchScript> compile(String scriptName, String scriptSource, Map<String, String> params) {
+        public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+            if (context.equals(ScriptContext.SEARCH) == false) {
+                throw new IllegalArgumentException(getType() + " scripts cannot be used for context [" + context.name + "]");
+            }
             // we use the script "source" as the script identifier
             if ("pure_df".equals(scriptSource)) {
-                return p -> new SearchScript() {
+                SearchScript.Compiled compiled = (p, lookup) -> new SearchScript() {
                     final String field;
                     final String term;
                     {
@@ -114,20 +119,9 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                         return false;
                     }
                 };
+                return context.compiledClazz.cast(compiled);
             }
             throw new IllegalArgumentException("Unknown script name " + scriptSource);
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> params) {
-          Function<Map<String,Object>,SearchScript> scriptFactory = (Function<Map<String,Object>,SearchScript>) compiledScript;
-          return scriptFactory.apply(params);
-        }
-
-        @Override
-        public ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> params) {
-            throw new UnsupportedOperationException();
         }
 
         @Override

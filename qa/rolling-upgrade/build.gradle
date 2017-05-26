@@ -63,102 +63,123 @@ task copyTestNodeKeystore(type: Copy) {
     into outputDir
 }
 
-for (Version version : wireCompatVersions) {
-  String baseName = "v${version}"
+for (boolean withSystemKey: [true, false]) {
+  String baseNameForSystemKey = (withSystemKey ? 'With' : 'Without') + 'SystemKey'
+  for (Version version : wireCompatVersions) {
+    String baseName = "v${version}${baseNameForSystemKey}"
 
-  Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
-    mustRunAfter(precommit)
-  }
-
-  Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
-  configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-    dependsOn copyTestNodeKeystore
-    plugin ':x-pack-elasticsearch:plugin'
-    distribution = 'zip'
-    bwcVersion = version
-    numBwcNodes = 2
-    numNodes = 2
-    clusterName = 'rolling-upgrade'
-    waitCondition = waitWithAuth
-    setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
-    setting 'xpack.security.transport.ssl.enabled', 'true'
-    setting 'xpack.ssl.keystore.path', 'testnode.jks'
-    setting 'xpack.ssl.keystore.password', 'testnode'
-    extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-  }
-
-  Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
-  oldClusterTestRunner.configure {
-    systemProperty 'tests.rest.suite', 'old_cluster'
-  }
-
-  Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask)
-
-  configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
-    dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
-    plugin ':x-pack-elasticsearch:plugin'
-    distribution = 'zip'
-    clusterName = 'rolling-upgrade'
-    unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
-    dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
-    waitCondition = waitWithAuth
-    setting 'xpack.ssl.keystore.path', 'testnode.jks'
-    setting 'xpack.ssl.keystore.password', 'testnode'
-    extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-  }
-
-  Task mixedClusterTestRunner = tasks.getByName("${baseName}#mixedClusterTestRunner")
-  mixedClusterTestRunner.configure {
-    systemProperty 'tests.rest.suite', 'mixed_cluster'
-    finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
-  }
-
-  Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
-
-  configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
-    dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
-    plugin ':x-pack-elasticsearch:plugin'
-    distribution = 'zip'
-    clusterName = 'rolling-upgrade'
-    unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
-    dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
-    waitCondition = waitWithAuth
-    setting 'xpack.ssl.keystore.path', 'testnode.jks'
-    setting 'xpack.ssl.keystore.password', 'testnode'
-    extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-  }
-
-  Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
-  upgradedClusterTestRunner.configure {
-    systemProperty 'tests.rest.suite', 'upgraded_cluster'
-
-    // migration tests should only run when the original/old cluster nodes where versions < 5.2.0.
-    // this stinks but we do the check here since our rest tests do not support conditionals
-    // otherwise we could check the index created version
-    String versionStr = project.extensions.findByName("${baseName}#oldClusterTestCluster").properties.get('bwcVersion')
-    String[] versionParts = versionStr.split('\\.')
-    if (versionParts[0].equals("5")) {
-        Integer minor = Integer.parseInt(versionParts[1])
-        if (minor >= 2) {
-            systemProperty 'tests.rest.blacklist', '/20_security/Verify default password migration results in upgraded cluster'
-        }
+    Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
+      mustRunAfter(precommit)
     }
-    // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
-    finalizedBy "${baseName}#mixedClusterTestCluster#stop"
-  }
 
-  Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
-    dependsOn = [upgradedClusterTest]
-  }
+    Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
+    configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
+      dependsOn copyTestNodeKeystore
+      plugin ':x-pack-elasticsearch:plugin'
+      distribution = 'zip'
+      bwcVersion = version
+      numBwcNodes = 2
+      numNodes = 2
+      clusterName = 'rolling-upgrade'
+      waitCondition = waitWithAuth
+      setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
+      setting 'xpack.security.transport.ssl.enabled', 'true'
+      setting 'xpack.ssl.keystore.path', 'testnode.jks'
+      setting 'xpack.ssl.keystore.password', 'testnode'
+      extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+      if (withSystemKey) {
+        if (version.onOrAfter('5.1.0')) {
+          // The setting didn't exist until 5.1.0
+          setting 'xpack.security.system_key.required', 'true'
+        }
+        extraConfigFile 'x-pack/system_key', 'src/test/resources/system_key'
+      }
+    }
 
-  bwcTest.dependsOn(versionBwcTest)
+    Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
+    oldClusterTestRunner.configure {
+      systemProperty 'tests.rest.suite', 'old_cluster'
+    }
+
+    Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask)
+
+    configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
+      dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
+      plugin ':x-pack-elasticsearch:plugin'
+      distribution = 'zip'
+      clusterName = 'rolling-upgrade'
+      unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
+      dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
+      waitCondition = waitWithAuth
+      setting 'xpack.ssl.keystore.path', 'testnode.jks'
+      setting 'xpack.ssl.keystore.password', 'testnode'
+      extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+      if (withSystemKey) {
+        setting 'xpack.security.system_key.required', 'true'
+        extraConfigFile 'x-pack/system_key', 'src/test/resources/system_key'
+      }
+    }
+
+    Task mixedClusterTestRunner = tasks.getByName("${baseName}#mixedClusterTestRunner")
+    mixedClusterTestRunner.configure {
+      systemProperty 'tests.rest.suite', 'mixed_cluster'
+      finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
+    }
+
+    Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
+
+    configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
+      dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
+      plugin ':x-pack-elasticsearch:plugin'
+      distribution = 'zip'
+      clusterName = 'rolling-upgrade'
+      unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
+      dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
+      waitCondition = waitWithAuth
+      setting 'xpack.ssl.keystore.path', 'testnode.jks'
+      setting 'xpack.ssl.keystore.password', 'testnode'
+      extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+      if (withSystemKey) {
+        setting 'xpack.security.system_key.required', 'true'
+        extraConfigFile 'x-pack/system_key', 'src/test/resources/system_key'
+      }
+    }
+
+    Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
+    upgradedClusterTestRunner.configure {
+      systemProperty 'tests.rest.suite', 'upgraded_cluster'
+
+      // migration tests should only run when the original/old cluster nodes where versions < 5.2.0.
+      // this stinks but we do the check here since our rest tests do not support conditionals
+      // otherwise we could check the index created version
+      String versionStr = project.extensions.findByName("${baseName}#oldClusterTestCluster").properties.get('bwcVersion')
+      String[] versionParts = versionStr.split('\\.')
+      if (versionParts[0].equals("5")) {
+          Integer minor = Integer.parseInt(versionParts[1])
+          if (minor >= 2) {
+              systemProperty 'tests.rest.blacklist', '/20_security/Verify default password migration results in upgraded cluster'
+          }
+      }
+      // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
+      finalizedBy "${baseName}#mixedClusterTestCluster#stop"
+    }
+
+    Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
+      dependsOn = [upgradedClusterTest]
+    }
+
+    bwcTest.dependsOn(versionBwcTest)
+  }
 }
 
 test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
-  dependsOn = ["v${wireCompatVersions[-1]}#bwcTest"]
+  dependsOn = [
+    "v${wireCompatVersions[-1]}WithSystemKey#bwcTest",
+    "v${wireCompatVersions[-1]}WithoutSystemKey#bwcTest",
+  ]
 }
 check.dependsOn(integTest)
 

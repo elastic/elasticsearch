@@ -35,7 +35,7 @@ public class ScriptContextTests extends ESTestCase {
     public interface DummyScript {
         int execute(int foo);
 
-        interface Compiled {
+        interface Factory {
             DummyScript newInstance();
         }
     }
@@ -43,21 +43,21 @@ public class ScriptContextTests extends ESTestCase {
     public void testTwoNewInstanceMethods() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             new ScriptContext<>("test", TwoNewInstance.class));
-        assertEquals("Cannot have multiple newInstance methods on CompiledType class ["
+        assertEquals("Cannot have multiple newInstance methods on FactoryType class ["
             + TwoNewInstance.class.getName() + "] for script context [test]", e.getMessage());
     }
 
     public void testMissingNewInstanceMethod() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             new ScriptContext<>("test", MissingNewInstance.class));
-        assertEquals("Could not find method newInstance on CompiledType class ["
+        assertEquals("Could not find method newInstance on FactoryType class ["
             + MissingNewInstance.class.getName() + "] for script context [test]", e.getMessage());
     }
 
     public void testInstanceTypeReflection() {
-        ScriptContext<?> context = new ScriptContext<>("test", DummyScript.Compiled.class);
+        ScriptContext<?> context = new ScriptContext<>("test", DummyScript.Factory.class);
         assertEquals("test", context.name);
         assertEquals(DummyScript.class, context.instanceClazz);
-        assertEquals(DummyScript.Compiled.class, context.compiledClazz);
+        assertEquals(DummyScript.Factory.class, context.factoryClazz);
     }
 }

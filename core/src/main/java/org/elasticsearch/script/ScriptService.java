@@ -221,7 +221,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      *
      * @return a compiled script which may be used to construct instances of a script for the given context
      */
-    public <CompiledType> CompiledType compile(Script script, ScriptContext<CompiledType> context) {
+    public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
         Objects.requireNonNull(script);
         Objects.requireNonNull(context);
 
@@ -292,7 +292,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         Object compiledScript = cache.get(cacheKey);
 
         if (compiledScript != null) {
-            return context.compiledClazz.cast(compiledScript);
+            return context.factoryClazz.cast(compiledScript);
         }
 
         // Synchronize so we don't compile scripts many times during multiple shards all compiling a script
@@ -326,14 +326,14 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 cache.put(cacheKey, compiledScript);
             }
 
-            return context.compiledClazz.cast(compiledScript);
+            return context.factoryClazz.cast(compiledScript);
         }
     }
 
     /** Compiles a template. Note this will be moved to a separate TemplateService in the future. */
-    public CompiledTemplate compileTemplate(Script script, ScriptContext<ExecutableScript.Compiled> scriptContext) {
-        ExecutableScript.Compiled compiledScript = compile(script, scriptContext);
-        return params -> (String)compiledScript.newInstance(params).run();
+    public CompiledTemplate compileTemplate(Script script, ScriptContext<ExecutableScript.Factory> scriptContext) {
+        ExecutableScript.Factory factory = compile(script, scriptContext);
+        return params -> (String) factory.newInstance(params).run();
     }
 
     /**

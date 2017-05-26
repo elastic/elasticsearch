@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -77,11 +76,11 @@ public class MockScriptEngine implements ScriptEngine {
         }
         MockCompiledScript mockCompiled = new MockCompiledScript(name, params, source, script);
         if (context.instanceClazz.equals(SearchScript.class)) {
-            SearchScript.Compiled compiled = mockCompiled::createSearchScript;
-            return context.compiledClazz.cast(compiled);
+            SearchScript.Factory factory = mockCompiled::createSearchScript;
+            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
-            ExecutableScript.Compiled compiled = mockCompiled::createExecutableScript;
-            return context.compiledClazz.cast(compiled);
+            ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
+            return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }

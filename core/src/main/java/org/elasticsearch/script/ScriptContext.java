@@ -20,9 +20,6 @@
 package org.elasticsearch.script;
 
 import java.lang.reflect.Method;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * The information necessary to compile and run a script.
@@ -32,45 +29,45 @@ import java.util.Map;
  * <p>
  * There are two related classes which must be supplied to construct a {@link ScriptContext}.
  * <p>
- * The <i>CompiledType</i> is a factory class for constructing instances of a script. The
- * {@link ScriptService} returns an instance of <i>CompiledType</i> when compiling a script. This class
+ * The <i>FactoryType</i> is a factory class for constructing instances of a script. The
+ * {@link ScriptService} returns an instance of <i>FactoryType</i> when compiling a script. This class
  * must be stateless so it is cacheable by the {@link ScriptService}. It must have an abstract method
  * named {@code newInstance} which {@link ScriptEngine} implementations will define.
  * <p>
  * The <i>InstanceType</i> is a class returned by the {@code newInstance} method of the
- * <i>CompiledType</i>. It is an instance of a script and may be stateful. Instances of
+ * <i>FactoryType</i>. It is an instance of a script and may be stateful. Instances of
  * the <i>InstanceType</i> may be executed multiple times by a caller with different arguments. This
  * class must have an abstract method named {@code execute} which {@link ScriptEngine} implementations
  * will define.
  */
-public final class ScriptContext<CompiledType> {
+public final class ScriptContext<FactoryType> {
 
     /** A unique identifier for this context. */
     public final String name;
 
     /** A factory class for constructing instances of a script. */
-    public final Class<CompiledType> compiledClazz;
+    public final Class<FactoryType> factoryClazz;
 
     /** A class that is an instance of a script. */
     public final Class<?> instanceClazz;
 
     /** Construct a context with the related instance and compiled classes. */
-    public ScriptContext(String name, Class<CompiledType> compiledClazz) {
+    public ScriptContext(String name, Class<FactoryType> factoryClazz) {
         this.name = name;
-        this.compiledClazz = compiledClazz;
+        this.factoryClazz = factoryClazz;
         Method newInstanceMethod = null;
-        for (Method method : compiledClazz.getMethods()) {
+        for (Method method : factoryClazz.getMethods()) {
             if (method.getName().equals("newInstance")) {
                 if (newInstanceMethod != null) {
-                    throw new IllegalArgumentException("Cannot have multiple newInstance methods on CompiledType class ["
-                        + compiledClazz.getName() + "] for script context [" + name + "]");
+                    throw new IllegalArgumentException("Cannot have multiple newInstance methods on FactoryType class ["
+                        + factoryClazz.getName() + "] for script context [" + name + "]");
                 }
                 newInstanceMethod = method;
             }
         }
         if (newInstanceMethod == null) {
-            throw new IllegalArgumentException("Could not find method newInstance on CompiledType class ["
-                + compiledClazz.getName() + "] for script context [" + name + "]");
+            throw new IllegalArgumentException("Could not find method newInstance on FactoryType class ["
+                + factoryClazz.getName() + "] for script context [" + name + "]");
         }
         instanceClazz = newInstanceMethod.getReturnType();
     }

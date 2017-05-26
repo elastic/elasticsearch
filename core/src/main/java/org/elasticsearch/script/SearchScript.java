@@ -38,11 +38,11 @@ public interface SearchScript {
      */
     boolean needsScores();
 
-    interface Compiled {
+    interface Factory {
         SearchScript newInstance(Map<String, Object> params, SearchLookup lookup);
     }
 
-    ScriptContext<Compiled> CONTEXT = new ScriptContext<>("search", Compiled.class);
+    ScriptContext<Factory> CONTEXT = new ScriptContext<>("search", Factory.class);
     // TODO: remove aggs context when it has its own interface
-    ScriptContext<SearchScript.Compiled> AGGS_CONTEXT = new ScriptContext<>("aggs", Compiled.class);
+    ScriptContext<Factory> AGGS_CONTEXT = new ScriptContext<>("aggs", Factory.class);
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -82,8 +81,8 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
         Script script = Script.parse(parser);
-        ExecutableScript.Compiled compiled = qe.compile(null, script.getIdOrCode(), ExecutableScript.CONTEXT, Collections.emptyMap());
-        ExecutableScript executableScript = compiled.newInstance(script.getParams());
+        ExecutableScript.Factory factory = qe.compile(null, script.getIdOrCode(), ExecutableScript.CONTEXT, Collections.emptyMap());
+        ExecutableScript executableScript = factory.newInstance(script.getParams());
         assertThat(executableScript.run(), equalTo("{\"match_all\":{}}"));
     }
 
@@ -97,8 +96,8 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
         Script script = Script.parse(parser);
-        ExecutableScript.Compiled compiled = qe.compile(null, script.getIdOrCode(), ExecutableScript.CONTEXT, Collections.emptyMap());
-        ExecutableScript executableScript = compiled.newInstance(script.getParams());
+        ExecutableScript.Factory factory = qe.compile(null, script.getIdOrCode(), ExecutableScript.CONTEXT, Collections.emptyMap());
+        ExecutableScript executableScript = factory.newInstance(script.getParams());
         assertThat(executableScript.run(), equalTo("{ \"match_all\":{} }"));
     }
 

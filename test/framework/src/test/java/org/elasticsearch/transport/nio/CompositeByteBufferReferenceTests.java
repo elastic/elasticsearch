@@ -24,7 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-public class CompositeNetworkBufferTests extends ESTestCase {
+public class CompositeByteBufferReferenceTests extends ESTestCase {
 
     private CompositeByteBufferReference buffer;
 

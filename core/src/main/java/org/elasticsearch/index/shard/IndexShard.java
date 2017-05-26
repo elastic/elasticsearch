@@ -1092,7 +1092,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0_UNRELEASED) &&
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0) &&
             // TODO: LOCAL_SHARDS need to transfer this information
             recoveryState().getRecoverySource().getType() != RecoverySource.Type.LOCAL_SHARDS) {
             // as of 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.

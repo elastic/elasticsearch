@@ -168,7 +168,7 @@ public class Segment implements Streamable {
             // verbose mode
             ramTree = readRamTree(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             segmentSort = readSegmentSort(in);
         } else {
             segmentSort = null;
@@ -193,7 +193,7 @@ public class Segment implements Streamable {
         if (verbose) {
             writeRamTree(out, ramTree);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             writeSegmentSort(out, segmentSort);
         }
     }

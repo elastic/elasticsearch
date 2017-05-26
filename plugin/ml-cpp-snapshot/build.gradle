@@ -1,0 +1,150 @@
+import com.amazonaws.AmazonServiceException
+import com.amazonaws.ClientConfiguration
+import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.BasicAWSCredentials
+import com.amazonaws.services.s3.AmazonS3Client
+import com.amazonaws.services.s3.model.S3Object
+import com.bettercloud.vault.Vault
+import com.bettercloud.vault.VaultConfig
+import com.bettercloud.vault.response.LogicalResponse
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermission
+import java.nio.file.attribute.PosixFilePermissions
+import org.elasticsearch.gradle.VersionProperties
+
+apply plugin: 'distribution'
+
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath group: 'com.bettercloud', name: 'vault-java-driver', version:"1.1.0"
+    classpath 'com.amazonaws:aws-java-sdk-s3:1.10.33'
+  }
+}
+
+ext.version = VersionProperties.elasticsearch
+
+// This project pulls a snapshot version of the ML cpp artifacts and sets that as the artifact
+// for this project so it can be used with dependency substitution. We do not use gradle's
+// handling of S3 as a maven repo due to the dynamically generated creds being slow to propagate,
+// necessitating retries.
+
+void checkJavaVersion() {
+  /**
+   * The Elastic Secrets vault is served via HTTPS with a Let's Encrypt certificate. The root certificates that cross-signed the Let's
+   * Encrypt certificates were not trusted by the JDK until 8u101. Therefore, we enforce that the JDK is at least 8u101 here.
+   */
+  final String javaVersion = System.getProperty('java.version')
+  final String javaVendor = System.getProperty('java.vendor')
+  def matcher = javaVersion =~ /1\.8\.0(?:_(\d+))?/
+  boolean matches = matcher.matches()
+  assert matches
+
+  final int update
+  if (matcher.group(1) == null) {
+    update = 0
+  } else {
+    update = matcher.group(1).toInteger()
+  }
+  if (update < 101) {
+    throw new GradleException("JDK ${javaVendor} ${javaVersion} does not have necessary root certificates " +
+            "(https://bugs.openjdk.java.net/browse/JDK-8154757), update your JDK to at least JDK 8u101+")
+  }
+}
+
+void setupVaultAuthMethod() {
+  String VAULT_BASE_URL = 'https://secrets.elastic.co:8200'
+  String VAULT_ROLE_ID = "8e90dd88-5a8e-9c12-0da9-5439f293ff97"
+  String VAULT_SECRET_ID = System.env.VAULT_SECRET_ID
+  // get an authentication token with vault
+  String homePath = System.properties['user.home']
+  File githubToken = file("${homePath}/.elastic/github.token")
+  String vaultAuthBody = null
+  URL vaultUrl = null
+  if (githubToken.exists()) {
+    try {
+      Set<PosixFilePermission> perms = Files.getPosixFilePermissions(githubToken.toPath())
+      if (perms.equals(PosixFilePermissions.fromString("rw-------")) == false) {
+        throw new GradleException('github.token must have 600 permissions')
+      }
+    } catch (UnsupportedOperationException e) {
+      // Assume this isn't a POSIX file system
+    }
+    vaultUrl = new URL(VAULT_BASE_URL + '/v1/auth/github/login')
+    vaultAuthBody = "{\"token\": \"${githubToken.getText('UTF-8').trim()}\"}"
+  } else if (VAULT_SECRET_ID != null) {
+    vaultUrl = new URL(VAULT_BASE_URL + '/v1/auth/approle/login')
+    vaultAuthBody = "{\"role_id\": \"${VAULT_ROLE_ID}\", \"secret_id\": \"${VAULT_SECRET_ID}\"}"
+  } else {
+    throw new GradleException('Missing ~/.elastic/github.token file or VAULT_SECRET_ID environment variable, needed to authenticate with vault for secrets')
+  }
+  project.ext.vaultAuthBody = vaultAuthBody
+  project.ext.vaultUrl = vaultUrl
+}
+
+S3Object getZip() {
+  HttpURLConnection vaultConn = (HttpURLConnection) vaultUrl.openConnection()
+  vaultConn.setRequestProperty('Content-Type', 'application/json')
+  vaultConn.setRequestMethod('PUT')
+  vaultConn.setDoOutput(true)
+  vaultConn.outputStream.withWriter('UTF-8') { writer ->
+    writer.write(vaultAuthBody)
+  }
+  vaultConn.connect()
+  Object authResponse = new groovy.json.JsonSlurper().parseText(vaultConn.content.text)
+  VaultConfig config = new VaultConfig('https://secrets.elastic.co:8200', authResponse.auth.client_token)
+  Vault vault = new Vault(config)
+  LogicalResponse secret = vault.logical().read("aws-dev/creds/prelertartifacts")
+  final AWSCredentials creds = new BasicAWSCredentials(secret.data.get('access_key'), secret.data.get('secret_key'))
+
+  // the keys may take a while to propagate, so wait up to 60 seconds retrying
+  final AmazonS3Client client = new AmazonS3Client(creds)
+  final String key = "maven/org/elasticsearch/ml/ml-cpp/${version}/ml-cpp-${version}.zip"
+  int retries = 120
+  while (retries > 0) {
+    try {
+      return client.getObject('prelert-artifacts', key)
+    } catch (AmazonServiceException e) {
+      if (e.getStatusCode() != 403) {
+        throw new GradleException('Error while trying to get ml-cpp snapshot', e)
+      }
+      sleep(500)
+      retries--
+    }
+  }
+  throw new GradleException('Could not access ml-cpp artifacts. Timed out after 60 seconds')
+}
+
+File snapshotZip = new File(buildDir, "download/ml-cpp-${version}.zip")
+task downloadMachineLearningSnapshot {
+  onlyIf {
+    // skip for offline builds, just rely on the artifact already having been downloaded before here
+    project.gradle.startParameter.isOffline() == false
+  }
+  doFirst {
+    snapshotZip.parentFile.mkdirs()
+    S3Object zip = getZip()
+    // TODO: skip if modification of s3 key is before last write to local zip file?
+    InputStream zipStream = zip.getObjectContent()
+    try {
+      project.delete(snapshotZip)
+      Files.copy(zipStream, snapshotZip.toPath())    
+    } finally {
+      zipStream.close()
+    }
+  }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+  // do validation of token/java version up front, don't wait for the task to run
+  if (taskGraph.hasTask(downloadMachineLearningSnapshot)) {
+    checkJavaVersion()
+    setupVaultAuthMethod()
+  }
+}
+
+artifacts {
+  'default' file: snapshotZip, name: 'ml-cpp', type: 'zip', builtBy: downloadMachineLearningSnapshot
+}

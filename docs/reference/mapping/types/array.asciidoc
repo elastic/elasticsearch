@@ -17,7 +17,7 @@ the same datatype. For instance:
 Arrays of objects do not work as you would expect: you cannot query each
 object independently of the other objects in the array.  If you need to be
 able to do this then you should use the <<nested,`nested`>> datatype instead
-of the <<object,`object`>> datatype.
+of the <<array,`array`>> datatype.
 
 This is explained in more detail in <<nested>>.
 ====================================================

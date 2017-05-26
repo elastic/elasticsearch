@@ -25,17 +25,14 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
 import org.elasticsearch.search.suggest.phrase.Laplace;
 import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
@@ -1010,7 +1007,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     public static class DummyTemplatePlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
             return new DummyTemplateScriptEngine();
         }
     }
@@ -1022,47 +1019,34 @@ public class SuggestSearchIT extends ESIntegTestCase {
         public static final String NAME = "mustache";
 
         @Override
-        public void close() throws IOException {
-        }
-
-        @Override
         public String getType() {
             return NAME;
         }
 
         @Override
-        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-            return scriptSource;
-        }
-
-        @Override
-        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
-            String script = (String) compiledScript.compiled();
-            for (Entry<String, Object> entry : params.entrySet()) {
-                script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
+        public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+            if (context.instanceClazz != ExecutableScript.class) {
+                throw new UnsupportedOperationException();
             }
-            String result = script;
-            return new ExecutableScript() {
-                @Override
-                public void setNextVar(String name, Object value) {
-                    throw new UnsupportedOperationException("setNextVar not supported");
+            ExecutableScript.Factory factory = p -> {
+                String script = scriptSource;
+                for (Entry<String, Object> entry : p.entrySet()) {
+                    script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
                 }
+                String result = script;
+                return new ExecutableScript() {
+                    @Override
+                    public void setNextVar(String name, Object value) {
+                        throw new UnsupportedOperationException("setNextVar not supported");
+                    }
 
-                @Override
-                public Object run() {
-                    return result;
-                }
+                    @Override
+                    public Object run() {
+                        return result;
+                    }
+                };
             };
-        }
-
-        @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
-            throw new UnsupportedOperationException("search script not supported");
-        }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
+            return context.factoryClazz.cast(factory);
         }
     }
 

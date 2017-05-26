@@ -20,14 +20,16 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.Map;
 
 public abstract class AbstractScriptTestCase extends ESTestCase {
 
@@ -35,9 +37,9 @@ public abstract class AbstractScriptTestCase extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new MustacheScriptEngine()));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptEngineRegistry, scriptContextRegistry);
+        MustacheScriptEngine engine = new MustacheScriptEngine();
+        Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
         templateService = new InternalTemplateService(scriptService);
     }
 

@@ -18,13 +18,10 @@
  */
 package org.elasticsearch.script.mustache;
 
-import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.test.ESTestCase;
@@ -44,7 +41,6 @@ import java.util.Set;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.script.ScriptType.INLINE;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,9 +60,8 @@ public class MustacheTests extends ESTestCase {
             + "}}, \"negative_boost\": {{boost_val}} } }}";
         Map<String, Object> params = Collections.singletonMap("boost_val", "0.2");
 
-        Mustache mustache = (Mustache) engine.compile(null, template, Collections.emptyMap());
-        CompiledScript compiledScript = new CompiledScript(INLINE, "my-name", "mustache", mustache);
-        ExecutableScript result = engine.executable(compiledScript, params);
+        ExecutableScript.Factory factory = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
+        ExecutableScript result = factory.newInstance(params);
         assertEquals(
                 "Mustache templating broken",
                 "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
@@ -77,27 +72,27 @@ public class MustacheTests extends ESTestCase {
 
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
-        CompiledScript mustache = new CompiledScript(INLINE, "inline", "mustache", engine.compile(null, template, Collections.emptyMap()));
+        ExecutableScript.Factory factory = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new String[] { "foo", "bar" },
             Arrays.asList("foo", "bar"));
         vars.put("data", data);
-        assertThat(engine.executable(mustache, vars).run(), equalTo("foo bar"));
+        assertThat(factory.newInstance(vars).run(), equalTo("foo bar"));
 
         // Sets can come out in any order
         Set<String> setData = new HashSet<>();
         setData.add("foo");
         setData.add("bar");
         vars.put("data", setData);
-        Object output = engine.executable(mustache, vars).run();
+        Object output = factory.newInstance(vars).run();
         assertThat(output, instanceOf(String.class));
         assertThat((String)output, both(containsString("foo")).and(containsString("bar")));
     }
 
     public void testArrayInArrayAccess() throws Exception {
         String template = "{{data.0.0}} {{data.0.1}}";
-        CompiledScript mustache = new CompiledScript(INLINE, "inline", "mustache", engine.compile(null, template, Collections.emptyMap()));
+        ExecutableScript.Factory factory = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new String[][] { new String[] { "foo", "bar" }},
@@ -105,25 +100,25 @@ public class MustacheTests extends ESTestCase {
             singleton(new String[] { "foo", "bar" })
         );
         vars.put("data", data);
-        assertThat(engine.executable(mustache, vars).run(), equalTo("foo bar"));
+        assertThat(factory.newInstance(vars).run(), equalTo("foo bar"));
     }
 
     public void testMapInArrayAccess() throws Exception {
         String template = "{{data.0.key}} {{data.1.key}}";
-        CompiledScript mustache = new CompiledScript(INLINE, "inline", "mustache", engine.compile(null, template, Collections.emptyMap()));
+        ExecutableScript.Factory factory = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new Object[] { singletonMap("key", "foo"), singletonMap("key", "bar") },
             Arrays.asList(singletonMap("key", "foo"), singletonMap("key", "bar")));
         vars.put("data", data);
-        assertThat(engine.executable(mustache, vars).run(), equalTo("foo bar"));
+        assertThat(factory.newInstance(vars).run(), equalTo("foo bar"));
 
         // HashSet iteration order isn't fixed
         Set<Object> setData = new HashSet<>();
         setData.add(singletonMap("key", "foo"));
         setData.add(singletonMap("key", "bar"));
         vars.put("data", setData);
-        Object output = engine.executable(mustache, vars).run();
+        Object output = factory.newInstance(vars).run();
         assertThat(output, instanceOf(String.class));
         assertThat((String)output, both(containsString("foo")).and(containsString("bar")));
     }
@@ -134,14 +129,14 @@ public class MustacheTests extends ESTestCase {
         List<String> randomList = Arrays.asList(generateRandomStringArray(10, 20, false));
 
         String template = "{{data.array.size}} {{data.list.size}}";
-        CompiledScript mustache = new CompiledScript(INLINE, "inline", "mustache", engine.compile(null, template, Collections.emptyMap()));
+        ExecutableScript.Factory factory = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> data = new HashMap<>();
         data.put("array", randomArrayValues);
         data.put("list", randomList);
         Map<String, Object> vars = new HashMap<>();
         vars.put("data", data);
         String expectedString = String.format(Locale.ROOT, "%s %s", randomArrayValues.length, randomList.size());
-        assertThat(engine.executable(mustache, vars).run(), equalTo(expectedString));
+        assertThat(factory.newInstance(vars).run(), equalTo(expectedString));
     }
 
     public void testPrimitiveToJSON() throws Exception {
@@ -376,12 +371,12 @@ public class MustacheTests extends ESTestCase {
     }
 
     private void assertScript(String script, Map<String, Object> vars, Matcher<Object> matcher) {
-        Object result = engine.executable(new CompiledScript(INLINE, "inline", "mustache", compile(script)), vars).run();
+        Object result = compile(script).newInstance(vars).run();
         assertThat(result, matcher);
     }
 
-    private Object compile(String script) {
+    private ExecutableScript.Factory compile(String script) {
         assertThat("cannot compile null or empty script", script, not(isEmptyOrNullString()));
-        return engine.compile(null, script, Collections.emptyMap());
+        return engine.compile(null, script, ExecutableScript.CONTEXT, Collections.emptyMap());
     }
 }

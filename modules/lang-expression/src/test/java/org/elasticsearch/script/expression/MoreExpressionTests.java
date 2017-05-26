@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -514,9 +513,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         vars.put("xyz", -1);
 
         Expression expr = JavascriptCompiler.compile("a+b+xyz");
-        CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, "", "expression", expr);
 
-        ExpressionExecutableScript ees = new ExpressionExecutableScript(compiledScript, vars);
+        ExpressionExecutableScript ees = new ExpressionExecutableScript(expr, vars);
         assertEquals((Double) ees.run(), 4.5, 0.001);
 
         ees.setNextVar("b", -2.5);
@@ -532,7 +530,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         try {
             vars = new HashMap<>();
             vars.put("a", 1);
-            ees = new ExpressionExecutableScript(compiledScript, vars);
+            ees = new ExpressionExecutableScript(expr, vars);
             ees.run();
             fail("An incorrect number of variables were allowed to be used in an expression.");
         } catch (GeneralScriptException se) {
@@ -545,7 +543,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             vars.put("a", 1);
             vars.put("b", 3);
             vars.put("c", -1);
-            ees = new ExpressionExecutableScript(compiledScript, vars);
+            ees = new ExpressionExecutableScript(expr, vars);
             ees.run();
             fail("A variable was allowed to be set that does not exist in the expression.");
         } catch (GeneralScriptException se) {
@@ -558,7 +556,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             vars.put("a", 1);
             vars.put("b", 3);
             vars.put("xyz", "hello");
-            ees = new ExpressionExecutableScript(compiledScript, vars);
+            ees = new ExpressionExecutableScript(expr, vars);
             ees.run();
             fail("A non-number was allowed to be use in the expression.");
         } catch (GeneralScriptException se) {

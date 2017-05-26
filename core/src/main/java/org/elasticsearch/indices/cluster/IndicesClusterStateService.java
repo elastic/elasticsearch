@@ -561,6 +561,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         allocationIdsForShardsOnNodesThatUnderstandSeqNos(indexShardRoutingTable.activeShards(), nodes);
                 final Set<String> initializingIds =
                         allocationIdsForShardsOnNodesThatUnderstandSeqNos(indexShardRoutingTable.getAllInitializingShards(), nodes);
+                shard.updatePrimaryTerm(clusterState.metaData().index(shard.shardId().getIndex()).primaryTerm(shard.shardId().id()));
                 shard.updateAllocationIdsFromMaster(activeIds, initializingIds);
             }
         } catch (Exception e) {
@@ -736,6 +737,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @throws IOException                  if shard state could not be persisted
          */
         void updateRoutingEntry(ShardRouting shardRouting) throws IOException;
+
+        /**
+         * Update the primary term. This method should only be invoked on primary shards.
+         *
+         * @param primaryTerm the new primary term
+         */
+        void updatePrimaryTerm(long primaryTerm);
 
         /**
          * Notifies the service of the current allocation ids in the cluster state.

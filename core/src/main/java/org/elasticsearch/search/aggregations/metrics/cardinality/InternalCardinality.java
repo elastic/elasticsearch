@@ -128,3 +128,4 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         return counts;
     }
 }
+

@@ -20,15 +20,12 @@ package org.elasticsearch.search.collapse;
 
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -47,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 /**
  * A builder that enables field collapsing on search request.
@@ -99,7 +95,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public CollapseBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
         this.maxConcurrentGroupRequests = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
             this.innerHits = in.readList(InnerHitBuilder::new);
         } else {
             InnerHitBuilder innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
@@ -115,17 +111,13 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeVInt(maxConcurrentGroupRequests);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
             out.writeList(innerHits);
         } else {
             boolean hasInnerHit = innerHits.isEmpty() == false;
             out.writeBoolean(hasInnerHit);
             if (hasInnerHit) {
-                if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
-                    innerHits.get(0).writeToCollapseBWC(out);
-                } else {
-                    innerHits.get(0).writeTo(out);
-                }
+                innerHits.get(0).writeToCollapseBWC(out);
             }
        }
     }

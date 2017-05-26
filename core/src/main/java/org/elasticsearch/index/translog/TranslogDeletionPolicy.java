@@ -36,32 +36,52 @@ public class TranslogDeletionPolicy implements DeletionPolicy {
     private long minTranslogGenerationForRecovery = -1;
 
     @Override
-    public void onTranslogRollover(List<TranslogReader> readers, TranslogWriter currentWriter) {
+    public synchronized void onTranslogRollover(List<TranslogReader> readers, TranslogWriter currentWriter) {
 
     }
 
+    public synchronized void setMinTranslogGenerationForRecovery(long newGen) {
+        if (newGen < minTranslogGenerationForRecovery) {
+            throw new IllegalArgumentException("minTranslogGenerationForRecovery can't go backwards. new [" + newGen + "] current [" +
+                minTranslogGenerationForRecovery+ "]");
+        }
+        minTranslogGenerationForRecovery = newGen;
+    }
+
     @Override
-    public long acquireTranslogGenForView() {
+    public synchronized long acquireTranslogGenForView() {
+        int current = translogRefCounts.getOrDefault(minTranslogGenerationForRecovery, 0);
+        translogRefCounts.put(minTranslogGenerationForRecovery, current + 1);
+        return minTranslogGenerationForRecovery;
+    }
+
+    @Override
+    public synchronized int pendingViewsCount() {
         return 0;
     }
 
     @Override
-    public int pendingViewsCount() {
-        return 0;
+    public synchronized void releaseTranslogGenView(long translogGen) {
+        Integer current = translogRefCounts.get(translogGen);
+        if (current == null || current <= 0) {
+            throw new IllegalArgumentException("translog gen [" + translogGen + "] wasn't acquired");
+        }
+        if (current == 1) {
+            translogRefCounts.remove(translogGen);
+        } else {
+            translogRefCounts.put(translogGen, current - 1);
+        }
     }
 
     @Override
-    public void releaseTranslogGenView(long translogGen) {
-
+    public synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter currentWriter) {
+        // TODO: here we can do things like check for translog size etc.
+        long viewRefs = translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
+        return Math.min(viewRefs, minTranslogGenerationForRecovery);
     }
 
     @Override
-    public long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter currentWriter) {
-        return 0;
-    }
-
-    @Override
-    public long getMinTranslogGenerationForRecovery() {
-        return 0;
+    public synchronized long getMinTranslogGenerationForRecovery() {
+        return minTranslogGenerationForRecovery;
     }
 }

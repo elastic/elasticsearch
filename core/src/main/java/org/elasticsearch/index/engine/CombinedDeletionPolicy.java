@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogReader;
 import org.elasticsearch.index.translog.TranslogWriter;
 
@@ -33,7 +34,10 @@ public class CombinedDeletionPolicy extends SnapshotDeletionPolicy implements or
 
     public CombinedDeletionPolicy() {
         super(new KeepOnlyLastCommitDeletionPolicy());
+        translogDeletionPolicy = new TranslogDeletionPolicy();
     }
+
+    private final TranslogDeletionPolicy translogDeletionPolicy;
 
     @Override
     public synchronized void onInit(List<? extends IndexCommit> commits) throws IOException {
@@ -58,59 +62,31 @@ public class CombinedDeletionPolicy extends SnapshotDeletionPolicy implements or
                 minGen = Math.min(minGen, refGen);
             }
         }
-        assert minGen >= minTranslogGenerationForRecovery :
-            "a new minTranslogGenerationForRecovery of [" + minGen + "] is lower than the previous one ["
-                + minTranslogGenerationForRecovery + "]";
-        minTranslogGenerationForRecovery = minGen;
     }
 
     @Override
-    public synchronized long acquireTranslogGenForView() {
-        if (lastCommit == null) {
-            throw new IllegalStateException("this instance is not being used by IndexWriter; " +
-                "be sure to use the instance returned from writer.getConfig().getIndexDeletionPolicy()");
-        }
-        int current = translogRefCounts.getOrDefault(minTranslogGenerationForRecovery, 0);
-       translogRefCounts.put(minTranslogGenerationForRecovery, current + 1);
-       return minTranslogGenerationForRecovery;
+    public long acquireTranslogGenForView() {
+        return translogDeletionPolicy.acquireTranslogGenForView();
     }
 
     @Override
-    public synchronized int pendingViewsCount() {
-        return translogRefCounts.size();
+    public int pendingViewsCount() {
+        return translogDeletionPolicy.pendingViewsCount();
     }
 
     @Override
-    public synchronized void releaseTranslogGenView(long translogGen) {
-        Integer current = translogRefCounts.get(translogGen);
-        if (current == null || current <= 0) {
-            throw new IllegalArgumentException("translog gen [" + translogGen + "] wasn't acquired");
-        }
-        if (current == 1) {
-            translogRefCounts.remove(translogGen);
-        } else {
-            translogRefCounts.put(translogGen, current - 1);
-        }
+    public void releaseTranslogGenView(long translogGen) {
+        translogDeletionPolicy.releaseTranslogGenView(translogGen);
     }
 
     @Override
     public synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter currentWriter) {
-        if (lastCommit == null) {
-            throw new IllegalStateException("this instance is not being used by IndexWriter; " +
-                "be sure to use the instance returned from writer.getConfig().getIndexDeletionPolicy()");
-        }
-        // TODO: here we can do things like check for translog size etc.
-        long viewRefs = translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
-        return Math.min(viewRefs, minTranslogGenerationForRecovery);
+        return translogDeletionPolicy.minTranslogGenRequired(readers, currentWriter);
     }
 
     /** returns the translog generation that will be used as a basis of a future store/peer recovery */
     @Override
     public long getMinTranslogGenerationForRecovery() {
-        if (lastCommit == null) {
-            throw new IllegalStateException("this instance is not being used by IndexWriter; " +
-                "be sure to use the instance returned from writer.getConfig().getIndexDeletionPolicy()");
-        }
-        return minTranslogGenerationForRecovery;
+        return translogDeletionPolicy.getMinTranslogGenerationForRecovery();
     }
 }

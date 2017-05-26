@@ -42,7 +42,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -74,7 +73,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -296,29 +294,10 @@ public class InternalEngine extends Engine {
 
     private void recoverFromTranslogInternal() throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
-        int opsRecovered = 0;
+        final int opsRecovered;
         try {
             Translog.Snapshot snapshot = translog.newSnapshot();
-            Translog.Operation operation;
-            config().getTranslogStats().totalOperations(snapshot.totalOperations());
-            config().getTranslogStats().totalOperationsOnStart(snapshot.totalOperations());
-            while ((operation = snapshot.next()) != null) {
-                try {
-                    logger.trace("[translog] recover op {}", operation);
-                    Operation engineOp = config().getTranslogOpToEngineOpConverter()
-                        .convertToEngineOp(operation, Operation.Origin.LOCAL_TRANSLOG_RECOVERY);
-                    config().getOperationApplier().accept(this, engineOp);
-                    opsRecovered++;
-                    config().getTranslogStats().incrementRecoveredOperations();
-                } catch (ElasticsearchException e) {
-                    if (e.status() == RestStatus.BAD_REQUEST) {
-                        // mainly for MapperParsingException and Failure to detect xcontent
-                        logger.info("ignoring recovery of a corrupt translog entry", e);
-                    } else {
-                        throw e;
-                    }
-                }
-            }
+            opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
         } catch (Exception e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
         }

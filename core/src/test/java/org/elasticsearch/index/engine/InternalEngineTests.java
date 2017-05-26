@@ -75,7 +75,6 @@ import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -132,7 +131,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -266,7 +264,7 @@ public class InternalEngineTests extends ESTestCase {
             config.getStore(), config.getDeletionPolicy(), config.getMergePolicy(), analyzer, config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
             config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(), config.getRefreshListeners(),
-            config.getIndexSort(), config.getTranslogOpToEngineOpConverter(), config.getOperationApplier(), new RecoveryState.Translog());
+            config.getIndexSort(), config.getTranslogRecoveryRunner());
     }
 
     @Override
@@ -448,7 +446,7 @@ public class InternalEngineTests extends ESTestCase {
         EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store, deletionPolicy,
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), refreshListener, indexSort, handler, handler, new RecoveryState.Translog());
+                TimeValue.timeValueMinutes(5), refreshListener, indexSort, handler);
 
         return config;
     }
@@ -2622,7 +2620,7 @@ public class InternalEngineTests extends ESTestCase {
         }
         assertVisibleCount(engine, numDocs);
 
-        TranslogHandler parser = (TranslogHandler) engine.config().getTranslogOpToEngineOpConverter();
+        TranslogHandler parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
         parser.mappingUpdate = dynamicUpdate();
 
         engine.close();
@@ -2630,8 +2628,8 @@ public class InternalEngineTests extends ESTestCase {
         engine.recoverFromTranslog();
 
         assertVisibleCount(engine, numDocs, false);
-        parser = (TranslogHandler) engine.config().getTranslogOpToEngineOpConverter();
-        assertEquals(numDocs, engine.config().getTranslogStats().recoveredOperations());
+        parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
+        assertEquals(numDocs, parser.appliedOperations.get());
         if (parser.mappingUpdate != null) {
             assertEquals(1, parser.getRecoveredTypes().size());
             assertTrue(parser.getRecoveredTypes().containsKey("test"));
@@ -2642,7 +2640,8 @@ public class InternalEngineTests extends ESTestCase {
         engine.close();
         engine = createEngine(store, primaryTranslogDir);
         assertVisibleCount(engine, numDocs, false);
-        assertEquals(0, engine.config().getTranslogStats().recoveredOperations());
+        parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
+        assertEquals(0, parser.appliedOperations.get());
 
         final boolean flush = randomBoolean();
         int randomId = randomIntBetween(numDocs + 1, numDocs + 10);
@@ -2670,7 +2669,8 @@ public class InternalEngineTests extends ESTestCase {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
             assertThat(topDocs.totalHits, equalTo(numDocs + 1));
         }
-        assertEquals(flush ? 1 : 2, engine.config().getTranslogStats().recoveredOperations());
+        parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
+        assertEquals(flush ? 1 : 2, parser.appliedOperations.get());
         engine.delete(new Engine.Delete("test", Integer.toString(randomId), newUid(doc)));
         if (randomBoolean()) {
             engine.refresh("test");
@@ -2685,11 +2685,12 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public static class TranslogHandler extends TranslogOpToEngineOpConverter
-        implements CheckedBiConsumer<Engine, Engine.Operation, IOException> {
+        implements EngineConfig.TranslogRecoveryRunner {
 
         private final MapperService mapperService;
         public Mapping mappingUpdate = null;
         private final Map<String, Mapping> recoveredTypes = new HashMap<>();
+        private final AtomicLong appliedOperations = new AtomicLong();
 
         public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings, Logger logger) {
             super(new ShardId("test", "_na_", 0), null, logger);
@@ -2708,8 +2709,7 @@ public class InternalEngineTests extends ESTestCase {
             return new DocumentMapperForType(b.build(mapperService), mappingUpdate);
         }
 
-        @Override
-        public void accept(Engine engine, Engine.Operation operation) throws IOException {
+        private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
             switch (operation.operationType()) {
                 case INDEX:
                     Engine.Index engineIndex = (Engine.Index) operation;
@@ -2735,6 +2735,18 @@ public class InternalEngineTests extends ESTestCase {
          */
         public Map<String, Mapping> getRecoveredTypes() {
             return recoveredTypes;
+        }
+
+        @Override
+        public int run(Engine engine, Translog.Snapshot snapshot) throws IOException {
+            int opsRecovered = 0;
+            Translog.Operation operation;
+            while ((operation = snapshot.next()) != null) {
+                applyOperation(engine, convertToEngineOp(operation, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY));
+                opsRecovered++;
+                appliedOperations.incrementAndGet();
+            }
+            return opsRecovered;
         }
     }
 
@@ -2767,7 +2779,7 @@ public class InternalEngineTests extends ESTestCase {
                 config.getSimilarity(), new CodecService(null, logger), config.getEventListener(),
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
                 TimeValue.timeValueMinutes(5), config.getRefreshListeners(), null,
-                config.getTranslogOpToEngineOpConverter(), config.getOperationApplier(), config.getTranslogStats());
+                config.getTranslogRecoveryRunner());
 
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);

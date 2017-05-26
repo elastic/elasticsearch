@@ -27,7 +27,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -37,11 +36,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.TranslogOpToEngineOpConverter;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -73,9 +71,7 @@ public final class EngineConfig {
     private final ReferenceManager.RefreshListener refreshListeners;
     @Nullable
     private final Sort indexSort;
-    private final TranslogOpToEngineOpConverter translogOpToEngineOpConverter;
-    private final CheckedBiConsumer<Engine, Engine.Operation, IOException> operationApplier;
-    private final RecoveryState.Translog translogStats;
+    private final TranslogRecoveryRunner translogRecoveryRunner;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -120,9 +116,7 @@ public final class EngineConfig {
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
                         TranslogConfig translogConfig, TimeValue flushMergesAfter, ReferenceManager.RefreshListener refreshListeners,
-                        Sort indexSort, TranslogOpToEngineOpConverter translogOpToEngineOpConverter,
-                        CheckedBiConsumer<Engine, Engine.Operation, IOException> operationApplier,
-                        RecoveryState.Translog translogStats) {
+                        Sort indexSort, TranslogRecoveryRunner translogRecoveryRunner) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -149,9 +143,7 @@ public final class EngineConfig {
         this.openMode = openMode;
         this.refreshListeners = refreshListeners;
         this.indexSort = indexSort;
-        this.translogOpToEngineOpConverter = translogOpToEngineOpConverter;
-        this.operationApplier = operationApplier;
-        this.translogStats = translogStats;
+        this.translogRecoveryRunner = translogRecoveryRunner;
     }
 
     /**
@@ -307,6 +299,18 @@ public final class EngineConfig {
         return openMode;
     }
 
+    @FunctionalInterface
+    public interface TranslogRecoveryRunner {
+        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
+    }
+
+    /**
+     * Returns a runner that implements the translog recovery from the given snapshot
+     */
+    public TranslogRecoveryRunner getTranslogRecoveryRunner() {
+        return translogRecoveryRunner;
+    }
+
     /**
      * Engine open mode defines how the engine should be opened or in other words what the engine should expect
      * to recover from. We either create a brand new engine with a new index and translog or we recover from an existing index.
@@ -340,27 +344,5 @@ public final class EngineConfig {
      */
     public Sort getIndexSort() {
         return indexSort;
-    }
-
-    /**
-     * Return a converter to turn Translog operations into Engine operations.
-     * Used during translog recovery, see also {@link Engine#recoverFromTranslog()}
-     */
-    public TranslogOpToEngineOpConverter getTranslogOpToEngineOpConverter() {
-        return translogOpToEngineOpConverter;
-    }
-
-    /**
-     * Returns applier that applies operation to the engine. Used during translog recovery, see also {@link Engine#recoverFromTranslog()}
-     */
-    public CheckedBiConsumer<Engine, Engine.Operation, IOException> getOperationApplier() {
-        return operationApplier;
-    }
-
-    /**
-     * Returns statistics object for the translog. Used during translog recovery, see also {@link Engine#recoverFromTranslog()}
-     */
-    public RecoveryState.Translog getTranslogStats() {
-        return translogStats;
     }
 }

@@ -120,7 +120,7 @@ public class RefreshListenersTests extends ESTestCase {
                 store, new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), newMergePolicy(), iwc.getAnalyzer(),
                 iwc.getSimilarity(), new CodecService(null, logger), eventListener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), listeners, null, null, null, null);
+                TimeValue.timeValueMinutes(5), listeners, null, null);
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());
     }

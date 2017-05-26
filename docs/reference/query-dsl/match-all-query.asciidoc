@@ -9,7 +9,7 @@ of `1.0`.
 { "match_all": {} }
 --------------------------------------------------
 
-The `_score` can be changed with the `boost` parameter:
+The `_score` can be multiplied by the `boost` parameter:
 
 [source,js]
 --------------------------------------------------

@@ -19,35 +19,56 @@
 
 package org.elasticsearch.script;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.lang.reflect.Method;
 
 /**
- * A holder for information about a context in which a script is compiled and run.
+ * The information necessary to compile and run a script.
+ *
+ * A {@link ScriptContext} contains the information related to a single use case and the interfaces
+ * and methods necessary for a {@link ScriptEngine} to implement.
+ * <p>
+ * There are two related classes which must be supplied to construct a {@link ScriptContext}.
+ * <p>
+ * The <i>FactoryType</i> is a factory class for constructing instances of a script. The
+ * {@link ScriptService} returns an instance of <i>FactoryType</i> when compiling a script. This class
+ * must be stateless so it is cacheable by the {@link ScriptService}. It must have an abstract method
+ * named {@code newInstance} which {@link ScriptEngine} implementations will define.
+ * <p>
+ * The <i>InstanceType</i> is a class returned by the {@code newInstance} method of the
+ * <i>FactoryType</i>. It is an instance of a script and may be stateful. Instances of
+ * the <i>InstanceType</i> may be executed multiple times by a caller with different arguments. This
+ * class must have an abstract method named {@code execute} which {@link ScriptEngine} implementations
+ * will define.
  */
-public final class ScriptContext {
-
-    public static final ScriptContext AGGS = new ScriptContext("aggs");
-    public static final ScriptContext SEARCH = new ScriptContext("search");
-    public static final ScriptContext UPDATE = new ScriptContext("update");
-    public static final ScriptContext INGEST = new ScriptContext("ingest");
-
-    public static final Map<String, ScriptContext> BUILTINS;
-    static {
-        Map<String, ScriptContext> builtins = new HashMap<>();
-        builtins.put(AGGS.name, AGGS);
-        builtins.put(SEARCH.name, SEARCH);
-        builtins.put(UPDATE.name, UPDATE);
-        builtins.put(INGEST.name, INGEST);
-        BUILTINS = Collections.unmodifiableMap(builtins);
-    }
+public final class ScriptContext<FactoryType> {
 
     /** A unique identifier for this context. */
     public final String name;
 
-    // pkg private ctor, only created by script module
-    public ScriptContext(String name) {
+    /** A factory class for constructing instances of a script. */
+    public final Class<FactoryType> factoryClazz;
+
+    /** A class that is an instance of a script. */
+    public final Class<?> instanceClazz;
+
+    /** Construct a context with the related instance and compiled classes. */
+    public ScriptContext(String name, Class<FactoryType> factoryClazz) {
         this.name = name;
+        this.factoryClazz = factoryClazz;
+        Method newInstanceMethod = null;
+        for (Method method : factoryClazz.getMethods()) {
+            if (method.getName().equals("newInstance")) {
+                if (newInstanceMethod != null) {
+                    throw new IllegalArgumentException("Cannot have multiple newInstance methods on FactoryType class ["
+                        + factoryClazz.getName() + "] for script context [" + name + "]");
+                }
+                newInstanceMethod = method;
+            }
+        }
+        if (newInstanceMethod == null) {
+            throw new IllegalArgumentException("Could not find method newInstance on FactoryType class ["
+                + factoryClazz.getName() + "] for script context [" + name + "]");
+        }
+        instanceClazz = newInstanceMethod.getReturnType();
     }
 }

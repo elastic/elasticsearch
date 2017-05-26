@@ -19,10 +19,8 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.search.lookup.SearchLookup;
-
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -39,12 +37,12 @@ public interface ScriptEngine extends Closeable {
      * Compiles a script.
      * @param name the name of the script. {@code null} if it is anonymous (inline). For a stored script, its the identifier.
      * @param code actual source of the script
+     * @param context the context this script will be used for
      * @param params compile-time parameters (such as flags to the compiler)
-     * @return an opaque compiled script which may be cached and later passed to
+     * @return A compiled script of the FactoryType from {@link ScriptContext}
      */
-    Object compile(String name, String code, Map<String, String> params);
+    <FactoryType> FactoryType compile(String name, String code, ScriptContext<FactoryType> context, Map<String, String> params);
 
-    ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);
-
-    SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars);
+    @Override
+    default void close() throws IOException {}
 }

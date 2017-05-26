@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -70,7 +71,8 @@ final class IndexShardOperationPermits implements Closeable {
      * @throws TimeoutException if timed out waiting for in-flight operations to finish
      * @throws IndexShardClosedException if operation permit has been closed
      */
-    public void blockOperations(long timeout, TimeUnit timeUnit, Runnable onBlocked) throws InterruptedException, TimeoutException {
+    public <E extends Exception> void blockOperations(long timeout, TimeUnit timeUnit, CheckedRunnable<E> onBlocked) throws
+        InterruptedException, TimeoutException, E {
         if (closed) {
             throw new IndexShardClosedException(shardId);
         }
@@ -109,9 +111,9 @@ final class IndexShardOperationPermits implements Closeable {
 
     /**
      * Acquires a permit whenever permit acquisition is not blocked. If the permit is directly available, the provided
-     * {@link ActionListener} will be called on the calling thread. During calls of {@link #blockOperations(long, TimeUnit, Runnable)},
-     * permit acquisition can be delayed. The provided ActionListener will then be called using the provided executor once operations are no
-     * longer blocked.
+     * {@link ActionListener} will be called on the calling thread. During calls of
+     * {@link #blockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed. The provided ActionListener will
+     * then be called using the provided executor once operations are no longer blocked.
      *
      * @param onAcquired      {@link ActionListener} that is invoked once acquisition is successful or failed
      * @param executorOnDelay executor to use for delayed call

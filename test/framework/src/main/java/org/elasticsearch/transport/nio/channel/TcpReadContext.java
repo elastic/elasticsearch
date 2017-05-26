@@ -22,7 +22,7 @@ package org.elasticsearch.transport.nio.channel;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.nio.ByteBufferReference;
-import org.elasticsearch.transport.nio.CompositeNetworkBuffer;
+import org.elasticsearch.transport.nio.CompositeByteBufferReference;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ public class TcpReadContext implements ReadContext {
     private final TcpReadHandler handler;
     private final NioSocketChannel channel;
     private final TcpFrameDecoder frameDecoder;
-    private CompositeNetworkBuffer references = new CompositeNetworkBuffer();
+    private final CompositeByteBufferReference references;
 
     public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler) {
         this(channel, handler, new TcpFrameDecoder());
@@ -45,14 +45,14 @@ public class TcpReadContext implements ReadContext {
         this.handler = handler;
         this.channel = channel;
         this.frameDecoder = frameDecoder;
-        this.references.addBuffer(ByteBufferReference.heap(new BytesArray(new byte[DEFAULT_READ_LENGTH])));
+        this.references = new CompositeByteBufferReference(ByteBufferReference.heapBuffer(new BytesArray(new byte[DEFAULT_READ_LENGTH])));
     }
 
     @Override
     public int read() throws IOException {
         int diff = Math.min(DEFAULT_READ_LENGTH / 2 - references.getWriteRemaining(), Integer.MAX_VALUE);
         if (diff > 0) {
-            this.references.addBuffer(ByteBufferReference.heap(new BytesArray(new byte[DEFAULT_READ_LENGTH])));
+            this.references.addBuffer(ByteBufferReference.heapBuffer(new BytesArray(new byte[DEFAULT_READ_LENGTH])));
         }
 
         ByteBuffer[] buffers = references.getWriteByteBuffers();

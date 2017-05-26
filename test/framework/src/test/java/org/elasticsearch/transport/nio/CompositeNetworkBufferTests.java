@@ -24,15 +24,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
-
 public class CompositeNetworkBufferTests extends ESTestCase {
 
-    private CompositeNetworkBuffer buffer;
+    private CompositeByteBufferReference buffer;
 
     @Before
     public void setBuffer() {
-        buffer = new CompositeNetworkBuffer();
+        buffer = new CompositeByteBufferReference();
     }
 
     public void testGetValuesAtIndexes() {
@@ -235,7 +233,7 @@ public class CompositeNetworkBufferTests extends ESTestCase {
 
     private ByteBufferReference newBuffer(int startInt, int size) {
         byte[] rawBytes = new byte[size];
-        ByteBufferReference heapBuffer = ByteBufferReference.heap(new BytesArray(rawBytes));
+        ByteBufferReference heapBuffer = ByteBufferReference.heapBuffer(new BytesArray(rawBytes));
         for (int i = 0; i < size; ++i) {
             rawBytes[i] = (byte) startInt++;
         }

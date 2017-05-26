@@ -21,18 +21,14 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 
 import java.nio.ByteBuffer;
 
-public class ByteBufferReference extends BytesReference {
+public class ByteBufferReference extends NetworkBytesReference {
 
     private final int offset;
-    private final int length;
     private final ByteBuffer writeBuffer;
     private final ByteBuffer readBuffer;
-    private int writeIndex;
-    private int readIndex;
 
     public ByteBufferReference(ByteBuffer writeBuffer, ByteBuffer readBuffer, int offset, int length, int writeIndex, int readIndex) {
         this.offset = offset;
@@ -43,11 +39,11 @@ public class ByteBufferReference extends BytesReference {
         this.readBuffer = readBuffer;
     }
 
-    public static ByteBufferReference heap(BytesArray bytesArray) {
-        return heap(bytesArray, 0, 0);
+    public static ByteBufferReference heapBuffer(BytesArray bytesArray) {
+        return heapBuffer(bytesArray, 0, 0);
     }
 
-    public static ByteBufferReference heap(BytesArray bytesArray, int writeIndex, int readIndex) {
+    public static ByteBufferReference heapBuffer(BytesArray bytesArray, int writeIndex, int readIndex) {
         int offset = bytesArray.offset();
         ByteBuffer writeBuffer = ByteBuffer.wrap(bytesArray.array(), offset, bytesArray.length());
         ByteBuffer readBuffer = ByteBuffer.wrap(bytesArray.array(), offset, bytesArray.length());
@@ -95,40 +91,67 @@ public class ByteBufferReference extends BytesReference {
         return readBuffer.capacity();
     }
 
+    @Override
     public int getWriteIndex() {
         return writeIndex;
     }
 
+    @Override
     public void incrementWrite(int delta) {
         writeIndex += delta;
     }
 
+    @Override
     public int getWriteRemaining() {
         return length - writeIndex;
     }
 
+    @Override
     public int getReadIndex() {
         return readIndex;
     }
 
+    @Override
     public void incrementRead(int delta) {
         readIndex += delta;
     }
 
+    @Override
     public int getReadRemaining() {
         return length - readIndex;
     }
 
+    @Override
+    public boolean isComposite() {
+        return false;
+    }
+
+    @Override
     public ByteBuffer getWriteByteBuffer() {
         writeBuffer.position(offset + writeIndex);
         writeBuffer.limit(offset + length);
         return writeBuffer;
     }
 
+    @Override
     public ByteBuffer getReadByteBuffer() {
         readBuffer.position(offset + readIndex);
         readBuffer.limit(offset + length);
         return readBuffer;
+    }
+
+    @Override
+    public ByteBuffer[] getWriteByteBuffers() {
+        ByteBuffer[] byteBuffers = new ByteBuffer[1];
+        byteBuffers[0] = writeBuffer;
+        return byteBuffers;
+    }
+
+    @Override
+    public ByteBuffer[] getReadByteBuffers() {
+        ByteBuffer[] byteBuffers = new ByteBuffer[1];
+        byteBuffers[0] = readBuffer;
+        return byteBuffers;
     }
 
     private static void initializePositions(int offset, int writeIndex, int readIndex, ByteBuffer writeBuffer, ByteBuffer readBuffer) {

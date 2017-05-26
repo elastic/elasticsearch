@@ -48,7 +48,7 @@ public class WriteOperationTest extends ESTestCase {
     }
 
     public void testFlush() throws IOException {
-        CompositeNetworkBuffer reference = new CompositeNetworkBuffer(ByteBufferReference.heap(new BytesArray(new byte[10])));
+        CompositeByteBufferReference reference = new CompositeByteBufferReference(ByteBufferReference.heapBuffer(new BytesArray(new byte[10])));
         WriteOperation writeOp = new WriteOperation(channel, reference, listener);
 
         when(channel.write(reference.getReadByteBuffers()[0])).thenReturn(10);
@@ -59,7 +59,7 @@ public class WriteOperationTest extends ESTestCase {
     }
 
     public void testFlushInMultipleCalls() throws IOException {
-        CompositeNetworkBuffer reference = new CompositeNetworkBuffer(ByteBufferReference.heap(new BytesArray(new byte[10])));
+        CompositeByteBufferReference reference = new CompositeByteBufferReference(ByteBufferReference.heapBuffer(new BytesArray(new byte[10])));
         WriteOperation writeOp = new WriteOperation(channel, reference, listener);
         ByteBuffer rawBuffer = reference.getReadByteBuffers()[0];
 
@@ -73,7 +73,7 @@ public class WriteOperationTest extends ESTestCase {
     }
 
     public void testPartialFlush() throws IOException {
-        CompositeNetworkBuffer reference = new CompositeNetworkBuffer(ByteBufferReference.heap(new BytesArray(new byte[10])));
+        CompositeByteBufferReference reference = new CompositeByteBufferReference(ByteBufferReference.heapBuffer(new BytesArray(new byte[10])));
         WriteOperation writeOp = new WriteOperation(channel, reference, listener);
         ByteBuffer rawBuffer = reference.getReadByteBuffers()[0];
 
@@ -88,10 +88,10 @@ public class WriteOperationTest extends ESTestCase {
     }
 
     public void testVectoredFlushInMultipleCalls() throws IOException {
-        ByteBufferReference heap1 = ByteBufferReference.heap(new BytesArray(new byte[10]));
-        ByteBufferReference heap2 = ByteBufferReference.heap(new BytesArray(new byte[10]));
+        ByteBufferReference heap1 = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
+        ByteBufferReference heap2 = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
         ByteBuffer[] rawRefs = {heap1.getReadByteBuffer(), heap2.getReadByteBuffer()};
-        CompositeNetworkBuffer reference = new CompositeNetworkBuffer(heap1, heap2);
+        CompositeByteBufferReference reference = new CompositeByteBufferReference(heap1, heap2);
         WriteOperation writeOp = new WriteOperation(channel, reference, listener);
 
         when(channel.vectorizedWrite(rawRefs)).thenReturn(5L, 15L);
@@ -104,10 +104,10 @@ public class WriteOperationTest extends ESTestCase {
     }
 
     public void testPartialVectoredFlush() throws IOException {
-        ByteBufferReference heap1 = ByteBufferReference.heap(new BytesArray(new byte[10]));
-        ByteBufferReference heap2 = ByteBufferReference.heap(new BytesArray(new byte[10]));
+        ByteBufferReference heap1 = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
+        ByteBufferReference heap2 = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
         ByteBuffer[] rawRefs = {heap1.getReadByteBuffer(), heap2.getReadByteBuffer()};
-        CompositeNetworkBuffer reference = new CompositeNetworkBuffer(heap1, heap2);
+        CompositeByteBufferReference reference = new CompositeByteBufferReference(heap1, heap2);
         WriteOperation writeOp = new WriteOperation(channel, reference, listener);
 
         when(channel.vectorizedWrite(rawRefs)).thenReturn(5L, 0L);

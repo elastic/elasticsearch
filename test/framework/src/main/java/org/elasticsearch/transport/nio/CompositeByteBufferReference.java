@@ -45,21 +45,14 @@ import java.util.Arrays;
  * any buffer added to the end must have a writer index of 0. The same principle applies to reader
  * indexes.
  */
-public class CompositeNetworkBuffer extends BytesReference {
+public class CompositeByteBufferReference extends NetworkBytesReference {
+
+    private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.wrap(new byte[0]);
 
     private final ObjectArrayDeque<ByteBufferReference> references;
     private int[] offsets;
-    private int length;
-    private int writeIndex;
-    private int readIndex;
 
-    public CompositeNetworkBuffer() {
-        this.references = new ObjectArrayDeque<>(8);
-        this.offsets = new int[0];
-        this.length = 0;
-    }
-
-    public CompositeNetworkBuffer(ByteBufferReference... newReferences) {
+    public CompositeByteBufferReference(ByteBufferReference... newReferences) {
         this.references = new ObjectArrayDeque<>(Math.max(8, newReferences.length));
         this.offsets = new int[0];
         this.length = 0;
@@ -165,6 +158,29 @@ public class CompositeNetworkBuffer extends BytesReference {
         return length - readIndex;
     }
 
+    @Override
+    public boolean isComposite() {
+        return references.size() > 1;
+    }
+
+    @Override
+    public ByteBuffer getWriteByteBuffer() {
+        if (references.isEmpty()) {
+            return EMPTY_BUFFER;
+        } else {
+            return references.getLast().getWriteByteBuffer();
+        }
+    }
+
+    @Override
+    public ByteBuffer getReadByteBuffer() {
+        if (references.isEmpty()) {
+            return EMPTY_BUFFER;
+        } else {
+            return references.getLast().getReadByteBuffer();
+        }
+    }
+
     public ByteBuffer[] getWriteByteBuffers() {
         if (getWriteRemaining() == 0) {
             return new ByteBuffer[0];
@@ -213,13 +229,13 @@ public class CompositeNetworkBuffer extends BytesReference {
     }
 
     @Override
-    public BytesReference slice(int from, int length) {
+    public NetworkBytesReference slice(int from, int length) {
         // for slices we only need to find the start and the end reference
         // adjust them and pass on the references in between as they are fully contained
         final int to = from + length;
         final int limit = getOffsetIndex(from + length);
         final int start = getOffsetIndex(from);
-        final BytesReference[] inSlice = new BytesReference[1 + (limit - start)];
+        final ByteBufferReference[] inSlice = new ByteBufferReference[1 + (limit - start)];
         for (int i = 0, j = start; i < inSlice.length; i++) {
             inSlice[i] = getReference(j++);
         }
@@ -230,7 +246,7 @@ public class CompositeNetworkBuffer extends BytesReference {
         // now adjust slices in front and at the end
         inSlice[0] = inSlice[0].slice(inSliceOffset, inSlice[0].length() - inSliceOffset);
         inSlice[inSlice.length - 1] = inSlice[inSlice.length - 1].slice(0, to - offsets[limit]);
-        return new CompositeBytesReference(inSlice);
+        return new CompositeByteBufferReference(inSlice);
     }
 
     @Override

@@ -390,6 +390,9 @@ POST _reindex
 [[reindex-from-remote]]
 === Reindex from Remote
 
+WARNING: Reindex from remote is {issue}24520[broken] in 5.4.0 and fixed in
+5.4.1.
+
 Reindex supports reindexing from a remote Elasticsearch cluster:
 
 [source,js]

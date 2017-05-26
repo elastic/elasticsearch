@@ -25,12 +25,16 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.join.aggregations.Children;
+import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
+import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggest;
@@ -39,6 +43,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.both;
@@ -51,15 +56,15 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
     @Before
     public void indexDocuments() throws IOException {
-        StringEntity doc1 = new StringEntity("{\"field\":\"value1\", \"num\":10}", ContentType.APPLICATION_JSON);
+        StringEntity doc1 = new StringEntity("{\"type\":\"type1\", \"num\":10, \"num2\":50}", ContentType.APPLICATION_JSON);
         client().performRequest("PUT", "/index/type/1", Collections.emptyMap(), doc1);
-        StringEntity doc2 = new StringEntity("{\"field\":\"value2\", \"num\":20}", ContentType.APPLICATION_JSON);
+        StringEntity doc2 = new StringEntity("{\"type\":\"type1\", \"num\":20, \"num2\":40}", ContentType.APPLICATION_JSON);
         client().performRequest("PUT", "/index/type/2", Collections.emptyMap(), doc2);
-        StringEntity doc3 = new StringEntity("{\"field\":\"value3\", \"num\":50}", ContentType.APPLICATION_JSON);
+        StringEntity doc3 = new StringEntity("{\"type\":\"type1\", \"num\":50, \"num2\":35}", ContentType.APPLICATION_JSON);
         client().performRequest("PUT", "/index/type/3", Collections.emptyMap(), doc3);
-        StringEntity doc4 = new StringEntity("{\"field\":\"value4\", \"num\":100}", ContentType.APPLICATION_JSON);
+        StringEntity doc4 = new StringEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}", ContentType.APPLICATION_JSON);
         client().performRequest("PUT", "/index/type/4", Collections.emptyMap(), doc4);
-        StringEntity doc5 = new StringEntity("{\"field\":\"value5\", \"num\":100}", ContentType.APPLICATION_JSON);
+        StringEntity doc5 = new StringEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}", ContentType.APPLICATION_JSON);
         client().performRequest("PUT", "/index/type/5", Collections.emptyMap(), doc5);
         client().performRequest("POST", "/index/_refresh");
     }
@@ -80,14 +85,16 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertEquals(1.0f, searchHit.getScore(), 0);
             assertEquals(-1L, searchHit.getVersion());
             assertNotNull(searchHit.getSourceAsMap());
-            assertEquals(2, searchHit.getSourceAsMap().size());
-            assertTrue(searchHit.getSourceAsMap().containsKey("field"));
+            assertEquals(3, searchHit.getSourceAsMap().size());
+            assertTrue(searchHit.getSourceAsMap().containsKey("type"));
+            assertTrue(searchHit.getSourceAsMap().containsKey("num"));
+            assertTrue(searchHit.getSourceAsMap().containsKey("num2"));
         }
     }
 
     public void testSearchMatchQuery() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        searchRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
+        searchRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("num", 10)));
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getAggregations());
@@ -103,14 +110,15 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertThat(searchHit.getScore(), greaterThan(0f));
         assertEquals(-1L, searchHit.getVersion());
         assertNotNull(searchHit.getSourceAsMap());
-        assertEquals(2, searchHit.getSourceAsMap().size());
-        assertEquals("value1", searchHit.getSourceAsMap().get("field"));
+        assertEquals(3, searchHit.getSourceAsMap().size());
+        assertEquals("type1", searchHit.getSourceAsMap().get("type"));
+        assertEquals(50, searchHit.getSourceAsMap().get("num2"));
     }
 
     public void testSearchWithTermsAgg() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.aggregation(new TermsAggregationBuilder("agg1", ValueType.STRING).field("field.keyword"));
+        searchSourceBuilder.aggregation(new TermsAggregationBuilder("agg1", ValueType.STRING).field("type.keyword"));
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
@@ -121,12 +129,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
         Terms termsAgg = searchResponse.getAggregations().get("agg1");
         assertEquals("agg1", termsAgg.getName());
-        assertEquals(5, termsAgg.getBuckets().size());
-        for (Terms.Bucket bucket : termsAgg.getBuckets()) {
-            assertThat(bucket.getKeyAsString(), either(equalTo("value1")).or(equalTo("value2"))
-                    .or(equalTo("value3")).or(equalTo("value4")).or(equalTo("value5")));
-            assertEquals(1, bucket.getDocCount());
-        }
+        assertEquals(2, termsAgg.getBuckets().size());
+        Terms.Bucket type1 = termsAgg.getBucketByKey("type1");
+        assertEquals(3, type1.getDocCount());
+        assertEquals(0, type1.getAggregations().asList().size());
+        Terms.Bucket type2 = termsAgg.getBucketByKey("type2");
+        assertEquals(2, type2.getDocCount());
+        assertEquals(0, type2.getAggregations().asList().size());
     }
 
     public void testSearchWithRangeAgg() throws IOException {
@@ -171,11 +180,184 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testSearchWithTermsAndRangeAgg() throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        TermsAggregationBuilder agg = new TermsAggregationBuilder("agg1", ValueType.STRING).field("type.keyword");
+        agg.subAggregation(new RangeAggregationBuilder("subagg").field("num")
+                .addRange("first", 0, 30).addRange("second", 31, 200));
+        searchSourceBuilder.aggregation(agg);
+        searchSourceBuilder.size(0);
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        assertNull(searchResponse.getSuggest());
+        assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
+        assertEquals(0, searchResponse.getHits().getHits().length);
+        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        Terms termsAgg = searchResponse.getAggregations().get("agg1");
+        assertEquals("agg1", termsAgg.getName());
+        assertEquals(2, termsAgg.getBuckets().size());
+        Terms.Bucket type1 = termsAgg.getBucketByKey("type1");
+        assertEquals(3, type1.getDocCount());
+        assertEquals(1, type1.getAggregations().asList().size());
+        {
+            Range rangeAgg = type1.getAggregations().get("subagg");
+            assertEquals(2, rangeAgg.getBuckets().size());
+            {
+                Range.Bucket bucket = rangeAgg.getBuckets().get(0);
+                assertEquals("first", bucket.getKeyAsString());
+                assertEquals(2, bucket.getDocCount());
+            }
+            {
+                Range.Bucket bucket = rangeAgg.getBuckets().get(1);
+                assertEquals("second", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+            }
+        }
+        Terms.Bucket type2 = termsAgg.getBucketByKey("type2");
+        assertEquals(2, type2.getDocCount());
+        assertEquals(1, type2.getAggregations().asList().size());
+        {
+            Range rangeAgg = type2.getAggregations().get("subagg");
+            assertEquals(2, rangeAgg.getBuckets().size());
+            {
+                Range.Bucket bucket = rangeAgg.getBuckets().get(0);
+                assertEquals("first", bucket.getKeyAsString());
+                assertEquals(0, bucket.getDocCount());
+            }
+            {
+                Range.Bucket bucket = rangeAgg.getBuckets().get(1);
+                assertEquals("second", bucket.getKeyAsString());
+                assertEquals(2, bucket.getDocCount());
+            }
+        }
+    }
+
+    public void testSearchWithMatrixStats() throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.aggregation(new MatrixStatsAggregationBuilder("agg1").fields(Arrays.asList("num", "num2")));
+        searchSourceBuilder.size(0);
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        assertNull(searchResponse.getSuggest());
+        assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
+        assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
+        assertEquals(5, searchResponse.getHits().totalHits);
+        assertEquals(0, searchResponse.getHits().getHits().length);
+        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(1, searchResponse.getAggregations().asList().size());
+        MatrixStats matrixStats = searchResponse.getAggregations().get("agg1");
+        assertEquals(5, matrixStats.getFieldCount("num"));
+        assertEquals(56d, matrixStats.getMean("num"), 0d);
+        assertEquals(1830d, matrixStats.getVariance("num"), 0d);
+        assertEquals(0.09340198804973057, matrixStats.getSkewness("num"), 0d);
+        assertEquals(1.2741646510794589, matrixStats.getKurtosis("num"), 0d);
+        assertEquals(5, matrixStats.getFieldCount("num2"));
+        assertEquals(29d, matrixStats.getMean("num2"), 0d);
+        assertEquals(330d, matrixStats.getVariance("num2"), 0d);
+        assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 0d);
+        assertEquals(1.3517561983471074, matrixStats.getKurtosis("num2"), 0d);
+        assertEquals(-767.5, matrixStats.getCovariance("num", "num2"), 0d);
+        assertEquals(-0.9876336291667923, matrixStats.getCorrelation("num", "num2"), 0d);
+    }
+
+    public void testSearchWithParentJoin() throws IOException {
+        StringEntity parentMapping = new StringEntity("{\n" +
+                "    \"mappings\": {\n" +
+                "        \"answer\" : {\n" +
+                "            \"_parent\" : {\n" +
+                "                \"type\" : \"question\"\n" +
+                "            }\n" +
+                "        }\n" +
+                "    },\n" +
+                "    \"settings\": {\n" +
+                "        \"index.mapping.single_type\": false" +
+                "    }\n" +
+                "}", ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "/child_example", Collections.emptyMap(), parentMapping);
+        StringEntity questionDoc = new StringEntity("{\n" +
+                "    \"body\": \"<p>I have Windows 2003 server and i bought a new Windows 2008 server...\",\n" +
+                "    \"title\": \"Whats the best way to file transfer my site from server to a newer one?\",\n" +
+                "    \"tags\": [\n" +
+                "        \"windows-server-2003\",\n" +
+                "        \"windows-server-2008\",\n" +
+                "        \"file-transfer\"\n" +
+                "    ]\n" +
+                "}", ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "/child_example/question/1", Collections.emptyMap(), questionDoc);
+        StringEntity answerDoc1 = new StringEntity("{\n" +
+                "    \"owner\": {\n" +
+                "        \"location\": \"Norfolk, United Kingdom\",\n" +
+                "        \"display_name\": \"Sam\",\n" +
+                "        \"id\": 48\n" +
+                "    },\n" +
+                "    \"body\": \"<p>Unfortunately you're pretty much limited to FTP...\",\n" +
+                "    \"creation_date\": \"2009-05-04T13:45:37.030\"\n" +
+                "}", ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "child_example/answer/1", Collections.singletonMap("parent", "1"), answerDoc1);
+        StringEntity answerDoc2 = new StringEntity("{\n" +
+                "    \"owner\": {\n" +
+                "        \"location\": \"Norfolk, United Kingdom\",\n" +
+                "        \"display_name\": \"Troll\",\n" +
+                "        \"id\": 49\n" +
+                "    },\n" +
+                "    \"body\": \"<p>Use Linux...\",\n" +
+                "    \"creation_date\": \"2009-05-05T13:45:37.030\"\n" +
+                "}", ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "/child_example/answer/2", Collections.singletonMap("parent", "1"), answerDoc2);
+        client().performRequest("POST", "/_refresh");
+
+        TermsAggregationBuilder leafTermAgg = new TermsAggregationBuilder("top-names", ValueType.STRING)
+                .field("owner.display_name.keyword").size(10);
+        ChildrenAggregationBuilder childrenAgg = new ChildrenAggregationBuilder("to-answers", "answer").subAggregation(leafTermAgg);
+        TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("top-tags", ValueType.STRING).field("tags.keyword")
+                .size(10).subAggregation(childrenAgg);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.size(0).aggregation(termsAgg);
+        SearchRequest searchRequest = new SearchRequest("child_example");
+        searchRequest.source(searchSourceBuilder);
+
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        assertNull(searchResponse.getSuggest());
+        assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
+        assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
+        assertEquals(3, searchResponse.getHits().totalHits);
+        assertEquals(0, searchResponse.getHits().getHits().length);
+        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(1, searchResponse.getAggregations().asList().size());
+        Terms terms = searchResponse.getAggregations().get("top-tags");
+        assertEquals(0, terms.getDocCountError());
+        assertEquals(0, terms.getSumOfOtherDocCounts());
+        assertEquals(3, terms.getBuckets().size());
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket.getKeyAsString(),
+                    either(equalTo("file-transfer")).or(equalTo("windows-server-2003")).or(equalTo("windows-server-2008")));
+            assertEquals(1, bucket.getDocCount());
+            assertEquals(1, bucket.getAggregations().asList().size());
+            Children children = bucket.getAggregations().get("to-answers");
+            assertEquals(2, children.getDocCount());
+            assertEquals(1, children.getAggregations().asList().size());
+            Terms leafTerms = children.getAggregations().get("top-names");
+            assertEquals(0, leafTerms.getDocCountError());
+            assertEquals(0, leafTerms.getSumOfOtherDocCounts());
+            assertEquals(2, leafTerms.getBuckets().size());
+            assertEquals(2, leafTerms.getBuckets().size());
+            Terms.Bucket sam = leafTerms.getBucketByKey("Sam");
+            assertEquals(1, sam.getDocCount());
+            Terms.Bucket troll = leafTerms.getBucketByKey("Troll");
+            assertEquals(1, troll.getDocCount());
+        }
+    }
+
     public void testSearchWithSuggest() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion("sugg1", new PhraseSuggestionBuilder("field"))
-                .setGlobalText("value"));
+        searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion("sugg1", new PhraseSuggestionBuilder("type"))
+                .setGlobalText("type"));
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
 
@@ -192,13 +374,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 .getSuggest().iterator().next();
         assertEquals("sugg1", sugg.getName());
         for (Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option> options : sugg) {
-            assertEquals("value", options.getText().string());
+            assertEquals("type", options.getText().string());
             assertEquals(0, options.getOffset());
-            assertEquals(5, options.getLength());
+            assertEquals(4, options.getLength());
+            assertEquals(2 ,options.getOptions().size());
             for (Suggest.Suggestion.Entry.Option option : options) {
                 assertThat(option.getScore(), greaterThan(0f));
-                assertThat(option.getText().string(), either(equalTo("value1")).or(equalTo("value2"))
-                        .or(equalTo("value3")).or(equalTo("value4")).or(equalTo("value5")));
+                assertThat(option.getText().string(), either(equalTo("type1")).or(equalTo("type2")));
             }
         }
     }

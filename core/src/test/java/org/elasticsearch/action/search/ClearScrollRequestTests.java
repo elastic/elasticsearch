@@ -84,7 +84,6 @@ public class ClearScrollRequestTests extends ESTestCase {
         clearScrollRequest.addScrollId("SCROLL_ID");
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             clearScrollRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            System.out.println(builder.string());
             assertEquals("{\"scroll_id\":[\"SCROLL_ID\"]}", builder.string());
         }
     }

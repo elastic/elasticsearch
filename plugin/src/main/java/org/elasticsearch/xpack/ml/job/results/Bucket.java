@@ -122,7 +122,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         bucketSpan = in.readLong();
         initialAnomalyScore = in.readDouble();
         // bwc for recordCount
-        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_5_0)) {
             in.readInt();
         }
         records = in.readList(AnomalyRecord::new);
@@ -131,7 +131,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         bucketInfluencers = in.readList(BucketInfluencer::new);
         processingTimeMs = in.readLong();
         // bwc for perPartitionMaxProbability
-        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_5_0)) {
             in.readGenericValue();
         }
         partitionScores = in.readList(PartitionScore::new);
@@ -145,7 +145,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         out.writeLong(bucketSpan);
         out.writeDouble(initialAnomalyScore);
         // bwc for recordCount
-        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_5_0)) {
             out.writeInt(0);
         }
         out.writeList(records);
@@ -154,7 +154,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         out.writeList(bucketInfluencers);
         out.writeLong(processingTimeMs);
         // bwc for perPartitionMaxProbability
-        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_5_0)) {
             out.writeGenericValue(Collections.emptyMap());
         }
         out.writeList(partitionScores);

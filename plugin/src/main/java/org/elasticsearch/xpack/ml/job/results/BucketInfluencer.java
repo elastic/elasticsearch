@@ -100,7 +100,7 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
         timestamp = new Date(in.readLong());
         bucketSpan = in.readLong();
         // bwc for removed sequenceNum field
-        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_5_0)) {
             in.readInt();
         }
     }
@@ -117,7 +117,7 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
         out.writeLong(timestamp.getTime());
         out.writeLong(bucketSpan);
         // bwc for removed sequenceNum field
-        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_5_0)) {
             out.writeInt(0);
         }
     }

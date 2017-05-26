@@ -369,6 +369,6 @@ public class ReservedRealmTests extends ESTestCase {
                 assertThat(versionPredicate.test(Version.V_5_2_0), is(true));
                 break;
         }
-        assertThat(versionPredicate.test(Version.V_6_0_0_alpha1_UNRELEASED), is(true));
+        assertThat(versionPredicate.test(Version.V_6_0_0_alpha1), is(true));
     }
 }

@@ -399,8 +399,8 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testGetCompatibleJobTypes_givenVersionAfter_V_5_4() {
         assertThat(Job.getCompatibleJobTypes(Version.V_5_4_0), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
         assertThat(Job.getCompatibleJobTypes(Version.V_5_4_0).size(), equalTo(1));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0_UNRELEASED), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0_UNRELEASED).size(), equalTo(1));
+        assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
+        assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0).size(), equalTo(1));
     }
 
     public static Job.Builder buildJobBuilder(String id, Date date) {

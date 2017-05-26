@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.security.support.MetadataUtils;
 public class BeatsSystemUser extends User {
     public static final String NAME = "beats_system";
     private static final String ROLE_NAME = "beats_system";
-    public static final Version DEFINED_SINCE = Version.V_6_0_0_alpha1_UNRELEASED;
+    public static final Version DEFINED_SINCE = Version.V_6_0_0_alpha1;
     public static final BuiltinUserInfo USER_INFO = new BuiltinUserInfo(NAME, ROLE_NAME, DEFINED_SINCE);
 
     public BeatsSystemUser(boolean enabled) {

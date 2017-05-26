@@ -98,7 +98,7 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
     public ModelPlot(StreamInput in) throws IOException {
         jobId = in.readString();
         // timestamp isn't optional in v5.5
-        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_5_0)) {
             if (in.readBoolean()) {
                 timestamp = new Date(in.readLong());
             } else {
@@ -108,7 +108,7 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
             timestamp = new Date(in.readLong());
         }
         // bwc for removed id field
-        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_5_0)) {
             in.readOptionalString();
         }
         partitionFieldName = in.readOptionalString();
@@ -122,7 +122,7 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
         modelUpper = in.readDouble();
         modelMedian = in.readDouble();
         actual = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
             bucketSpan = in.readLong();
         } else {
             bucketSpan = 0;
@@ -133,7 +133,7 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
         // timestamp isn't optional in v5.5
-        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_5_0)) {
             boolean hasTimestamp = timestamp != null;
             out.writeBoolean(hasTimestamp);
             if (hasTimestamp) {
@@ -143,7 +143,7 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
             out.writeLong(timestamp.getTime());
         }
         // bwc for removed id field
-        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_5_0)) {
             out.writeOptionalString(null);
         }
         out.writeOptionalString(partitionFieldName);
@@ -157,7 +157,7 @@ public class ModelPlot extends ToXContentToBytes implements Writeable {
         out.writeDouble(modelUpper);
         out.writeDouble(modelMedian);
         out.writeDouble(actual);
-        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
             out.writeLong(bucketSpan);
         }
     }

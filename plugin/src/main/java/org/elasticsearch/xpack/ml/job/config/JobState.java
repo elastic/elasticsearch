@@ -37,7 +37,7 @@ public enum JobState implements ToXContent, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         JobState state = this;
         // Pre v5.5 the OPENING state didn't exist
-        if (this == OPENING && out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (this == OPENING && out.getVersion().before(Version.V_5_5_0)) {
             state = CLOSED;
         }
         out.writeEnum(state);

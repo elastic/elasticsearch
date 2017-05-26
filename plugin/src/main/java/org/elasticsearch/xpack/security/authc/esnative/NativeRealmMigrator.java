@@ -151,7 +151,7 @@ public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigra
      * does the right thing.
      */
     private boolean shouldConvertDefaultPasswords(@Nullable Version previousVersion) {
-        return previousVersion != null && previousVersion.before(Version.V_6_0_0_alpha1_UNRELEASED);
+        return previousVersion != null && previousVersion.before(Version.V_6_0_0_alpha1);
     }
 
     @SuppressWarnings("unused")

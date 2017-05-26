@@ -740,6 +740,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
     }
 
     static boolean nodeSupportsJobVersion(Version nodeVersion, Version jobVersion) {
-        return nodeVersion.onOrAfter(Version.V_5_5_0_UNRELEASED);
+        return nodeVersion.onOrAfter(Version.V_5_5_0);
     }
 }

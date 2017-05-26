@@ -79,7 +79,7 @@ public class JobStateTests extends ESTestCase {
         JobState.OPENING.writeTo(out);
         assertEquals(JobState.CLOSED, enumCaptor.getValue());
 
-        when(out.getVersion()).thenReturn(Version.V_5_5_0_UNRELEASED);
+        when(out.getVersion()).thenReturn(Version.V_5_5_0);
 
         doAnswer(new Answer<Void>() {
             @Override

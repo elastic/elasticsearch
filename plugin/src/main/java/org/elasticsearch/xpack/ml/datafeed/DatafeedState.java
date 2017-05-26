@@ -50,7 +50,7 @@ public enum DatafeedState implements Task.Status {
     public void writeTo(StreamOutput out) throws IOException {
         DatafeedState state = this;
         // STARTING & STOPPING states were introduced in v5.5.
-        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_5_0)) {
             if (this == STARTING) {
                 state = STOPPED;
             } else if (this == STOPPING) {

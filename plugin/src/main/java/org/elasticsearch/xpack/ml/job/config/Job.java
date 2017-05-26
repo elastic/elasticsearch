@@ -187,7 +187,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public Job(StreamInput in) throws IOException {
         jobId = in.readString();
         jobType = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
             jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
         } else {
             jobVersion = null;
@@ -396,7 +396,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
         out.writeString(jobType);
-        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
             if (jobVersion != null) {
                 out.writeBoolean(true);
                 Version.writeVersion(jobVersion, out);
@@ -613,7 +613,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         public Builder(StreamInput in) throws IOException {
             id = in.readOptionalString();
             jobType = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
                 jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
             }
             description = in.readOptionalString();
@@ -756,7 +756,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(id);
             out.writeString(jobType);
-            if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+            if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
                 if (jobVersion != null) {
                     out.writeBoolean(true);
                     Version.writeVersion(jobVersion, out);

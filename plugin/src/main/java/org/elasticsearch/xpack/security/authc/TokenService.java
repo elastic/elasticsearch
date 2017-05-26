@@ -216,7 +216,7 @@ public final class TokenService extends AbstractComponent {
         } else {
             // the token exists and the value is at least as long as we'd expect
             final Version version = Version.readVersion(in);
-            if (version.before(Version.V_5_5_0_UNRELEASED)) {
+            if (version.before(Version.V_5_5_0)) {
                 listener.onResponse(null);
             } else {
                 final BytesKey decodedSalt = new BytesKey(in.readByteArray());

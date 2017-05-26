@@ -61,7 +61,7 @@ public class DatafeedStateTests extends ESTestCase {
         assertEquals(DatafeedState.STARTED, enumCaptor.getValue());
 
         // POST 5.5 enums a written as is
-        when(out.getVersion()).thenReturn(Version.V_5_5_0_UNRELEASED);
+        when(out.getVersion()).thenReturn(Version.V_5_5_0);
 
         DatafeedState.STARTING.writeTo(out);
         assertEquals(DatafeedState.STARTING, enumCaptor.getValue());

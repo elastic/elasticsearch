@@ -92,7 +92,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             super.readFrom(in);
             watcherMetaData = new WatcherMetaData(in.readBoolean());
         } else {

@@ -100,7 +100,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
         isInterim = in.readBoolean();
         bucketSpan = in.readLong();
         // bwc for removed sequenceNum field
-        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_5_0)) {
             in.readInt();
         }
     }
@@ -117,7 +117,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
         out.writeBoolean(isInterim);
         out.writeLong(bucketSpan);
         // bwc for removed sequenceNum field
-        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_5_0)) {
             out.writeInt(0);
         }
     }

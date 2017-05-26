@@ -158,7 +158,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     public AnomalyRecord(StreamInput in) throws IOException {
         jobId = in.readString();
         // bwc for removed sequenceNum field
-        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_5_0)) {
             in.readInt();
         }
         detectorIndex = in.readInt();
@@ -196,7 +196,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
         // bwc for removed sequenceNum field
-        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_5_0)) {
             out.writeInt(0);
         }
         out.writeInt(detectorIndex);

@@ -53,7 +53,7 @@ In a single cluster, you can have as many nodes as you want. Furthermore, if the
 
 An index is a collection of documents that have somewhat similar characteristics. For example, you can have an index for customer data, another index for a product catalog, and yet another index for order data. An index is identified by a name (that must be all lowercase) and this name is used to refer to the index when performing indexing, search, update, and delete operations against the documents in it.
 
-In a single cluster, you can define as many indexes as you want.
+In a single node, you can define as many indexes as you want.
 
 [float]
 === Type

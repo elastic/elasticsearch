@@ -51,7 +51,7 @@ public class Quantiles extends ToXContentToBytes implements Writeable {
     /**
      * This is how the IDs were formed in v5.4
      */
-    public static String legacyDocumentId(String jobId) {
+    public static String v54DocumentId(String jobId) {
         return jobId + "-" + TYPE;
     }
 

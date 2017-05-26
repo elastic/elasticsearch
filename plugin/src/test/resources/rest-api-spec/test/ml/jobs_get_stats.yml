@@ -150,3 +150,77 @@ setup:
       catch: missing
       xpack.ml.get_job_stats:
         job_id: unknown-job
+
+---
+"Test reading v54 data counts and model size stats":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: job-stats-v54-bwc-test
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      indices.refresh: {}
+
+  # This is testing that the documents with v5.4 IDs are fetched.
+  # Ideally we would use the v5.4 type but we can't put a mapping
+  # for another type into the single type indices. Type isn't used
+  # in the query so the test is valid
+  - do:
+      index:
+        index: .ml-anomalies-shared
+        type: doc
+        id: job-stats-v54-bwc-test-data-counts
+        body:
+          {
+            job_id : job-stats-v54-bwc-test,
+            processed_record_count : 10,
+            processed_field_count : 0,
+            input_bytes : 0,
+            input_field_count : 0,
+            invalid_date_count : 0,
+            missing_field_count : 0,
+            out_of_order_timestamp_count : 0,
+            empty_bucket_count : 0,
+            sparse_bucket_count : 0,
+            bucket_count : 0,
+            input_record_count : 0,
+            latest_record_timestamp: 2000000000000
+          }
+
+  - do:
+      index:
+        index: .ml-anomalies-shared
+        type: doc
+        id: job-stats-v54-bwc-test-model_size_stats
+        body:
+          {
+            job_id : job-stats-v54-bwc-test,
+            result_type : model_size_stats,
+            model_bytes : 0,
+            total_by_field_count : 101,
+            total_over_field_count : 0,
+            total_partition_field_count : 0,
+            bucket_allocation_failures_count : 0,
+            memory_status : ok,
+            log_time : 1495808248662
+          }
+
+  - do:
+      indices.refresh:
+        index: [.ml-anomalies-shared]
+
+  - do:
+      xpack.ml.get_job_stats:
+        job_id: job-stats-v54-bwc-test
+  - match: { jobs.0.job_id : job-stats-v54-bwc-test }
+  - match: { jobs.0.data_counts.processed_record_count: 10 }
+  - match: { jobs.0.model_size_stats.total_by_field_count: 101 }

@@ -25,7 +25,7 @@ public class CategorizerState {
     /**
      * This is how the IDs were formed in v5.4
      */
-    public static final String legacyDocumentId(String jobId, int docNum) {
+    public static final String v54DocumentId(String jobId, int docNum) {
         return jobId + "#" + docNum;
     }
 

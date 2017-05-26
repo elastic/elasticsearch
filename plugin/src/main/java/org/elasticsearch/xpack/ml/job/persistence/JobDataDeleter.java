@@ -67,7 +67,7 @@ public class JobDataDeleter {
                     ElasticsearchMappings.DOC_TYPE, ModelSnapshot.documentId(modelSnapshot)));
             // TODO: remove in 7.0
             bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()),
-                    ModelSnapshot.TYPE.getPreferredName(), ModelSnapshot.legacyDocumentId(modelSnapshot)));
+                    ModelSnapshot.TYPE.getPreferredName(), ModelSnapshot.v54DocumentId(modelSnapshot)));
         }
 
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

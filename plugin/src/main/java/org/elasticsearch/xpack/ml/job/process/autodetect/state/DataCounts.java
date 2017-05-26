@@ -142,6 +142,10 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         return jobId + DOCUMENT_SUFFIX;
     }
 
+    public static String v54DocumentId(String jobId) {
+        return jobId + "-data-counts";
+    }
+
     private final String jobId;
     private long processedRecordCount;
     private long processedFieldCount;

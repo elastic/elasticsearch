@@ -25,7 +25,7 @@ public class ModelState {
     /**
      * This is how the IDs were formed in v5.4
      */
-    public static final String legacyDocumentId(String jobId, String snapshotId, int docNum) {
+    public static final String v54DocumentId(String jobId, String snapshotId, int docNum) {
         return jobId + "-" + snapshotId + "#" + docNum;
     }
 

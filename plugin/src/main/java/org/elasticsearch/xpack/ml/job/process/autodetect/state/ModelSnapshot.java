@@ -277,7 +277,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         List<String> stateDocumentIds = new ArrayList<>(snapshotDocCount);
         // The state documents count suffices are 1-based
         for (int i = 1; i <= snapshotDocCount; i++) {
-            stateDocumentIds.add(ModelState.legacyDocumentId(jobId, snapshotId, i));
+            stateDocumentIds.add(ModelState.v54DocumentId(jobId, snapshotId, i));
         }
         return stateDocumentIds;
     }
@@ -293,8 +293,8 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
     /**
      * This is how the IDs were formed in v5.4
      */
-    public static String legacyDocumentId(ModelSnapshot snapshot) {
-        return legacyDocumentId(snapshot.getJobId(), snapshot.getSnapshotId());
+    public static String v54DocumentId(ModelSnapshot snapshot) {
+        return v54DocumentId(snapshot.getJobId(), snapshot.getSnapshotId());
     }
 
     public static String documentId(String jobId, String snapshotId) {
@@ -304,7 +304,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
     /**
      * This is how the IDs were formed in v5.4
      */
-    public static String legacyDocumentId(String jobId, String snapshotId) {
+    public static String v54DocumentId(String jobId, String snapshotId) {
         return jobId + "-" + snapshotId;
     }
 

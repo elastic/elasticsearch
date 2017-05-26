@@ -239,7 +239,8 @@ public class JobProvider {
     private SearchRequestBuilder createLatestDataCountsSearch(String indexName, String jobId) {
         return client.prepareSearch(indexName)
                 .setSize(1)
-                .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
+                // look for both old and new formats
+                .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId)))
                 .addSort(SortBuilders.fieldSort(DataCounts.LATEST_RECORD_TIME.getPreferredName()).order(SortOrder.DESC));
     }
 

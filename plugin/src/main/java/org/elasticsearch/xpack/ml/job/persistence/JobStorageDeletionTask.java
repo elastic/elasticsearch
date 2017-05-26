@@ -111,7 +111,7 @@ public class JobStorageDeletionTask extends Task {
         bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
                 Quantiles.documentId(jobId)));
         bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobStateIndexName(), Quantiles.TYPE.getPreferredName(),
-                Quantiles.legacyDocumentId(jobId)));
+                Quantiles.v54DocumentId(jobId)));
         bulkRequestBuilder.execute(ActionListener.wrap(
                         response -> finishedHandler.onResponse(true),
                         e -> {
@@ -142,7 +142,7 @@ public class JobStorageDeletionTask extends Task {
                 CategorizerState.documentId(jobId, docNum)));
         // TODO: remove in 7.0
         bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobStateIndexName(), CategorizerState.TYPE,
-                CategorizerState.legacyDocumentId(jobId, docNum)));
+                CategorizerState.v54DocumentId(jobId, docNum)));
         bulkRequestBuilder.execute(ActionListener.wrap(
                 response -> {
                     // If we successfully deleted either document try the next one; if not we're done

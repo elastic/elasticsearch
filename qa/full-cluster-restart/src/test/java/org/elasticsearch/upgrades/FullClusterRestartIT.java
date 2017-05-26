@@ -52,7 +52,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-    private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED);
+    private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1);
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

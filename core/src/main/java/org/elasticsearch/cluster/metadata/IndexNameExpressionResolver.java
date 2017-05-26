@@ -697,12 +697,13 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         public static Map<String, AliasOrIndex> matches(Context context, MetaData metaData, String expression) {
             if (Regex.isMatchAllPattern(expression)) {
                 // Can only happen if the expressions was initially: '-*'
-                if (!context.getOptions().ignoreAliases()) {
+                if (context.getOptions().ignoreAliases()) {
+                    return metaData.getAliasAndIndexLookup().entrySet().stream()
+                            .filter(e -> e.getValue().isAlias() == false)
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                } else {
                     return metaData.getAliasAndIndexLookup();
                 }
-                return metaData.getAliasAndIndexLookup().entrySet().stream()
-                        .filter(e -> !e.getValue().isAlias())
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             } else if (expression.indexOf("*") == expression.length() - 1) {
                 return suffixWildcard(context, metaData, expression);
             } else {

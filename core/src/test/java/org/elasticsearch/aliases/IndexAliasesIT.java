@@ -19,7 +19,6 @@
 
 package org.elasticsearch.aliases;
 
-import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
@@ -64,7 +63,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
@@ -804,7 +802,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
     }
 
     // aliases can be added only to indices
-    public void testAddAliasesOnlyToIndices() throws Exception {
+    public void testAliasesCanBeAddedToIndicesOnly() throws Exception {
         logger.info("--> creating index [2017-05-20]");
         assertAcked(prepareCreate("2017-05-20"));
         ensureGreen();
@@ -812,8 +810,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> adding [week_20] alias to [2017-05-20]");
         assertAcked(admin().indices().prepareAliases().addAlias("2017-05-20", "week_20"));
 
-        expectThrows(IndexNotFoundException.class, () -> admin().indices().prepareAliases()
+        IndexNotFoundException infe = expectThrows(IndexNotFoundException.class, () -> admin().indices().prepareAliases()
                 .addAliasAction(AliasActions.add().index("week_20").alias("tmp")).execute().actionGet());
+        assertEquals("week_20", infe.getIndex().getName());
 
         assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("2017-05-20").alias("tmp")).execute().get());
     }

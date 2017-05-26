@@ -53,6 +53,6 @@ will be marked for deletion.
 
 ==== Indices aliases api resolves indices expressions only against indices
 
-The default bahavior for the indices aliases api is changed so that the indices
-expressions are resolved only against the indices. As a result an alias can be
-added only to an index.
+The index parameter in the update-aliases, put-alias, and delete-alias APIs no
+longer accepts alias names. Instead, it accepts only index names (or wildcards
+which will expand to matching indices).

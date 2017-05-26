@@ -91,19 +91,19 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
      * Calculate task rate (λ), for a fixed number of tasks and time it took those tasks to be measured
      *
      * @param totalNumberOfTasks total number of tasks that were measured
-     * @param totalFrameFrameNanos nanoseconds during which the tasks were received
+     * @param totalFrameTaskNanos nanoseconds during which the tasks were received
      * @return the rate of tasks in the system
      */
-    static double calculateLambda(final int totalNumberOfTasks, final long totalFrameFrameNanos) {
-        assert totalFrameFrameNanos > 0 : "cannot calculate for instantaneous tasks";
-        assert totalNumberOfTasks > 0 : "cannot calculate for no tasks";
+    static double calculateLambda(final int totalNumberOfTasks, final long totalFrameTaskNanos) {
+        assert totalFrameTaskNanos > 0 : "cannot calculate for instantaneous tasks, got: " + totalFrameTaskNanos;
+        assert totalNumberOfTasks > 0 : "cannot calculate for no tasks, got: " + totalNumberOfTasks;
         // There is no set execution time, instead we adjust the time window based on the
         // number of completed tasks, so there is no background thread required to update the
         // queue size at a regular interval. This means we need to calculate our λ by the
         // total runtime, rather than a fixed interval.
 
         // λ = total tasks divided by measurement time
-        return (double) totalNumberOfTasks / totalFrameFrameNanos;
+        return (double) totalNumberOfTasks / totalFrameTaskNanos;
     }
 
     /**

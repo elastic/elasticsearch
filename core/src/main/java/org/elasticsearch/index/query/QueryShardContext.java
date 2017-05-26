@@ -32,7 +32,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
@@ -50,7 +49,6 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -331,38 +329,43 @@ public class QueryShardContext extends QueryRewriteContext {
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public final SearchScript getSearchScript(Script script, ScriptContext context) {
+    public final SearchScript getSearchScript(Script script, ScriptContext<SearchScript.Factory> context) {
         failIfFrozen();
-        return scriptService.search(lookup(), script, context);
+        SearchScript.Factory factory = scriptService.compile(script, context);
+        return factory.newInstance(script.getParams(), lookup());
     }
     /**
      * Returns a lazily created {@link SearchScript} that is compiled immediately but can be pulled later once all
      * parameters are available.
      */
-    public final Function<Map<String, Object>, SearchScript> getLazySearchScript(Script script, ScriptContext context) {
+    public final Function<Map<String, Object>, SearchScript> getLazySearchScript(
+        Script script, ScriptContext<SearchScript.Factory> context) {
+        // TODO: this "lazy" binding can be removed once scripted metric aggs have their own contexts, which take _agg/_aggs as a parameter
         failIfFrozen();
-        CompiledScript compile = scriptService.compile(script, context);
-        return (p) -> scriptService.search(lookup(), compile, p);
+        SearchScript.Factory factory = scriptService.compile(script, context);
+        return (p) -> factory.newInstance(p, lookup());
     }
 
     /**
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public final ExecutableScript getExecutableScript(Script script, ScriptContext context) {
+    public final ExecutableScript getExecutableScript(Script script, ScriptContext<ExecutableScript.Factory> context) {
         failIfFrozen();
-        CompiledScript compiledScript = scriptService.compile(script, context);
-        return scriptService.executable(compiledScript, script.getParams());
+        ExecutableScript.Factory factory = scriptService.compile(script, context);
+        return factory.newInstance(script.getParams());
     }
 
     /**
      * Returns a lazily created {@link ExecutableScript} that is compiled immediately but can be pulled later once all
      * parameters are available.
      */
-    public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(Script script, ScriptContext context) {
+    public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(
+        Script script, ScriptContext<ExecutableScript.Factory> context) {
+        // TODO: this "lazy" binding can be removed once scripted metric aggs have their own contexts, which take _agg/_aggs as a parameter
         failIfFrozen();
-        CompiledScript executable = scriptService.compile(script, context);
-        return (p) ->  scriptService.executable(executable, p);
+        ExecutableScript.Factory factory = scriptService.compile(script, context);
+        return factory::newInstance;
     }
 
     /**

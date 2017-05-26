@@ -24,7 +24,10 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.Assertions;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -39,6 +42,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
@@ -71,6 +76,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> synchronized(this)
     private final Object syncLock = new Object();
 
+    private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
+
     private TranslogWriter(
         final ChannelFactory channelFactory,
         final ShardId shardId,
@@ -90,6 +97,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         assert initialCheckpoint.maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED : initialCheckpoint.maxSeqNo;
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
     }
 
     static int getHeaderLength(String translogUUID) {
@@ -195,7 +203,28 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
         operationCounter++;
 
+        assert assertNoSeqNumberConflict(seqNo, data);
+
         return new Translog.Location(generation, offset, data.length());
+    }
+
+    private synchronized boolean assertNoSeqNumberConflict(long seqNo, BytesReference data) throws IOException {
+        if (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+            // nothing to do
+        } else if (seenSequenceNumbers.containsKey(seqNo)) {
+            final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
+            if (previous.v1().equals(data) == false) {
+                Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
+                Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput()));
+                throw new AssertionError(
+                    "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
+                        "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());
+            }
+        } else {
+            seenSequenceNumbers.put(seqNo,
+                new Tuple<>(new BytesArray(data.toBytesRef(), true), new RuntimeException("stack capture previous op")));
+        }
+        return true;
     }
 
     /**

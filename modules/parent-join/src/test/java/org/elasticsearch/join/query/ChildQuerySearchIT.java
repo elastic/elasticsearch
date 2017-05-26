@@ -105,7 +105,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.SUITE)
 public class ChildQuerySearchIT extends ESIntegTestCase {
-    
+
     @Override
     protected boolean ignoreExternalCluster() {
         return true;
@@ -872,7 +872,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                 hasChildQuery("child", matchQuery("c_field", "foo"), ScoreMode.None)
                     .innerHit(new InnerHitBuilder().setHighlightBuilder(
                         new HighlightBuilder().field(new Field("c_field")
-                                .highlightQuery(QueryBuilders.matchQuery("c_field", "bar")))), false))
+                                .highlightQuery(QueryBuilders.matchQuery("c_field", "bar"))))))
                 .get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
@@ -2008,7 +2008,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
             .setParent("parent-id").setSource("searchText", "quick brown fox").get();
         refresh();
 
-        String[] highlightTypes = new String[] {"plain", "fvh", "postings"};
+        String[] highlightTypes = new String[] {"plain", "fvh", "unified"};
         for (String highlightType : highlightTypes) {
             logger.info("Testing with highlight type [{}]", highlightType);
             SearchResponse searchResponse = client().prepareSearch("test")

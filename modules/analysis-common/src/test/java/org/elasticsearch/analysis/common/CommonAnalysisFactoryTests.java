@@ -117,6 +117,13 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         return filters;
     }
 
+    @Override
+    protected Map<String, Class<?>> getPreConfiguredTokenizers() {
+        Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenFilters());
+        
+        return filters;
+    }
+
     /**
      * Fails if a tokenizer is marked in the superclass with {@link MovedToAnalysisCommon} but
      * hasn't been marked in this class with its proper factory.

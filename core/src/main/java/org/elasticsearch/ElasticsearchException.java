@@ -877,8 +877,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.transport.ReceiveTimeoutTransportException::new, 83, UNKNOWN_VERSION_ADDED),
         NODE_DISCONNECTED_EXCEPTION(org.elasticsearch.transport.NodeDisconnectedException.class,
                 org.elasticsearch.transport.NodeDisconnectedException::new, 84, UNKNOWN_VERSION_ADDED),
-        ALREADY_EXPIRED_EXCEPTION(org.elasticsearch.index.AlreadyExpiredException.class,
-                org.elasticsearch.index.AlreadyExpiredException::new, 85, UNKNOWN_VERSION_ADDED),
+        // 85 used to be for AlreadyExpiredException
         AGGREGATION_EXECUTION_EXCEPTION(org.elasticsearch.search.aggregations.AggregationExecutionException.class,
                 org.elasticsearch.search.aggregations.AggregationExecutionException::new, 86, UNKNOWN_VERSION_ADDED),
         // 87 used to be for MergeMappingException

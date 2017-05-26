@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesTestCase;
+import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.Arrays;
@@ -63,5 +64,10 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
     @Override
     protected Writeable.Reader<InternalTDigestPercentiles> instanceReader() {
         return InternalTDigestPercentiles::new;
+    }
+
+    @Override
+    protected Class<? extends ParsedPercentiles> implementationClass() {
+        return ParsedTDigestPercentiles.class;
     }
 }

@@ -23,11 +23,12 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRangeTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,7 +42,6 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
     private List<Tuple<Double, Double>> dateRanges;
 
     @Override
-    @Before
     public void setUp() throws Exception {
         super.setUp();
         format = randomNumericDocValueFormat();
@@ -78,6 +78,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
     protected InternalDateRange createTestInstance(String name,
                                                    List<PipelineAggregator> pipelineAggregators,
                                                    Map<String, Object> metaData,
+                                                   InternalAggregations aggregations,
                                                    boolean keyed) {
         final List<InternalDateRange.Bucket> buckets = new ArrayList<>();
         for (int i = 0; i < dateRanges.size(); ++i) {
@@ -85,7 +86,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
             int docCount = randomIntBetween(0, 1000);
             double from = range.v1();
             double to = range.v2();
-            buckets.add( new InternalDateRange.Bucket("range_" + i, from, to, docCount, InternalAggregations.EMPTY, keyed, format));
+            buckets.add(new InternalDateRange.Bucket("range_" + i, from, to, docCount, aggregations, keyed, format));
         }
         return new InternalDateRange(name, buckets, format, keyed, pipelineAggregators, metaData);
     }
@@ -93,5 +94,20 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
     @Override
     protected Writeable.Reader<InternalDateRange> instanceReader() {
         return InternalDateRange::new;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedDateRange.class;
+    }
+
+    @Override
+    protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
+        return InternalDateRange.Bucket.class;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
+        return ParsedDateRange.ParsedBucket.class;
     }
 }

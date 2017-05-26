@@ -24,13 +24,12 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.security.AccessControlContext;
@@ -99,8 +98,25 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
     static final String INLINE_NAME = "<inline>";
 
     @Override
-    public Object compile(String scriptName, final String scriptSource, final Map<String, String> params) {
-        return compile(GenericElasticsearchScript.class, scriptName, scriptSource, params);
+    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+        GenericElasticsearchScript painlessScript = compile(GenericElasticsearchScript.class, scriptName, scriptSource, params);
+        if (context.instanceClazz.equals(SearchScript.class)) {
+            SearchScript.Factory factory = (p, lookup) -> new SearchScript() {
+                @Override
+                public LeafSearchScript getLeafSearchScript(final LeafReaderContext context) throws IOException {
+                    return new ScriptImpl(painlessScript, p, lookup.getLeafSearchLookup(context));
+                }
+                @Override
+                public boolean needsScores() {
+                    return painlessScript.uses$_score();
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
+            ExecutableScript.Factory factory = (p) -> new ScriptImpl(painlessScript, p, null);
+            return context.factoryClazz.cast(factory);
+        }
+        throw new IllegalArgumentException("painless does not know how to handle context [" + context.name + "]");
     }
 
     <T> T compile(Class<T> iface, String scriptName, final String scriptSource, final Map<String, String> params) {
@@ -169,55 +185,6 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         }
     }
 
-    /**
-     * Retrieve an {@link ExecutableScript} for later use.
-     * @param compiledScript A previously compiled script.
-     * @param vars The variables to be used in the script.
-     * @return An {@link ExecutableScript} with the currently specified variables.
-     */
-    @Override
-    public ExecutableScript executable(final CompiledScript compiledScript, final Map<String, Object> vars) {
-        return new ScriptImpl((GenericElasticsearchScript) compiledScript.compiled(), vars, null);
-    }
-
-    /**
-     * Retrieve a {@link SearchScript} for later use.
-     * @param compiledScript A previously compiled script.
-     * @param lookup The object that ultimately allows access to search fields.
-     * @param vars The variables to be used in the script.
-     * @return An {@link SearchScript} with the currently specified variables.
-     */
-    @Override
-    public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, final Map<String, Object> vars) {
-        return new SearchScript() {
-            /**
-             * Get the search script that will have access to search field values.
-             * @param context The LeafReaderContext to be used.
-             * @return A script that will have the search fields from the current context available for use.
-             */
-            @Override
-            public LeafSearchScript getLeafSearchScript(final LeafReaderContext context) throws IOException {
-                return new ScriptImpl((GenericElasticsearchScript) compiledScript.compiled(), vars, lookup.getLeafSearchLookup(context));
-            }
-
-            /**
-             * Whether or not the score is needed.
-             */
-            @Override
-            public boolean needsScores() {
-                return ((GenericElasticsearchScript) compiledScript.compiled()).uses$_score();
-            }
-        };
-    }
-
-    /**
-     * Action taken when the engine is closed.
-     */
-    @Override
-    public void close() {
-        // Nothing to do.
-    }
-
     private ScriptException convertToScriptException(String scriptName, String scriptSource, Throwable t) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
@@ -263,10 +230,5 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
     private int getNextStatement(String scriptSource, int offset) {
         return Math.min(scriptSource.length(), offset + 25);
-    }
-
-    @Override
-    public boolean isInlineScriptEnabled() {
-        return true;
     }
 }

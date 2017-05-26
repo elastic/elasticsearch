@@ -631,16 +631,17 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         IndexMetaData metaData = indexMetaData();
         IndexShard shard = newStartedShard(false);
 
-        DocWriteResponse primaryResponse = new IndexResponse(shardId, "index", "id", 1, 17, 1, randomBoolean());
+        DocWriteResponse primaryResponse = new IndexResponse(shardId, "index", "id", 17, 0, 1, randomBoolean());
         IndexRequest request = new IndexRequest("index", "type", "id")
                 .source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
         Engine.Index op = TransportShardBulkAction.prepareIndexOperationOnReplica(
-                primaryResponse, request, shard);
+                primaryResponse, request, shard.getPrimaryTerm(), shard);
 
         assertThat(op.version(), equalTo(primaryResponse.getVersion()));
         assertThat(op.seqNo(), equalTo(primaryResponse.getSeqNo()));
         assertThat(op.versionType(), equalTo(VersionType.EXTERNAL));
+        assertThat(op.primaryTerm(), equalTo(shard.getPrimaryTerm()));
 
         closeShards(shard);
     }

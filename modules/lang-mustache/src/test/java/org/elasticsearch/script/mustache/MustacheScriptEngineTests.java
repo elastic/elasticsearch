@@ -20,13 +20,10 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -58,8 +55,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
-            String o = (String) qe.executable(new CompiledScript(ScriptType.INLINE, "", "mustache",
-                    qe.compile(null, template, compileParams)), vars).run();
+            String o = (String) qe.compile(null, template, ExecutableScript.CONTEXT, compileParams).newInstance(vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
                     o);
@@ -70,8 +66,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
-            String o = (String) qe.executable(new CompiledScript(ScriptType.INLINE, "", "mustache",
-                    qe.compile(null, template, compileParams)), vars).run();
+            String o = (String) qe.compile(null, template, ExecutableScript.CONTEXT, compileParams).newInstance(vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
                     o);
@@ -86,9 +81,8 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
         Script script = Script.parse(parser);
-        CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
-                qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
-        ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
+        ExecutableScript.Factory factory = qe.compile(null, script.getIdOrCode(), ExecutableScript.CONTEXT, Collections.emptyMap());
+        ExecutableScript executableScript = factory.newInstance(script.getParams());
         assertThat(executableScript.run(), equalTo("{\"match_all\":{}}"));
     }
 
@@ -102,9 +96,8 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
         Script script = Script.parse(parser);
-        CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
-                qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
-        ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
+        ExecutableScript.Factory factory = qe.compile(null, script.getIdOrCode(), ExecutableScript.CONTEXT, Collections.emptyMap());
+        ExecutableScript executableScript = factory.newInstance(script.getParams());
         assertThat(executableScript.run(), equalTo("{ \"match_all\":{} }"));
     }
 

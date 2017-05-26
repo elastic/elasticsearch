@@ -454,13 +454,13 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
-    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+    protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         List<QueryBuilder> clauses = new ArrayList<>(filter());
         clauses.addAll(must());
         clauses.addAll(should());
         // no need to include must_not (since there will be no hits for it)
         for (QueryBuilder clause : clauses) {
-            InnerHitBuilder.extractInnerHits(clause, innerHits);
+            InnerHitContextBuilder.extractInnerHits(clause, innerHits);
         }
     }
 

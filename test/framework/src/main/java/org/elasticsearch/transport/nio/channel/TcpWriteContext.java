@@ -21,6 +21,8 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.transport.nio.ByteBufferReference;
+import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 import org.elasticsearch.transport.nio.WriteOperation;
 
@@ -45,7 +47,7 @@ public class TcpWriteContext implements WriteContext {
             return;
         }
 
-        WriteOperation writeOperation = new WriteOperation(channel, reference, listener);
+        WriteOperation writeOperation = new WriteOperation(channel, NetworkBytesReference.fromBytesReference(reference), listener);
         SocketSelector selector = channel.getSelector();
         if (selector.isOnCurrentThread() == false) {
             selector.queueWrite(writeOperation);

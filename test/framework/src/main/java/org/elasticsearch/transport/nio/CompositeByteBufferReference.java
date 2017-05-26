@@ -22,9 +22,7 @@ package org.elasticsearch.transport.nio;
 import com.carrotsearch.hppc.ObjectArrayDeque;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 
 import java.io.IOException;
@@ -118,10 +116,7 @@ public class CompositeByteBufferReference extends NetworkBytesReference {
         }
     }
 
-    public int getWriteIndex() {
-        return writeIndex;
-    }
-
+    @Override
     public void incrementWrite(int delta) {
         int offsetIndex = getOffsetIndex(writeIndex);
         int i = delta;
@@ -131,17 +126,11 @@ public class CompositeByteBufferReference extends NetworkBytesReference {
             reference.incrementWrite(bytesToInc);
             i -= bytesToInc;
         }
-        writeIndex += delta;
+
+        super.incrementWrite(delta);
     }
 
-    public int getWriteRemaining() {
-        return length - writeIndex;
-    }
-
-    public int getReadIndex() {
-        return readIndex;
-    }
-
+    @Override
     public void incrementRead(int delta) {
         int offsetIndex = getOffsetIndex(readIndex);
         int i = delta;
@@ -151,15 +140,12 @@ public class CompositeByteBufferReference extends NetworkBytesReference {
             reference.incrementRead(bytesToInc);
             i -= bytesToInc;
         }
-        readIndex += delta;
-    }
 
-    public int getReadRemaining() {
-        return length - readIndex;
+        super.incrementRead(delta);
     }
 
     @Override
-    public boolean isComposite() {
+    public boolean hasMultipleBuffers() {
         return references.size() > 1;
     }
 
@@ -251,18 +237,7 @@ public class CompositeByteBufferReference extends NetworkBytesReference {
 
     @Override
     public BytesRef toBytesRef() {
-        BytesRefBuilder builder = new BytesRefBuilder();
-        builder.grow(length());
-        BytesRef spare;
-        BytesRefIterator iterator = iterator();
-        try {
-            while ((spare = iterator.next()) != null) {
-                builder.append(spare);
-            }
-        } catch (IOException ex) {
-            throw new AssertionError("won't happen", ex); // this is really an error since we don't do IO in our bytesreferences
-        }
-        return builder.toBytesRef();
+        return CompositeBytesReference.compositeReferenceToBytesRef(this);
     }
 
     @Override

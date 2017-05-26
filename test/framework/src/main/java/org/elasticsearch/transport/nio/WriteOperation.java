@@ -19,27 +19,19 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 
 public class WriteOperation {
 
     private final NioSocketChannel channel;
     private final ActionListener<NioChannel> listener;
     private final NetworkBytesReference networkBuffer;
-
-    public WriteOperation(NioSocketChannel channel, BytesReference reference, ActionListener<NioChannel> listener) {
-        this(channel, NetworkBytesReference.fromBytesReference(reference), listener);
-    }
 
     public WriteOperation(NioSocketChannel channel, NetworkBytesReference networkBuffer, ActionListener<NioChannel> listener) {
         this.channel = channel;
@@ -64,7 +56,7 @@ public class WriteOperation {
     }
 
     public int flush() throws IOException {
-        if (networkBuffer.isComposite()) {
+        if (networkBuffer.hasMultipleBuffers()) {
             return vectorizedFlush(networkBuffer.getReadByteBuffers());
         } else {
             return singleFlush(networkBuffer.getReadByteBuffer());

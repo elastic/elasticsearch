@@ -30,25 +30,37 @@ import java.util.ArrayList;
 
 public abstract class NetworkBytesReference extends BytesReference {
 
-    protected int length;
-    protected int writeIndex;
-    protected int readIndex;
+    int length;
+    int writeIndex;
+    int readIndex;
+
+    public int getWriteIndex() {
+        return writeIndex;
+    }
+
+    public void incrementWrite(int delta) {
+        writeIndex += delta;
+    }
+
+    public int getWriteRemaining() {
+        return length - writeIndex;
+    }
+
+    public int getReadIndex() {
+        return readIndex;
+    }
+
+    public void incrementRead(int delta) {
+        readIndex += delta;
+    }
+
+    public int getReadRemaining() {
+        return length - readIndex;
+    }
 
     public abstract NetworkBytesReference slice(int from, int length);
 
-    public abstract int getWriteIndex();
-
-    public abstract void incrementWrite(int delta);
-
-    public abstract int getWriteRemaining();
-
-    public abstract int getReadIndex();
-
-    public abstract void incrementRead(int delta);
-
-    public abstract int getReadRemaining();
-
-    public abstract boolean isComposite();
+    public abstract boolean hasMultipleBuffers();
 
     public abstract ByteBuffer getWriteByteBuffer();
 

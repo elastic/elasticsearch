@@ -92,37 +92,7 @@ public class ByteBufferReference extends NetworkBytesReference {
     }
 
     @Override
-    public int getWriteIndex() {
-        return writeIndex;
-    }
-
-    @Override
-    public void incrementWrite(int delta) {
-        writeIndex += delta;
-    }
-
-    @Override
-    public int getWriteRemaining() {
-        return length - writeIndex;
-    }
-
-    @Override
-    public int getReadIndex() {
-        return readIndex;
-    }
-
-    @Override
-    public void incrementRead(int delta) {
-        readIndex += delta;
-    }
-
-    @Override
-    public int getReadRemaining() {
-        return length - readIndex;
-    }
-
-    @Override
-    public boolean isComposite() {
+    public boolean hasMultipleBuffers() {
         return false;
     }
 

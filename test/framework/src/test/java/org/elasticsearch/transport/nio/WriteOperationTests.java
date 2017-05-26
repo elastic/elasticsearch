@@ -34,7 +34,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class WriteOperationTest extends ESTestCase {
+public class WriteOperationTests extends ESTestCase {
 
     private NioSocketChannel channel;
     private ActionListener<NioChannel> listener;
@@ -48,7 +48,7 @@ public class WriteOperationTest extends ESTestCase {
     }
 
     public void testFlush() throws IOException {
-        CompositeByteBufferReference reference = new CompositeByteBufferReference(ByteBufferReference.heapBuffer(new BytesArray(new byte[10])));
+        NetworkBytesReference reference =  ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
         WriteOperation writeOp = new WriteOperation(channel, reference, listener);
 
         when(channel.write(reference.getReadByteBuffers()[0])).thenReturn(10);
@@ -59,7 +59,7 @@ public class WriteOperationTest extends ESTestCase {
     }
 
     public void testFlushInMultipleCalls() throws IOException {
-        CompositeByteBufferReference reference = new CompositeByteBufferReference(ByteBufferReference.heapBuffer(new BytesArray(new byte[10])));
+        NetworkBytesReference reference = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
         WriteOperation writeOp = new WriteOperation(channel, reference, listener);
         ByteBuffer rawBuffer = reference.getReadByteBuffers()[0];
 
@@ -73,7 +73,7 @@ public class WriteOperationTest extends ESTestCase {
     }
 
     public void testPartialFlush() throws IOException {
-        CompositeByteBufferReference reference = new CompositeByteBufferReference(ByteBufferReference.heapBuffer(new BytesArray(new byte[10])));
+        NetworkBytesReference reference = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
         WriteOperation writeOp = new WriteOperation(channel, reference, listener);
         ByteBuffer rawBuffer = reference.getReadByteBuffers()[0];
 

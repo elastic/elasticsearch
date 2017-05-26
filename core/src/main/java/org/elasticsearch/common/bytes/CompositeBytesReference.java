@@ -27,6 +27,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -104,18 +105,7 @@ public final class CompositeBytesReference extends BytesReference {
 
     @Override
     public BytesRef toBytesRef() {
-        BytesRefBuilder builder = new BytesRefBuilder();
-        builder.grow(length());
-        BytesRef spare;
-        BytesRefIterator iterator = iterator();
-        try {
-            while ((spare = iterator.next()) != null) {
-                builder.append(spare);
-            }
-        } catch (IOException ex) {
-            throw new AssertionError("won't happen", ex); // this is really an error since we don't do IO in our bytesreferences
-        }
-        return builder.toBytesRef();
+        return compositeReferenceToBytesRef(this);
     }
 
     @Override
@@ -147,5 +137,20 @@ public final class CompositeBytesReference extends BytesReference {
     @Override
     public long ramBytesUsed() {
        return ramBytesUsed;
+    }
+
+    public static BytesRef compositeReferenceToBytesRef(BytesReference reference) {
+        BytesRefBuilder builder = new BytesRefBuilder();
+        builder.grow(reference.length());
+        BytesRef spare;
+        BytesRefIterator iterator = reference.iterator();
+        try {
+            while ((spare = iterator.next()) != null) {
+                builder.append(spare);
+            }
+        } catch (IOException ex) {
+            throw new AssertionError("won't happen", ex); // this is really an error since we don't do IO in our bytesreferences
+        }
+        return builder.toBytesRef();
     }
 }

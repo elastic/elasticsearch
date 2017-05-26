@@ -56,6 +56,7 @@ public class SocketSelectorTests extends ESTestCase {
     private WriteContext writeContext;
     private HashSet<SelectionKey> keySet = new HashSet<>();
     private ActionListener<NioChannel> listener;
+    private ByteBufferReference bufferReference = ByteBufferReference.heapBuffer(new BytesArray(new byte[1]));
 
     @Before
     @SuppressWarnings("unchecked")
@@ -148,13 +149,13 @@ public class SocketSelectorTests extends ESTestCase {
     public void testQueueWriteWhenNotRunning() throws Exception {
         socketSelector.close(false);
 
-        socketSelector.queueWrite(new WriteOperation(channel, new BytesArray(new byte[1]), listener));
+        socketSelector.queueWrite(new WriteOperation(channel, bufferReference, listener));
 
         verify(listener).onFailure(any(ClosedSelectorException.class));
     }
 
     public void testQueueWriteChannelIsNoLongerWritable() throws Exception {
-        WriteOperation writeOperation = new WriteOperation(channel, new BytesArray(new byte[1]), listener);
+        WriteOperation writeOperation = new WriteOperation(channel, bufferReference, listener);
         socketSelector.queueWrite(writeOperation);
 
         when(channel.isWritable()).thenReturn(false);
@@ -167,7 +168,7 @@ public class SocketSelectorTests extends ESTestCase {
     public void testQueueWriteSelectionKeyThrowsException() throws Exception {
         SelectionKey selectionKey = mock(SelectionKey.class);
 
-        WriteOperation writeOperation = new WriteOperation(channel, new BytesArray(new byte[1]), listener);
+        WriteOperation writeOperation = new WriteOperation(channel, bufferReference, listener);
         CancelledKeyException cancelledKeyException = new CancelledKeyException();
         socketSelector.queueWrite(writeOperation);
 
@@ -181,7 +182,7 @@ public class SocketSelectorTests extends ESTestCase {
     }
 
     public void testQueueWriteSuccessful() throws Exception {
-        WriteOperation writeOperation = new WriteOperation(channel, new BytesArray(new byte[1]), listener);
+        WriteOperation writeOperation = new WriteOperation(channel, bufferReference, listener);
         socketSelector.queueWrite(writeOperation);
 
         assertTrue((selectionKey.interestOps() & SelectionKey.OP_WRITE) == 0);
@@ -194,7 +195,7 @@ public class SocketSelectorTests extends ESTestCase {
     }
 
     public void testQueueDirectlyInChannelBufferSuccessful() throws Exception {
-        WriteOperation writeOperation = new WriteOperation(channel, new BytesArray(new byte[1]), listener);
+        WriteOperation writeOperation = new WriteOperation(channel, bufferReference, listener);
 
         assertTrue((selectionKey.interestOps() & SelectionKey.OP_WRITE) == 0);
 
@@ -208,7 +209,7 @@ public class SocketSelectorTests extends ESTestCase {
     public void testQueueDirectlyInChannelBufferSelectionKeyThrowsException() throws Exception {
         SelectionKey selectionKey = mock(SelectionKey.class);
 
-        WriteOperation writeOperation = new WriteOperation(channel, new BytesArray(new byte[1]), listener);
+        WriteOperation writeOperation = new WriteOperation(channel, bufferReference, listener);
         CancelledKeyException cancelledKeyException = new CancelledKeyException();
 
         when(channel.isWritable()).thenReturn(true);
@@ -324,7 +325,8 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.doSelect(0);
 
-        socketSelector.queueWrite(new WriteOperation(mock(NioSocketChannel.class), new BytesArray(new byte[1]), listener));
+        ByteBufferReference networkBuffer = ByteBufferReference.heapBuffer(new BytesArray(new byte[1]));
+        socketSelector.queueWrite(new WriteOperation(mock(NioSocketChannel.class), networkBuffer, listener));
         socketSelector.registerSocketChannel(unRegisteredChannel);
 
         socketSelector.cleanup();

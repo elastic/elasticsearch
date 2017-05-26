@@ -205,7 +205,7 @@ link below and pasting it into a terminal.
 
 [source,js]
 --------------------------------------------------
-GET /_cat/health?v
+curl 'localhost:9200/_cat/health?v'
 --------------------------------------------------
 // CONSOLE
 
@@ -228,7 +228,7 @@ We can also get a list of nodes in our cluster as follows:
 
 [source,js]
 --------------------------------------------------
-GET /_cat/nodes?v
+curl 'localhost:9200/_cat/nodes?v'
 --------------------------------------------------
 // CONSOLE
 

@@ -15,7 +15,7 @@ List projects = [
   'client:benchmark',
   'benchmarks',
   'distribution:integ-test-zip',
-  'distribution:bwc',
+  'distribution:bwc-release',
   'distribution:bwc-stable',
   'distribution:zip',
   'distribution:tar',
@@ -107,7 +107,8 @@ for (String example : examplePlugins) {
 
 /* bwc and bwc-unreleased share the same build directory and build file, but
  * apply to different backwards compatibility branches. */
-project(':distribution:bwc-stable').projectDir = project(':distribution:bwc').projectDir
+project(':distribution:bwc-release').projectDir = new File(rootProject.projectDir, 'distribution/bwc')
+project(':distribution:bwc-stable').projectDir = new File(rootProject.projectDir, 'distribution/bwc')
 
 if (isEclipse) {
   project(":core").projectDir = new File(rootProject.projectDir, 'core/src/main')

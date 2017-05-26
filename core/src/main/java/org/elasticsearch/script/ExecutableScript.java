@@ -41,14 +41,14 @@ public interface ExecutableScript {
      */
     Object run();
 
-    interface Compiled {
+    interface Factory {
         ExecutableScript newInstance(Map<String, Object> params);
     }
 
-    ScriptContext<Compiled> CONTEXT = new ScriptContext<>("executable", Compiled.class);
+    ScriptContext<Factory> CONTEXT = new ScriptContext<>("executable", Factory.class);
 
     // TODO: remove these once each has its own script interface
-    ScriptContext<Compiled> AGGS_CONTEXT = new ScriptContext<>("aggs_executable", Compiled.class);
-    ScriptContext<Compiled> UPDATE_CONTEXT = new ScriptContext<>("update", Compiled.class);
-    ScriptContext<Compiled> INGEST_CONTEXT = new ScriptContext<>("ingest", Compiled.class);
+    ScriptContext<Factory> AGGS_CONTEXT = new ScriptContext<>("aggs_executable", Factory.class);
+    ScriptContext<Factory> UPDATE_CONTEXT = new ScriptContext<>("update", Factory.class);
+    ScriptContext<Factory> INGEST_CONTEXT = new ScriptContext<>("ingest", Factory.class);
 }

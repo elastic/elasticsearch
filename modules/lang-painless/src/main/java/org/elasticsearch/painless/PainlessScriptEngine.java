@@ -101,7 +101,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         GenericElasticsearchScript painlessScript = compile(GenericElasticsearchScript.class, scriptName, scriptSource, params);
         if (context.instanceClazz.equals(SearchScript.class)) {
-            SearchScript.Compiled compiled = (p, lookup) -> new SearchScript() {
+            SearchScript.Factory factory = (p, lookup) -> new SearchScript() {
                 @Override
                 public LeafSearchScript getLeafSearchScript(final LeafReaderContext context) throws IOException {
                     return new ScriptImpl(painlessScript, p, lookup.getLeafSearchLookup(context));
@@ -111,10 +111,10 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
                     return painlessScript.uses$_score();
                 }
             };
-            return context.compiledClazz.cast(compiled);
+            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
-            ExecutableScript.Compiled compiled = (p) -> new ScriptImpl(painlessScript, p, null);
-            return context.compiledClazz.cast(compiled);
+            ExecutableScript.Factory factory = (p) -> new ScriptImpl(painlessScript, p, null);
+            return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("painless does not know how to handle context [" + context.name + "]");
     }

@@ -33,8 +33,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
 import org.elasticsearch.search.suggest.phrase.Laplace;
 import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
@@ -1030,7 +1028,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
             if (context.instanceClazz != ExecutableScript.class) {
                 throw new UnsupportedOperationException();
             }
-            ExecutableScript.Compiled compiled = p -> {
+            ExecutableScript.Factory factory = p -> {
                 String script = scriptSource;
                 for (Entry<String, Object> entry : p.entrySet()) {
                     script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
@@ -1048,7 +1046,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                     }
                 };
             };
-            return context.compiledClazz.cast(compiled);
+            return context.factoryClazz.cast(factory);
         }
     }
 

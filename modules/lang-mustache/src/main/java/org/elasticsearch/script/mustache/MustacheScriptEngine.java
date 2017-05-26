@@ -25,7 +25,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.script.ExecutableScript;
@@ -33,8 +32,6 @@ import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Reader;
 import java.io.StringWriter;
@@ -71,8 +68,8 @@ public final class MustacheScriptEngine implements ScriptEngine {
         final MustacheFactory factory = createMustacheFactory(params);
         Reader reader = new FastStringReader(templateSource);
         Mustache template = factory.compile(reader, "query-template");
-        ExecutableScript.Compiled compiled = p -> new MustacheExecutableScript(template, p);
-        return context.compiledClazz.cast(compiled);
+        ExecutableScript.Factory compiled = p -> new MustacheExecutableScript(template, p);
+        return context.factoryClazz.cast(compiled);
     }
 
     private CustomMustacheFactory createMustacheFactory(Map<String, String> params) {
@@ -91,7 +88,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * Used at query execution time by script service in order to execute a query template.
      * */
     private class MustacheExecutableScript implements ExecutableScript {
-        /** Compiled template. */
+        /** Factory template. */
         private Mustache template;
         /** Parameters to fill above object with. */
         private Map<String, Object> vars;

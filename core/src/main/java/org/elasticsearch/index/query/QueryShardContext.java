@@ -329,31 +329,31 @@ public class QueryShardContext extends QueryRewriteContext {
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public final SearchScript getSearchScript(Script script, ScriptContext<SearchScript.Compiled> context) {
+    public final SearchScript getSearchScript(Script script, ScriptContext<SearchScript.Factory> context) {
         failIfFrozen();
-        SearchScript.Compiled compiled = scriptService.compile(script, context);
-        return compiled.newInstance(script.getParams(), lookup());
+        SearchScript.Factory factory = scriptService.compile(script, context);
+        return factory.newInstance(script.getParams(), lookup());
     }
     /**
      * Returns a lazily created {@link SearchScript} that is compiled immediately but can be pulled later once all
      * parameters are available.
      */
     public final Function<Map<String, Object>, SearchScript> getLazySearchScript(
-        Script script, ScriptContext<SearchScript.Compiled> context) {
+        Script script, ScriptContext<SearchScript.Factory> context) {
         // TODO: this "lazy" binding can be removed once scripted metric aggs have their own contexts, which take _agg/_aggs as a parameter
         failIfFrozen();
-        SearchScript.Compiled compiled = scriptService.compile(script, context);
-        return (p) -> compiled.newInstance(p, lookup());
+        SearchScript.Factory factory = scriptService.compile(script, context);
+        return (p) -> factory.newInstance(p, lookup());
     }
 
     /**
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public final ExecutableScript getExecutableScript(Script script, ScriptContext<ExecutableScript.Compiled> context) {
+    public final ExecutableScript getExecutableScript(Script script, ScriptContext<ExecutableScript.Factory> context) {
         failIfFrozen();
-        ExecutableScript.Compiled compiled = scriptService.compile(script, context);
-        return compiled.newInstance(script.getParams());
+        ExecutableScript.Factory factory = scriptService.compile(script, context);
+        return factory.newInstance(script.getParams());
     }
 
     /**
@@ -361,11 +361,11 @@ public class QueryShardContext extends QueryRewriteContext {
      * parameters are available.
      */
     public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(
-        Script script, ScriptContext<ExecutableScript.Compiled> context) {
+        Script script, ScriptContext<ExecutableScript.Factory> context) {
         // TODO: this "lazy" binding can be removed once scripted metric aggs have their own contexts, which take _agg/_aggs as a parameter
         failIfFrozen();
-        ExecutableScript.Compiled compiled = scriptService.compile(script, context);
-        return compiled::newInstance;
+        ExecutableScript.Factory factory = scriptService.compile(script, context);
+        return factory::newInstance;
     }
 
     /**

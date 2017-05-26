@@ -23,22 +23,17 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Map;
-import java.util.function.Function;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 /**
  * An example script plugin that adds a {@link ScriptEngine} implementing expert scoring.
@@ -65,7 +60,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
             }
             // we use the script "source" as the script identifier
             if ("pure_df".equals(scriptSource)) {
-                SearchScript.Compiled compiled = (p, lookup) -> new SearchScript() {
+                SearchScript.Factory factory = (p, lookup) -> new SearchScript() {
                     final String field;
                     final String term;
                     {
@@ -120,7 +115,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                         return false;
                     }
                 };
-                return context.compiledClazz.cast(compiled);
+                return context.factoryClazz.cast(factory);
             }
             throw new IllegalArgumentException("Unknown script name " + scriptSource);
         }

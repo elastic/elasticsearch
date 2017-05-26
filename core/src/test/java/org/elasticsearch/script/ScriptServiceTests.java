@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptReque
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,8 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -124,9 +121,9 @@ public class ScriptServiceTests extends ESTestCase {
     public void testInlineScriptCompiledOnceCache() throws IOException {
         buildScriptService(Settings.EMPTY);
         Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
-        SearchScript.Compiled compiledScript1 = scriptService.compile(script, SearchScript.CONTEXT);
-        SearchScript.Compiled compiledScript2 = scriptService.compile(script, SearchScript.CONTEXT);
-        assertThat(compiledScript1, sameInstance(compiledScript2));
+        SearchScript.Factory factoryScript1 = scriptService.compile(script, SearchScript.CONTEXT);
+        SearchScript.Factory factoryScript2 = scriptService.compile(script, SearchScript.CONTEXT);
+        assertThat(factoryScript1, sameInstance(factoryScript2));
     }
 
     public void testAllowAllScriptTypeSettings() throws IOException {

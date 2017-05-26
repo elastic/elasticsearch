@@ -25,7 +25,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 
@@ -69,8 +68,8 @@ public final class ScriptProcessor extends AbstractProcessor {
      */
     @Override
     public void execute(IngestDocument document) {
-        ExecutableScript.Compiled compiledScript = scriptService.compile(script, ExecutableScript.INGEST_CONTEXT);
-        ExecutableScript executableScript = compiledScript.newInstance(script.getParams());
+        ExecutableScript.Factory factory = scriptService.compile(script, ExecutableScript.INGEST_CONTEXT);
+        ExecutableScript executableScript = factory.newInstance(script.getParams());
         executableScript.setNextVar("ctx",  document.getSourceAndMetadata());
         executableScript.run();
     }

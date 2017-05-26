@@ -43,6 +43,11 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "put_search_template_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
         BytesReference content = request.content();

@@ -22,15 +22,6 @@ package org.elasticsearch.test.rest;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
-import org.elasticsearch.rest.action.admin.cluster.RestNodesStatsAction;
-import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
-import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
-import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexAction;
-import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
-import org.elasticsearch.rest.action.cat.RestIndicesAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -62,15 +53,15 @@ public class NodeRestUsageIT extends ESRestTestCase {
         assertThat(beforeNodesMap, notNullValue());
         assertThat(beforeNodesMap.size(), equalTo(beforeSuccessful));
         Map<String, Long> beforeCombinedRestUsage = new HashMap<>();
-        beforeCombinedRestUsage.put(RestNodesUsageAction.class.getName(), 0L);
-        beforeCombinedRestUsage.put(RestCreateIndexAction.class.getName(), 0L);
-        beforeCombinedRestUsage.put(RestIndexAction.class.getName(), 0L);
-        beforeCombinedRestUsage.put(RestSearchAction.class.getName(), 0L);
-        beforeCombinedRestUsage.put(RestRefreshAction.class.getName(), 0L);
-        beforeCombinedRestUsage.put(RestIndicesAction.class.getName(), 0L);
-        beforeCombinedRestUsage.put(RestNodesInfoAction.class.getName(), 0L);
-        beforeCombinedRestUsage.put(RestNodesStatsAction.class.getName(), 0L);
-        beforeCombinedRestUsage.put(RestDeleteIndexAction.class.getName(), 0L);
+        beforeCombinedRestUsage.put("nodes_usage_action", 0L);
+        beforeCombinedRestUsage.put("create_index_action", 0L);
+        beforeCombinedRestUsage.put("document_index_action", 0L);
+        beforeCombinedRestUsage.put("search_action", 0L);
+        beforeCombinedRestUsage.put("refresh_action", 0L);
+        beforeCombinedRestUsage.put("cat_indices_action", 0L);
+        beforeCombinedRestUsage.put("nodes_info_action", 0L);
+        beforeCombinedRestUsage.put("nodes_stats_action", 0L);
+        beforeCombinedRestUsage.put("delete_index_action", 0L);
         for (Map.Entry<String, Object> nodeEntry : beforeNodesMap.entrySet()) {
             Map<String, Object> beforeRestActionUsage = (Map<String, Object>) ((Map<String, Object>) nodeEntry.getValue())
                     .get("rest_actions");
@@ -131,26 +122,15 @@ public class NodeRestUsageIT extends ESRestTestCase {
                 }
             }
         }
-        assertThat(combinedRestUsage.get(RestNodesUsageAction.class.getName())
-                - beforeCombinedRestUsage.get(RestNodesUsageAction.class.getName()), equalTo(1L));
-        assertThat(combinedRestUsage.get(RestCreateIndexAction.class.getName())
-                - beforeCombinedRestUsage.get(RestCreateIndexAction.class.getName()), equalTo(1L));
-        assertThat(combinedRestUsage.get(RestIndexAction.class.getName()) - beforeCombinedRestUsage.get(RestIndexAction.class.getName()),
-                equalTo(4L));
-        assertThat(combinedRestUsage.get(RestSearchAction.class.getName()) - beforeCombinedRestUsage.get(RestSearchAction.class.getName()),
-                equalTo(2L));
-        assertThat(
-                combinedRestUsage.get(RestRefreshAction.class.getName()) - beforeCombinedRestUsage.get(RestRefreshAction.class.getName()),
-                equalTo(1L));
-        assertThat(
-                combinedRestUsage.get(RestIndicesAction.class.getName()) - beforeCombinedRestUsage.get(RestIndicesAction.class.getName()),
-                equalTo(1L));
-        assertThat(combinedRestUsage.get(RestNodesInfoAction.class.getName())
-                - beforeCombinedRestUsage.get(RestNodesInfoAction.class.getName()), equalTo(1L));
-        assertThat(combinedRestUsage.get(RestNodesStatsAction.class.getName())
-                - beforeCombinedRestUsage.get(RestNodesStatsAction.class.getName()), equalTo(1L));
-        assertThat(combinedRestUsage.get(RestDeleteIndexAction.class.getName())
-                - beforeCombinedRestUsage.get(RestDeleteIndexAction.class.getName()), equalTo(1L));
+        assertThat(combinedRestUsage.get("nodes_usage_action") - beforeCombinedRestUsage.get("nodes_usage_action"), equalTo(1L));
+        assertThat(combinedRestUsage.get("create_index_action") - beforeCombinedRestUsage.get("create_index_action"), equalTo(1L));
+        assertThat(combinedRestUsage.get("document_index_action") - beforeCombinedRestUsage.get("document_index_action"), equalTo(4L));
+        assertThat(combinedRestUsage.get("search_action") - beforeCombinedRestUsage.get("search_action"), equalTo(2L));
+        assertThat(combinedRestUsage.get("refresh_action") - beforeCombinedRestUsage.get("refresh_action"), equalTo(1L));
+        assertThat(combinedRestUsage.get("cat_indices_action") - beforeCombinedRestUsage.get("cat_indices_action"), equalTo(1L));
+        assertThat(combinedRestUsage.get("nodes_info_action") - beforeCombinedRestUsage.get("nodes_info_action"), equalTo(1L));
+        assertThat(combinedRestUsage.get("nodes_stats_action") - beforeCombinedRestUsage.get("nodes_stats_action"), equalTo(1L));
+        assertThat(combinedRestUsage.get("delete_index_action") - beforeCombinedRestUsage.get("delete_index_action"), equalTo(1L));
 
     }
 

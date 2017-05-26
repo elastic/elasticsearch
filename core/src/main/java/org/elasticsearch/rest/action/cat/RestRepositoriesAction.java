@@ -59,6 +59,11 @@ public class RestRepositoriesAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_repositories_action";
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/repositories\n");
     }

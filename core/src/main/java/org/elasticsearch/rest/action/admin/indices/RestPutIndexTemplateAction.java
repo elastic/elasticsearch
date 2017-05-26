@@ -45,6 +45,11 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "put_index_template_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
         if (request.hasParam("template")) {

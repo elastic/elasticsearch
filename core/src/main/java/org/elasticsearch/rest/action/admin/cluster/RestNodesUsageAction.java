@@ -83,6 +83,11 @@ public class RestNodesUsageAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "nodes_usage_action";
+    }
+
+    @Override
     public boolean canTripCircuitBreaker() {
         return false;
     }

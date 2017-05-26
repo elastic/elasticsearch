@@ -65,9 +65,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         return usageCount.sum();
     }
 
-    public String getName() {
-        return this.getClass().getName();
-    }
+    public abstract String getName();
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {

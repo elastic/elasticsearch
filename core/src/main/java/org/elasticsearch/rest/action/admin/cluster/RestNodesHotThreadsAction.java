@@ -52,6 +52,11 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "nodes_hot_threads_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);

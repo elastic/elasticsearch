@@ -85,6 +85,11 @@ public class RestNodesStatsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "nodes_stats_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));

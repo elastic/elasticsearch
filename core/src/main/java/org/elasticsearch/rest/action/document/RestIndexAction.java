@@ -46,9 +46,19 @@ public class RestIndexAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
 
+    @Override
+    public String getName() {
+        return "document_index_action";
+    }
+
     final class CreateHandler extends BaseRestHandler {
         protected CreateHandler(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        public String getName() {
+            return "document_create_action";
         }
 
         @Override

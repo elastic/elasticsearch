@@ -14,6 +14,8 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -22,10 +24,13 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -37,6 +42,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -51,6 +57,7 @@ import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.AllocatedPersistentTask;
@@ -61,10 +68,11 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Persiste
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
-import org.elasticsearch.xpack.security.support.Exceptions;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -373,14 +381,16 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         private final XPackLicenseState licenseState;
         private final PersistentTasksService persistentTasksService;
+        private final InternalClient client;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
                                ClusterService clusterService, PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver) {
+                               IndexNameExpressionResolver indexNameExpressionResolver, InternalClient client) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
             this.licenseState = licenseState;
             this.persistentTasksService = persistentTasksService;
+            this.client = client;
         }
 
         @Override
@@ -396,9 +406,18 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
 
         @Override
+        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+            // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
+            // then delegating to PersistentTasksService doesn't make a whole lot of sense,
+            // because PersistentTasksService will then fail.
+            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        }
+
+        @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             JobParams jobParams = request.getJobParams();
             if (licenseState.isMachineLearningAllowed()) {
+                // Step 4. Wait for job to be started and respond
                 ActionListener<PersistentTask<JobParams>> finalListener = new ActionListener<PersistentTask<JobParams>>() {
                     @Override
                     public void onResponse(PersistentTask<JobParams> task) {
@@ -414,18 +433,28 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                         listener.onFailure(e);
                     }
                 };
-                persistentTasksService.startPersistentTask(MlMetadata.jobTaskId(jobParams.jobId), TASK_NAME, jobParams, finalListener);
+
+                // Step 3. Start job task
+                ActionListener<Boolean> missingMappingsListener = ActionListener.wrap(
+                        response -> persistentTasksService.startPersistentTask(MlMetadata.jobTaskId(jobParams.jobId),
+                                TASK_NAME, jobParams, finalListener)
+                        , listener::onFailure
+                );
+
+                // Step 2. Try adding state doc mapping
+                ActionListener<Boolean> resultsPutMappingHandler = ActionListener.wrap(
+                        response -> {
+                            addDocMappingIfMissing(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings::stateMapping,
+                                    state, missingMappingsListener);
+                        }, listener::onFailure
+                );
+
+                // Step 1. Try adding results doc mapping
+                addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobParams.jobId), ElasticsearchMappings::docMapping,
+                        state, resultsPutMappingHandler);
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
             }
-        }
-
-        @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
-            // then delegating to PersistentTasksService doesn't make a whole lot of sense,
-            // because PersistentTasksService will then fail.
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
         }
 
         void waitForJobStarted(String taskId, JobParams jobParams, ActionListener<Response> listener) {
@@ -448,6 +477,38 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                             + jobParams.getJobId() + "] timed out after [" + timeout + "]"));
                 }
             });
+        }
+
+        private void addDocMappingIfMissing(String alias, CheckedSupplier<XContentBuilder, IOException> mappingSupplier, ClusterState state,
+                                            ActionListener<Boolean> listener) {
+            AliasOrIndex aliasOrIndex = state.metaData().getAliasAndIndexLookup().get(alias);
+            if (aliasOrIndex == null) {
+                // The index has never been created yet
+                listener.onResponse(true);
+                return;
+            }
+            String[] concreteIndices = aliasOrIndex.getIndices().stream().map(IndexMetaData::getIndex).map(Index::getName)
+                    .toArray(String[]::new);
+            if (state.metaData().findMappings(concreteIndices, new String[] {ElasticsearchMappings.DOC_TYPE}).isEmpty()) {
+                try (XContentBuilder mapping = mappingSupplier.get()) {
+                    PutMappingRequest putMappingRequest = new PutMappingRequest(concreteIndices);
+                    putMappingRequest.type(ElasticsearchMappings.DOC_TYPE);
+                    putMappingRequest.source(mapping);
+                    client.execute(PutMappingAction.INSTANCE, putMappingRequest, ActionListener.wrap(
+                            response -> {
+                                if (response.isAcknowledged()) {
+                                    listener.onResponse(true);
+                                } else {
+                                    listener.onFailure(new ElasticsearchException("Attempt to put missing mapping in indices "
+                                            + Arrays.toString(concreteIndices) + " was not acknowledged"));
+                                }
+                            }, listener::onFailure));
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                }
+            } else {
+                listener.onResponse(true);
+            }
         }
 
         private class JobPredicate implements Predicate<PersistentTask<?>> {

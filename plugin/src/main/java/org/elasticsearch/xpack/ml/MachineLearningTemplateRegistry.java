@@ -29,9 +29,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
@@ -280,9 +277,7 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
                 // pick up default mappings and be used in queries
                 .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), true)
                 // set the default all search field
-                .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), ElasticsearchMappings.ALL_FIELD_VALUES)
-                // TODO: fix the template to use a single type
-                .put("index.mapping.single_type", false);
+                .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), ElasticsearchMappings.ALL_FIELD_VALUES);
     }
 
     /**
@@ -313,9 +308,7 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
                 // Sacrifice durability for performance: in the event of power
                 // failure we can lose the last 5 seconds of changes, but it's
                 // much faster
-                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), ASYNC)
-                // TODO: do not create multiple types
-                .put("index.mapping.single_type", false);
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), ASYNC);
     }
 
     public static boolean allTemplatesInstalled(MetaData metaData) {

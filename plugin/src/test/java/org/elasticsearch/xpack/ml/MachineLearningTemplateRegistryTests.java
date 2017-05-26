@@ -149,13 +149,12 @@ public class MachineLearningTemplateRegistryTests extends ESTestCase {
                 new MachineLearningTemplateRegistry(createSettings(), clusterService, client, threadPool);
         Settings settings = templateRegistry.mlResultsIndexSettings().build();
 
-        assertEquals(5, settings.size());
+        assertEquals(4, settings.size());
         assertThat(settings.get("index.number_of_shards"), is(nullValue()));
         assertEquals("async", settings.get("index.translog.durability"));
         assertEquals("true", settings.get("index.mapper.dynamic"));
         assertEquals("all_field_values", settings.get("index.query.default_field"));
         assertEquals("2s", settings.get("index.unassigned.node_left.delayed_timeout"));
-        assertEquals("false", settings.get("index.mapping.single_type"));
     }
 
     public void testMlAuditIndexSettings() {
@@ -174,11 +173,9 @@ public class MachineLearningTemplateRegistryTests extends ESTestCase {
                 new MachineLearningTemplateRegistry(createSettings(), clusterService, client, threadPool);
         Settings settings = templateRegistry.mlStateIndexSettings().build();
 
-        assertEquals(3, settings.size());
-        assertThat(settings.get("index.number_of_shards"), is(nullValue()));
+        assertEquals(2, settings.size());
         assertEquals("async", settings.get("index.translog.durability"));
         assertEquals("2s", settings.get("index.unassigned.node_left.delayed_timeout"));
-        assertEquals("false", settings.get("index.mapping.single_type"));
     }
 
     public void testPutNotificationIndexTemplate() {

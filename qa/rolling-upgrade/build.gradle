@@ -109,7 +109,7 @@ for (boolean withSystemKey: [true, false]) {
       distribution = 'zip'
       clusterName = 'rolling-upgrade'
       unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
-      dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
+      dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'
@@ -134,7 +134,7 @@ for (boolean withSystemKey: [true, false]) {
       distribution = 'zip'
       clusterName = 'rolling-upgrade'
       unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
-      dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
+      dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'

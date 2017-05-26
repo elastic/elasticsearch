@@ -21,15 +21,12 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.Matchers.not;
 
 public class MlJobIT extends ESRestTestCase {
@@ -45,18 +42,6 @@ public class MlJobIT extends ESRestTestCase {
     protected boolean preserveTemplatesUponCompletion() {
         return true;
     }
-
-    private static final String RESULT_MAPPING = "{ \"mappings\": {\"result\": { \"properties\": { " +
-            "\"result_type\": { \"type\" : \"keyword\" }," +
-            "\"timestamp\": { \"type\" : \"date\" }, " +
-            "\"anomaly_score\": { \"type\" : \"double\" }, " +
-            "\"record_score\": { \"type\" : \"double\" }, " +
-            "\"over_field_value\": { \"type\" : \"keyword\" }, " +
-            "\"partition_field_value\": { \"type\" : \"keyword\" }, " +
-            "\"by_field_value\": { \"type\" : \"keyword\" }, " +
-            "\"field_name\": { \"type\" : \"keyword\" }, " +
-            "\"function\": { \"type\" : \"keyword\" } " +
-            "} } } }";
 
     public void testPutJob_GivenFarequoteConfig() throws Exception {
         Response response = createFarequoteJob("given-farequote-config-job");
@@ -145,81 +130,6 @@ public class MlJobIT extends ESRestTestCase {
                 Collections.emptyMap(), new StringEntity(job, ContentType.APPLICATION_JSON));
     }
 
-    public void testGetBucketResults() throws Exception {
-        Map<String, String> params = new HashMap<>();
-        params.put("start", "1200"); // inclusive
-        params.put("end", "1400"); // exclusive
-
-        String jobId = "get-bucket-results-job";
-
-        ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get",
-                        MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/results/buckets", params));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        assertThat(e.getMessage(), containsString("No known job with id '" + jobId + "'"));
-
-        createFarequoteJob(jobId);
-
-        addBucketResult(jobId, "1234", 1);
-        addBucketResult(jobId, "1235", 1);
-        addBucketResult(jobId, "1236", 1);
-        Response response = client().performRequest("get",
-                MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/results/buckets", params);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        String responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString("\"count\":3"));
-
-        params.put("end", "1235");
-        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/results/buckets", params);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString("\"count\":1"));
-
-        e = expectThrows(ResponseException.class, () -> client().performRequest("get", MachineLearning.BASE_PATH
-                + "anomaly_detectors/2/results/buckets/1234"));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        assertThat(e.getMessage(), containsString("No known job with id '2'"));
-
-        e = expectThrows(ResponseException.class, () -> client().performRequest("get",
-                MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/results/buckets/1"));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-
-        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/results/buckets/1234");
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, not(isEmptyString()));
-    }
-
-    public void testGetRecordResults() throws Exception {
-        Map<String, String> params = new HashMap<>();
-        params.put("start", "1200"); // inclusive
-        params.put("end", "1400"); // exclusive
-
-        String jobId = "get-record-results-job";
-        ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get",
-                        MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/results/records", params));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        assertThat(e.getMessage(), containsString("No known job with id '" + jobId + "'"));
-
-        createFarequoteJob(jobId);
-
-        addRecordResult(jobId, "1234", 1);
-        addRecordResult(jobId, "1235", 1);
-        addRecordResult(jobId, "1236", 1);
-        Response response = client().performRequest("get",
-                MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/results/records", params);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        String responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString("\"count\":3"));
-
-        params.put("end", "1235");
-        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/results/records", params);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString("\"count\":1"));
-    }
-
     public void testCantCreateJobWithSameID() throws Exception {
         String jobTemplate = "{\n" +
                 "  \"analysis_config\" : {\n" +
@@ -285,18 +195,16 @@ public class MlJobIT extends ESRestTestCase {
         String bucketResult = String.format(Locale.ROOT,
                 "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
                 jobId1, "1234", 1);
-        String id = String.format(Locale.ROOT,
-                "%s_%s_%s", jobId1, "1234", 1);
-        response = client().performRequest("put", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/result/" + id,
+        String id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId1, "1234", 300);
+        response = client().performRequest("put", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/doc/" + id,
                 Collections.emptyMap(), new StringEntity(bucketResult, ContentType.APPLICATION_JSON));
         assertEquals(201, response.getStatusLine().getStatusCode());
 
         bucketResult = String.format(Locale.ROOT,
                 "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
                 jobId1, "1236", 1);
-        id = String.format(Locale.ROOT,
-                "%s_%s_%s", jobId1, "1236", 1);
-        response = client().performRequest("put", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/result/" + id,
+        id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId1, "1236", 300);
+        response = client().performRequest("put", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/doc/" + id,
                 Collections.emptyMap(), new StringEntity(bucketResult, ContentType.APPLICATION_JSON));
         assertEquals(201, response.getStatusLine().getStatusCode());
 
@@ -307,7 +215,7 @@ public class MlJobIT extends ESRestTestCase {
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":2"));
 
-        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/result/_search");
+        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/doc/_search");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"total\":2"));
@@ -553,15 +461,15 @@ public class MlJobIT extends ESRestTestCase {
                 String.format(Locale.ROOT,
                         "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"result_type\":\"record\"}",
                         jobId, 123, 1, 1);
-        client().performRequest("put", indexName + "/result/" + 123,
+        client().performRequest("put", indexName + "/doc/" + 123,
                 Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
-        client().performRequest("put", indexName + "-001/result/" + 123,
+        client().performRequest("put", indexName + "-001/doc/" + 123,
                 Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
-        client().performRequest("put", indexName + "-002/result/" + 123,
+        client().performRequest("put", indexName + "-002/doc/" + 123,
                 Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
 
         // Also index a few through the alias for the first job
-        client().performRequest("put", indexName + "/result/" + 456,
+        client().performRequest("put", indexName + "/doc/" + 456,
                 Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
 
 
@@ -615,45 +523,6 @@ public class MlJobIT extends ESRestTestCase {
 
         expectThrows(ResponseException.class, () ->
                 client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
-    }
-
-    private Response addBucketResult(String jobId, String timestamp, long bucketSpan) throws Exception {
-        try {
-            client().performRequest("put",
-                    AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT,
-                    Collections.emptyMap(), new StringEntity(RESULT_MAPPING, ContentType.APPLICATION_JSON));
-        } catch (ResponseException e) {
-            // it is ok: the index already exists
-            assertThat(e.getMessage(), containsString("resource_already_exists_exception"));
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        }
-
-        String bucketResult = String.format(Locale.ROOT,
-                "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
-                jobId, timestamp, bucketSpan);
-        String id = String.format(Locale.ROOT,
-                "%s_%s_%s", jobId, timestamp, bucketSpan);
-        return client().performRequest("put", AnomalyDetectorsIndex.jobResultsAliasedName(jobId) + "/result/" + id,
-                Collections.singletonMap("refresh", "true"), new StringEntity(bucketResult, ContentType.APPLICATION_JSON));
-    }
-
-    private Response addRecordResult(String jobId, String timestamp, long bucketSpan) throws Exception {
-        try {
-            client().performRequest("put",
-                    AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT,
-                    Collections.emptyMap(), new StringEntity(RESULT_MAPPING, ContentType.APPLICATION_JSON));
-        } catch (ResponseException e) {
-            // it is ok: the index already exists
-            assertThat(e.getMessage(), containsString("resource_already_exists_exception"));
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        }
-
-        String recordResult =
-                String.format(Locale.ROOT,
-                        "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"result_type\":\"record\"}",
-                        jobId, timestamp, bucketSpan);
-        return client().performRequest("put", AnomalyDetectorsIndex.jobResultsAliasedName(jobId) + "/result/" + timestamp,
-                Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
     }
 
     private static String responseEntityToString(Response response) throws Exception {

@@ -62,6 +62,7 @@ List projects = [
   'plugins:store-smb',
   'qa:auto-create-index',
   'qa:evil-tests',
+  'qa:full-cluster-restart',
   'qa:mixed-cluster',
   'qa:multi-cluster-search',
   'qa:no-bootstrap-tests',

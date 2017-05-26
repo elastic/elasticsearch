@@ -390,3 +390,16 @@ The following helper methods have been removed from GeoPoint scripting:
 Instead use `arcDistance`, `arcDistanceWithDefault`, `planeDistance`, `planeDistanceWithDefault`, `geohashDistance`,
 `geohashDistanceWithDefault` and convert from default units (meters) to desired units using the appropriate constance
 (e.g., multiply by `0.001` to convert to Km).
+
+==== Only 15 unique scripts can be compiled per minute by default
+
+If you compile too many unique scripts within a small amount of time,
+Elasticsearch will reject the new dynamic scripts with a
+`circuit_breaking_exception` error. By default, up to 15 inline scripts per
+minute will be compiled. You can change this setting dynamically by setting
+`script.max_compilations_per_minute`.
+
+You should watch out for this if you are hard-coding values into your scripts.
+
+Elasticsearch recommends the usage of parameters for efficient script handling.
+See details <<prefer-params,here>>.

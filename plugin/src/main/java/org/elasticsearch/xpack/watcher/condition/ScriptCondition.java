@@ -30,20 +30,20 @@ public final class ScriptCondition extends Condition {
 
     private final ScriptService scriptService;
     private final Script script;
-    private final ExecutableScript.Compiled compiledScript;
+    private final ExecutableScript.Factory scriptFactory;
 
     public ScriptCondition(Script script) {
         super(TYPE);
         this.script = script;
         scriptService = null;
-        compiledScript = null;
+        scriptFactory = null;
     }
 
     ScriptCondition(Script script, ScriptService scriptService) {
         super(TYPE);
         this.scriptService = scriptService;
         this.script = script;
-        compiledScript = scriptService.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        scriptFactory = scriptService.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
     }
 
     public Script getScript() {
@@ -70,7 +70,7 @@ public final class ScriptCondition extends Condition {
         if (script.getParams() != null && !script.getParams().isEmpty()) {
             parameters.putAll(script.getParams());
         }
-        ExecutableScript executable = compiledScript.newInstance(parameters);
+        ExecutableScript executable = scriptFactory.newInstance(parameters);
         Object value = executable.run();
         if (value instanceof Boolean) {
             return (Boolean) value ? MET : UNMET;

@@ -52,8 +52,8 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
             model.putAll(script.getParams());
         }
         model.putAll(createCtxModel(ctx, payload));
-        ExecutableScript.Compiled compiledScript = scriptService.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
-        ExecutableScript executable = compiledScript.newInstance(model);
+        ExecutableScript.Factory factory = scriptService.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        ExecutableScript executable = factory.newInstance(model);
         Object value = executable.run();
         // TODO: deprecate one of these styles (returning a map or returning an opaque value below)
         if (value instanceof Map) {

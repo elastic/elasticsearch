@@ -45,9 +45,9 @@ public class MockPainlessScriptEngine extends MockScriptEngine {
     @Override
     public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> params) {
         if (context.instanceClazz.equals(ExecutableScript.class)) {
-            return context.compiledClazz.cast((ExecutableScript.Compiled) vars -> new MockExecutableScript(vars, p -> script));
+            return context.factoryClazz.cast((ExecutableScript.Factory) vars -> new MockExecutableScript(vars, p -> script));
         } else if (context.instanceClazz.equals(SearchScript.class)) {
-            return context.compiledClazz.cast((SearchScript.Compiled) (vars, lookup) -> new MockSearchScript(lookup, vars, p -> script));
+            return context.factoryClazz.cast((SearchScript.Factory) (vars, lookup) -> new MockSearchScript(lookup, vars, p -> script));
         }
         throw new IllegalArgumentException("mock painless does not know how to handle context [" + context.name + "]");
     }

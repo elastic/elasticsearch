@@ -47,6 +47,6 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
         if (context.instanceClazz.equals(ExecutableScript.class) == false) {
             throw new IllegalArgumentException("mock mustache only understands template scripts, not [" + context.name + "]");
         }
-        return context.compiledClazz.cast((ExecutableScript.Compiled) vars -> new MockExecutableScript(vars, p -> script));
+        return context.factoryClazz.cast((ExecutableScript.Factory) vars -> new MockExecutableScript(vars, p -> script));
     }
 }

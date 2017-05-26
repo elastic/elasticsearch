@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ExecutableScript;
@@ -182,11 +181,11 @@ public class Watcher implements ActionPlugin {
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
 
-    public static final ScriptContext<SearchScript.Compiled> SCRIPT_SEARCH_CONTEXT =
-        new ScriptContext<>("xpack", SearchScript.Compiled.class);
+    public static final ScriptContext<SearchScript.Factory> SCRIPT_SEARCH_CONTEXT =
+        new ScriptContext<>("xpack", SearchScript.Factory.class);
     // TODO: remove this context when each xpack script use case has their own contexts
-    public static final ScriptContext<ExecutableScript.Compiled> SCRIPT_EXECUTABLE_CONTEXT
-        = new ScriptContext<>("xpack_executable", ExecutableScript.Compiled.class);
+    public static final ScriptContext<ExecutableScript.Factory> SCRIPT_EXECUTABLE_CONTEXT
+        = new ScriptContext<>("xpack_executable", ExecutableScript.Factory.class);
 
     private static final Logger logger = Loggers.getLogger(Watcher.class);
     private WatcherIndexingListener listener;

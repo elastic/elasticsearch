@@ -34,9 +34,9 @@ import static org.mockito.Mockito.when;
 public class AutodetectResultsParserTests extends ESTestCase {
     private static final double EPSILON = 0.000001;
 
-    public static final String METRIC_OUTPUT_SAMPLE = "[{\"bucket\": {\"job_id\":\"foo\",\"timestamp\":1359450000000,"
+    private static final String METRIC_OUTPUT_SAMPLE = "[{\"bucket\": {\"job_id\":\"foo\",\"timestamp\":1359450000000,"
             + "\"bucket_span\":22, \"records\":[],"
-            + "\"anomaly_score\":0,\"record_count\":0,\"event_count\":806,\"bucket_influencers\":["
+            + "\"anomaly_score\":0,\"event_count\":806,\"bucket_influencers\":["
             + "{\"timestamp\":1359450000000,\"bucket_span\":22,\"job_id\":\"foo\",\"anomaly_score\":0,"
             + "\"probability\":0.0, \"influencer_field_name\":\"bucket_time\","
             + "\"initial_anomaly_score\":0.0}]}},{\"quantiles\": {\"job_id\":\"foo\", \"quantile_state\":\"[normalizer 1.1, normalizer 2" +
@@ -56,7 +56,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
             + "\"probability\":0.0473552,\"by_field_name\":\"airline\",\"by_field_value\":\"SWA\", \"typical\":[152.148],"
             + "\"actual\":[96.6425],\"field_name\":\"responsetime\",\"function\":\"min\",\"partition_field_name\":\"\","
             + "\"partition_field_value\":\"\"}],"
-            + "\"initial_anomaly_score\":0.0140005, \"anomaly_score\":20.22688, \"record_count\":4,"
+            + "\"initial_anomaly_score\":0.0140005, \"anomaly_score\":20.22688,"
             + "\"event_count\":820,\"bucket_influencers\":[{\"timestamp\":1359453600000,\"bucket_span\":22,"
             + "\"job_id\":\"foo\", \"raw_anomaly_score\":0.0140005, \"probability\":0.01,\"influencer_field_name\":\"bucket_time\","
             + "\"initial_anomaly_score\":20.22688,\"anomaly_score\":20.22688} ,{\"timestamp\":1359453600000,\"bucket_span\":22,"
@@ -66,7 +66,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
             + "\"quantile_state\":\"[normalizer 1.2, normalizer 2.2]\"}} ,{\"flush\": {\"id\":\"testing1\"}} ,"
             + "{\"quantiles\": {\"job_id\":\"foo\",\"timestamp\":1359453600000,\"quantile_state\":\"[normalizer 1.3, normalizer 2.3]\"}} ]";
 
-    public static final String POPULATION_OUTPUT_SAMPLE = "[{\"timestamp\":1379590200,\"records\":[{\"probability\":1.38951e-08,"
+    private static final String POPULATION_OUTPUT_SAMPLE = "[{\"timestamp\":1379590200,\"records\":[{\"probability\":1.38951e-08,"
             + "\"field_name\":\"sum_cs_bytes_\",\"over_field_name\":\"cs_host\",\"over_field_value\":\"mail.google.com\","
             + "\"function\":\"max\","
             + "\"causes\":[{\"probability\":1.38951e-08,\"field_name\":\"sum_cs_bytes_\",\"over_field_name\":\"cs_host\","
@@ -84,7 +84,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
             + "\"probability\":0.0152333,\"field_name\":\"sum_cs_bytes_\",\"over_field_name\":\"cs_host\","
             + "\"over_field_value\":\"emea.salesforce.com\",\"function\":\"max\",\"typical\":[101534],\"actual\":[5.36373e+06]}],"
             + "\"record_score\":0.303996,\"anomaly_score\":44.7324}],\"raw_anomaly_score\":1.30397,\"anomaly_score\":44.7324,"
-            + "\"record_count\":4,\"event_count\":1235}" + ",{\"flush\":\"testing2\"}"
+            + "\"event_count\":1235}" + ",{\"flush\":\"testing2\"}"
             + ",{\"timestamp\":1379590800,\"records\":[{\"probability\":1.9008e-08,\"field_name\":\"sum_cs_bytes_\","
             + "\"over_field_name\":\"cs_host\",\"over_field_value\":\"mail.google.com\",\"function\":\"max\",\"causes\":[{"
             + "\"probability\":1.9008e-08,\"field_name\":\"sum_cs_bytes_\",\"over_field_name\":\"cs_host\","
@@ -233,7 +233,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
             + "\"field_name\":\"sum_cs_bytes_\",\"over_field_name\":\"cs_host\",\"over_field_value\":\"googleads.g.doubleclick.net\","
             + "\"function\":\"max\",\"typical\":[31356],\"actual\":[210926]}],\"record_score\":0.00237509,"
             + "\"anomaly_score\":1.19192}],\"raw_anomaly_score\":1.26918,\"anomaly_score\":1.19192,"
-            + "\"record_count\":34,\"event_count\":1159}" + "]";
+            + "\"event_count\":1159}" + "]";
 
     public void testParser() throws IOException {
         InputStream inputStream = new ByteArrayInputStream(METRIC_OUTPUT_SAMPLE.getBytes(StandardCharsets.UTF_8));
@@ -246,7 +246,6 @@ public class AutodetectResultsParserTests extends ESTestCase {
 
         assertEquals(2, buckets.size());
         assertEquals(new Date(1359450000000L), buckets.get(0).getTimestamp());
-        assertEquals(0, buckets.get(0).getRecordCount());
 
         assertEquals(buckets.get(0).getEventCount(), 806);
 
@@ -258,7 +257,6 @@ public class AutodetectResultsParserTests extends ESTestCase {
         assertEquals("bucket_time", bucketInfluencers.get(0).getInfluencerFieldName());
 
         assertEquals(new Date(1359453600000L), buckets.get(1).getTimestamp());
-        assertEquals(4, buckets.get(1).getRecordCount());
 
         assertEquals(buckets.get(1).getEventCount(), 820);
         bucketInfluencers = buckets.get(1).getBucketInfluencers();
@@ -341,7 +339,6 @@ public class AutodetectResultsParserTests extends ESTestCase {
 
         assertEquals(2, buckets.size());
         assertEquals(new Date(1379590200000L), buckets.get(0).getTimestamp());
-        assertEquals(4, buckets.get(0).getRecordCount());
         assertEquals(buckets.get(0).getEventCount(), 1235);
 
         Bucket firstBucket = buckets.get(0);
@@ -353,7 +350,6 @@ public class AutodetectResultsParserTests extends ESTestCase {
         assertNotNull(firstBucket.getRecords().get(0).getCauses());
 
         assertEquals(new Date(1379590800000L), buckets.get(1).getTimestamp());
-        assertEquals(34, buckets.get(1).getRecordCount());
         assertEquals(buckets.get(1).getEventCount(), 1159);
     }
 

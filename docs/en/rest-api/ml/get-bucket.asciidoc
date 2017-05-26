@@ -106,7 +106,6 @@ score and time constraints:
       "anomaly_score": 94.1706,
       "bucket_span": 300,
       "initial_anomaly_score": 94.1706,
-      "record_count": 1,
       "event_count": 153,
       "is_interim": false,
       "bucket_influencers": [

@@ -96,9 +96,6 @@ A bucket resource has the following properties:
   (number) The amount of time, in milliseconds, that it took to analyze the
   bucket contents and calculate results.
 
-`record_count`::
-  (number) The number of anomaly records in this bucket.
-
 `result_type`::
   (string) Internal. This value is always set to `bucket`.
 

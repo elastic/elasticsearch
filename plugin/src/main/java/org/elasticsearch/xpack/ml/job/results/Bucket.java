@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -74,13 +73,14 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         PARSER.declareDouble(Bucket::setAnomalyScore, ANOMALY_SCORE);
         PARSER.declareDouble(Bucket::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
         PARSER.declareBoolean(Bucket::setInterim, Result.IS_INTERIM);
-        PARSER.declareInt(Bucket::setRecordCount, RECORD_COUNT);
         PARSER.declareLong(Bucket::setEventCount, EVENT_COUNT);
         PARSER.declareObjectArray(Bucket::setRecords, AnomalyRecord.PARSER, RECORDS);
         PARSER.declareObjectArray(Bucket::setBucketInfluencers, BucketInfluencer.PARSER, BUCKET_INFLUENCERS);
         PARSER.declareLong(Bucket::setProcessingTimeMs, PROCESSING_TIME_MS);
         PARSER.declareObjectArray(Bucket::setPartitionScores, PartitionScore.PARSER, PARTITION_SCORES);
         PARSER.declareString((bucket, s) -> {}, Result.RESULT_TYPE);
+        // For bwc with 5.4
+        PARSER.declareInt((bucket, recordCount) -> {}, RECORD_COUNT);
     }
 
     private final String jobId;
@@ -88,7 +88,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     private final long bucketSpan;
     private double anomalyScore;
     private double initialAnomalyScore;
-    private int recordCount;
     private List<AnomalyRecord> records = new ArrayList<>();
     private long eventCount;
     private boolean isInterim;
@@ -108,7 +107,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         this.bucketSpan = other.bucketSpan;
         this.anomalyScore = other.anomalyScore;
         this.initialAnomalyScore = other.initialAnomalyScore;
-        this.recordCount = other.recordCount;
         this.records = new ArrayList<>(other.records);
         this.eventCount = other.eventCount;
         this.isInterim = other.isInterim;
@@ -123,7 +121,10 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         anomalyScore = in.readDouble();
         bucketSpan = in.readLong();
         initialAnomalyScore = in.readDouble();
-        recordCount = in.readInt();
+        // bwc for recordCount
+        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+            in.readInt();
+        }
         records = in.readList(AnomalyRecord::new);
         eventCount = in.readLong();
         isInterim = in.readBoolean();
@@ -143,7 +144,10 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         out.writeDouble(anomalyScore);
         out.writeLong(bucketSpan);
         out.writeDouble(initialAnomalyScore);
-        out.writeInt(recordCount);
+        // bwc for recordCount
+        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+            out.writeInt(0);
+        }
         out.writeList(records);
         out.writeLong(eventCount);
         out.writeBoolean(isInterim);
@@ -164,7 +168,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(INITIAL_ANOMALY_SCORE.getPreferredName(), initialAnomalyScore);
-        builder.field(RECORD_COUNT.getPreferredName(), recordCount);
         if (records.isEmpty() == false) {
             builder.field(RECORDS.getPreferredName(), records);
         }
@@ -221,14 +224,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
 
     public void setInitialAnomalyScore(double initialAnomalyScore) {
         this.initialAnomalyScore = initialAnomalyScore;
-    }
-
-    public int getRecordCount() {
-        return recordCount;
-    }
-
-    public void setRecordCount(int recordCount) {
-        this.recordCount = recordCount;
     }
 
     /**
@@ -310,7 +305,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, eventCount, initialAnomalyScore, anomalyScore, recordCount, records,
+        return Objects.hash(jobId, timestamp, eventCount, initialAnomalyScore, anomalyScore, records,
                 isInterim, bucketSpan, bucketInfluencers, partitionScores, processingTimeMs);
     }
 
@@ -331,7 +326,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
 
         return Objects.equals(this.jobId, that.jobId) && Objects.equals(this.timestamp, that.timestamp)
                 && (this.eventCount == that.eventCount) && (this.bucketSpan == that.bucketSpan)
-                && (this.recordCount == that.recordCount)
                 && (this.anomalyScore == that.anomalyScore) && (this.initialAnomalyScore == that.initialAnomalyScore)
                 && Objects.equals(this.records, that.records) && Objects.equals(this.isInterim, that.isInterim)
                 && Objects.equals(this.bucketInfluencers, that.bucketInfluencers)

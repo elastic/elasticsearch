@@ -66,9 +66,6 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
                 bucket.setProcessingTimeMs(randomLong());
             }
             if (randomBoolean()) {
-                bucket.setRecordCount(randomInt());
-            }
-            if (randomBoolean()) {
                 int size = randomInt(10);
                 List<AnomalyRecord> records = new ArrayList<>(size);
                 for (int i = 0; i < size; i++) {

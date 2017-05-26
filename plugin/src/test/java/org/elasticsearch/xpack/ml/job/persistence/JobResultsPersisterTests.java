@@ -21,7 +21,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -41,7 +41,6 @@ public class JobResultsPersisterTests extends ESTestCase {
         bucket.setEventCount(57);
         bucket.setInitialAnomalyScore(88.8);
         bucket.setProcessingTimeMs(8888);
-        bucket.setRecordCount(1);
 
         BucketInfluencer bi = new BucketInfluencer(JOB_ID, new Date(), 600);
         bi.setAnomalyScore(14.15);
@@ -53,7 +52,7 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         // We are adding a record but it shouldn't be persisted as part of the bucket
         AnomalyRecord record = new AnomalyRecord(JOB_ID, new Date(), 600);
-        bucket.setRecords(Arrays.asList(record));
+        bucket.setRecords(Collections.singletonList(record));
 
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
         persister.bulkPersisterBuilder(JOB_ID).persistBucket(bucket).executeRequest();
@@ -63,7 +62,6 @@ public class JobResultsPersisterTests extends ESTestCase {
         String s = ((IndexRequest)bulkRequest.requests().get(0)).source().utf8ToString();
         assertTrue(s.matches(".*anomaly_score.:99\\.9.*"));
         assertTrue(s.matches(".*initial_anomaly_score.:88\\.8.*"));
-        assertTrue(s.matches(".*record_count.:1.*"));
         assertTrue(s.matches(".*event_count.:57.*"));
         assertTrue(s.matches(".*bucket_span.:123456.*"));
         assertTrue(s.matches(".*processing_time_ms.:8888.*"));

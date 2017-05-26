@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.junit.After;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +43,7 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
 
     public void test() throws Exception {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-                Arrays.asList(new Detector.Builder("max", "value").build()));
+                Collections.singletonList(new Detector.Builder("max", "value").build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(BUCKET_SPAN_SECONDS));
         analysisConfig.setOverlappingBuckets(true);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
@@ -83,9 +83,7 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
             List<Bucket> firstInterimBuckets = getInterimResults(job.getId());
             assertThat(firstInterimBuckets.size(), equalTo(2));
             assertThat(firstInterimBuckets.get(0).getTimestamp().getTime(), equalTo(1400039000000L));
-            assertThat(firstInterimBuckets.get(0).getRecordCount(), equalTo(0));
             assertThat(firstInterimBuckets.get(1).getTimestamp().getTime(), equalTo(1400040000000L));
-            assertThat(firstInterimBuckets.get(1).getRecordCount(), equalTo(1));
             assertThat(firstInterimBuckets.get(1).getRecords().get(0).getActual().get(0), equalTo(16.0));
         });
 
@@ -97,9 +95,7 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
         assertBusy(() -> {
             List<Bucket> secondInterimBuckets = getInterimResults(job.getId());
             assertThat(secondInterimBuckets.get(0).getTimestamp().getTime(), equalTo(1400039000000L));
-            assertThat(secondInterimBuckets.get(0).getRecordCount(), equalTo(0));
             assertThat(secondInterimBuckets.get(1).getTimestamp().getTime(), equalTo(1400040000000L));
-            assertThat(secondInterimBuckets.get(1).getRecordCount(), equalTo(1));
             assertThat(secondInterimBuckets.get(1).getRecords().get(0).getActual().get(0), equalTo(16.0));
         });
 
@@ -122,7 +118,7 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
         StringBuilder data = new StringBuilder();
         for (int i = 0; i < halfBuckets; i++) {
             int value = timeToValueMap.getOrDefault(time, randomIntBetween(1, 3));
-            data.append("{\"time\":" + time + ", \"value\":" + value + "}\n");
+            data.append("{\"time\":").append(time).append(", \"value\":").append(value).append("}\n");
             time += BUCKET_SPAN_SECONDS / 2;
         }
         return data.toString();
@@ -136,6 +132,6 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(response.getBuckets().count(), lessThan(1500L));
         List<Bucket> buckets = response.getBuckets().results();
         assertThat(buckets.size(), greaterThan(0));
-        return buckets.stream().filter(b -> b.isInterim()).collect(Collectors.toList());
+        return buckets.stream().filter(Bucket::isInterim).collect(Collectors.toList());
     }
 }

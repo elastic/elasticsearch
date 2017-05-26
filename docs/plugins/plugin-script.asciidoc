@@ -165,11 +165,8 @@ can do this as follows:
 
 [source,sh]
 ---------------------
-sudo bin/elasticsearch-plugin -Epath.conf=/path/to/custom/config/dir install <plugin name>
+sudo CONF_DIR=/path/to/conf/dir bin/elasticsearch-plugin install <plugin name>
 ---------------------
-
-You can also set the `CONF_DIR` environment variable to the custom config
-directory path.
 
 [float]
 === Proxy settings

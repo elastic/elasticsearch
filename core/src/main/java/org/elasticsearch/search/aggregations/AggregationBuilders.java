@@ -51,6 +51,7 @@ import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTextAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
@@ -246,6 +247,15 @@ public class AggregationBuilders {
         return new SignificantTermsAggregationBuilder(name, null);
     }
 
+    
+    /**
+     * Create a new {@link SignificantTextAggregationBuilder} aggregation with the given name and text field name
+     */
+    public static SignificantTextAggregationBuilder significantText(String name, String fieldName) {
+        return new SignificantTextAggregationBuilder(name, fieldName);
+    }    
+        
+    
     /**
      * Create a new {@link DateHistogramAggregationBuilder} aggregation with the given
      * name.

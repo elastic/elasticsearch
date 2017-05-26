@@ -42,8 +42,8 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -136,7 +136,7 @@ public class UpdateRequestTests extends ESTestCase {
         scripts.put("return", vars -> null);
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts);
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
-        ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptContext.BUILTINS);
+        ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS);
         final Settings settings = settings(Version.CURRENT).build();
 
         updateHelper = new UpdateHelper(settings, scriptService);

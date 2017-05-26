@@ -94,6 +94,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -997,15 +998,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    /**
-     * Returns true iff assertions for elasticsearch packages are enabled
-     */
-    public static boolean assertionsEnabled() {
-        boolean enabled = false;
-        assert (enabled = true);
-        return enabled;
-    }
-
     public void assertAllIndicesRemovedAndDeletionCompleted(Iterable<IndicesService> indicesServices) throws Exception {
         for (IndicesService indicesService : indicesServices) {
             assertBusy(() -> assertFalse(indicesService.iterator().hasNext()), 1, TimeUnit.MINUTES);
@@ -1204,7 +1196,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static ScriptModule newTestScriptModule() {
         return new ScriptModule(Settings.EMPTY, singletonList(new ScriptPlugin() {
             @Override
-            public ScriptEngine getScriptEngine(Settings settings) {
+            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
                 return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
             }
         }));

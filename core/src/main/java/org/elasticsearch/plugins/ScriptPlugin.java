@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.plugins;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -32,9 +33,11 @@ import org.elasticsearch.script.ScriptEngine;
 public interface ScriptPlugin {
 
     /**
-     * Returns a {@link ScriptEngine} instance or <code>null</code> if this plugin doesn't add a new script engine
+     * Returns a {@link ScriptEngine} instance or <code>null</code> if this plugin doesn't add a new script engine.
+     * @param settings Node settings
+     * @param contexts The contexts that {@link ScriptEngine#compile(String, String, ScriptContext, Map)} may be called with
      */
-    default ScriptEngine getScriptEngine(Settings settings) {
+    default ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         return null;
     }
 

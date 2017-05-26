@@ -31,6 +31,20 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+
+/**
+ * A bytes reference that is composed of multiple underlying {@link ByteBufferReference} instances.
+ * This buffer is mutable. So additional {@link ByteBufferReference} instances can be added to the
+ * end or dropped from the beginning dropped efficiently.
+ *
+ * Modifications to the reader or writer indexes of this buffer will adjust the indexes of the
+ * underlying buffers.
+ *
+ * Buffers that are added to this composite buffer must maintain contiguous readable or writable
+ * regions. For example if the composite buffer is 10 bytes long with the writer index set to 9,
+ * any buffer added to the end must have a writer index of 0. The same principle applies to reader
+ * indexes.
+ */
 public class CompositeNetworkBuffer extends BytesReference {
 
     private final ObjectArrayDeque<ByteBufferReference> references;
@@ -74,6 +88,13 @@ public class CompositeNetworkBuffer extends BytesReference {
         }
     }
 
+    /**
+     * This method will cause all bytes up to the index to be dropped. The reader and writer
+     * indexes will be modified to reflect the dropped bytes. If the reader and/or writer index is
+     * less than the index passed to this method, it will be set to zero.
+     *
+     * @param index up to which buffers will be dropped
+     */
     public void dropUpTo(int index) {
         int offsetIndex = getOffsetIndex(index);
         int bytesDropped = 0;
@@ -257,8 +278,12 @@ public class CompositeNetworkBuffer extends BytesReference {
 
     @Override
     public long ramBytesUsed() {
-        // TODO: Naive
-        return length;
+        // TODO: Consider always tracking
+        int totalRamBytes = 0;
+        for (ObjectCursor<ByteBufferReference> ref :references) {
+            totalRamBytes += ref.value.ramBytesUsed();
+        }
+        return totalRamBytes;
     }
 
     private int getOffsetIndex(int offset) {

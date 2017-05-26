@@ -157,16 +157,16 @@
   - do:
       index:
         index: .ml-state
-        type: categorizer_state
-        id: index-layout-job2#1
+        type: doc
+        id: index-layout-job2_categorizer_state#1
         body:
           key: value
 
   - do:
        index:
          index: .ml-state
-         type: categorizer_state
-         id: index-layout-job2#2
+         type: doc
+         id: index-layout-job2_categorizer_state#2
          body:
            key: value
 
@@ -254,19 +254,19 @@
 
   - do:
       count:
-        type: categorizer_state
+        type: doc
         index: .ml-state
   - match: {count: 0}
 
   - do:
       count:
-        type: quantiles
+        type: doc
         index: .ml-state
   - match: {count: 0}
 
   - do:
       count:
-        type: model_state
+        type: doc
         index: .ml-state
   - match: {count: 0}
 
@@ -325,21 +325,21 @@
   - do:
       index:
         index: foo
-        type: foo
+        type: doc
         body:
           key: value
 
   - do:
       index:
         index: .ml-anomalies-foo
-        type: foo
+        type: doc
         body:
           key: value
 
   - do:
       index:
         index: .ml-anomalies-foo
-        type: foo
+        type: doc
         body:
           key: value
           job_id: foo
@@ -403,7 +403,7 @@
   - match: {count: 2}
 
 ---
-"Test delete removes 5.4 and 5.5 quantiles":
+"Test delete removes quantiles":
 
   - do:
       xpack.ml.put_job:
@@ -429,14 +429,6 @@
           state: quantile-state
 
   - do:
-      index:
-        index: .ml-state
-        type: quantiles
-        id: index-layout-quantiles-job-quantiles
-        body:
-          state: quantile-state
-
-  - do:
       indices.refresh: {}
 
   - do:
@@ -453,7 +445,7 @@
   - match: {count: 0}
 
 ---
-"Test delete removes 5.4 and 5.5 state":
+"Test delete removes state":
 
   - do:
       xpack.ml.put_job:
@@ -487,20 +479,6 @@
 
   - do:
       index:
-        index:  .ml-anomalies-shared
-        type:   model_snapshot
-        id:     "index-layout-state-job-456"
-        body: >
-          {
-            "job_id" : "index-layout-state-job",
-            "timestamp": "2017-05-01T00:00:00Z",
-            "snapshot_id": "456",
-            "snapshot_doc_count": 2,
-            "retain": false
-          }
-
-  - do:
-      index:
         index: .ml-state
         type: doc
         id: index-layout-state-job_model_state_123#1
@@ -518,22 +496,6 @@
   - do:
       index:
         index: .ml-state
-        type: model_state
-        id: index-layout-state-job-456#1
-        body:
-          state: old-model-state
-
-  - do:
-      index:
-        index: .ml-state
-        type: model_state
-        id: index-layout-state-job-456#2
-        body:
-          state: more-old-model-state
-
-  - do:
-      index:
-        index: .ml-state
         type: doc
         id: index-layout-state-job_categorizer_state#1
         body:
@@ -546,22 +508,6 @@
         id: index-layout-state-job_categorizer_state#2
         body:
           state: more-new-categorizer-state
-
-  - do:
-      index:
-        index: .ml-state
-        type: categorizer_state
-        id: index-layout-state-job#1
-        body:
-          state: old-categorizer-state
-
-  - do:
-      index:
-        index: .ml-state
-        type: categorizer_state
-        id: index-layout-state-job#2
-        body:
-          state: more-old-categorizer-state
 
   - do:
       indices.refresh: {}

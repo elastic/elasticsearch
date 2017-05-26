@@ -16,7 +16,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-get-influencers-test
-        type:   result
+        type:   doc
         id:     get-influencers-test_1464739200000_1_1
         body:
           {
@@ -32,7 +32,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-get-influencers-test
-        type:   result
+        type:   doc
         id:     get-influencers-test_1464825600000_1_2
         body:
           {
@@ -49,7 +49,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-get-influencers-test
-        type:   result
+        type:   doc
         id:     get-influencers-test_1464912000000_1_3
         body:
           {

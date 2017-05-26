@@ -16,7 +16,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-get-model-snapshots
-        type:   model_snapshot
+        type:   doc
         id:     "get-model-snapshots-1"
         body:  >
           {
@@ -29,7 +29,7 @@ setup:
   - do:
       index:
         index:  .ml-anomalies-get-model-snapshots
-        type:   model_snapshot
+        type:   doc
         id:     "get-model-snapshots-2"
         body:  >
           {

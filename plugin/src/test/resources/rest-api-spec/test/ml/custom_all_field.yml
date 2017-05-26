@@ -25,8 +25,8 @@ setup:
 
   - do:
       index:
-        index:  mlresults-custom-all-test-1
-        type:   result
+        index:  .ml-anomalies-custom-all-test-1
+        type:   doc
         id:     custom_all_1464739200000_1_1
         body:
           {
@@ -34,7 +34,7 @@ setup:
             "result_type": "record",
             "timestamp": "2016-06-01T00:00:00Z",
             "anomaly_score": 60.0,
-            "bucket_span": "1s",
+            "bucket_span": 1,
             "by_field_value": "A by field",
             "partition_field_value": "A partition field",
             "over_field_value": "An over field",
@@ -49,76 +49,76 @@ setup:
 
   - do:
       index:
-        index:  mlresults-custom-all-test-2
-        type:   result
+        index:  .ml-anomalies-custom-all-test-2
+        type:   doc
         id:     custom_all_1464739200000_1_2
         body:
           {
             "job_id": "custom-all-test-2",
             "result_type": "record",
             "timestamp": "2016-06-01T00:00:00Z",
-            "bucket_span": "1s",
+            "bucket_span": 1,
             "by_field_value": "A by field"
           }
 
   - do:
       indices.refresh:
-        index: [mlresults-custom-all-test-1, mlresults-custom-all-test-2]
+        index: [.ml-anomalies-shared]
 
 ---
 "Test querying custom all field":
 
   - do:
       search:
-        index: mlresults-custom-all-test-1
+        index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "A by field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: mlresults-custom-all-test-1
+        index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "A partition field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: mlresults-custom-all-test-1
+        index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "An over field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: mlresults-custom-all-test-1
+        index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "An influencer field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: mlresults-custom-all-test-1
+        index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "Cause by field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: mlresults-custom-all-test-1
+        index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "Cause partition field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: mlresults-custom-all-test-1
+        index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "Cause over field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: mlresults-custom-all-test-1
+        index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "Cause correlated by field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: mlresults-custom-all-test-1
+        index: .ml-anomalies-custom-all-test-1
         body: { query: { query_string: { query: "custom-all-test-1" } } }
   - match: { hits.total: 1 }
 
@@ -128,7 +128,7 @@ setup:
   - do:
       search:
         body: { query: { bool: { must: [
-              { query_string: { query: "_type:result AND result_type:record"} },
+              { query_string: { query: "result_type:record"} },
               { query_string: { query: "A by field" } },
               { query_string: { query: "job_id:*" } }
               ] } } }

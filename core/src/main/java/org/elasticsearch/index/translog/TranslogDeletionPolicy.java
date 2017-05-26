@@ -19,31 +19,49 @@
 
 package org.elasticsearch.index.translog;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public interface TranslogDeletionPolicy {
+public class TranslogDeletionPolicy implements DeletionPolicy {
 
-    /** called when a new translog generation is created */
-    void onTranslogRollover(List<TranslogReader> readers, TranslogWriter currentWriter);
-
-    /**
-     * acquires the basis generation for a new view. Any translog generation above, and including, the returned generation
-     * will not be deleted until a corresponding call to {@link #releaseTranslogGenView(long)} is called.
-     */
-    long acquireTranslogGenForView();
-
-    /** returns the number of generations that were acquired for views */
-    int pendingViewsCount();
-
-    /** releases a generation that was acquired by calling {@link #acquireTranslogGenForView()} */
-    void releaseTranslogGenView(long translogGen);
+    /** Records how many views are held against each
+     *  translog generation */
+    protected final Map<Long,Integer> translogRefCounts = new HashMap<>();
 
     /**
-     * returns the minimum translog generation that is still required by the system. Any generation below
-     * the returned value may be safely deleted
+     * the translog generation that is requires to properly recover from the oldest non deleted
+     * {@link org.apache.lucene.index.IndexCommit}.
      */
-    long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter currentWriter);
+    private long minTranslogGenerationForRecovery = -1;
 
-    /** returns the translog generation that will be used as a basis of a future store/peer recovery */
-    long getMinTranslogGenerationForRecovery();
+    @Override
+    public void onTranslogRollover(List<TranslogReader> readers, TranslogWriter currentWriter) {
+
+    }
+
+    @Override
+    public long acquireTranslogGenForView() {
+        return 0;
+    }
+
+    @Override
+    public int pendingViewsCount() {
+        return 0;
+    }
+
+    @Override
+    public void releaseTranslogGenView(long translogGen) {
+
+    }
+
+    @Override
+    public long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter currentWriter) {
+        return 0;
+    }
+
+    @Override
+    public long getMinTranslogGenerationForRecovery() {
+        return 0;
+    }
 }

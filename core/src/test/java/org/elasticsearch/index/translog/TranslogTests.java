@@ -117,6 +117,7 @@ public class TranslogTests extends ESTestCase {
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     protected Translog translog;
+    protected KeepLastDeletionPolicy deletionPolicy;
     private AtomicLong globalCheckpoint;
     protected Path translogDir;
 
@@ -2329,4 +2330,36 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    static class KeepLastDeletionPolicy extends DeletionPolicy {
+
+        @Override
+        public void onTranslogRollover(List<TranslogReader> readers, TranslogWriter currentWriter) {
+
+        }
+
+        @Override
+        public long acquireTranslogGenForView() {
+            return 0;
+        }
+
+        @Override
+        public int pendingViewsCount() {
+            return 0;
+        }
+
+        @Override
+        public void releaseTranslogGenView(long translogGen) {
+
+        }
+
+        @Override
+        public long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter currentWriter) {
+            return 0;
+        }
+
+        @Override
+        public long getMinTranslogGenerationForRecovery() {
+            return 0;
+        }
+    }
 }

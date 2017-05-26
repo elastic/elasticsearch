@@ -39,6 +39,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -1431,7 +1432,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Trims unreferenced translog generations by asking {@link org.elasticsearch.index.engine.DeletionPolicy} for the minimum
+     * Trims unreferenced translog generations by asking {@link CombinedDeletionPolicy} for the minimum
      * required generation
      */
     public void trimUnreferencedReaders() {

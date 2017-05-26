@@ -27,34 +27,13 @@ import org.elasticsearch.index.translog.TranslogReader;
 import org.elasticsearch.index.translog.TranslogWriter;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.function.LongSupplier;
 
-public class DeletionPolicy extends SnapshotDeletionPolicy implements org.elasticsearch.index.translog.TranslogDeletionPolicy {
+public class CombinedDeletionPolicy extends SnapshotDeletionPolicy implements org.elasticsearch.index.translog.DeletionPolicy {
 
-    public DeletionPolicy() {
+    public CombinedDeletionPolicy() {
         super(new KeepOnlyLastCommitDeletionPolicy());
     }
-
-
-    /** Records how many views are held against each
-     *  translog generation */
-    protected final Map<Long,Integer> translogRefCounts = new HashMap<>();
-
-    /**
-     * the translog generation that is requires to properly recover from the oldest non deleted
-     * {@link org.apache.lucene.index.IndexCommit}.
-     */
-    private long minTranslogGenerationForRecovery = -1;
-
-    /**
-     * a supplier to get the last global checkpoint that is persisted by the translog
-     * TODO: remove in first version
-     */
-    private LongSupplier lastPersistedGlobalCheckpoint;
-
 
     @Override
     public synchronized void onInit(List<? extends IndexCommit> commits) throws IOException {
@@ -63,7 +42,6 @@ public class DeletionPolicy extends SnapshotDeletionPolicy implements org.elasti
     }
     @Override
     public synchronized void onTranslogRollover(List<TranslogReader> readers, TranslogWriter currentWriter) {
-        lastPersistedGlobalCheckpoint = currentWriter::lastSyncedGlobalCheckpoint;
     }
 
     @Override
@@ -73,7 +51,6 @@ public class DeletionPolicy extends SnapshotDeletionPolicy implements org.elasti
     }
 
     private void setLastCommittedTranslogGeneration(List<? extends IndexCommit> commits) throws IOException {
-        // TODO: move this to just use current commit in the first iteration.
         long minGen = Long.MAX_VALUE;
         for (IndexCommit indexCommit : commits) {
             if (indexCommit.isDeleted() == false) {

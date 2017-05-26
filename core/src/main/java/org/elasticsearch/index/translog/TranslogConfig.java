@@ -41,7 +41,7 @@ public final class TranslogConfig {
     private final Path translogPath;
     private final ByteSizeValue bufferSize;
 
-    private final TranslogDeletionPolicy deletionPolicy;
+    private final DeletionPolicy deletionPolicy;
 
     /**
      * Creates a new TranslogConfig instance
@@ -52,11 +52,11 @@ public final class TranslogConfig {
      * @param deletionPolicy
      */
     public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays,
-                          TranslogDeletionPolicy deletionPolicy) {
+                          DeletionPolicy deletionPolicy) {
         this(shardId, translogPath, indexSettings, bigArrays, deletionPolicy, DEFAULT_BUFFER_SIZE);
     }
 
-    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, TranslogDeletionPolicy deletionPolicy,
+    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, DeletionPolicy deletionPolicy,
                    ByteSizeValue bufferSize) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
@@ -101,7 +101,7 @@ public final class TranslogConfig {
         return bufferSize;
     }
 
-    public TranslogDeletionPolicy getDeletionPolicy() {
+    public DeletionPolicy getDeletionPolicy() {
         return deletionPolicy;
     }
 }

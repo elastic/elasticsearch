@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.channel.WriteContext;
@@ -41,26 +39,22 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public class SocketSelector extends ESSelector {
 
-    private static final ClosedSelectorException CLOSED_SELECTOR_EXCEPTION = new ClosedSelectorException();
-    private static final ClosedChannelException CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
-    private static final CancelledKeyException CANCELLED_KEY_EXCEPTION = new CancelledKeyException();
-
     private final ConcurrentLinkedQueue<NioSocketChannel> newChannels = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<WriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
     private final SocketEventHandler eventHandler;
 
-    public SocketSelector(SocketEventHandler eventHandler, BigArrays bigArrays) throws IOException {
-        super(eventHandler, bigArrays);
+    public SocketSelector(SocketEventHandler eventHandler) throws IOException {
+        super(eventHandler);
         this.eventHandler = eventHandler;
     }
 
-    public SocketSelector(SocketEventHandler eventHandler, BigArrays bigArrays, Selector selector) throws IOException {
-        super(eventHandler, bigArrays, selector);
+    public SocketSelector(SocketEventHandler eventHandler, Selector selector) throws IOException {
+        super(eventHandler, selector);
         this.eventHandler = eventHandler;
     }
 
     @Override
-    public void doSelect(int timeout) throws IOException, ClosedSelectorException {
+    void doSelect(int timeout) throws IOException, ClosedSelectorException {
         setUpNewChannels();
         handleQueuedWrites();
 
@@ -73,10 +67,10 @@ public class SocketSelector extends ESSelector {
     }
 
     @Override
-    protected void cleanup() {
+    void cleanup() {
         WriteOperation op;
         while ((op = queuedWrites.poll()) != null) {
-            op.getListener().onFailure(CLOSED_SELECTOR_EXCEPTION);
+            op.getListener().onFailure(new ClosedSelectorException());
         }
         channelsToClose.addAll(newChannels);
         channelsToClose.addAll(registeredChannels);
@@ -105,7 +99,7 @@ public class SocketSelector extends ESSelector {
         if (isOpen() == false) {
             boolean wasRemoved = queuedWrites.remove(writeOperation);
             if (wasRemoved) {
-                writeOperation.getListener().onFailure(CLOSED_SELECTOR_EXCEPTION);
+                writeOperation.getListener().onFailure(new ClosedSelectorException());
             }
         } else {
             wakeup();
@@ -156,7 +150,7 @@ public class SocketSelector extends ESSelector {
                     eventHandler.genericChannelException(nioSocketChannel, e);
                 }
             } else {
-                eventHandler.genericChannelException(nioSocketChannel, CANCELLED_KEY_EXCEPTION);
+                eventHandler.genericChannelException(nioSocketChannel, new CancelledKeyException());
             }
         }
     }
@@ -184,7 +178,7 @@ public class SocketSelector extends ESSelector {
             if (writeOperation.getChannel().isWritable()) {
                 queueWriteInChannelBuffer(writeOperation);
             } else {
-                writeOperation.getListener().onFailure(CLOSED_CHANNEL_EXCEPTION);
+                writeOperation.getListener().onFailure(new ClosedChannelException());
             }
         }
     }

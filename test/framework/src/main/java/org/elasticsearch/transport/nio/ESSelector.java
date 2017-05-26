@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.Closeable;
@@ -44,23 +43,21 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public abstract class ESSelector implements Closeable {
 
-    protected final Selector selector;
-    protected final AtomicBoolean isClosed = new AtomicBoolean(false);
-    protected final ConcurrentLinkedQueue<NioChannel> channelsToClose = new ConcurrentLinkedQueue<>();
-    protected final Set<NioChannel> registeredChannels = Collections.newSetFromMap(new ConcurrentHashMap<NioChannel, Boolean>());
+    final Selector selector;
+    final ConcurrentLinkedQueue<NioChannel> channelsToClose = new ConcurrentLinkedQueue<>();
+    final Set<NioChannel> registeredChannels = Collections.newSetFromMap(new ConcurrentHashMap<NioChannel, Boolean>());
 
     private final EventHandler eventHandler;
-    private final BigArrays bigArrays;
     private final ReentrantLock runLock = new ReentrantLock();
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private volatile Thread thread;
 
-    protected ESSelector(EventHandler eventHandler, BigArrays bigArrays) throws IOException {
-        this(eventHandler, bigArrays, Selector.open());
+    ESSelector(EventHandler eventHandler) throws IOException {
+        this(eventHandler, Selector.open());
     }
 
-    protected ESSelector(EventHandler eventHandler, BigArrays bigArrays, Selector selector) throws IOException {
+    ESSelector(EventHandler eventHandler, Selector selector) throws IOException {
         this.eventHandler = eventHandler;
-        this.bigArrays = bigArrays;
         this.selector = selector;
     }
 
@@ -109,9 +106,9 @@ public abstract class ESSelector implements Closeable {
      * @throws IOException             thrown by the raw select operation
      * @throws ClosedSelectorException thrown if the raw selector is closed
      */
-    public abstract void doSelect(int timeout) throws IOException, ClosedSelectorException;
+    abstract void doSelect(int timeout) throws IOException, ClosedSelectorException;
 
-    protected void setThread() {
+    void setThread() {
         thread = Thread.currentThread();
     }
 
@@ -146,6 +143,7 @@ public abstract class ESSelector implements Closeable {
     }
 
     public void queueChannelClose(NioChannel channel) {
+        ensureOpen();
         channelsToClose.offer(channel);
         wakeup();
     }
@@ -161,11 +159,7 @@ public abstract class ESSelector implements Closeable {
     /**
      * Called once as the selector is being closed.
      */
-    protected abstract void cleanup();
-
-    public BigArrays getBigArrays() {
-        return bigArrays;
-    }
+    abstract void cleanup();
 
     public Selector rawSelector() {
         return selector;
@@ -186,6 +180,12 @@ public abstract class ESSelector implements Closeable {
             eventHandler.closeException(channel, e);
         } finally {
             registeredChannels.remove(channel);
+        }
+    }
+
+    private void ensureOpen() {
+        if (isClosed.get()) {
+            throw new IllegalStateException("selector is already closed");
         }
     }
 }

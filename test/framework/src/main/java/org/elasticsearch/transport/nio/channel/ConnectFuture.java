@@ -41,7 +41,7 @@ public class ConnectFuture extends BaseFuture<NioSocketChannel> {
         if (isDone()) {
             try {
                 // Get should always return without blocking as we already checked 'isDone'
-                // We are called 'get' here in order to throw the ExecutionException
+                // We are calling 'get' here in order to throw the ExecutionException
                 super.get();
                 return null;
             } catch (ExecutionException e) {

@@ -119,9 +119,10 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     /**
      * This method will attempt to complete the connection process for this channel. It should be called for
-     * new channels or for a channel that has produced a OP_CONNECT events. If this method returns true then
+     * new channels or for a channel that has produced a OP_CONNECT event. If this method returns true then
      * the connection is complete and the channel is ready for reads and writes. If it returns false, the
-     * channel is not yet connected.
+     * channel is not yet connected and this method should be called again when a OP_CONNECT event is
+     * received.
      *
      * @return true if the connection process is complete
      * @throws IOException if an I/O error occurs

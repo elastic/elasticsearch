@@ -21,14 +21,12 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.WriteContext;
 import org.elasticsearch.transport.nio.utils.TestSelectionKey;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.channels.CancelledKeyException;
@@ -70,7 +68,7 @@ public class SocketSelectorTests extends ESTestCase {
         selectionKey.attach(channel);
         Selector rawSelector = mock(Selector.class);
 
-        this.socketSelector = new SocketSelector(eventHandler, BigArrays.NON_RECYCLING_INSTANCE, rawSelector);
+        this.socketSelector = new SocketSelector(eventHandler, rawSelector);
         this.socketSelector.setThread();
 
         when(rawSelector.selectedKeys()).thenReturn(keySet);

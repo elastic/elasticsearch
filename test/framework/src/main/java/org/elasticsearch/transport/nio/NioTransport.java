@@ -155,7 +155,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 int workerCount = NioTransport.NIO_WORKER_COUNT.get(settings);
                 for (int i = 0; i < workerCount; ++i) {
-                    SocketSelector selector = new SocketSelector(getSocketEventHandler(), bigArrays);
+                    SocketSelector selector = new SocketSelector(getSocketEventHandler());
                     socketSelectors.add(selector);
                 }
 
@@ -163,7 +163,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
                 for (int i = 0; i < acceptorCount; ++i) {
                     Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
                     AcceptorEventHandler eventHandler = new AcceptorEventHandler(logger, openChannels, selectorSupplier);
-                    AcceptingSelector acceptor = new AcceptingSelector(eventHandler, bigArrays);
+                    AcceptingSelector acceptor = new AcceptingSelector(eventHandler);
                     acceptors.add(acceptor);
                 }
                 // loop through all profiles and start them up, special handling for default one

@@ -28,6 +28,9 @@ import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import java.io.IOException;
 import java.util.function.Supplier;
 
+/**
+ * Event handler designed to handle events from server sockets
+ */
 public class AcceptorEventHandler extends EventHandler {
 
     private final Supplier<SocketSelector> selectorSupplier;

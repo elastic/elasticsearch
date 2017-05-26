@@ -19,13 +19,11 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.utils.TestSelectionKey;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
@@ -55,7 +53,7 @@ public class AcceptingSelectorTests extends ESTestCase {
         serverChannel = mock(NioServerSocketChannel.class);
 
         Selector rawSelector = mock(Selector.class);
-        selector = new AcceptingSelector(eventHandler, BigArrays.NON_RECYCLING_INSTANCE, rawSelector);
+        selector = new AcceptingSelector(eventHandler, rawSelector);
         this.selector.setThread();
 
         selectionKey = new TestSelectionKey(0);

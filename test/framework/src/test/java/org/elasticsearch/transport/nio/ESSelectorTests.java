@@ -19,11 +19,9 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.channels.ClosedSelectorException;
@@ -40,7 +38,7 @@ public class ESSelectorTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         handler = mock(EventHandler.class);
-        selector = new TestSelector(handler, BigArrays.NON_RECYCLING_INSTANCE);
+        selector = new TestSelector(handler);
     }
 
     public void testQueueChannelForClosed() throws IOException {
@@ -85,12 +83,12 @@ public class ESSelectorTests extends ESTestCase {
         private ClosedSelectorException closedSelectorException;
         private IOException ioException;
 
-        protected TestSelector(EventHandler eventHandler, BigArrays bigArrays) throws IOException {
-            super(eventHandler, bigArrays);
+        protected TestSelector(EventHandler eventHandler) throws IOException {
+            super(eventHandler);
         }
 
         @Override
-        public void doSelect(int timeout) throws IOException, ClosedSelectorException {
+        void doSelect(int timeout) throws IOException, ClosedSelectorException {
             if (closedSelectorException != null) {
                 throw closedSelectorException;
             }
@@ -100,7 +98,7 @@ public class ESSelectorTests extends ESTestCase {
         }
 
         @Override
-        protected void cleanup() {
+        void cleanup() {
 
         }
 

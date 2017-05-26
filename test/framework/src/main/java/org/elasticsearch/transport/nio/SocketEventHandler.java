@@ -27,6 +27,9 @@ import org.elasticsearch.transport.nio.channel.WriteContext;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 
+/**
+ * Event handler designed to handle events from non-server sockets
+ */
 public class SocketEventHandler extends EventHandler {
 
     private final BiConsumer<NioSocketChannel, Throwable> exceptionHandler;

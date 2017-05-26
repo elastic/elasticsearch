@@ -91,7 +91,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
      * <p>
      * If the current state is UNREGISTERED, the call will attempt to transition the state from UNREGISTERED
      * to CLOSING. If this transition is successful, the channel can no longer be registered with an event
-     * loop and the channel will be synchronously closed in this method call. If the channel
+     * loop and the channel will be synchronously closed in this method call.
      * <p>
      * If the channel is REGISTERED and the state can be transitioned to CLOSING, the close operation will
      * be scheduled with the event loop.
@@ -125,6 +125,8 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
      */
     @Override
     public void closeFromSelector() {
+        // This will not exit the loop until this thread or someone else has set the state to CLOSED.
+        // Whichever thread succeeds in setting the state to CLOSED will close the raw channel.
         for (; ; ) {
             int state = this.state.get();
             if (state == UNREGISTERED) {

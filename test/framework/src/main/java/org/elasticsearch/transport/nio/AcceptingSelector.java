@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 
 import java.io.IOException;
@@ -39,23 +37,21 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public class AcceptingSelector extends ESSelector {
 
-    private static final CancelledKeyException CANCELLED_KEY_EXCEPTION = new CancelledKeyException();
-
     private final AcceptorEventHandler eventHandler;
     private final ConcurrentLinkedQueue<NioServerSocketChannel> newChannels = new ConcurrentLinkedQueue<>();
 
-    public AcceptingSelector(AcceptorEventHandler eventHandler, BigArrays bigArrays) throws IOException {
-        super(eventHandler, bigArrays);
+    public AcceptingSelector(AcceptorEventHandler eventHandler) throws IOException {
+        super(eventHandler);
         this.eventHandler = eventHandler;
     }
 
-    public AcceptingSelector(AcceptorEventHandler eventHandler, BigArrays bigArrays, Selector selector) throws IOException {
-        super(eventHandler, bigArrays, selector);
+    public AcceptingSelector(AcceptorEventHandler eventHandler, Selector selector) throws IOException {
+        super(eventHandler, selector);
         this.eventHandler = eventHandler;
     }
 
     @Override
-    public void doSelect(int timeout) throws IOException, ClosedSelectorException {
+    void doSelect(int timeout) throws IOException, ClosedSelectorException {
         setUpNewServerChannels();
 
         int ready = selector.select(timeout);
@@ -71,7 +67,7 @@ public class AcceptingSelector extends ESSelector {
     }
 
     @Override
-    protected void cleanup() {
+    void cleanup() {
         channelsToClose.addAll(registeredChannels);
         closePendingChannels();
     }
@@ -113,7 +109,7 @@ public class AcceptingSelector extends ESSelector {
                 eventHandler.genericServerChannelException(serverChannel, ex);
             }
         } else {
-            eventHandler.genericServerChannelException(serverChannel, CANCELLED_KEY_EXCEPTION);
+            eventHandler.genericServerChannelException(serverChannel, new CancelledKeyException());
         }
     }
 }

@@ -14,6 +14,8 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -85,7 +87,7 @@ public class StateProcessor extends AbstractComponent {
     void persist(String jobId, BytesReference bytes) throws IOException {
         logger.trace("[{}] ES API CALL: bulk index", jobId);
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bytes, null, null, XContentType.JSON);
+        bulkRequest.add(bytes, AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE, XContentType.JSON);
         if (bulkRequest.numberOfActions() > 0) {
             client.bulk(bulkRequest).actionGet();
         }

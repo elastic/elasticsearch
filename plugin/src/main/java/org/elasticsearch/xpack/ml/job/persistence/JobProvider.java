@@ -65,7 +65,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
@@ -253,6 +252,8 @@ public class JobProvider {
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
                 .add(createLatestDataCountsSearch(resultsIndex, jobId))
                 .add(createLatestModelSizeStatsSearch(resultsIndex))
+                // These next two document IDs never need to be the legacy ones due to the rule
+                // that you cannot open a 5.4 job in a subsequent version of the product
                 .add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, job.getModelSnapshotId())))
                 .add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
 
@@ -523,8 +524,8 @@ public class JobProvider {
         }
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        LOGGER.trace("ES API CALL: search all of type {} from index {} sort ascending {} from {} size {}",
-                CategoryDefinition.TYPE.getPreferredName(), indexName, CategoryDefinition.CATEGORY_ID.getPreferredName(), from, size);
+        LOGGER.trace("ES API CALL: search all of category definitions from index {} sort ascending {} from {} size {}",
+                indexName, CategoryDefinition.CATEGORY_ID.getPreferredName(), from, size);
 
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.indicesOptions(addIgnoreUnavailable(searchRequest.indicesOptions()));
@@ -605,8 +606,8 @@ public class JobProvider {
             searchRequest.source().sort(sortField, descending ? SortOrder.DESC : SortOrder.ASC);
         }
 
-        LOGGER.trace("ES API CALL: search all of result type {} from index {}{}{} with filter after sort from {} size {}",
-                AnomalyRecord.RESULT_TYPE_VALUE, indexName, (sb != null) ? " with sort" : "",
+        LOGGER.trace("ES API CALL: search all of records from index {}{}{} with filter after sort from {} size {}",
+                indexName, (sb != null) ? " with sort" : "",
                 secondarySort.isEmpty() ? "" : " with secondary sort", from, size);
         client.search(searchRequest, ActionListener.wrap(searchResponse -> {
             List<AnomalyRecord> results = new ArrayList<>();
@@ -639,8 +640,7 @@ public class JobProvider {
                 .build();
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        LOGGER.trace("ES API CALL: search all of result type {} from index {}{}  with filter from {} size {}",
-                () -> Influencer.RESULT_TYPE_VALUE, () -> indexName,
+        LOGGER.trace("ES API CALL: search all of influencers from index {}{}  with filter from {} size {}", () -> indexName,
                 () -> (query.getSortField() != null) ?
                         " with sort " + (query.isSortDescending() ? "descending" : "ascending") + " on field " + query.getSortField() : "",
                 query::getFrom, query::getSize);
@@ -760,8 +760,8 @@ public class JobProvider {
                 .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        LOGGER.trace("ES API CALL: search all {}s from index {} sort ascending {} with filter after sort from {} size {}",
-                ModelSnapshot.TYPE, indexName, sortField, from, size);
+        LOGGER.trace("ES API CALL: search all model snapshots from index {} sort ascending {} with filter after sort from {} size {}",
+                indexName, sortField, from, size);
 
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.indicesOptions(addIgnoreUnavailable(searchRequest.indicesOptions()));
@@ -788,6 +788,9 @@ public class JobProvider {
      * stream.  If there are multiple state documents they are separated using <code>'\0'</code>
      * when written to the stream.
      *
+     * Because we have a rule that we will not open a legacy job in the current product version
+     * we don't have to worry about legacy document IDs here.
+     *
      * @param jobId         the job id
      * @param modelSnapshot the model snapshot to be restored
      * @param restoreStream the stream to write the state to
@@ -797,9 +800,9 @@ public class JobProvider {
 
         // First try to restore model state.
         for (String stateDocId : modelSnapshot.stateDocumentIds()) {
-            LOGGER.trace("ES API CALL: get ID {} type {} from index {}", stateDocId, ModelState.TYPE, indexName);
+            LOGGER.trace("ES API CALL: get ID {} from index {}", stateDocId, indexName);
 
-            GetResponse stateResponse = client.prepareGet(indexName, ModelState.TYPE.getPreferredName(), stateDocId).get();
+            GetResponse stateResponse = client.prepareGet(indexName, ElasticsearchMappings.DOC_TYPE, stateDocId).get();
             if (!stateResponse.isExists()) {
                 LOGGER.error("Expected {} documents for model state for {} snapshot {} but failed to find {}",
                         modelSnapshot.getSnapshotDocCount(), jobId, modelSnapshot.getSnapshotId(), stateDocId);
@@ -809,16 +812,15 @@ public class JobProvider {
         }
 
         // Secondly try to restore categorizer state. This must come after model state because that's
-        // the order the C++ process expects.
-        // There are no snapshots for this, so the IDs simply
+        // the order the C++ process expects.  There are no snapshots for this, so the IDs simply
         // count up until a document is not found.  It's NOT an error to have no categorizer state.
         int docNum = 0;
         while (true) {
-            String docId = CategorizerState.categorizerStateDocId(jobId, ++docNum);
+            String docId = CategorizerState.documentId(jobId, ++docNum);
 
-            LOGGER.trace("ES API CALL: get ID {} type {} from index {}", docId, CategorizerState.TYPE, indexName);
+            LOGGER.trace("ES API CALL: get ID {} from index {}", docId, indexName);
 
-            GetResponse stateResponse = client.prepareGet(indexName, CategorizerState.TYPE, docId).get();
+            GetResponse stateResponse = client.prepareGet(indexName, ElasticsearchMappings.DOC_TYPE, docId).get();
             if (!stateResponse.isExists()) {
                 break;
             }
@@ -850,8 +852,7 @@ public class JobProvider {
     public QueryPage<ModelPlot> modelPlot(String jobId, int from, int size) {
         SearchResponse searchResponse;
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        LOGGER.trace("ES API CALL: search result type {} from index {} from {}, size {}",
-                ModelPlot.RESULT_TYPE_VALUE, indexName, from, size);
+        LOGGER.trace("ES API CALL: search model plots from index {} from {} size {}", indexName, from, size);
 
         searchResponse = client.prepareSearch(indexName)
                 .setIndicesOptions(addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))

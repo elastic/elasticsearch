@@ -56,11 +56,18 @@ public class JobDataDeleter {
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         for (ModelSnapshot modelSnapshot : modelSnapshots) {
             for (String stateDocId : modelSnapshot.stateDocumentIds()) {
-                bulkRequestBuilder.add(client.prepareDelete(stateIndexName, ModelState.TYPE.getPreferredName(), stateDocId));
+                bulkRequestBuilder.add(client.prepareDelete(stateIndexName, ElasticsearchMappings.DOC_TYPE, stateDocId));
+            }
+            // TODO: remove in 7.0
+            for (String stateDocId : modelSnapshot.legacyStateDocumentIds()) {
+                bulkRequestBuilder.add(client.prepareDelete(stateIndexName, ModelState.TYPE, stateDocId));
             }
 
             bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()),
                     ElasticsearchMappings.DOC_TYPE, ModelSnapshot.documentId(modelSnapshot)));
+            // TODO: remove in 7.0
+            bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()),
+                    ModelSnapshot.TYPE.getPreferredName(), ModelSnapshot.legacyDocumentId(modelSnapshot)));
         }
 
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

@@ -230,16 +230,11 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
     }
 
     void putJobStateIndexTemplate(BiConsumer<Boolean, Exception> listener) {
-        try (XContentBuilder categorizerStateMapping = ElasticsearchMappings.categorizerStateMapping();
-            XContentBuilder quantilesMapping = ElasticsearchMappings.quantilesMapping();
-            XContentBuilder modelStateMapping = ElasticsearchMappings.modelStateMapping()) {
-
+        try (XContentBuilder stateMapping = ElasticsearchMappings.stateMapping()) {
             PutIndexTemplateRequest templateRequest = new PutIndexTemplateRequest(AnomalyDetectorsIndex.jobStateIndexName());
             templateRequest.patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexName()));
             templateRequest.settings(mlStateIndexSettings());
-            templateRequest.mapping(CategorizerState.TYPE, categorizerStateMapping);
-            templateRequest.mapping(Quantiles.TYPE.getPreferredName(), quantilesMapping);
-            templateRequest.mapping(ModelState.TYPE.getPreferredName(), modelStateMapping);
+            templateRequest.mapping(ElasticsearchMappings.DOC_TYPE, stateMapping);
             templateRequest.version(Version.CURRENT.id);
 
             client.admin().indices().putTemplate(templateRequest,

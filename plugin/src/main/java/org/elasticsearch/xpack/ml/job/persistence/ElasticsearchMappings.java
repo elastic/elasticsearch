@@ -7,12 +7,9 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AnomalyCause;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
@@ -495,39 +492,6 @@ public class ElasticsearchMappings {
     }
 
     /**
-     * {@link CategorizerState} mapping.
-     * The type is disabled so {@link CategorizerState} is not searchable and
-     * the '_all' field is disabled
-     *
-     * @return The builder
-     * @throws IOException On builder write error
-     */
-    public static XContentBuilder categorizerStateMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                    .startObject(CategorizerState.TYPE)
-                        .field(ENABLED, false)
-                    .endObject()
-                .endObject();
-    }
-
-    /**
-     * Create the Elasticsearch mapping for {@linkplain Quantiles}.
-     * The type is disabled as is the '_all' field as the document isn't meant to be searched.
-     * <p>
-     * The quantile state string is not searchable (enabled = false) as it could be
-     * very large.
-     */
-    public static XContentBuilder quantilesMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                    .startObject(Quantiles.TYPE.getPreferredName())
-                        .field(ENABLED, false)
-                    .endObject()
-                .endObject();
-    }
-
-    /**
      * Create the Elasticsearch mapping for {@linkplain CategoryDefinition}.
      * The '_all' field is disabled as the document isn't meant to be searched.
      *
@@ -552,16 +516,15 @@ public class ElasticsearchMappings {
     }
 
     /**
-     * Create the Elasticsearch mapping for {@linkplain ModelState}.
-     * The model state could potentially be huge (over a gigabyte in size)
-     * so all analysis by Elasticsearch is disabled.  The only way to
-     * retrieve the model state is by knowing the ID of a particular
-     * document or by searching for all documents of this type.
+     * Create the Elasticsearch mapping for state.  State could potentially be
+     * huge (target document size is 16MB and there can be many documents) so all
+     * analysis by Elasticsearch is disabled.  The only way to retrieve state is
+     * by knowing the ID of a particular document.
      */
-    public static XContentBuilder modelStateMapping() throws IOException {
+    public static XContentBuilder stateMapping() throws IOException {
         return jsonBuilder()
                 .startObject()
-                    .startObject(ModelState.TYPE.getPreferredName())
+                    .startObject(DOC_TYPE)
                         .field(ENABLED, false)
                     .endObject()
                 .endObject();
@@ -603,7 +566,7 @@ public class ElasticsearchMappings {
         // end model size stats mapping
         builder.endObject();
 
-        builder.startObject(Quantiles.TYPE.getPreferredName())
+        builder.startObject(ModelSnapshot.QUANTILES.getPreferredName())
             .field(ENABLED, false)
         .endObject()
         .startObject(ModelSnapshot.LATEST_RECORD_TIME.getPreferredName())

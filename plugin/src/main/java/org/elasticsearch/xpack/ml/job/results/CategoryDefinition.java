@@ -24,7 +24,11 @@ import java.util.TreeSet;
 
 public class CategoryDefinition extends ToXContentToBytes implements Writeable {
 
+    /**
+     * Legacy type, now used only as a discriminant in the document ID
+     */
     public static final ParseField TYPE = new ParseField("category_definition");
+
     public static final ParseField CATEGORY_ID = new ParseField("category_id");
     public static final ParseField TERMS = new ParseField("terms");
     public static final ParseField REGEX = new ParseField("regex");
@@ -82,7 +86,7 @@ public class CategoryDefinition extends ToXContentToBytes implements Writeable {
     }
 
     public String getId() {
-        return jobId + "_category_definition_" + categoryId;
+        return jobId + "_" + TYPE + "_" + categoryId;
     }
 
     public long getCategoryId() {

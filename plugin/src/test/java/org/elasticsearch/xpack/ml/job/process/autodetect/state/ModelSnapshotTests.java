@@ -183,11 +183,12 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
 
     public void testStateDocumentIds_GivenDocCountIsOne() {
         ModelSnapshot snapshot = new ModelSnapshot.Builder("foo").setSnapshotId("1").setSnapshotDocCount(1).build();
-        assertThat(snapshot.stateDocumentIds(), equalTo(Arrays.asList("foo-1#1")));
+        assertThat(snapshot.stateDocumentIds(), equalTo(Arrays.asList("foo_model_state_1#1")));
     }
 
     public void testStateDocumentIds_GivenDocCountIsThree() {
         ModelSnapshot snapshot = new ModelSnapshot.Builder("foo").setSnapshotId("123456789").setSnapshotDocCount(3).build();
-        assertThat(snapshot.stateDocumentIds(), equalTo(Arrays.asList("foo-123456789#1", "foo-123456789#2", "foo-123456789#3")));
+        assertThat(snapshot.stateDocumentIds(),
+                equalTo(Arrays.asList("foo_model_state_123456789#1", "foo_model_state_123456789#2", "foo_model_state_123456789#3")));
     }
 }

@@ -42,13 +42,14 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
     public static final ParseField SNAPSHOT_DOC_COUNT = new ParseField("snapshot_doc_count");
     public static final ParseField LATEST_RECORD_TIME = new ParseField("latest_record_time_stamp");
     public static final ParseField LATEST_RESULT_TIME = new ParseField("latest_result_time_stamp");
+    public static final ParseField QUANTILES = new ParseField("quantiles");
     public static final ParseField RETAIN = new ParseField("retain");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("model_snapshots");
 
     /**
-     * Elasticsearch type
+     * Legacy type, now used only as a discriminant in the document ID
      */
     public static final ParseField TYPE = new ParseField("model_snapshot");
 
@@ -86,7 +87,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + LATEST_RESULT_TIME.getPreferredName() + "]");
         }, LATEST_RESULT_TIME, ValueType.VALUE);
-        PARSER.declareObject(Builder::setQuantiles, Quantiles.PARSER, Quantiles.TYPE);
+        PARSER.declareObject(Builder::setQuantiles, Quantiles.PARSER, QUANTILES);
         PARSER.declareBoolean(Builder::setRetain, RETAIN);
     }
 
@@ -184,7 +185,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
                     latestResultTimeStamp.getTime());
         }
         if (quantiles != null) {
-            builder.field(Quantiles.TYPE.getPreferredName(), quantiles);
+            builder.field(QUANTILES.getPreferredName(), quantiles);
         }
         builder.field(RETAIN.getPreferredName(), retain);
         builder.endObject();
@@ -260,30 +261,51 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
                 && this.retain == that.retain;
     }
 
-    private String stateDocumentPrefix() {
-        return jobId + "-" + snapshotId;
-    }
-
     public List<String> stateDocumentIds() {
-        String prefix = stateDocumentPrefix();
         List<String> stateDocumentIds = new ArrayList<>(snapshotDocCount);
         // The state documents count suffices are 1-based
         for (int i = 1; i <= snapshotDocCount; i++) {
-            stateDocumentIds.add(prefix + '#' + i);
+            stateDocumentIds.add(ModelState.documentId(jobId, snapshotId, i));
+        }
+        return stateDocumentIds;
+    }
+
+    /**
+     * This is how the IDs were formed in v5.4
+     */
+    public List<String> legacyStateDocumentIds() {
+        List<String> stateDocumentIds = new ArrayList<>(snapshotDocCount);
+        // The state documents count suffices are 1-based
+        for (int i = 1; i <= snapshotDocCount; i++) {
+            stateDocumentIds.add(ModelState.legacyDocumentId(jobId, snapshotId, i));
         }
         return stateDocumentIds;
     }
 
     public static String documentIdPrefix(String jobId) {
-        return jobId + "_model_snapshot_";
+        return jobId + "_" + TYPE + "_";
     }
 
     public static String documentId(ModelSnapshot snapshot) {
         return documentId(snapshot.getJobId(), snapshot.getSnapshotId());
     }
 
+    /**
+     * This is how the IDs were formed in v5.4
+     */
+    public static String legacyDocumentId(ModelSnapshot snapshot) {
+        return legacyDocumentId(snapshot.getJobId(), snapshot.getSnapshotId());
+    }
+
     public static String documentId(String jobId, String snapshotId) {
         return documentIdPrefix(jobId) + snapshotId;
+    }
+
+    /**
+     * This is how the IDs were formed in v5.4
+     */
+    public static String legacyDocumentId(String jobId, String snapshotId) {
+        return jobId + "-" + snapshotId;
     }
 
     public static ModelSnapshot fromJson(BytesReference bytesReference) {

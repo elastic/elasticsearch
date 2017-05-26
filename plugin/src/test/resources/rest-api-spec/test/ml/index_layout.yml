@@ -423,7 +423,7 @@
   - do:
       index:
         index: .ml-state
-        type: quantiles
+        type: doc
         id: index-layout-quantiles-job_quantiles
         body:
           state: quantile-state
@@ -437,12 +437,147 @@
           state: quantile-state
 
   - do:
+      indices.refresh: {}
+
+  - do:
       xpack.ml.delete_job:
         job_id: "index-layout-quantiles-job"
   - match: { acknowledged: true }
 
   - do:
       indices.refresh: {}
+
+  - do:
+      count:
+        index: .ml-state
+  - match: {count: 0}
+
+---
+"Test delete removes 5.4 and 5.5 state":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: index-layout-state-job
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"mlcategory"}],
+                "categorization_field_name": "message"
+            },
+            "data_description" : {
+                "format":"xcontent"
+            }
+          }
+  - match: { job_id: "index-layout-state-job" }
+
+  - do:
+      index:
+        index:  .ml-anomalies-shared
+        type:   doc
+        id:     "index-layout-state-job_model_snapshot_123"
+        body: >
+          {
+            "job_id" : "index-layout-state-job",
+            "timestamp": "2017-05-02T00:00:00Z",
+            "snapshot_id": "123",
+            "snapshot_doc_count": 2,
+            "retain": false
+          }
+
+  - do:
+      index:
+        index:  .ml-anomalies-shared
+        type:   model_snapshot
+        id:     "index-layout-state-job-456"
+        body: >
+          {
+            "job_id" : "index-layout-state-job",
+            "timestamp": "2017-05-01T00:00:00Z",
+            "snapshot_id": "456",
+            "snapshot_doc_count": 2,
+            "retain": false
+          }
+
+  - do:
+      index:
+        index: .ml-state
+        type: doc
+        id: index-layout-state-job_model_state_123#1
+        body:
+          state: new-model-state
+
+  - do:
+      index:
+        index: .ml-state
+        type: doc
+        id: index-layout-state-job_model_state_123#2
+        body:
+          state: more-new-model-state
+
+  - do:
+      index:
+        index: .ml-state
+        type: model_state
+        id: index-layout-state-job-456#1
+        body:
+          state: old-model-state
+
+  - do:
+      index:
+        index: .ml-state
+        type: model_state
+        id: index-layout-state-job-456#2
+        body:
+          state: more-old-model-state
+
+  - do:
+      index:
+        index: .ml-state
+        type: doc
+        id: index-layout-state-job_categorizer_state#1
+        body:
+          state: new-categorizer-state
+
+  - do:
+      index:
+        index: .ml-state
+        type: doc
+        id: index-layout-state-job_categorizer_state#2
+        body:
+          state: more-new-categorizer-state
+
+  - do:
+      index:
+        index: .ml-state
+        type: categorizer_state
+        id: index-layout-state-job#1
+        body:
+          state: old-categorizer-state
+
+  - do:
+      index:
+        index: .ml-state
+        type: categorizer_state
+        id: index-layout-state-job#2
+        body:
+          state: more-old-categorizer-state
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      xpack.ml.delete_job:
+        job_id: "index-layout-state-job"
+  - match: { acknowledged: true }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      count:
+        index: .ml-anomalies-shared
+  - match: {count: 0}
 
   - do:
       count:

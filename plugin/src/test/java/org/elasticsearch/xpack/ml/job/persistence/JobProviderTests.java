@@ -801,6 +801,7 @@ public class JobProviderTests extends ESTestCase {
     }
 
     public void testRestoreStateToStream() throws Exception {
+        String snapshotId = "123";
         Map<String, Object> categorizerState = new HashMap<>();
         categorizerState.put("catName", "catVal");
         GetResponse categorizerStateGetResponse1 = createGetResponse(true, categorizerState);
@@ -812,16 +813,18 @@ public class JobProviderTests extends ESTestCase {
         GetResponse modelStateGetResponse2 = createGetResponse(true, modelState);
 
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), CategorizerState.TYPE, JOB_ID + "#1", categorizerStateGetResponse1)
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), CategorizerState.TYPE, JOB_ID + "#2", categorizerStateGetResponse2)
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ModelState.TYPE.getPreferredName(), JOB_ID + "-123#1",
-                        modelStateGetResponse1)
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ModelState.TYPE.getPreferredName(), JOB_ID + "-123#2",
-                        modelStateGetResponse2);
+                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
+                        CategorizerState.documentId(JOB_ID, 1), categorizerStateGetResponse1)
+                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
+                        CategorizerState.documentId(JOB_ID, 2), categorizerStateGetResponse2)
+                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
+                        ModelState.documentId(JOB_ID, snapshotId, 1), modelStateGetResponse1)
+                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
+                        ModelState.documentId(JOB_ID, snapshotId, 2), modelStateGetResponse2);
 
         JobProvider provider = createProvider(clientBuilder.build());
 
-        ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID).setSnapshotId("123").setSnapshotDocCount(2).build();
+        ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID).setSnapshotId(snapshotId).setSnapshotDocCount(2).build();
 
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
 

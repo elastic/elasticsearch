@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ml.job.results.Result;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -96,28 +95,26 @@ public class JobResultsPersister extends AbstractComponent {
                 bucketWithoutRecords.setRecords(Collections.emptyList());
             }
             try (XContentBuilder content = toXContentBuilder(bucketWithoutRecords)) {
-                logger.trace("[{}] ES API CALL: index result type {} to index {} at epoch {}",
-                        jobId, Bucket.RESULT_TYPE_VALUE, indexName, bucketWithoutRecords.getEpoch());
+                String id = bucketWithoutRecords.getId();
+                logger.trace("[{}] ES API CALL: index bucket to index [{}] with ID [{}]", jobId, indexName, id);
 
-                bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, bucketWithoutRecords.getId()).source(content));
+                bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, id).source(content));
 
                 persistBucketInfluencersStandalone(jobId, bucketWithoutRecords.getBucketInfluencers());
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error serialising bucket", new Object[] {jobId}), e);
+                logger.error(new ParameterizedMessage("[{}] Error serialising bucket", jobId), e);
             }
 
             return this;
         }
 
-        private void persistBucketInfluencersStandalone(String jobId, List<BucketInfluencer> bucketInfluencers)
-                throws IOException {
+        private void persistBucketInfluencersStandalone(String jobId, List<BucketInfluencer> bucketInfluencers) throws IOException {
             if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
                 for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
                     try (XContentBuilder content = toXContentBuilder(bucketInfluencer)) {
                         // Need consistent IDs to ensure overwriting on renormalization
                         String id = bucketInfluencer.getId();
-                        logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
-                                jobId, BucketInfluencer.RESULT_TYPE_VALUE, indexName, id);
+                        logger.trace("[{}] ES BULK ACTION: index bucket influencer to index [{}] with ID [{}]", jobId, indexName, id);
                         bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, id).source(content));
                     }
                 }
@@ -135,9 +132,9 @@ public class JobResultsPersister extends AbstractComponent {
             try {
                 for (AnomalyRecord record : records) {
                     try (XContentBuilder content = toXContentBuilder(record)) {
-                        logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
-                                jobId, AnomalyRecord.RESULT_TYPE_VALUE, indexName, record.getId());
-                        bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, record.getId()).source(content));
+                        String id = record.getId();
+                        logger.trace("[{}] ES BULK ACTION: index record to index [{}] with ID [{}]", jobId, indexName, id);
+                        bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, id).source(content));
                     }
                 }
             } catch (IOException e) {
@@ -158,9 +155,9 @@ public class JobResultsPersister extends AbstractComponent {
             try {
                 for (Influencer influencer : influencers) {
                     try (XContentBuilder content = toXContentBuilder(influencer)) {
-                        logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
-                                jobId, Influencer.RESULT_TYPE_VALUE, indexName, influencer.getId());
-                        bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, influencer.getId()).source(content));
+                        String id = influencer.getId();
+                        logger.trace("[{}] ES BULK ACTION: index influencer to index [{}] with ID [{}]", jobId, indexName, id);
+                        bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, id).source(content));
                     }
                 }
             } catch (IOException e) {
@@ -199,8 +196,7 @@ public class JobResultsPersister extends AbstractComponent {
      * @param category The category to be persisted
      */
     public void persistCategoryDefinition(CategoryDefinition category) {
-        Persistable persistable = new Persistable(category.getJobId(), category, CategoryDefinition.TYPE.getPreferredName(),
-                                category.getId());
+        Persistable persistable = new Persistable(category.getJobId(), category, category.getId());
 
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(category.getJobId())).actionGet();
         // Don't commit as we expect masses of these updates and they're not
@@ -211,8 +207,7 @@ public class JobResultsPersister extends AbstractComponent {
      * Persist the quantiles (blocking)
      */
     public void persistQuantiles(Quantiles quantiles) {
-        Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.TYPE.getPreferredName(),
-                Quantiles.documentId(quantiles.getJobId()));
+        Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
         persistable.persist(AnomalyDetectorsIndex.jobStateIndexName()).actionGet();
     }
 
@@ -220,8 +215,7 @@ public class JobResultsPersister extends AbstractComponent {
      * Persist the quantiles (async)
      */
     public void persistQuantiles(Quantiles quantiles, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<IndexResponse> listener) {
-        Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.TYPE.getPreferredName(),
-                Quantiles.documentId(quantiles.getJobId()));
+        Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
         persistable.setRefreshPolicy(refreshPolicy);
         persistable.persist(AnomalyDetectorsIndex.jobStateIndexName(), listener);
     }
@@ -230,8 +224,7 @@ public class JobResultsPersister extends AbstractComponent {
      * Persist a model snapshot description
      */
     public void persistModelSnapshot(ModelSnapshot modelSnapshot) {
-        Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.TYPE.getPreferredName(),
-                ModelSnapshot.documentId(modelSnapshot));
+        Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.documentId(modelSnapshot));
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(modelSnapshot.getJobId())).actionGet();
     }
 
@@ -241,7 +234,7 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistModelSizeStats(ModelSizeStats modelSizeStats) {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
-        Persistable persistable = new Persistable(jobId, modelSizeStats, Result.TYPE.getPreferredName(), modelSizeStats.getId());
+        Persistable persistable = new Persistable(jobId, modelSizeStats, modelSizeStats.getId());
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).actionGet();
         // Don't commit as we expect masses of these updates and they're only
         // for information at the API level
@@ -254,7 +247,7 @@ public class JobResultsPersister extends AbstractComponent {
                                       ActionListener<IndexResponse> listener) {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
-        Persistable persistable = new Persistable(jobId, modelSizeStats, Result.TYPE.getPreferredName(), modelSizeStats.getId());
+        Persistable persistable = new Persistable(jobId, modelSizeStats, modelSizeStats.getId());
         persistable.setRefreshPolicy(refreshPolicy);
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId), listener);
         // Don't commit as we expect masses of these updates and they're only
@@ -265,7 +258,7 @@ public class JobResultsPersister extends AbstractComponent {
      * Persist model plot output
      */
     public void persistModelPlot(ModelPlot modelPlot) {
-        Persistable persistable = new Persistable(modelPlot.getJobId(), modelPlot, Result.TYPE.getPreferredName(), modelPlot.getId());
+        Persistable persistable = new Persistable(modelPlot.getJobId(), modelPlot, modelPlot.getId());
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(modelPlot.getJobId())).actionGet();
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
@@ -283,9 +276,8 @@ public class JobResultsPersister extends AbstractComponent {
      * called to commit the writes to the datastore.
      *
      * @param jobId The job Id
-     * @return True if successful
      */
-    public boolean commitResultWrites(String jobId) {
+    public void commitResultWrites(String jobId) {
         // We refresh using the read alias in order to ensure all indices will
         // be refreshed even if a rollover occurs in between.
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
@@ -295,7 +287,6 @@ public class JobResultsPersister extends AbstractComponent {
         RefreshRequest refreshRequest = new RefreshRequest(indexName);
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         client.admin().indices().refresh(refreshRequest).actionGet();
-        return true;
     }
 
     /**
@@ -303,19 +294,17 @@ public class JobResultsPersister extends AbstractComponent {
      * immediately searchable.
      *
      * @param jobId The job Id
-     * @return True if successful
      * */
-    public boolean commitStateWrites(String jobId) {
+    public void commitStateWrites(String jobId) {
         String indexName = AnomalyDetectorsIndex.jobStateIndexName();
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         client.admin().indices().refresh(refreshRequest).actionGet();
-        return true;
     }
 
-    XContentBuilder toXContentBuilder(ToXContent obj) throws IOException {
+    private XContentBuilder toXContentBuilder(ToXContent obj) throws IOException {
         XContentBuilder builder = jsonBuilder();
         obj.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return builder;
@@ -325,14 +314,12 @@ public class JobResultsPersister extends AbstractComponent {
 
         private final String jobId;
         private final ToXContent object;
-        private final String description;
         private final String id;
         private WriteRequest.RefreshPolicy refreshPolicy;
 
-        Persistable(String jobId, ToXContent object, String description, String id) {
+        Persistable(String jobId, ToXContent object, String id) {
             this.jobId = jobId;
             this.object = object;
-            this.description = description;
             this.id = id;
             this.refreshPolicy = WriteRequest.RefreshPolicy.NONE;
         }
@@ -349,15 +336,12 @@ public class JobResultsPersister extends AbstractComponent {
 
         void persist(String indexName, ActionListener<IndexResponse> listener) {
             logCall(indexName);
-            // TODO no_release: this is a temporary hack until we also switch state index to have doc type in which case
-            // we can remove this line and use DOC_TYPE directly in the index request
-            String type = AnomalyDetectorsIndex.jobStateIndexName().equals(indexName) ? description : DOC_TYPE;
 
             try (XContentBuilder content = toXContentBuilder(object)) {
-                IndexRequest indexRequest = new IndexRequest(indexName, type, id).source(content).setRefreshPolicy(refreshPolicy);
+                IndexRequest indexRequest = new IndexRequest(indexName, DOC_TYPE, id).source(content).setRefreshPolicy(refreshPolicy);
                 client.index(indexRequest, listener);
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error writing {}", new Object[]{jobId, description}), e);
+                logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
                 IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();
                 notCreatedResponse.setCreated(false);
                 listener.onResponse(notCreatedResponse.build());
@@ -366,9 +350,9 @@ public class JobResultsPersister extends AbstractComponent {
 
         private void logCall(String indexName) {
             if (id != null) {
-                logger.trace("[{}] ES API CALL: index {} to index {} with ID {}", jobId, description, indexName, id);
+                logger.trace("[{}] ES API CALL: to index {} with ID [{}]", jobId, indexName, id);
             } else {
-                logger.trace("[{}] ES API CALL: index {} to index {} with auto-generated ID", jobId, description, indexName);
+                logger.trace("[{}] ES API CALL: to index {} with auto-generated ID", jobId, indexName);
             }
         }
     }

@@ -115,7 +115,7 @@ GET /shirts/_search
       },
       "aggs": {
         "models": {
-          "terms": { "field": "model" } <3>
+          "terms": { "field": "model" }
         }
       }
     }

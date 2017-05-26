@@ -34,9 +34,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -181,7 +179,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
                     DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
-                    final LeafSearchScript leafScript = searchScript.getLeafSearchScript(context);
+                    final SearchScript leafScript = searchScript.forSegment(context);
                     TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
 
                         @Override

@@ -24,7 +24,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ExplainableSearchScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.SearchScript;
@@ -76,7 +75,7 @@ public class ScriptScoreFunction extends ScoreFunction {
 
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
-        final LeafSearchScript leafScript = script.getLeafSearchScript(ctx);
+        final SearchScript leafScript = script.forSegment(ctx);
         final CannedScorer scorer = new CannedScorer();
         leafScript.setScorer(scorer);
         return new LeafScoreFunction() {

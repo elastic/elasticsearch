@@ -30,10 +30,10 @@ import org.apache.lucene.index.Term;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 /**
  * An example script plugin that adds a {@link ScriptEngine} implementing expert scoring.
@@ -54,67 +54,13 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         }
 
         @Override
-        public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+        public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> options) {
             if (context.equals(SearchScript.CONTEXT) == false) {
                 throw new IllegalArgumentException(getType() + " scripts cannot be used for context [" + context.name + "]");
             }
             // we use the script "source" as the script identifier
             if ("pure_df".equals(scriptSource)) {
-                SearchScript.Factory factory = (p, lookup) -> new SearchScript() {
-                    final String field;
-                    final String term;
-                    {
-                        if (p.containsKey("field") == false) {
-                            throw new IllegalArgumentException("Missing parameter [field]");
-                        }
-                        if (p.containsKey("term") == false) {
-                            throw new IllegalArgumentException("Missing parameter [term]");
-                        }
-                        field = p.get("field").toString();
-                        term = p.get("term").toString();
-                    }
-
-                    @Override
-                    public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
-                        PostingsEnum postings = context.reader().postings(new Term(field, term));
-                        if (postings == null) {
-                            // the field and/or term don't exist in this segment, so always return 0
-                            return () -> 0.0d;
-                        }
-                        return new LeafSearchScript() {
-                            int currentDocid = -1;
-                            @Override
-                            public void setDocument(int docid) {
-                                // advance has undefined behavior calling with a docid <= its current docid
-                                if (postings.docID() < docid) {
-                                    try {
-                                        postings.advance(docid);
-                                    } catch (IOException e) {
-                                        throw new UncheckedIOException(e);
-                                    }
-                                }
-                                currentDocid = docid;
-                            }
-                            @Override
-                            public double runAsDouble() {
-                                if (postings.docID() != currentDocid) {
-                                    // advance moved past the current doc, so this doc has no occurrences of the term
-                                    return 0.0d;
-                                }
-                                try {
-                                    return postings.freq();
-                                } catch (IOException e) {
-                                    throw new UncheckedIOException(e);
-                                }
-                            }
-                        };
-                    }
-
-                    @Override
-                    public boolean needsScores() {
-                        return false;
-                    }
-                };
+                SearchScript.Factory factory = MyExpertSearchScript::new;
                 return context.factoryClazz.cast(factory);
             }
             throw new IllegalArgumentException("Unknown script name " + scriptSource);
@@ -123,6 +69,76 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
         public void close() {
             // optionally close resources
+        }
+    }
+
+    private static class MyExpertSearchScript extends SearchScript {
+        private final String field;
+        private final String term;
+
+        MyExpertSearchScript(Map<String, Object> params, SearchLookup lookup) {
+            super(params, lookup);
+            if (params.containsKey("field") == false) {
+                throw new IllegalArgumentException("Missing parameter [field]");
+            }
+            if (params.containsKey("term") == false) {
+                throw new IllegalArgumentException("Missing parameter [term]");
+            }
+            field = params.get("field").toString();
+            term = params.get("term").toString();
+        }
+
+        @Override
+        public SearchScript forSegment(LeafReaderContext context) {
+            final PostingsEnum postings;
+            try {
+                postings = context.reader().postings(new Term(field, term));
+            } catch (IOException e) {
+                throw new UncheckedIOException("could no read postings for " + field + ":" + term, e);
+            }
+            if (postings == null) {
+                // the field and/or term don't exist in this segment, so always return 0
+                return this;
+            }
+            return new MyExpertSearchScript(params, lookup) {
+                int currentDocid = -1;
+
+                @Override
+                public void setDocument(int docid) {
+                    // advance has undefined behavior calling with a docid <= its current docid
+                    if (postings.docID() < docid) {
+                        try {
+                            postings.advance(docid);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    }
+                    currentDocid = docid;
+                }
+
+                @Override
+                public double runAsDouble() {
+                    if (postings.docID() != currentDocid) {
+                        // advance moved past the current doc, so this doc has no occurrences of the term
+                        return 0.0d;
+                    }
+                    try {
+                        return postings.freq();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            };
+        }
+
+        @Override
+        public double runAsDouble() {
+            return 0.0d; // return 0 until bound to a segment
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
     // end::expert_engine

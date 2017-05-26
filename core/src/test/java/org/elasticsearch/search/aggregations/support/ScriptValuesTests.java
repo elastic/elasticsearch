@@ -20,9 +20,8 @@
 package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
@@ -30,22 +29,18 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 
 public class ScriptValuesTests extends ESTestCase {
 
-    private static class FakeSearchScript implements LeafSearchScript {
+    private static class FakeSearchScript extends SearchScript {
 
         private final Object[][] values;
         int index;
 
         FakeSearchScript(Object[][] values) {
+            super(null, null);
             this.values = values;
             index = -1;
-        }
-
-        @Override
-        public void setNextVar(String name, Object value) {
         }
 
         @Override
@@ -59,16 +54,8 @@ public class ScriptValuesTests extends ESTestCase {
         }
 
         @Override
-        public void setScorer(Scorer scorer) {
-        }
-
-        @Override
         public void setDocument(int doc) {
             index = doc;
-        }
-
-        @Override
-        public void setSource(Map<String, Object> source) {
         }
 
         @Override
@@ -79,6 +66,11 @@ public class ScriptValuesTests extends ESTestCase {
         @Override
         public double runAsDouble() {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
 
     }

@@ -29,11 +29,16 @@ task bwcTest {
   group = 'verification'
 }
 
-for (Version version : wireCompatVersions) {
+for (Version version : indexCompatVersions) {
   String baseName = "v${version}"
 
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
     mustRunAfter(precommit)
+  }
+  tasks.getByName("${baseName}#oldClusterTestRunner").configure {
+    systemProperty 'tests.is_old_cluster', 'true'
+    systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
+    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
   }
 
   Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
@@ -42,60 +47,42 @@ for (Version version : wireCompatVersions) {
     bwcVersion = version
     numBwcNodes = 2
     numNodes = 2
-    clusterName = 'rolling-upgrade'
-    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    clusterName = 'full-cluster-restart'
     if (version.onOrAfter('5.3.0')) {
       setting 'http.content_type.required', 'true'
     }
   }
 
-  Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
-  oldClusterTestRunner.configure {
-    systemProperty 'tests.rest.suite', 'old_cluster'
-  }
-
-  Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask)
-
-  configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
-    dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
-    distribution = 'zip'
-    clusterName = 'rolling-upgrade'
-    unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
-    /* Override the data directory so the new node always gets the node we
-     * just stopped's data directory. */
-    dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
-    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-  }
-
-  Task mixedClusterTestRunner = tasks.getByName("${baseName}#mixedClusterTestRunner")
-  mixedClusterTestRunner.configure {
-    systemProperty 'tests.rest.suite', 'mixed_cluster'
-    finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
-  }
 
   Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask) {
-    dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
+    dependsOn(oldClusterTest, "${baseName}#oldClusterTestCluster#node0.stop")
   }
 
   configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
+    dependsOn oldClusterTest,
+        "${baseName}#oldClusterTestCluster#node0.stop",
+        "${baseName}#oldClusterTestCluster#node1.stop"
     distribution = 'zip'
-    clusterName = 'rolling-upgrade'
-    unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
-    /* Override the data directory so the new node always gets the node we
-     * just stopped's data directory. */
-    dataDir = { nodeNumber -> oldClusterTest.nodes[0].dataDir}
-    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    clusterName = 'full-cluster-restart'
+    numNodes = 2
+    dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
   }
 
-  Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
-  upgradedClusterTestRunner.configure {
-    systemProperty 'tests.rest.suite', 'upgraded_cluster'
-    // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
-    finalizedBy "${baseName}#mixedClusterTestCluster#stop"
+  tasks.getByName("${baseName}#upgradedClusterTestRunner").configure {
+    systemProperty 'tests.is_old_cluster', 'false'
+    systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
+    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
   }
 
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
     dependsOn = [upgradedClusterTest]
+  }
+
+  /* Delay this change because the task we need to modify isn't created until
+   * after projects are evaluated. */
+  gradle.projectsEvaluated {
+    // Disable cleaning the repository so we can test loading a snapshot
+    tasks.getByName("${baseName}#upgradedClusterTestCluster#prepareCluster.cleanShared").enabled = false
   }
 
   bwcTest.dependsOn(versionBwcTest)
@@ -105,7 +92,7 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
-  dependsOn = ["v${wireCompatVersions[-1]}#bwcTest"]
+  dependsOn = ["v${indexCompatVersions[-1]}#bwcTest"]
 }
 
 check.dependsOn(integTest)

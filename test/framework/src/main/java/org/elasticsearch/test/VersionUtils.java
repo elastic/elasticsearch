@@ -20,60 +20,101 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
-import java.util.stream.Collectors;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableList;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
+    /**
+     * Sort versions that have backwards compatibility guarantees from
+     * those that don't. Doesn't actually check whether or not the versions
+     * are released, instead it relies on gradle to have already checked
+     * this which it does in {@code :core:verifyVersions}. So long as the
+     * rules here match up with the rules in gradle then this should
+     * produce sensible results.
+     * @return a tuple containing versions with backwards compatibility
+     * guarantees in v1 and versions without the guranteees in v2
+     */
+    static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
+        Field[] fields = versionClass.getFields();
+        List<Version> versions = new ArrayList<>(fields.length);
+        for (final Field field : fields) {
+            final int mod = field.getModifiers();
+            if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
+                continue;
+            }
+            if (field.getType() != Version.class) {
+                continue;
+            }
+            assert field.getName().matches("(V(_\\d+)+(_(alpha|beta|rc)\\d+)?|CURRENT)") : field.getName();
+            if ("CURRENT".equals(field.getName())) {
+                continue;
+            }
+            try {
+                versions.add(((Version) field.get(null)));
+            } catch (final IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        Collections.sort(versions);
+        assert versions.get(versions.size() - 1).equals(current) : "The highest version must be the current one "
+            + "but was [" + versions.get(versions.size() - 1) + "] and current was [" + current + "]";
+
+        if (current.revision != 0) {
+            /* If we are in a stable branch there should be no unreleased version constants
+             * because we don't expect to release any new versions in older branches. If there
+             * are extra constants then gradle will yell about it. */
+            return new Tuple<>(unmodifiableList(versions), emptyList());
+        }
+
+        /* If we are on a patch release then we know that at least the version before the
+         * current one is unreleased. If it is released then gradle would be complaining. */
+        int unreleasedIndex = versions.size() - 2;
+        while (true) {
+            if (unreleasedIndex < 0) {
+                throw new IllegalArgumentException("Couldn't find first non-alpha release");
+            }
+            /* Technically we don't support backwards compatiblity for alphas, betas,
+             * and rcs. But the testing infrastructure requires that we act as though we
+             * do. This is a difference between the gradle and Java logic but should be
+             * fairly safe as it is errs on us being more compatible rather than less....
+             * Anyway, the upshot is that we never declare alphas as unreleased, no
+             * matter where they are in the list. */
+            if (versions.get(unreleasedIndex).isRelease()) {
+                break;
+            }
+            unreleasedIndex--;
+        }
+
+        Version unreleased = versions.remove(unreleasedIndex);
+        if (unreleased.revision == 0) {
+            /* If the last unreleased version is itself a patch release then gradle enforces
+             * that there is yet another unreleased version before that. */
+            unreleasedIndex--;
+            Version earlierUnreleased = versions.remove(unreleasedIndex);
+            return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierUnreleased, unreleased)));
+        }
+        return new Tuple<>(unmodifiableList(versions), singletonList(unreleased));
+    }
 
     private static final List<Version> RELEASED_VERSIONS;
     private static final List<Version> UNRELEASED_VERSIONS;
 
     static {
-        final Field[] declaredFields = Version.class.getFields();
-        final Set<Integer> releasedIdsSet = new HashSet<>();
-        final Set<Integer> unreleasedIdsSet = new HashSet<>();
-        for (final Field field : declaredFields) {
-            final int mod = field.getModifiers();
-            if (Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
-                if (field.getType() == Version.class) {
-                    final int id;
-                    try {
-                        id = ((Version) field.get(null)).id;
-                    } catch (final IllegalAccessException e) {
-                        throw new RuntimeException(e);
-                    }
-                    assert field.getName().matches("(V(_\\d+)+(_(alpha|beta|rc)\\d+)?(_UNRELEASED)?|CURRENT)") : field.getName();
-                    // note that below we remove CURRENT and add it to released; we do it this way because there are two constants that
-                    // correspond to CURRENT, CURRENT itself and the actual version that CURRENT points to
-                    if (field.getName().equals("CURRENT") || field.getName().endsWith("UNRELEASED")) {
-                        unreleasedIdsSet.add(id);
-                    } else {
-                        releasedIdsSet.add(id);
-                    }
-                }
-            }
-        }
-
-        // treat CURRENT as released for BWC testing
-        unreleasedIdsSet.remove(Version.CURRENT.id);
-        releasedIdsSet.add(Version.CURRENT.id);
-
-        // unreleasedIdsSet and releasedIdsSet should be disjoint
-        assert unreleasedIdsSet.stream().filter(releasedIdsSet::contains).collect(Collectors.toSet()).isEmpty();
-
-        RELEASED_VERSIONS =
-            Collections.unmodifiableList(releasedIdsSet.stream().sorted().map(Version::fromId).collect(Collectors.toList()));
-        UNRELEASED_VERSIONS =
-            Collections.unmodifiableList(unreleasedIdsSet.stream().sorted().map(Version::fromId).collect(Collectors.toList()));
+        Tuple<List<Version>, List<Version>> versions = resolveReleasedVersions(Version.CURRENT, Version.class);
+        RELEASED_VERSIONS = versions.v1();
+        UNRELEASED_VERSIONS = versions.v2();
     }
 
     /**

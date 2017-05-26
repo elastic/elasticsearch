@@ -95,7 +95,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public CollapseBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
         this.maxConcurrentGroupRequests = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
             this.innerHits = in.readList(InnerHitBuilder::new);
         } else {
             InnerHitBuilder innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
@@ -111,7 +111,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeVInt(maxConcurrentGroupRequests);
-        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
             out.writeList(innerHits);
         } else {
             boolean hasInnerHit = innerHits.isEmpty() == false;

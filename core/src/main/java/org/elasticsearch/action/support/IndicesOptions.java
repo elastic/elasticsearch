@@ -121,7 +121,7 @@ public class IndicesOptions {
     }
     
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha2_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
             out.write(id);
         } else {
             // if we are talking to a node that doesn't support the newly added flag (ignoreAliases)

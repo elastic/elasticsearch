@@ -801,7 +801,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
-    // aliases can be added only to indices
     public void testAliasesCanBeAddedToIndicesOnly() throws Exception {
         logger.info("--> creating index [2017-05-20]");
         assertAcked(prepareCreate("2017-05-20"));
@@ -894,6 +893,26 @@ public class IndexAliasesIT extends ESIntegTestCase {
         } finally {
             disableIndexBlock("test", SETTING_BLOCKS_METADATA);
         }
+    }
+
+    public void testAliasActionRemoveIndex() throws InterruptedException, ExecutionException {
+        assertAcked(prepareCreate("foo_foo"));
+        assertAcked(prepareCreate("bar_bar"));
+        assertAcked(admin().indices().prepareAliases().addAlias("foo_foo", "foo"));
+        assertAcked(admin().indices().prepareAliases().addAlias("bar_bar", "foo"));
+
+        expectThrows(IndexNotFoundException.class,
+                () -> client().admin().indices().prepareAliases().removeIndex("foo").execute().actionGet());
+
+        assertAcked(client().admin().indices().prepareAliases().removeIndex("foo*").execute().get());
+        assertFalse(client().admin().indices().prepareExists("foo_foo").execute().actionGet().isExists());
+        assertTrue(admin().indices().prepareAliasesExist("foo").get().exists());
+        assertTrue(client().admin().indices().prepareExists("bar_bar").execute().actionGet().isExists());
+        assertTrue(admin().indices().prepareAliasesExist("foo").setIndices("bar_bar").get().exists());
+
+        assertAcked(client().admin().indices().prepareAliases().removeIndex("bar_bar"));
+        assertFalse(admin().indices().prepareAliasesExist("foo").get().exists());
+        assertFalse(client().admin().indices().prepareExists("bar_bar").execute().actionGet().isExists());
     }
 
     public void testRemoveIndexAndReplaceWithAlias() throws InterruptedException, ExecutionException {

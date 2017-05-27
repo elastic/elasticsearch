@@ -31,7 +31,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class VerifyVersionConstantsIT extends ESRestTestCase {
 
-    public void testLuceneVersionConstants() throws IOException, ParseException {
+    public void testLuceneVersionConstant() throws IOException, ParseException {
         final Response response = client().performRequest("GET", "/");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         final ObjectPath objectPath = ObjectPath.createFromResponse(response);

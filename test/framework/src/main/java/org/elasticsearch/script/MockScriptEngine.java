@@ -154,27 +154,20 @@ public class MockScriptEngine implements ScriptEngine {
     public class MockSearchScript extends SearchScript {
 
         private final Function<Map<String, Object>, Object> script;
-        private final Map<String, Object> vars;
-        private final SearchLookup lookup;
+        private Map<String, Object> vars;
 
         public MockSearchScript(SearchLookup lookup, Map<String, Object> vars, Function<Map<String, Object>, Object> script) {
             super(vars, lookup);
-            this.lookup = lookup;
-            this.vars = vars;
+            this.vars = new HashMap<>(vars == null ? Collections.emptyMap() : vars);
             this.script = script;
         }
 
         @Override
         public SearchScript forSegment(LeafReaderContext context) {
-            LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
-
-            Map<String, Object> ctx = new HashMap<>(leafLookup.asMap());
-            if (vars != null) {
-                ctx.putAll(vars);
-            }
-
-            return new MockSearchScript(lookup, ctx, script);
-
+            MockSearchScript script = (MockSearchScript) super.forSegment(context);
+            script.vars = new HashMap<>(script.vars); // unique copy of vars for this segment
+            script.vars.putAll(script.getLeafLookup().asMap());
+            return script;
         }
 
         @Override

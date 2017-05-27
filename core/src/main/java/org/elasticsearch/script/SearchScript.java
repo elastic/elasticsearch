@@ -50,10 +50,10 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript, Clo
     public final SearchLookup lookup;
 
     /** A leaf lookup for the bound segment this script will operate on. */
-    private SetOnce<LeafSearchLookup> leafLookup = new SetOnce<>();
+    private LeafSearchLookup leafLookup;
 
     /** A scorer that will return the score for the current document when the script is run. */
-    private SetOnce<Scorer> scorer = new SetOnce<>();
+    private Scorer scorer;
 
     /**
      * Construct an unbound search script.
@@ -74,7 +74,7 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript, Clo
         try {
             SearchScript clone = (SearchScript) super.clone();
             if (lookup != null) {
-                clone.leafLookup.set(lookup.getLeafSearchLookup(leaf));
+                clone.leafLookup = lookup.getLeafSearchLookup(leaf);
             }
             return clone;
         } catch (CloneNotSupportedException e) {
@@ -84,33 +84,33 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript, Clo
 
     /** The leaf lookup for the bound segment. */
     protected final LeafSearchLookup getLeafLookup() {
-        return leafLookup.get();
+        return leafLookup;
     }
 
     /** The doc lookup for the bound segment. */
     public final LeafDocLookup getDoc() {
-        return leafLookup.get() == null ? null : leafLookup.get().doc();
+        return leafLookup == null ? null : leafLookup.doc();
     }
 
     /** Set the current document to run the script on next. */
     public void setDocument(int docid) {
-        if (leafLookup.get() != null) {
-            leafLookup.get().setDocument(docid);
+        if (leafLookup != null) {
+            leafLookup.setDocument(docid);
         }
     }
 
     @Override
     public void setScorer(Scorer scorer) {
-        this.scorer.set(scorer);
+        this.scorer = scorer;
     }
 
     /** Return the score of the current document. */
     public double getScore() {
-        if (needsScores() == false || scorer.get() == null) {
+        if (needsScores() == false || scorer == null) {
             return 0.0d;
         }
         try {
-            return scorer.get().score();
+            return scorer.score();
         } catch (IOException e) {
             throw new ElasticsearchException("couldn't lookup score", e);
         }

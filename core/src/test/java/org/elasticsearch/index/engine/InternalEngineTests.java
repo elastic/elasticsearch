@@ -40,7 +40,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
@@ -50,7 +49,6 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
@@ -129,6 +127,7 @@ import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.DummyShardLock;
@@ -333,12 +332,13 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     protected Translog createTranslog(Path translogPath) throws IOException {
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, deletionPolicy);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE,
+            new TranslogDeletionPolicy());
         return new Translog(translogConfig, null, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
     }
 
-    protected SnapshotDeletionPolicy createSnapshotDeletionPolicy() {
-        return new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
+    protected CombinedDeletionPolicy createDeletionPolicy() {
+        return new CombinedDeletionPolicy();
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
@@ -406,21 +406,21 @@ public class InternalEngineTests extends ESTestCase {
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
                                ReferenceManager.RefreshListener refreshListener) {
-        return config(indexSettings, store, translogPath, mergePolicy, createSnapshotDeletionPolicy(), refreshListener, null);
+        return config(indexSettings, store, translogPath, mergePolicy, createDeletionPolicy(), refreshListener, null);
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
                                ReferenceManager.RefreshListener refreshListener, Sort indexSort) {
-        return config(indexSettings, store, translogPath, mergePolicy, createSnapshotDeletionPolicy(), refreshListener, indexSort);
+        return config(indexSettings, store, translogPath, mergePolicy, createDeletionPolicy(), refreshListener, indexSort);
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
-                               SnapshotDeletionPolicy deletionPolicy, ReferenceManager.RefreshListener refreshListener) {
+                               CombinedDeletionPolicy deletionPolicy, ReferenceManager.RefreshListener refreshListener) {
         return config(indexSettings, store, translogPath, mergePolicy, deletionPolicy, refreshListener, null);
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
-                               SnapshotDeletionPolicy deletionPolicy,
+                               CombinedDeletionPolicy deletionPolicy,
                                ReferenceManager.RefreshListener refreshListener, Sort indexSort) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, deletionPolicy);
@@ -2129,7 +2129,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testConcurrentWritesAndCommits() throws Exception {
         try (Store store = createStore();
              InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(),
-                                                                     new SnapshotDeletionPolicy(NoDeletionPolicy.INSTANCE), null))) {
+                                                                     new CombinedDeletionPolicy(NoDeletionPolicy.INSTANCE), null))) {
 
             final int numIndexingThreads = scaledRandomIntBetween(3, 6);
             final int numDocsPerThread = randomIntBetween(500, 1000);
@@ -2727,7 +2727,7 @@ public class InternalEngineTests extends ESTestCase {
         engine.close();
 
         Translog translog = new Translog(
-            new TranslogConfig(shardId, createTempDir(), INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, deletionPolicy),
+            new TranslogConfig(shardId, createTempDir(), INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, new TranslogDeletionPolicy()),
             null,
             () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
         translog.add(new Translog.Index("test", "SomeBogusId", 0, "{}".getBytes(Charset.forName("UTF-8"))));
@@ -2736,10 +2736,11 @@ public class InternalEngineTests extends ESTestCase {
 
         EngineConfig config = engine.config();
         /* create a TranslogConfig that has been created with a different UUID */
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE, deletionPolicy);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(),
+            BigArrays.NON_RECYCLING_INSTANCE, new TranslogDeletionPolicy());
 
         EngineConfig brokenConfig = new EngineConfig(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, shardId, threadPool,
-                config.getIndexSettings(), null, store, createSnapshotDeletionPolicy(), newMergePolicy(), config.getAnalyzer(),
+                config.getIndexSettings(), null, store, createDeletionPolicy(), newMergePolicy(), config.getAnalyzer(),
                 config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getTranslogRecoveryPerformer(),
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
                 TimeValue.timeValueMinutes(5), config.getRefreshListeners(), null);

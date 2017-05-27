@@ -142,7 +142,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     private void markCurrentGenAsCommitted(Translog translog) {
-        deletionPolicy(translog).setMinTranslogGenerationForRecovery(translog.currentFileGeneration());
+        commit(translog, translog.currentFileGeneration());
     }
 
     private void rollAndCommit(Translog translog) throws IOException {
@@ -308,7 +308,7 @@ public class TranslogTests extends ESTestCase {
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
         assertThat(snapshot.totalOperations(), equalTo(ops.size()));
 
-        deletionPolicy(translog).setMinTranslogGenerationForRecovery(translog.currentFileGeneration());
+        markCurrentGenAsCommitted(translog);
         snapshot = translog.newSnapshot();
         assertThat(snapshot, SnapshotMatchers.size(0));
         assertThat(snapshot.totalOperations(), equalTo(0));
@@ -1113,14 +1113,15 @@ public class TranslogTests extends ESTestCase {
         TranslogConfig config = translog.getConfig();
 
         translog.close();
-        translog = new Translog(config, translog.getTranslogUUID(),() -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
         if (translogGeneration == null) {
+            translog = new Translog(config, null,() -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
             assertEquals(0, translog.stats().estimatedNumberOfOperations());
             assertEquals(1, translog.currentFileGeneration());
             assertFalse(translog.syncNeeded());
             Translog.Snapshot snapshot = translog.newSnapshot();
             assertNull(snapshot.next());
         } else {
+            translog = new Translog(config, translogGeneration.translogUUID,() -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
             assertEquals("lastCommitted must be 1 less than current", translogGeneration.translogFileGeneration + 1, translog.currentFileGeneration());
             assertFalse(translog.syncNeeded());
             Translog.Snapshot snapshot = translog.newSnapshot();
@@ -2147,13 +2148,12 @@ public class TranslogTests extends ESTestCase {
             assertFileIsPresent(translog, generation + i);
         }
         commit(translog, generation + rolls);
-        assertThat(translog.currentFileGeneration(), equalTo(generation + rolls + 1));
+        assertThat(translog.currentFileGeneration(), equalTo(generation + rolls ));
         assertThat(translog.totalOperations(), equalTo(0));
         for (int i = 0; i < rolls; i++) {
             assertFileDeleted(translog, generation + i);
         }
         assertFileIsPresent(translog, generation + rolls);
-        assertFileIsPresent(translog, generation + rolls + 1);
     }
 
     public void testRollGenerationBetweenPrepareCommitAndCommit() throws IOException {
@@ -2216,7 +2216,6 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testMinGenerationForSeqNo() throws IOException {
-        final long initialGeneration = translog.getGeneration().translogFileGeneration;
         final int operations = randomIntBetween(1, 4096);
         final List<Long> shuffledSeqNos = LongStream.range(0, operations).boxed().collect(Collectors.toList());
         Randomness.shuffle(shuffledSeqNos);
@@ -2236,8 +2235,9 @@ public class TranslogTests extends ESTestCase {
         }
 
         Map<Long, Set<Tuple<Long, Long>>> generations = new HashMap<>();
-
-        commit(translog, initialGeneration);
+        // one extra roll to make sure that all ops so far are available via a reader and a translog-{gen}.ckp
+        // file in a consistent way, in order to simplify checking code.
+        translog.rollGeneration();
         for (long seqNo = 0; seqNo < operations; seqNo++) {
             final Set<Tuple<Long, Long>> seenSeqNos = new HashSet<>();
             final long generation = translog.getMinGenerationForSeqNo(seqNo).translogFileGeneration;

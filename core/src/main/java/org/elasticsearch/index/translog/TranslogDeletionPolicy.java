@@ -33,7 +33,7 @@ public class TranslogDeletionPolicy implements DeletionPolicy {
      * the translog generation that is requires to properly recover from the oldest non deleted
      * {@link org.apache.lucene.index.IndexCommit}.
      */
-    private long minTranslogGenerationForRecovery = -1;
+    private long minTranslogGenerationForRecovery = 1;
 
     @Override
     public synchronized void onTranslogRollover(List<TranslogReader> readers, TranslogWriter currentWriter) {

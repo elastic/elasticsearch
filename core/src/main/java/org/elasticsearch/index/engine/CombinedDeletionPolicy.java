@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.elasticsearch.index.translog.Translog;
@@ -33,7 +34,11 @@ import java.util.List;
 public class CombinedDeletionPolicy extends SnapshotDeletionPolicy implements org.elasticsearch.index.translog.DeletionPolicy {
 
     public CombinedDeletionPolicy() {
-        super(new KeepOnlyLastCommitDeletionPolicy());
+        this(new KeepOnlyLastCommitDeletionPolicy());
+    }
+
+    CombinedDeletionPolicy(IndexDeletionPolicy indexDeletionPolicy) {
+        super(indexDeletionPolicy);
         translogDeletionPolicy = new TranslogDeletionPolicy();
     }
 

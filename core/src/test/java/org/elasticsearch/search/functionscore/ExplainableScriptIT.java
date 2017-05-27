@@ -24,24 +24,21 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.lookup.LeafDocLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -70,7 +67,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
 
     public static class ExplainableScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
             return new ScriptEngine() {
                 @Override
                 public String getType() {
@@ -78,19 +75,10 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+                public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
-                    return null;
-                }
-
-                @Override
-                public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-                    return new SearchScript() {
+                    assert context == SearchScript.CONTEXT;
+                    SearchScript.Factory factory = (p, lookup) -> new SearchScript() {
                         @Override
                         public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
                             return new MyScript(lookup.doc().getLeafDocLookup(context));
@@ -100,10 +88,8 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                             return false;
                         }
                     };
+                    return context.factoryClazz.cast(factory);
                 }
-
-                @Override
-                public void close() {}
             };
         }
     }

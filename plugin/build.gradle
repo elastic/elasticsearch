@@ -9,6 +9,8 @@ import java.nio.file.StandardCopyOption
 group 'org.elasticsearch.plugin'
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'antlr'
+
 esplugin {
   name 'x-pack'
   description 'Elasticsearch Expanded Pack Plugin'
@@ -81,6 +83,11 @@ dependencies {
   compile 'net.sf.supercsv:super-csv:2.4.0'
   nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
   testCompile 'org.ini4j:ini4j:0.5.2'
+  
+  // sql deps
+  antlr "org.antlr:antlr4:4.5.3"
+  compile project(":jdbc-proto")
+  compile project(":cli-proto")
 
   // common test deps
   testCompile 'org.elasticsearch:securemock:1.2'
@@ -91,13 +98,23 @@ dependencies {
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
 }
 
+String grammarPath = 'src/main/antlr'
+String outputPath = 'build/generated-src/antlr/main'
+
+// gradle plugin aren't enough
+// generate Visitor not just Listener sources
+generateGrammarSource {
+    arguments += ["-visitor", "-long-messages"]
+}
+
+
 // make LicenseSigner available for testing signed licenses
 sourceSets.test.java {
   srcDir '../license-tools/src/main/java'
 }
 
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileJava.options.compilerArgs << "-parameters" << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-parameters" << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
 ext.expansions = [
   'project.version': version,

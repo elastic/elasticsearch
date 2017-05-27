@@ -252,6 +252,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final SearchContext context = createAndPutContext(request);
         final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         context.incRef();
+        boolean queryPhaseSuccess = false;
         try {
             context.setTask(task);
             operationListener.onPreQueryPhase(context);
@@ -266,6 +267,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 contextProcessedSuccessfully(context);
             }
             final long afterQueryTime = System.nanoTime();
+            queryPhaseSuccess = true;
             operationListener.onQueryPhase(context, afterQueryTime - time);
             if (request.numberOfShards() == 1) {
                 return executeFetchPhase(context, operationListener, afterQueryTime);
@@ -277,7 +279,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 e = (e.getCause() == null || e.getCause() instanceof Exception) ?
                     (Exception) e.getCause() : new ElasticsearchException(e.getCause());
             }
-            operationListener.onFailedQueryPhase(context);
+            if (!queryPhaseSuccess) {
+                operationListener.onFailedQueryPhase(context);
+            }
             logger.trace("Query phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);

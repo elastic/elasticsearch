@@ -23,9 +23,6 @@ import java.util.List;
 
 public interface DeletionPolicy {
 
-    /** called when a new translog generation is created */
-    void onTranslogRollover(List<TranslogReader> readers, TranslogWriter currentWriter);
-
     /**
      * acquires the basis generation for a new view. Any translog generation above, and including, the returned generation
      * will not be deleted until a corresponding call to {@link #releaseTranslogGenView(long)} is called.

@@ -1410,23 +1410,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 IOUtils.fsync(generationCheckpoint.getParent(), true);
                 // create a new translog file; this will sync it and update the checkpoint data;
                 current = createWriter(current.getGeneration() + 1);
-                config.getDeletionPolicy().onTranslogRollover(readers, current);
                 logger.trace("current translog set to [{}]", current.getGeneration());
             } catch (final Exception e) {
                 IOUtils.closeWhileHandlingException(this); // tragic event
                 throw e;
             }
         }
-    }
-
-
-    private boolean assertCommittedGenerationIsInValidRange(final long committedGeneration) {
-        assert committedGeneration <= current.generation
-                : "tried to commit generation [" + committedGeneration + "] after current generation [" + current.generation + "]";
-        final long min = readers.stream().map(TranslogReader::getGeneration).min(Long::compareTo).orElse(Long.MIN_VALUE);
-        assert committedGeneration >= min
-                : "tried to commit generation [" + committedGeneration + "] before minimum generation [" + min + "]";
-        return true;
     }
 
     /**

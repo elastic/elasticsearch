@@ -35,11 +35,6 @@ public class TranslogDeletionPolicy implements DeletionPolicy {
      */
     private long minTranslogGenerationForRecovery = 1;
 
-    @Override
-    public synchronized void onTranslogRollover(List<TranslogReader> readers, TranslogWriter currentWriter) {
-
-    }
-
     public synchronized void setMinTranslogGenerationForRecovery(long newGen) {
         if (newGen < minTranslogGenerationForRecovery) {
             throw new IllegalArgumentException("minTranslogGenerationForRecovery can't go backwards. new [" + newGen + "] current [" +

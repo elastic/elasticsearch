@@ -49,9 +49,6 @@ public class CombinedDeletionPolicy extends SnapshotDeletionPolicy implements or
         super.onInit(commits);
         setLastCommittedTranslogGeneration(commits);
     }
-    @Override
-    public synchronized void onTranslogRollover(List<TranslogReader> readers, TranslogWriter currentWriter) {
-    }
 
     @Override
     public synchronized void onCommit(List<? extends IndexCommit> commits) throws IOException {

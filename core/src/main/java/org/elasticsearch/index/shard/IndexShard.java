@@ -336,12 +336,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * notifies the shard of an increase in the primary term
+     * Notifies the shard of an increase in the primary term.
+     *
+     * @param newPrimaryTerm the new primary term
      */
-    public void updatePrimaryTerm(final long newTerm) {
+    public void updatePrimaryTerm(final long newPrimaryTerm) {
         assert shardRouting.primary() : "primary term can only be explicitly updated on a primary shard";
         synchronized (mutex) {
-            if (newTerm != primaryTerm) {
+            if (newPrimaryTerm != primaryTerm) {
                 // Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
                 // in one state causing it's term to be incremented. Note that if both current shard state and new
                 // shard state are initializing, we could replace the current shard and reinitialize it. It is however
@@ -358,10 +360,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         "a started primary shard should never update its term; "
                                 + "shard " + shardRouting + ", "
                                 + "current term [" + primaryTerm + "], "
-                                + "new term [" + newTerm + "]";
-                assert newTerm > primaryTerm :
-                        "primary terms can only go up; current term [" + primaryTerm + "], new term [" + newTerm + "]";
-                primaryTerm = newTerm;
+                                + "new term [" + newPrimaryTerm + "]";
+                assert newPrimaryTerm > primaryTerm :
+                        "primary terms can only go up; current term [" + primaryTerm + "], new term [" + newPrimaryTerm + "]";
+                /*
+                 * Before this call returns, we are guarantee that all future operations are delayed and so this happens before we increment
+                 * the primary term.
+                 */
+                indexShardOperationPermits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {});
+                primaryTerm = newPrimaryTerm;
             }
         }
     }
@@ -460,7 +467,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void relocated(String reason) throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try {
-            indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+            indexShardOperationPermits.syncBlockOperations(30, TimeUnit.MINUTES, () -> {
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
                     "in-flight operations in progress while moving shard state to relocated";
@@ -1876,7 +1883,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             synchronized (primaryTermMutex) {
                 if (operationPrimaryTerm > primaryTerm) {
                     try {
-                        indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+                        indexShardOperationPermits.syncBlockOperations(30, TimeUnit.MINUTES, () -> {
                             assert operationPrimaryTerm > primaryTerm :
                                 "shard term already update.  op term [" + operationPrimaryTerm + "], shardTerm [" + primaryTerm + "]";
                             primaryTerm = operationPrimaryTerm;

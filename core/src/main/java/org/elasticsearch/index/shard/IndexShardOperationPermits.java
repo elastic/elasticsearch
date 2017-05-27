@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -38,18 +39,32 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+/**
+ * Tracks shard operation permits. Each operation on the shard obtains a permit. When we need to block operations (e.g., to transition
+ * between terms) we immediately delay all operations to a queue, obtain all available permits, and wait for outstanding operations to drain
+ * and return their permits. Delayed operations will acquire permits and be completed after the operation that blocked all operations has
+ * completed.
+ */
 final class IndexShardOperationPermits implements Closeable {
+
     private final ShardId shardId;
     private final Logger logger;
     private final ThreadPool threadPool;
 
     private static final int TOTAL_PERMITS = Integer.MAX_VALUE;
-    // fair semaphore to ensure that blockOperations() does not starve under thread contention
-    final Semaphore semaphore = new Semaphore(TOTAL_PERMITS, true);
+    final Semaphore semaphore = new Semaphore(Integer.MAX_VALUE, true); // fair to ensure a blocking thread is not starved
     @Nullable private List<ActionListener<Releasable>> delayedOperations; // operations that are delayed
     private volatile boolean closed;
+    private boolean delayed; // does not need to be volatile as all accesses are done under a lock on this
 
-    IndexShardOperationPermits(ShardId shardId, Logger logger, ThreadPool threadPool) {
+    /**
+     * Construct operation permits for the specified shards.
+     *
+     * @param shardId    the shard
+     * @param logger     the logger for the shard
+     * @param threadPool the thread pool (used to execute delayed operations)
+     */
+    IndexShardOperationPermits(final ShardId shardId, final Logger logger, final ThreadPool threadPool) {
         this.shardId = shardId;
         this.logger = logger;
         this.threadPool = threadPool;
@@ -61,20 +76,67 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     /**
-     * Wait for in-flight operations to finish and executes onBlocked under the guarantee that no new operations are started. Queues
-     * operations that are occurring in the meanwhile and runs them once onBlocked has executed.
+     * Wait for in-flight operations to finish and executes {@code onBlocked} under the guarantee that no new operations are started. Queues
+     * operations that are occurring in the meanwhile and runs them once {@code onBlocked} has executed.
      *
-     * @param timeout the maximum time to wait for the in-flight operations block
-     * @param timeUnit the time unit of the {@code timeout} argument
+     * @param timeout   the maximum time to wait for the in-flight operations block
+     * @param timeUnit  the time unit of the {@code timeout} argument
      * @param onBlocked the action to run once the block has been acquired
-     * @throws InterruptedException if calling thread is interrupted
-     * @throws TimeoutException if timed out waiting for in-flight operations to finish
+     * @param <E>       the type of checked exception thrown by {@code onBlocked}
+     * @throws InterruptedException      if calling thread is interrupted
+     * @throws TimeoutException          if timed out waiting for in-flight operations to finish
      * @throws IndexShardClosedException if operation permit has been closed
      */
-    public <E extends Exception> void blockOperations(long timeout, TimeUnit timeUnit, CheckedRunnable<E> onBlocked) throws
-        InterruptedException, TimeoutException, E {
+    <E extends Exception> void syncBlockOperations(
+            final long timeout,
+            final TimeUnit timeUnit,
+            final CheckedRunnable<E> onBlocked) throws InterruptedException, TimeoutException, E {
         if (closed) {
             throw new IndexShardClosedException(shardId);
+        }
+        delayOperations();
+        doBlockOperations(timeout, timeUnit, onBlocked);
+    }
+
+    /**
+     * Immediately delays operations and on another thread waits for in-flight operations to finish and then executes {@code onBlocked}
+     * under the guarantee that no new operations are started. Delayed operations are run after {@code onBlocked} has executed. After
+     * operations are delayed and the blocking is forked to another thread, returns to the caller.
+     *
+     * @param timeout   the maximum time to wait for the in-flight operations block
+     * @param timeUnit  the time unit of the {@code timeout} argument
+     * @param onBlocked the action to run once the block has been acquired
+     * @param <E>       the type of checked exception thrown by {@code onBlocked} (not thrown on the calling thread)
+     */
+    <E extends Exception> void asyncBlockOperations(final long timeout, final TimeUnit timeUnit, final CheckedRunnable<E> onBlocked) {
+        delayOperations();
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            try {
+                doBlockOperations(timeout, timeUnit, onBlocked);
+            } catch (final Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private void delayOperations() {
+        synchronized (this) {
+            if (delayed) {
+                throw new IllegalStateException("operations are already delayed");
+            } else {
+                delayed = true;
+            }
+        }
+    }
+
+    private <E extends Exception> void doBlockOperations(
+            final long timeout,
+            final TimeUnit timeUnit,
+            final CheckedRunnable<E> onBlocked) throws InterruptedException, TimeoutException, E {
+        if (Assertions.ENABLED) {
+            synchronized (this) {
+                assert delayed;
+            }
         }
         try {
             if (semaphore.tryAcquire(TOTAL_PERMITS, timeout, timeUnit)) {
@@ -92,6 +154,7 @@ final class IndexShardOperationPermits implements Closeable {
             synchronized (this) {
                 queuedActions = delayedOperations;
                 delayedOperations = null;
+                delayed = false;
             }
             if (queuedActions != null) {
                 // Try acquiring permits on fresh thread (for two reasons):
@@ -112,24 +175,25 @@ final class IndexShardOperationPermits implements Closeable {
     /**
      * Acquires a permit whenever permit acquisition is not blocked. If the permit is directly available, the provided
      * {@link ActionListener} will be called on the calling thread. During calls of
-     * {@link #blockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed. The provided ActionListener will
-     * then be called using the provided executor once operations are no longer blocked.
+     * {@link #syncBlockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed. The provided {@link ActionListener}
+     * will then be called using the provided executor once operations are no longer blocked.
      *
      * @param onAcquired      {@link ActionListener} that is invoked once acquisition is successful or failed
      * @param executorOnDelay executor to use for delayed call
      * @param forceExecution  whether the runnable should force its execution in case it gets rejected
      */
-    public void acquire(ActionListener<Releasable> onAcquired, String executorOnDelay, boolean forceExecution) {
+    public void acquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution) {
         if (closed) {
             onAcquired.onFailure(new IndexShardClosedException(shardId));
             return;
         }
-        Releasable releasable;
+        final Releasable releasable;
         try {
             synchronized (this) {
                 releasable = tryAcquire();
                 if (releasable == null) {
-                    // blockOperations is executing, this operation will be retried by blockOperations once it finishes
+                    assert delayed;
+                    // operations are delayed, this operation will be retried by doBlockOperations once the delay is remoked
                     if (delayedOperations == null) {
                         delayedOperations = new ArrayList<>();
                     }
@@ -144,7 +208,7 @@ final class IndexShardOperationPermits implements Closeable {
                     return;
                 }
             }
-        } catch (InterruptedException e) {
+        } catch (final InterruptedException e) {
             onAcquired.onFailure(e);
             return;
         }
@@ -152,8 +216,9 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     @Nullable private Releasable tryAcquire() throws InterruptedException {
-        if (semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)) { // the untimed tryAcquire methods do not honor the fairness setting
-            AtomicBoolean closed = new AtomicBoolean();
+        assert Thread.holdsLock(this);
+        if (!delayed && semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)) { // the untimed tryAcquire methods do not honor the fairness setting
+            final AtomicBoolean closed = new AtomicBoolean();
             return () -> {
                 if (closed.compareAndSet(false, true)) {
                     semaphore.release(1);
@@ -163,13 +228,23 @@ final class IndexShardOperationPermits implements Closeable {
         return null;
     }
 
-    public int getActiveOperationsCount() {
+    /**
+     * Obtain the active operation count, or zero if all permits are held (even if there are outstanding operations in flight).
+     *
+     * @return the active operation count, or zero when all permits ar eheld
+     */
+    int getActiveOperationsCount() {
         int availablePermits = semaphore.availablePermits();
         if (availablePermits == 0) {
-            // when blockOperations is holding all permits
+            /*
+             * This occurs when either doBlockOperations is holding all the permits or there are outstanding operations in flight and the
+             * remainder of the permits are held by doBlockOperations. We do not distinguish between these two cases and simply say that
+             * the active operations count is zero.
+             */
             return 0;
         } else {
             return TOTAL_PERMITS - availablePermits;
         }
     }
+
 }

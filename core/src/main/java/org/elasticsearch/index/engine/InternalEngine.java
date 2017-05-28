@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -1411,7 +1410,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public IndexCommit acquireIndexCommit(final boolean flushFirst) throws EngineException {
+    public IndexCommitRef acquireIndexCommit(final boolean flushFirst) throws EngineException {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
         if (flushFirst) {
@@ -1421,15 +1420,10 @@ public class InternalEngine extends Engine {
         }
         try (ReleasableLock lock = readLock.acquire()) {
             logger.trace("pulling snapshot");
-            return deletionPolicy.getIndexDeletionPolicy().snapshot();
+            return new IndexCommitRef(deletionPolicy.getIndexDeletionPolicy());
         } catch (IOException e) {
             throw new SnapshotFailedEngineException(shardId, e);
         }
-    }
-
-    @Override
-    public void releaseIndexCommit(IndexCommit snapshot) throws IOException {
-        deletionPolicy.getIndexDeletionPolicy().release(snapshot);
     }
 
     @SuppressWarnings("finally")

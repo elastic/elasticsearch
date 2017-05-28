@@ -33,6 +33,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
@@ -43,6 +44,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -175,8 +177,6 @@ public abstract class Engine implements Closeable {
     public MergeStats getMergeStats() {
         return new MergeStats();
     }
-
-    public abstract void releaseIndexCommit(IndexCommit snapshot) throws IOException;
 
     /**
      * A throttling class that can be activated, causing the
@@ -825,7 +825,7 @@ public abstract class Engine implements Closeable {
      *
      * @param flushFirst indicates whether the engine should flush before returning the snapshot
      */
-    public abstract IndexCommit acquireIndexCommit(boolean flushFirst) throws EngineException;
+    public abstract IndexCommitRef acquireIndexCommit(boolean flushFirst) throws EngineException;
 
     /**
      * fail engine due to some error. the engine will also be closed.
@@ -1381,6 +1381,28 @@ public abstract class Engine implements Closeable {
         @Override
         public int hashCode() {
             return Arrays.hashCode(id);
+        }
+    }
+
+    public static class IndexCommitRef implements Closeable {
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private final CheckedRunnable<IOException> onClose;
+        private final IndexCommit indexCommit;
+
+        IndexCommitRef(SnapshotDeletionPolicy deletionPolicy) throws IOException {
+            indexCommit = deletionPolicy.snapshot();
+            onClose = () -> deletionPolicy.release(indexCommit);
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (closed.compareAndSet(false, true)) {
+                onClose.run();
+            }
+        }
+
+        public IndexCommit getIndexCommit() {
+            return indexCommit;
         }
     }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
@@ -75,14 +76,17 @@ import java.util.stream.Stream;
  * between the lucene index an the transaction log file. This UUID is used to prevent accidental recovery from a transaction log that belongs to a
  * different engine.
  * <p>
- * Each Translog has only one translog file open at any time referenced by a translog generation ID. This ID is written to a <tt>translog.ckp</tt> file that is designed
- * to fit in a single disk block such that a write of the file is atomic. The checkpoint file is written on each fsync operation of the translog and records the number of operations
- * written, the current translogs file generation and it's fsynced offset in bytes.
+ * Each Translog has only one translog file open for writes at any time referenced by a translog generation ID. This ID is written to a
+ * <tt>translog.ckp</tt> file that is designed to fit in a single disk block such that a write of the file is atomic. The checkpoint file
+ * is written on each fsync operation of the translog and records the number of operations written, the current translogs file generation
+ * and it's fsynced offset in bytes.
  * </p>
- * nocommit: UPDATE DOCS
- * Yet, a new/current translog file is already opened at that point such that there is more than
- * one translog file present. Such an uncommitted translog file always has a <tt>translog-${gen}.ckp</tt> associated with it which is an fsynced copy of the it's last <tt>translog.ckp</tt> such that in
- * disaster recovery last fsynced offsets, number of operation etc. are still preserved.
+ * <p>
+ * When the current translog file reaches a certain size ({@link IndexSettings#INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING}, or when
+ * a clear separation between old and new operations (upon change in primary term), the current file reopened for read only and a new
+ * write only file is created. Any non-current, read only translog file always has a <tt>translog-${gen}.ckp</tt> associated with it
+ * which is an fsynced copy of the it's last <tt>translog.ckp</tt> such that in disaster recovery last fsynced offsets, number of
+ * operation etc. are still preserved.
  * </p>
  */
 public class Translog extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
@@ -123,9 +127,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * the generation is not {@code null}, this method tries to open the given translog generation. The generation is treated as the last
      * generation referenced from already committed data. This means all operations that have not yet been committed should be in the
      * translog file referenced by this generation. The translog creation will fail if this generation can't be opened.
-     *  @param config                   the configuration of this translog
-     * @param expectedTranslogUUID             the translog uuid to open, null for a new translog
-     * @param deletionPolicy
+     *
+     * @param config                   the configuration of this translog
+     * @param expectedTranslogUUID     the translog uuid to open, null for a new translog
+     * @param deletionPolicy           an instance of {@link TranslogDeletionPolicy} that controls when a translog file can be safely
+     *                                 deleted
      * @param globalCheckpointSupplier a supplier for the global checkpoint
      */
     public Translog(

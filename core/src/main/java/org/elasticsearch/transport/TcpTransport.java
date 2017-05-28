@@ -1032,13 +1032,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         if (compress) {
             options = TransportRequestOptions.builder(options).withCompress(true).build();
         }
+        boolean compressMessage = options.compress() && canCompress(request);
         status = TransportStatus.setRequest(status);
-        final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bigArrays, options.compress());
+        final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bigArrays, compressMessage);
         boolean addedReleaseListener = false;
         try {
             // only compress if asked, and, the request is not bytes, since then only
             // the header part is compressed, and the "body" can't be extracted as compressed
-            if (options.compress() && canCompress(request)) {
+            if (compressMessage) {
                 status = TransportStatus.setCompress(status);
             }
 
@@ -1053,8 +1054,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             BytesReference message = buildMessage(requestId, status, node.getVersion(), request, stream);
             final TransportRequestOptions finalOptions = options;
             // this might be called in a different thread
-            SendListener onRequestSent = new SendListener(
-                () -> IOUtils.closeWhileHandlingException(stream),
+            SendListener onRequestSent = new SendListener(stream,
                 () -> transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions));
             internalSendMessage(targetChannel, message, onRequestSent);
             addedReleaseListener = true;
@@ -1134,7 +1134,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
             final TransportResponseOptions finalOptions = options;
             // this might be called in a different thread
-            SendListener listener = new SendListener(() -> IOUtils.closeWhileHandlingException(stream),
+            SendListener listener = new SendListener(stream,
                 () -> transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions));
             internalSendMessage(channel, reference, listener);
             addedReleaseListener = true;

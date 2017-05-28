@@ -154,7 +154,7 @@ public class InternalEngine extends Engine {
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         this.deletionPolicy = new CombinedDeletionPolicy(
             new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()),
-            translogDeletionPolicy);
+            translogDeletionPolicy, openMode);
         store.incRef();
         IndexWriter writer = null;
         Translog translog = null;

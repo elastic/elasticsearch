@@ -31,18 +31,34 @@ import java.util.List;
 public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     private final TranslogDeletionPolicy translogDeletionPolicy;
+    private final EngineConfig.OpenMode openMode;
 
     private final SnapshotDeletionPolicy indexDeletionPolicy;
 
-    CombinedDeletionPolicy(SnapshotDeletionPolicy indexDeletionPolicy, TranslogDeletionPolicy translogDeletionPolicy) {
+    CombinedDeletionPolicy(SnapshotDeletionPolicy indexDeletionPolicy, TranslogDeletionPolicy translogDeletionPolicy,
+                           EngineConfig.OpenMode openMode) {
         this.indexDeletionPolicy = indexDeletionPolicy;
         this.translogDeletionPolicy = translogDeletionPolicy;
+        this.openMode = openMode;
     }
 
     @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
         indexDeletionPolicy.onInit(commits);
-        setLastCommittedTranslogGeneration(commits);
+        switch (openMode) {
+            case CREATE_INDEX_AND_TRANSLOG:
+                assert commits.isEmpty() : "index is being created but we already have commits";
+                break;
+            case OPEN_INDEX_CREATE_TRANSLOG:
+                assert commits.isEmpty() == false : "index is opened, but we have no commits";
+                break;
+            case OPEN_INDEX_AND_TRANSLOG:
+                assert commits.isEmpty() == false : "index is opened, but we have no commits";
+                setLastCommittedTranslogGeneration(commits);
+                break;
+            default:
+                throw new IllegalArgumentException("unknown openMode [" + openMode + "]");
+        }
     }
 
     @Override
@@ -52,14 +68,9 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     private void setLastCommittedTranslogGeneration(List<? extends IndexCommit> commits) throws IOException {
-        final long minGen;
-        if (commits.isEmpty()) {
-            minGen = 1; // new index, keep the first generation onwards
-        } else {
-            final IndexCommit indexCommit = commits.get(commits.size() - 1);
-            assert indexCommit.isDeleted() == false : "last commit is deleted";
-            minGen = Long.parseLong(indexCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-        }
+        final IndexCommit indexCommit = commits.get(commits.size() - 1);
+        assert indexCommit.isDeleted() == false : "last commit is deleted";
+        long minGen = Long.parseLong(indexCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         translogDeletionPolicy.setMinTranslogGenerationForRecovery(minGen);
     }
 

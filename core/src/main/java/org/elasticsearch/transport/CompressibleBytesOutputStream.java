@@ -14,12 +14,11 @@ import org.elasticsearch.common.util.BigArrays;
 
 import java.io.IOException;
 
-public class CompressibleBytesOutputStream extends BytesStream implements Releasable {
+public class CompressibleBytesOutputStream extends StreamOutput implements Releasable {
 
     private final StreamOutput stream;
     private final ReleasableBytesStreamOutput bytesStreamOutput;
     private final boolean shouldCompress;
-    private boolean finishCalled = false;
 
     public CompressibleBytesOutputStream(BigArrays bigArrays, boolean shouldCompress) throws IOException {
         bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
@@ -31,18 +30,21 @@ public class CompressibleBytesOutputStream extends BytesStream implements Releas
         }
     }
 
-    public void finishStream() throws IOException {
-        this.finishCalled = true;
-
+    /**
+     * This method ensures that compression is complete and returns the underlying bytes.
+     *
+     * @return bytes underlying the stream
+     * @throws IOException if an exception occurs when writing or flushing
+     */
+    public BytesStream finishStream() throws IOException {
+        // If we are using compression the stream needs to be closed to ensure that EOS marker bytes are written.
+        // The actual ReleasableBytesStreamOutput will not be closed yet it is wrapped in flushOnCloseStream when
+        // passed to the deflater stream.
         if (shouldCompress) {
             stream.close();
         }
-    }
 
-    @Override
-    public BytesReference bytes() {
-        assert finishCalled : "Must call finishStream() before accessing underlying bytes";
-        return bytesStreamOutput.bytes();
+        return bytesStreamOutput;
     }
 
     @Override

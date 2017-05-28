@@ -1185,8 +1185,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         // are written. Otherwise we barf on the decompressing end when we read past EOF on purpose in the
         // #validateRequest method. this might be a problem in deflate after all but it's important to write
         // the marker bytes.
-        stream.finishStream();
-        final BytesReference messageBody = stream.bytes();
+        final BytesReference messageBody = stream.finishStream().bytes();
         final BytesReference header = buildHeader(requestId, status, stream.getVersion(), messageBody.length() + zeroCopyBuffer.length());
         return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);
     }

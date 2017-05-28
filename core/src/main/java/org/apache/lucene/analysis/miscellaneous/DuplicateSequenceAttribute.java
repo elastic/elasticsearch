@@ -17,10 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.apache.lucene.analysis.miscellaneous;
+
+import org.apache.lucene.util.Attribute;
 
 /**
- * Exceptions implementing this interface will be ignored during recovery.
+ * Provides statistics useful for detecting duplicate sections of text
  */
-public interface IgnoreOnRecoveryEngineException {
+public interface DuplicateSequenceAttribute extends Attribute {
+    /**
+     * @return The number of times this token has been seen previously as part
+     *         of a sequence (counts to a max of 255)
+     */
+    short getNumPriorUsesInASequence();
+
+    void setNumPriorUsesInASequence(short len);
 }

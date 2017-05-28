@@ -808,6 +808,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> total number of simulated failures during restore: [{}]", getFailureCount("test-repo"));
     }
 
+    @TestLogging("org.elasticsearch.cluster.routing:TRACE,org.elasticsearch.snapshots:TRACE")
     public void testDataFileCorruptionDuringRestore() throws Exception {
         Path repositoryLocation = randomRepoPath();
         Client client = client();
@@ -826,9 +827,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits(), equalTo(100L));
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(createSnapshotResponse.getSnapshotInfo().successfulShards()));
+        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().successfulShards()));
 
         logger.info("-->  update repository with mock version");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
@@ -844,14 +847,17 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> delete index");
         cluster().wipeIndices("test-idx");
         logger.info("--> restore corrupt index");
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
+            .prepareRestoreSnapshot("test-repo", "test-snap").setMasterNodeTimeout("30s")
+            .setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards()));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(),
+            equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards()));
         // we have to delete the index here manually, otherwise the cluster will keep
         // trying to allocate the shards for the index, even though the restore operation
         // is completed and marked as failed, which can lead to nodes having pending
         // cluster states to process in their queue when the test is finished
-        client.admin().indices().prepareDelete("test-idx").get();
+        cluster().wipeIndices("test-idx");
     }
 
     public void testDeletionOfFailingToRecoverIndexShouldStopRestore() throws Exception {

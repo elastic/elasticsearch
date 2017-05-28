@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -67,7 +66,7 @@ public class MockScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public Object compile(String name, String source, Map<String, String> params) {
+    public <T> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
         // Scripts are always resolved using the script's source. For inline scripts, it's easy because they don't have names and the
         // source is always provided. For stored and file scripts, the source of the script must match the key of a predefined script.
         Function<Map<String, Object>, Object> script = scripts.get(source);
@@ -75,23 +74,15 @@ public class MockScriptEngine implements ScriptEngine {
             throw new IllegalArgumentException("No pre defined script matching [" + source + "] for script with name [" + name + "], " +
                     "did you declare the mocked script?");
         }
-        return new MockCompiledScript(name, params, source, script);
-    }
-
-    @Override
-    public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
-        MockCompiledScript compiled = (MockCompiledScript) compiledScript.compiled();
-        return compiled.createExecutableScript(vars);
-    }
-
-    @Override
-    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        MockCompiledScript compiled = (MockCompiledScript) compiledScript.compiled();
-        return compiled.createSearchScript(vars, lookup);
-    }
-
-    @Override
-    public void close() throws IOException {
+        MockCompiledScript mockCompiled = new MockCompiledScript(name, params, source, script);
+        if (context.instanceClazz.equals(SearchScript.class)) {
+            SearchScript.Factory factory = mockCompiled::createSearchScript;
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
+            ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
+            return context.factoryClazz.cast(factory);
+        }
+        throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
 
     public class MockCompiledScript {

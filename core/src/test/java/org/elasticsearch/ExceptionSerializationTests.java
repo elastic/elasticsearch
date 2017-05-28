@@ -56,7 +56,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.ShardLockObtainFailedException;
-import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.query.QueryShardException;
@@ -294,24 +293,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertNull(ex.shard());
         assertEquals(ex.getMessage(), "hello world");
         assertTrue(ex.getCause() instanceof NullPointerException);
-    }
-
-    public void testAlreadyExpiredException() throws IOException {
-        AlreadyExpiredException alreadyExpiredException = serialize(new AlreadyExpiredException("index", "type", "id", 1, 2, 3));
-        assertEquals("index", alreadyExpiredException.getIndex().getName());
-        assertEquals("type", alreadyExpiredException.type());
-        assertEquals("id", alreadyExpiredException.id());
-        assertEquals(2, alreadyExpiredException.ttl());
-        assertEquals(1, alreadyExpiredException.timestamp());
-        assertEquals(3, alreadyExpiredException.now());
-
-        alreadyExpiredException = serialize(new AlreadyExpiredException(null, null, null, -1, -2, -3));
-        assertNull(alreadyExpiredException.getIndex());
-        assertNull(alreadyExpiredException.type());
-        assertNull(alreadyExpiredException.id());
-        assertEquals(-2, alreadyExpiredException.ttl());
-        assertEquals(-1, alreadyExpiredException.timestamp());
-        assertEquals(-3, alreadyExpiredException.now());
     }
 
     public void testActionNotFoundTransportException() throws IOException {
@@ -780,7 +761,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(82, org.elasticsearch.repositories.RepositoryException.class);
         ids.put(83, org.elasticsearch.transport.ReceiveTimeoutTransportException.class);
         ids.put(84, org.elasticsearch.transport.NodeDisconnectedException.class);
-        ids.put(85, org.elasticsearch.index.AlreadyExpiredException.class);
+        ids.put(85, null);
         ids.put(86, org.elasticsearch.search.aggregations.AggregationExecutionException.class);
         ids.put(88, org.elasticsearch.indices.InvalidIndexTemplateException.class);
         ids.put(90, org.elasticsearch.index.engine.RefreshFailedEngineException.class);

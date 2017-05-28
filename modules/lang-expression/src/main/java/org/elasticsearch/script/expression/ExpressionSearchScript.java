@@ -26,7 +26,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.SearchScript;
@@ -40,7 +39,7 @@ import java.util.Map;
  */
 class ExpressionSearchScript implements SearchScript {
 
-    final CompiledScript compiledScript;
+    final Expression exprScript;
     final SimpleBindings bindings;
     final DoubleValuesSource source;
     final ReplaceableConstDoubleValueSource specialValue; // _value
@@ -48,10 +47,10 @@ class ExpressionSearchScript implements SearchScript {
     Scorer scorer;
     int docid;
 
-    ExpressionSearchScript(CompiledScript c, SimpleBindings b, ReplaceableConstDoubleValueSource v, boolean needsScores) {
-        compiledScript = c;
+    ExpressionSearchScript(Expression e, SimpleBindings b, ReplaceableConstDoubleValueSource v, boolean needsScores) {
+        exprScript = e;
         bindings = b;
-        source = ((Expression)compiledScript.compiled()).getDoubleValuesSource(bindings);
+        source = exprScript.getDoubleValuesSource(bindings);
         specialValue = v;
         this.needsScores = needsScores;
     }
@@ -81,7 +80,7 @@ class ExpressionSearchScript implements SearchScript {
                 try {
                     return values.doubleValue();
                 } catch (Exception exception) {
-                    throw new GeneralScriptException("Error evaluating " + compiledScript, exception);
+                    throw new GeneralScriptException("Error evaluating " + exprScript, exception);
                 }
             }
 
@@ -100,7 +99,7 @@ class ExpressionSearchScript implements SearchScript {
                 try {
                     values.advanceExact(d);
                 } catch (IOException e) {
-                    throw new IllegalStateException("Can't advance to doc using " + compiledScript, e);
+                    throw new IllegalStateException("Can't advance to doc using " + exprScript, e);
                 }
             }
 
@@ -121,7 +120,7 @@ class ExpressionSearchScript implements SearchScript {
                         }
                     });
                 } catch (IOException e) {
-                    throw new IllegalStateException("Can't get values using " + compiledScript, e);
+                    throw new IllegalStateException("Can't get values using " + exprScript, e);
                 }
             }
 
@@ -137,7 +136,7 @@ class ExpressionSearchScript implements SearchScript {
                     if (value instanceof Number) {
                         specialValue.setValue(((Number)value).doubleValue());
                     } else {
-                        throw new GeneralScriptException("Cannot use expression with text variable using " + compiledScript);
+                        throw new GeneralScriptException("Cannot use expression with text variable using " + exprScript);
                     }
                 }
             }

@@ -591,7 +591,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final DiscoveryNodes nodes) {
         return shardRoutings
                 .stream()
-                .filter(sr -> nodes.get(sr.currentNodeId()).getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED))
+                .filter(sr -> nodes.get(sr.currentNodeId()).getVersion().onOrAfter(Version.V_6_0_0_alpha1))
                 .map(ShardRouting::allocationId)
                 .map(AllocationId::getId)
                 .collect(Collectors.toSet());

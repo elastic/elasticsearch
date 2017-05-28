@@ -22,6 +22,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -46,6 +47,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -263,6 +265,18 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             throw new IllegalArgumentException("no such remote cluster: " + cluster);
         }
         return connection.getConnection(node);
+    }
+
+    /**
+     * Ensures that the given cluster alias is connected. If the cluster is connected this operation
+     * will invoke the listener immediately.
+     */
+    public void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
+        RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterAlias);
+        if (remoteClusterConnection == null) {
+            throw new IllegalArgumentException("no such remote cluster: " + clusterAlias);
+        }
+        remoteClusterConnection.ensureConnected(listener);
     }
 
     public Transport.Connection getConnection(String cluster) {

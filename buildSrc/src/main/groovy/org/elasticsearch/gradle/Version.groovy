@@ -29,20 +29,14 @@ public class Version {
     final int bugfix
     final int id
     final boolean snapshot
-    /**
-     * Is the vesion listed as {@code _UNRELEASED} in Version.java.
-     */
-    final boolean unreleased
 
-    public Version(int major, int minor, int bugfix, boolean snapshot,
-            boolean unreleased) {
+    public Version(int major, int minor, int bugfix, boolean snapshot) {
         this.major = major
         this.minor = minor
         this.bugfix = bugfix
         this.snapshot = snapshot
         this.id = major * 100000 + minor * 1000 + bugfix * 10 +
             (snapshot ? 1 : 0)
-        this.unreleased = unreleased
     }
 
     public static Version fromString(String s) {
@@ -54,7 +48,7 @@ public class Version {
             bugfix = bugfix.split('-')[0]
         }
         return new Version(parts[0] as int, parts[1] as int, bugfix as int,
-            snapshot, false)
+            snapshot)
     }
 
     @Override

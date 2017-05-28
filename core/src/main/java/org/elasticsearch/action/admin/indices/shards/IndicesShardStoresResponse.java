@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.shard.ShardStateMetaData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -165,7 +165,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         @Override
         public void readFrom(StreamInput in) throws IOException {
             node = new DiscoveryNode(in);
-            if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
                 // legacy version
                 in.readLong();
             }
@@ -179,7 +179,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             node.writeTo(out);
-            if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
                 // legacy version
                 out.writeLong(-1L);
             }

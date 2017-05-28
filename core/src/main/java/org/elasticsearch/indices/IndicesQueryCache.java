@@ -103,7 +103,7 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
         }
         final double weight = totalSize == 0
                 ? 1d / stats.size()
-                : shardStats.getCacheSize() / totalSize;
+                : ((double) shardStats.getCacheSize()) / totalSize;
         final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
         shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
         return shardStats;

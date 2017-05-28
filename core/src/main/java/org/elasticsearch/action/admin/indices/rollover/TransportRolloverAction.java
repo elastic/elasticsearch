@@ -119,7 +119,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 @Override
                 public void onResponse(IndicesStatsResponse statsResponse) {
                     final Set<Condition.Result> conditionResults = evaluateConditions(rolloverRequest.getConditions(),
-                        statsResponse.getTotal().getDocs(), metaData.index(sourceIndexName));
+                        statsResponse.getPrimaries().getDocs(), metaData.index(sourceIndexName));
 
                     if (rolloverRequest.isDryRun()) {
                         listener.onResponse(

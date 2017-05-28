@@ -1,0 +1,80 @@
+---
+"Rollover conditions matched with replica node":
+  # create index with alias and replica
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: all
+        body:
+          aliases:
+            logs_search: {}
+          settings:
+            index:
+              number_of_replicas: "1"
+
+  # perform alias rollover on empty index
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 2
+
+  - match: { conditions: { "[max_docs: 2]": false } }
+  - match: { rolled_over: false }
+
+  # index first document and wait for refresh
+  - do:
+      index:
+        index: logs-1
+        type:  test
+        id:    "1"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  - do:
+      indices.stats: {}
+
+  - match:    { _all.primaries.docs.count: 1 }
+  - match:    { _all.total.docs.count: 2 }
+
+  # perform alias rollover with no result
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 2
+
+  - match: { conditions: { "[max_docs: 2]": false } }
+  - match: { rolled_over: false }
+
+  # index second document and wait for refresh
+  - do:
+      index:
+        index: logs-1
+        type:  test
+        id:    "2"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  - do:
+      indices.stats: {}
+
+  - match:    { _all.primaries.docs.count: 2 }
+  - match:    { _all.total.docs.count: 4 }
+
+  # perform alias rollover
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 2
+
+  - match: { conditions: { "[max_docs: 2]": true } }
+  - match: { rolled_over: true }
+

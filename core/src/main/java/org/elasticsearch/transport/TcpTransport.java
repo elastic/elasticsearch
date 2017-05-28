@@ -1034,7 +1034,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
         boolean compressMessage = options.compress() && canCompress(request);
         status = TransportStatus.setRequest(status);
-        final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bigArrays, compressMessage);
+        ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
+        final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compressMessage);
         boolean addedReleaseListener = false;
         try {
             // only compress if asked, and, the request is not bytes, since then only
@@ -1122,7 +1123,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             options = TransportResponseOptions.builder(options).withCompress(true).build();
         }
         status = TransportStatus.setResponse(status); // TODO share some code with sendRequest
-        CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bigArrays, options.compress());
+        ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
+        CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, options.compress());
         boolean addedReleaseListener = false;
         try {
             if (options.compress()) {

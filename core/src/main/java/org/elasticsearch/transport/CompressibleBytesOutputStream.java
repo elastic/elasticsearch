@@ -23,21 +23,19 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.BigArrays;
 
 import java.io.IOException;
 
 public class CompressibleBytesOutputStream extends StreamOutput implements Releasable {
 
     private final StreamOutput stream;
-    private final ReleasableBytesStreamOutput bytesStreamOutput;
+    private final BytesStream bytesStreamOutput;
     private final boolean shouldCompress;
 
-    public CompressibleBytesOutputStream(BigArrays bigArrays, boolean shouldCompress) throws IOException {
-        bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
+    public CompressibleBytesOutputStream(BytesStream bytesStreamOutput, boolean shouldCompress) throws IOException {
+        this.bytesStreamOutput = bytesStreamOutput;
         this.shouldCompress = shouldCompress;
         if (shouldCompress) {
             this.stream = CompressorFactory.COMPRESSOR.streamOutput(Streams.flushOnCloseStream(bytesStreamOutput));
@@ -84,7 +82,7 @@ public class CompressibleBytesOutputStream extends StreamOutput implements Relea
         if (shouldCompress) {
             IOUtils.closeWhileHandlingException(stream);
         }
-        bytesStreamOutput.close();
+        IOUtils.closeWhileHandlingException(bytesStreamOutput);
     }
 
     @Override

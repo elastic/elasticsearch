@@ -26,11 +26,13 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherFactory;
@@ -74,6 +76,7 @@ import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
+import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -126,6 +129,9 @@ public class InternalEngine extends Engine {
 
     private final String uidField;
 
+    private final CombinedDeletionPolicy deletionPolicy;
+
+
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
     // incoming indexing ops to a single thread:
@@ -145,6 +151,10 @@ public class InternalEngine extends Engine {
         }
         this.uidField = engineConfig.getIndexSettings().isSingleType() ? IdFieldMapper.NAME : UidFieldMapper.NAME;
         this.versionMap = new LiveVersionMap();
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
+        this.deletionPolicy = new CombinedDeletionPolicy(
+            new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()),
+            translogDeletionPolicy);
         store.incRef();
         IndexWriter writer = null;
         Translog translog = null;
@@ -183,7 +193,7 @@ public class InternalEngine extends Engine {
                 seqNoService = sequenceNumberService(shardId, engineConfig.getIndexSettings(), seqNoStats);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 indexWriter = writer;
-                translog = openTranslog(engineConfig, writer, () -> seqNoService().getGlobalCheckpoint());
+                translog = openTranslog(engineConfig, writer, translogDeletionPolicy, () -> seqNoService().getGlobalCheckpoint());
                 assert translog.getGeneration() != null;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -315,7 +325,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, LongSupplier globalCheckpointSupplier) throws IOException {
+    private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
         assert openMode != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
         String translogUUID = null;
@@ -326,7 +336,7 @@ public class InternalEngine extends Engine {
                 throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
-        final Translog translog = new Translog(translogConfig, translogUUID, globalCheckpointSupplier);
+        final Translog translog = new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
         if (translogUUID == null) {
             assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
                 + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
@@ -1410,12 +1420,16 @@ public class InternalEngine extends Engine {
             logger.trace("finish flush for snapshot");
         }
         try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
             logger.trace("pulling snapshot");
-            return deletionPolicy.snapshot();
+            return deletionPolicy.getIndexDeletionPolicy().snapshot();
         } catch (IOException e) {
             throw new SnapshotFailedEngineException(shardId, e);
         }
+    }
+
+    @Override
+    public void releaseIndexCommit(IndexCommit snapshot) throws IOException {
+        deletionPolicy.getIndexDeletionPolicy().release(snapshot);
     }
 
     @SuppressWarnings("finally")

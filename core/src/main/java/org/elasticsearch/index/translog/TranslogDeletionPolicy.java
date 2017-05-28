@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TranslogDeletionPolicy implements DeletionPolicy {
+public class TranslogDeletionPolicy {
 
     /** Records how many views are held against each
      *  translog generation */
@@ -43,19 +43,24 @@ public class TranslogDeletionPolicy implements DeletionPolicy {
         minTranslogGenerationForRecovery = newGen;
     }
 
-    @Override
+    /**
+     * acquires the basis generation for a new view. Any translog generation above, and including, the returned generation
+     * will not be deleted until a corresponding call to {@link #releaseTranslogGenView(long)} is called.
+     */
     public synchronized long acquireTranslogGenForView() {
         int current = translogRefCounts.getOrDefault(minTranslogGenerationForRecovery, 0);
         translogRefCounts.put(minTranslogGenerationForRecovery, current + 1);
         return minTranslogGenerationForRecovery;
     }
 
-    @Override
+    /** returns the number of generations that were acquired for views */
     public synchronized int pendingViewsCount() {
-        return 0;
+        return translogRefCounts.size();
     }
 
-    @Override
+    /**
+     * releases a generation that was acquired by {@link #acquireTranslogGenForView()}
+     */
     public synchronized void releaseTranslogGenView(long translogGen) {
         Integer current = translogRefCounts.get(translogGen);
         if (current == null || current <= 0) {
@@ -68,14 +73,17 @@ public class TranslogDeletionPolicy implements DeletionPolicy {
         }
     }
 
-    @Override
+    /**
+     * returns the minimum translog generation that is still required by the system. Any generation below
+     * the returned value may be safely deleted
+     */
     public synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter currentWriter) {
         // TODO: here we can do things like check for translog size etc.
         long viewRefs = translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
         return Math.min(viewRefs, minTranslogGenerationForRecovery);
     }
 
-    @Override
+    /** returns the translog generation that will be used as a basis of a future store/peer recovery */
     public synchronized long getMinTranslogGenerationForRecovery() {
         return minTranslogGenerationForRecovery;
     }

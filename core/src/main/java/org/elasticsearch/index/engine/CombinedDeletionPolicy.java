@@ -21,74 +21,49 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
-import org.elasticsearch.index.translog.TranslogReader;
-import org.elasticsearch.index.translog.TranslogWriter;
 
 import java.io.IOException;
 import java.util.List;
 
-public class CombinedDeletionPolicy extends SnapshotDeletionPolicy implements org.elasticsearch.index.translog.DeletionPolicy {
-
-    public CombinedDeletionPolicy() {
-        this(new KeepOnlyLastCommitDeletionPolicy());
-    }
-
-    CombinedDeletionPolicy(IndexDeletionPolicy indexDeletionPolicy) {
-        super(indexDeletionPolicy);
-        translogDeletionPolicy = new TranslogDeletionPolicy();
-    }
+public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     private final TranslogDeletionPolicy translogDeletionPolicy;
 
+    private final SnapshotDeletionPolicy indexDeletionPolicy;
+
+    CombinedDeletionPolicy(SnapshotDeletionPolicy indexDeletionPolicy, TranslogDeletionPolicy translogDeletionPolicy) {
+        this.indexDeletionPolicy = indexDeletionPolicy;
+        this.translogDeletionPolicy = translogDeletionPolicy;
+    }
+
     @Override
-    public synchronized void onInit(List<? extends IndexCommit> commits) throws IOException {
-        super.onInit(commits);
+    public void onInit(List<? extends IndexCommit> commits) throws IOException {
+        indexDeletionPolicy.onInit(commits);
         setLastCommittedTranslogGeneration(commits);
     }
 
     @Override
-    public synchronized void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        super.onCommit(commits);
+    public void onCommit(List<? extends IndexCommit> commits) throws IOException {
+        indexDeletionPolicy.onInit(commits);
         setLastCommittedTranslogGeneration(commits);
     }
 
     private void setLastCommittedTranslogGeneration(List<? extends IndexCommit> commits) throws IOException {
-        long minGen = Long.MAX_VALUE;
-        for (IndexCommit indexCommit : commits) {
-            if (indexCommit.isDeleted() == false) {
-                long refGen = Long.parseLong(indexCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-                minGen = Math.min(minGen, refGen);
-            }
+        final long minGen;
+        if (commits.isEmpty()) {
+            minGen = 1; // new index, keep the first generation onwards
+        } else {
+            final IndexCommit indexCommit = commits.get(commits.size() - 1);
+            assert indexCommit.isDeleted() == false : "last commit is deleted";
+            minGen = Long.parseLong(indexCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         }
+        translogDeletionPolicy.setMinTranslogGenerationForRecovery(minGen);
     }
 
-    @Override
-    public long acquireTranslogGenForView() {
-        return translogDeletionPolicy.acquireTranslogGenForView();
-    }
-
-    @Override
-    public int pendingViewsCount() {
-        return translogDeletionPolicy.pendingViewsCount();
-    }
-
-    @Override
-    public void releaseTranslogGenView(long translogGen) {
-        translogDeletionPolicy.releaseTranslogGenView(translogGen);
-    }
-
-    @Override
-    public synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter currentWriter) {
-        return translogDeletionPolicy.minTranslogGenRequired(readers, currentWriter);
-    }
-
-    /** returns the translog generation that will be used as a basis of a future store/peer recovery */
-    @Override
-    public long getMinTranslogGenerationForRecovery() {
-        return translogDeletionPolicy.getMinTranslogGenerationForRecovery();
+    public SnapshotDeletionPolicy getIndexDeletionPolicy() {
+        return indexDeletionPolicy;
     }
 }

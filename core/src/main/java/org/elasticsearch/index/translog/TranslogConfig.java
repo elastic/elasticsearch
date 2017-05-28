@@ -41,29 +41,23 @@ public final class TranslogConfig {
     private final Path translogPath;
     private final ByteSizeValue bufferSize;
 
-    private final DeletionPolicy deletionPolicy;
-
     /**
      * Creates a new TranslogConfig instance
      * @param shardId the shard ID this translog belongs to
      * @param translogPath the path to use for the transaction log files
      * @param indexSettings the index settings used to set internal variables
      * @param bigArrays a bigArrays instance used for temporarily allocating write operations
-     * @param deletionPolicy
      */
-    public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays,
-                          DeletionPolicy deletionPolicy) {
-        this(shardId, translogPath, indexSettings, bigArrays, deletionPolicy, DEFAULT_BUFFER_SIZE);
+    public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays) {
+        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE);
     }
 
-    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, DeletionPolicy deletionPolicy,
-                   ByteSizeValue bufferSize) {
+    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, ByteSizeValue bufferSize) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
         this.shardId = shardId;
         this.translogPath = translogPath;
         this.bigArrays = bigArrays;
-        this.deletionPolicy = deletionPolicy;
     }
 
     /**
@@ -99,9 +93,5 @@ public final class TranslogConfig {
      */
     public ByteSizeValue getBufferSize() {
         return bufferSize;
-    }
-
-    public DeletionPolicy getDeletionPolicy() {
-        return deletionPolicy;
     }
 }

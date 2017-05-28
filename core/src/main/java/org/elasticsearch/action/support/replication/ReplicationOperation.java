@@ -185,7 +185,13 @@ public class ReplicationOperation<
             @Override
             public void onResponse(ReplicaResponse response) {
                 successfulShards.incrementAndGet();
-                primary.updateLocalCheckpointForShard(response.allocationId(), response.localCheckpoint());
+                try {
+                    primary.updateLocalCheckpointForShard(response.allocationId(), response.localCheckpoint());
+                } catch (final Exception e) {
+                    final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
+                    primary.failShard(message, e);
+                    finishAsFailed(new RetryOnPrimaryException(primary.routingEntry().shardId(), message, e));
+                }
                 decPendingAndFinishIfNeeded();
             }
 
@@ -334,7 +340,6 @@ public class ReplicationOperation<
          * @return the request to send to the replicas
          */
         PrimaryResultT perform(RequestT request) throws Exception;
-
 
         /**
          * Notifies the primary of a local checkpoint for the given allocation.

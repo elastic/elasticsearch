@@ -9,27 +9,52 @@
               number_of_replicas: 0
 
   - do:
+      indices.create:
+        index: index_with_replicas # dummy index to ensure we can recover indices with replicas just fine
+
+  - do:
       bulk:
         refresh: true
         body:
-          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
           - '{"f1": "v1_old", "f2": 0}'
-          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
           - '{"f1": "v2_old", "f2": 1}'
-          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
           - '{"f1": "v3_old", "f2": 2}'
-          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
           - '{"f1": "v4_old", "f2": 3}'
-          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
           - '{"f1": "v5_old", "f2": 4}'
 
   - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
+          - '{"f1": "d_old"}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
+          - '{"f1": "d_old"}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
+          - '{"f1": "d_old"}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
+          - '{"f1": "d_old"}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
+          - '{"f1": "d_old"}'
+
+  - do:
       indices.flush:
-        index: test_index
+        index: test_index,index_with_replicas
 
   - do:
       search:
         index: test_index
+
+  - match: { hits.total: 5 }
+
+  - do:
+      search:
+        index: index_with_replicas
 
   - match: { hits.total: 5 }
 

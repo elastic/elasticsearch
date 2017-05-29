@@ -20,6 +20,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -187,6 +188,8 @@ public class ReplicationOperation<
                 successfulShards.incrementAndGet();
                 try {
                     primary.updateLocalCheckpointForShard(response.allocationId(), response.localCheckpoint());
+                } catch (final AlreadyClosedException e) {
+                    // okay, the index was deleted or this shard was never activated after a relocation; fallthrough and finish normally
                 } catch (final Exception e) {
                     final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
                     primary.failShard(message, e);
@@ -327,7 +330,10 @@ public class ReplicationOperation<
         ShardRouting routingEntry();
 
         /**
-         * fail the primary, typically due to the fact that the operation has learned the primary has been demoted by the master
+         * Fail the primary shard.
+         *
+         * @param message   the failure message
+         * @param exception the exception that triggered the failure
          */
         void failShard(String message, Exception exception);
 

@@ -312,6 +312,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final long primaryTerm = indexMetaData.primaryTerm(0);
         final ShardRouting primaryRouting = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
 
+        final boolean fatal = randomBoolean();
         final AtomicBoolean primaryFailed = new AtomicBoolean();
         final ReplicationOperation.Primary<Request, Request, TestPrimary.Result> primary = new TestPrimary(primaryRouting, primaryTerm) {
 
@@ -325,7 +326,11 @@ public class ReplicationOperationTests extends ESTestCase {
                 if (primaryRouting.allocationId().getId().equals(allocationId)) {
                     super.updateLocalCheckpointForShard(allocationId, checkpoint);
                 } else {
-                    throw new AlreadyClosedException("closed");
+                    if (fatal) {
+                        throw new NullPointerException();
+                    } else {
+                        throw new AlreadyClosedException("already closed");
+                    }
                 }
             }
 
@@ -336,12 +341,19 @@ public class ReplicationOperationTests extends ESTestCase {
         TestReplicationOperation operation = new TestReplicationOperation(request, primary, listener, replicas, () -> state);
         operation.execute();
 
-        assertTrue(primaryFailed.get());
-        final ExecutionException e = expectThrows(ExecutionException.class, listener::get);
-        assertThat(e.getCause(), instanceOf(ReplicationOperation.RetryOnPrimaryException.class));
-        final ReplicationOperation.RetryOnPrimaryException rope = (ReplicationOperation.RetryOnPrimaryException) e.getCause();
-        assertThat(rope, hasToString(containsString("primary failed updating local checkpoint for replica")));
-        // no need to assert that no replica was failed, the test replica proxy already ensures this since we passed an empty failure map
+        if (fatal) {
+            assertTrue(primaryFailed.get());
+            final ExecutionException e = expectThrows(ExecutionException.class, listener::get);
+            assertThat(e.getCause(), instanceOf(ReplicationOperation.RetryOnPrimaryException.class));
+            final ReplicationOperation.RetryOnPrimaryException rope = (ReplicationOperation.RetryOnPrimaryException) e.getCause();
+            assertThat(rope, hasToString(containsString("primary failed updating local checkpoint for replica")));
+        } else {
+            assertFalse(primaryFailed.get());
+            final ShardInfo shardInfo = listener.actionGet().getShardInfo();
+            assertThat(shardInfo.getFailed(), equalTo(0));
+            assertThat(shardInfo.getFailures(), arrayWithSize(0));
+            assertThat(shardInfo.getSuccessful(), equalTo(1 + getExpectedReplicas(shardId, state).size()));
+        }
     }
 
     private Set<ShardRouting> getExpectedReplicas(ShardId shardId, ClusterState state) {

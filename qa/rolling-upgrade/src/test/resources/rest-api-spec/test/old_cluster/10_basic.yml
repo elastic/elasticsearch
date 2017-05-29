@@ -10,7 +10,7 @@
 
   - do:
       indices.create:
-        index: dummy_index # dummy index to ensure we can recover indices with replicas just fine
+        index: index_with_replicas # dummy index to ensure we can recover indices with replicas just fine
 
   - do:
       bulk:
@@ -31,20 +31,20 @@
       bulk:
         refresh: true
         body:
-          - '{"index": {"_index": "dummy_index", "_type": "doc"}}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
           - '{"f1": "d_old"}'
-          - '{"index": {"_index": "dummy_index", "_type": "doc"}}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
           - '{"f1": "d_old"}'
-          - '{"index": {"_index": "dummy_index", "_type": "doc"}}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
           - '{"f1": "d_old"}'
-          - '{"index": {"_index": "dummy_index", "_type": "doc"}}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
           - '{"f1": "d_old"}'
-          - '{"index": {"_index": "dummy_index", "_type": "doc"}}'
+          - '{"index": {"_index": "index_with_replicas", "_type": "doc"}}'
           - '{"f1": "d_old"}'
 
   - do:
       indices.flush:
-        index: test_index,dummy_index
+        index: test_index,index_with_replicas
 
   - do:
       search:
@@ -54,7 +54,7 @@
 
   - do:
       search:
-        index: dummy_index
+        index: index_with_replicas
 
   - match: { hits.total: 5 }
 

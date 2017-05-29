@@ -13,7 +13,7 @@
 
  - do:
      search:
-       index: dummy_index
+       index: index_with_replicas
 
  - match: { hits.total: 5 } # just check we recovered fine
 

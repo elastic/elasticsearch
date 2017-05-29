@@ -295,35 +295,17 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     }
 
     public void testAsyncBlockOperationsOperationBeforeBlocked() throws InterruptedException, BrokenBarrierException {
-        final CountDownLatch operationExecuting = new CountDownLatch(1);
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final CountDownLatch operationExecutingLatch = new CountDownLatch(1);
         final CountDownLatch firstOperationLatch = new CountDownLatch(1);
-        final CountDownLatch firstOperationComplete = new CountDownLatch(1);
-        final Thread firstOperationThread = new Thread(() -> {
-            permits.acquire(
-                    new ActionListener<Releasable>() {
-                        @Override
-                        public void onResponse(Releasable releasable) {
-                            operationExecuting.countDown();
-                            try {
-                                firstOperationLatch.await();
-                            } catch (final InterruptedException e) {
-                                throw new RuntimeException(e);
-                            }
-                            releasable.close();
-                            firstOperationComplete.countDown();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            throw new RuntimeException(e);
-                        }
-                    },
-                    ThreadPool.Names.GENERIC,
-                    false);
-        });
+        final CountDownLatch firstOperationCompleteLatch = new CountDownLatch(1);
+        final Thread firstOperationThread =
+                new Thread(controlledAcquire(barrier, operationExecutingLatch, firstOperationLatch, firstOperationCompleteLatch));
         firstOperationThread.start();
 
-        operationExecuting.await();
+        barrier.await();
+
+        operationExecutingLatch.await();
 
         // now we will delay operations while the first operation is still executing (because it is latched)
         final CountDownLatch blockedLatch = new CountDownLatch(1);
@@ -369,7 +351,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         assertFalse(secondOperation.get());
 
         firstOperationLatch.countDown();
-        firstOperationComplete.await();
+        firstOperationCompleteLatch.await();
         blockedLatch.await();
         assertTrue(onBlocked.get());
 
@@ -512,39 +494,16 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     public void testTimeout() throws BrokenBarrierException, InterruptedException {
         final CyclicBarrier barrier = new CyclicBarrier(2);
-        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch operationExecutingLatch = new CountDownLatch(1);
         final CountDownLatch operationLatch = new CountDownLatch(1);
+        final CountDownLatch operationCompleteLatch = new CountDownLatch(1);
 
-        final Thread thread = new Thread(() -> {
-            try {
-                barrier.await();
-            } catch (final BrokenBarrierException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            permits.acquire(
-                    new ActionListener<Releasable>() {
-                        @Override
-                        public void onResponse(Releasable releasable) {
-                            try {
-                                latch.await();
-                            } catch (final InterruptedException e) {
-                                throw new RuntimeException(e);
-                            }
-                            releasable.close();
-                            operationLatch.countDown();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            throw new RuntimeException(e);
-                        }
-                    },
-                    ThreadPool.Names.GENERIC,
-                    false);
-        });
+        final Thread thread = new Thread(controlledAcquire(barrier, operationExecutingLatch, operationLatch, operationCompleteLatch));
         thread.start();
 
         barrier.await();
+
+        operationExecutingLatch.await();
 
         {
             final TimeoutException e =
@@ -567,11 +526,61 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             assertThat(reference.get(), hasToString(containsString("timeout while blocking operations")));
         }
 
-        latch.countDown();
+        operationLatch.countDown();
 
-        operationLatch.await();
+        operationCompleteLatch.await();
 
         thread.join();
+    }
+
+    /**
+     * Returns an operation that acquires a permit and synchronizes in the following manner:
+     * <ul>
+     * <li>waits on the {@code barrier} before acquiring a permit</li>
+     * <li>counts down the {@code operationExecutingLatch} when it acquires the permit</li>
+     * <li>waits on the {@code operationLatch} before releasing the permit</li>
+     * <li>counts down the {@code operationCompleteLatch} after releasing the permit</li>
+     * </ul>
+     *
+     * @param barrier                 the barrier to wait on
+     * @param operationExecutingLatch the latch to countdown after acquiring the permit
+     * @param operationLatch          the latch to wait on before releasing the permit
+     * @param operationCompleteLatch  the latch to countdown after releasing the permit
+     * @return a controllable runnable that acquires a permit
+     */
+    private Runnable controlledAcquire(
+            final CyclicBarrier barrier,
+            final CountDownLatch operationExecutingLatch,
+            final CountDownLatch operationLatch,
+            final CountDownLatch operationCompleteLatch) {
+        return () -> {
+            try {
+                barrier.await();
+            } catch (final BrokenBarrierException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            permits.acquire(
+                    new ActionListener<Releasable>() {
+                        @Override
+                        public void onResponse(Releasable releasable) {
+                            operationExecutingLatch.countDown();
+                            try {
+                                operationLatch.await();
+                            } catch (final InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+                            releasable.close();
+                            operationCompleteLatch.countDown();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    },
+                    ThreadPool.Names.GENERIC,
+                    false);
+        };
     }
 
 }

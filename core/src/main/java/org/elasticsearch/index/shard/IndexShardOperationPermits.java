@@ -55,7 +55,7 @@ final class IndexShardOperationPermits implements Closeable {
 
     private static final int TOTAL_PERMITS = Integer.MAX_VALUE;
     final Semaphore semaphore = new Semaphore(TOTAL_PERMITS, true); // fair to ensure a blocking thread is not starved
-    @Nullable private List<ActionListener<Releasable>> delayedOperations; // operations that are delayed
+    private final List<ActionListener<Releasable>> delayedOperations = new ArrayList<>(); // operations that are delayed
     private volatile boolean closed;
     private boolean delayed; // does not need to be volatile as all accesses are done under a lock on this
 
@@ -141,6 +141,7 @@ final class IndexShardOperationPermits implements Closeable {
             if (delayed) {
                 throw new IllegalStateException("operations are already delayed");
             } else {
+                assert delayedOperations.isEmpty();
                 delayed = true;
             }
         }
@@ -171,11 +172,11 @@ final class IndexShardOperationPermits implements Closeable {
         final List<ActionListener<Releasable>> queuedActions;
         synchronized (this) {
             assert delayed;
-            queuedActions = delayedOperations;
-            delayedOperations = null;
+            queuedActions = new ArrayList<>(delayedOperations);
+            delayedOperations.clear();
             delayed = false;
         }
-        if (queuedActions != null) {
+        if (!queuedActions.isEmpty()) {
             /*
              * Try acquiring permits on fresh thread (for two reasons):
              * - blockOperations can be called on a recovery thread which can be expected to be interrupted when recovery is cancelled;
@@ -211,9 +212,6 @@ final class IndexShardOperationPermits implements Closeable {
         try {
             synchronized (this) {
                 if (delayed) {
-                    if (delayedOperations == null) {
-                        delayedOperations = new ArrayList<>();
-                    }
                     final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                     if (executorOnDelay != null) {
                         delayedOperations.add(

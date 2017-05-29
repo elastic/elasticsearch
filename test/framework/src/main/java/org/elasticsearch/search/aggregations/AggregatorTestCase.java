@@ -89,8 +89,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     /** Create a factory for the given aggregation builder. */
     protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
-                                                           IndexSearcher indexSearcher,
-                                                           MappedFieldType... fieldTypes) throws IOException {
+            IndexSearcher indexSearcher,
+            MappedFieldType... fieldTypes) throws IOException {
         IndexSettings indexSettings = createIndexSettings();
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings);
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();

@@ -369,7 +369,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 indexShardOperationPermits.asyncBlockOperations(
                         30,
                         TimeUnit.MINUTES,
-                        latch::await,
+                        () -> {
+                            latch.await();
+                            getEngine().fillSeqNoGaps(newPrimaryTerm);
+                        },
                         e -> failShard("exception during primary term transition", e));
                 primaryTerm = newPrimaryTerm;
                 latch.countDown();

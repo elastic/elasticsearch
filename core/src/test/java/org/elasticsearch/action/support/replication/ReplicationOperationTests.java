@@ -343,17 +343,14 @@ public class ReplicationOperationTests extends ESTestCase {
 
         if (fatal) {
             assertTrue(primaryFailed.get());
-            final ExecutionException e = expectThrows(ExecutionException.class, listener::get);
-            assertThat(e.getCause(), instanceOf(ReplicationOperation.RetryOnPrimaryException.class));
-            final ReplicationOperation.RetryOnPrimaryException rope = (ReplicationOperation.RetryOnPrimaryException) e.getCause();
-            assertThat(rope, hasToString(containsString("primary failed updating local checkpoint for replica")));
         } else {
             assertFalse(primaryFailed.get());
-            final ShardInfo shardInfo = listener.actionGet().getShardInfo();
-            assertThat(shardInfo.getFailed(), equalTo(0));
-            assertThat(shardInfo.getFailures(), arrayWithSize(0));
-            assertThat(shardInfo.getSuccessful(), equalTo(1 + getExpectedReplicas(shardId, state).size()));
         }
+        assertThat(primaryFailed.get(), equalTo(fatal));
+        final ShardInfo shardInfo = listener.actionGet().getShardInfo();
+        assertThat(shardInfo.getFailed(), equalTo(0));
+        assertThat(shardInfo.getFailures(), arrayWithSize(0));
+        assertThat(shardInfo.getSuccessful(), equalTo(1 + getExpectedReplicas(shardId, state).size()));
     }
 
     private Set<ShardRouting> getExpectedReplicas(ShardId shardId, ClusterState state) {

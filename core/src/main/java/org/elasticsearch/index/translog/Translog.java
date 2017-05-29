@@ -632,7 +632,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return config;
     }
 
-    TranslogDeletionPolicy getDeletionPolicy() {
+    // public for testing
+    public TranslogDeletionPolicy getDeletionPolicy() {
         return deletionPolicy;
     }
 

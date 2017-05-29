@@ -1138,6 +1138,20 @@ public class InternalEngineTests extends ESTestCase {
         searchResult.close();
     }
 
+    public void testCommitAdvancesMinTranslogForRecovery() throws IOException {
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+        engine.index(indexForDoc(doc));
+        engine.flush();
+        assertThat(engine.getTranslog().currentFileGeneration(), equalTo(2L));
+        assertThat(engine.getTranslog().getDeletionPolicy().getMinTranslogGenerationForRecovery(), equalTo(2L));
+        engine.flush();
+        assertThat(engine.getTranslog().currentFileGeneration(), equalTo(2L));
+        assertThat(engine.getTranslog().getDeletionPolicy().getMinTranslogGenerationForRecovery(), equalTo(2L));
+        engine.flush(true, true);
+        assertThat(engine.getTranslog().currentFileGeneration(), equalTo(3L));
+        assertThat(engine.getTranslog().getDeletionPolicy().getMinTranslogGenerationForRecovery(), equalTo(3L));
+    }
+
     public void testSyncedFlush() throws IOException {
         try (Store store = createStore();
             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new LogByteSizeMergePolicy(), null))) {

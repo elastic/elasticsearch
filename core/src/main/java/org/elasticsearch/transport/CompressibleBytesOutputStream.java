@@ -28,19 +28,19 @@ import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
 
-public class CompressibleBytesOutputStream extends StreamOutput implements Releasable {
+final class CompressibleBytesOutputStream extends StreamOutput implements Releasable {
 
     private final StreamOutput stream;
     private final BytesStream bytesStreamOutput;
     private final boolean shouldCompress;
 
-    public CompressibleBytesOutputStream(BytesStream bytesStreamOutput, boolean shouldCompress) throws IOException {
+    CompressibleBytesOutputStream(BytesStream bytesStreamOutput, boolean shouldCompress) throws IOException {
         this.bytesStreamOutput = bytesStreamOutput;
         this.shouldCompress = shouldCompress;
         if (shouldCompress) {
             this.stream = CompressorFactory.COMPRESSOR.streamOutput(Streams.flushOnCloseStream(bytesStreamOutput));
         } else {
-            stream = bytesStreamOutput;
+            this.stream = bytesStreamOutput;
         }
     }
 
@@ -50,7 +50,7 @@ public class CompressibleBytesOutputStream extends StreamOutput implements Relea
      * @return bytes underlying the stream
      * @throws IOException if an exception occurs when writing or flushing
      */
-    public BytesStream finishStream() throws IOException {
+    BytesStream finishStream() throws IOException {
         // If we are using compression the stream needs to be closed to ensure that EOS marker bytes are written.
         // The actual ReleasableBytesStreamOutput will not be closed yet as it is wrapped in flushOnCloseStream when
         // passed to the deflater stream.
@@ -78,11 +78,11 @@ public class CompressibleBytesOutputStream extends StreamOutput implements Relea
 
     @Override
     public void close() {
-        // If we are not using compression stream == bytesStreamOutput
-        if (shouldCompress) {
+        if (stream == bytesStreamOutput) {
             IOUtils.closeWhileHandlingException(stream);
+        } else {
+            IOUtils.closeWhileHandlingException(stream, bytesStreamOutput);
         }
-        IOUtils.closeWhileHandlingException(bytesStreamOutput);
     }
 
     @Override

@@ -1032,14 +1032,16 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         if (compress) {
             options = TransportRequestOptions.builder(options).withCompress(true).build();
         }
+
+        // only compress if asked and the request is not bytes. Otherwise only
+        // the header part is compressed, and the "body" can't be extracted as compressed
         boolean compressMessage = options.compress() && canCompress(request);
+
         status = TransportStatus.setRequest(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compressMessage);
         boolean addedReleaseListener = false;
         try {
-            // only compress if asked, and, the request is not bytes, since then only
-            // the header part is compressed, and the "body" can't be extracted as compressed
             if (compressMessage) {
                 status = TransportStatus.setCompress(status);
             }

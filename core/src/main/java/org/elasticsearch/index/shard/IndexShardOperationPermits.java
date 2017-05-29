@@ -53,7 +53,7 @@ final class IndexShardOperationPermits implements Closeable {
     private final ThreadPool threadPool;
 
     private static final int TOTAL_PERMITS = Integer.MAX_VALUE;
-    final Semaphore semaphore = new Semaphore(Integer.MAX_VALUE, true); // fair to ensure a blocking thread is not starved
+    final Semaphore semaphore = new Semaphore(TOTAL_PERMITS, true); // fair to ensure a blocking thread is not starved
     @Nullable private List<ActionListener<Releasable>> delayedOperations; // operations that are delayed
     private volatile boolean closed;
     private boolean delayed; // does not need to be volatile as all accesses are done under a lock on this

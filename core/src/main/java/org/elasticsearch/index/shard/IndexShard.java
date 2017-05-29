@@ -367,7 +367,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * Before this call returns, we are guarantee that all future operations are delayed and so this happens before we increment
                  * the primary term.
                  */
-                indexShardOperationPermits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {});
+                indexShardOperationPermits.asyncBlockOperations(
+                        30,
+                        TimeUnit.MINUTES,
+                        () -> {},
+                        e -> failShard("exception during primary term transition", e));
                 primaryTerm = newPrimaryTerm;
             }
         }

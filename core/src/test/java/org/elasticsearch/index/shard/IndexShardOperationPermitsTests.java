@@ -43,9 +43,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class IndexShardOperationPermitsTests extends ESTestCase {
@@ -249,11 +252,17 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         final CountDownLatch blockAcquired = new CountDownLatch(1);
         final CountDownLatch releaseBlock = new CountDownLatch(1);
         final AtomicBoolean blocked = new AtomicBoolean();
-        permits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {
-            blocked.set(true);
-            blockAcquired.countDown();
-            releaseBlock.await();
-        });
+        permits.asyncBlockOperations(
+                30,
+                TimeUnit.MINUTES,
+                () -> {
+                    blocked.set(true);
+                    blockAcquired.countDown();
+                    releaseBlock.await();
+                },
+                e -> {
+                    throw new RuntimeException(e);
+                });
         blockAcquired.await();
         assertTrue(blocked.get());
 
@@ -319,10 +328,15 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         // now we will delay operations while the first operation is still executing (because it is latched)
         final CountDownLatch blockedLatch = new CountDownLatch(1);
         final AtomicBoolean onBlocked = new AtomicBoolean();
-        permits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {
-            onBlocked.set(true);
-            blockedLatch.countDown();
-        });
+        permits.asyncBlockOperations(
+                30,
+                TimeUnit.MINUTES,
+                () -> {
+                    onBlocked.set(true);
+                    blockedLatch.countDown();
+                }, e -> {
+                    throw new RuntimeException(e);
+                });
 
         assertFalse(onBlocked.get());
 
@@ -408,10 +422,15 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             } catch (final BrokenBarrierException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            permits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {
-                values.add(operations);
-                operationLatch.countDown();
-            });
+            permits.asyncBlockOperations(
+                    30,
+                    TimeUnit.MINUTES,
+                    () -> {
+                        values.add(operations);
+                        operationLatch.countDown();
+                    }, e -> {
+                        throw new RuntimeException(e);
+                    });
         });
         blockingThread.start();
 
@@ -472,4 +491,87 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         future3.get().close();
         assertThat(permits.getActiveOperationsCount(), equalTo(0));
     }
+
+    public void testAsyncBlockOperationsOnFailure() throws InterruptedException {
+        final AtomicReference<Exception> reference = new AtomicReference<>();
+        final CountDownLatch onFailureLatch = new CountDownLatch(1);
+        permits.asyncBlockOperations(
+                10,
+                TimeUnit.MINUTES,
+                () -> {
+                    throw new RuntimeException("simulated");
+                },
+                e -> {
+                    reference.set(e);
+                    onFailureLatch.countDown();
+                });
+        onFailureLatch.await();
+        assertThat(reference.get(), instanceOf(RuntimeException.class));
+        assertThat(reference.get(), hasToString(containsString("simulated")));
+    }
+
+    public void testTimeout() throws BrokenBarrierException, InterruptedException {
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch operationLatch = new CountDownLatch(1);
+
+        final Thread thread = new Thread(() -> {
+            try {
+                barrier.await();
+            } catch (final BrokenBarrierException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            permits.acquire(
+                    new ActionListener<Releasable>() {
+                        @Override
+                        public void onResponse(Releasable releasable) {
+                            try {
+                                latch.await();
+                            } catch (final InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+                            releasable.close();
+                            operationLatch.countDown();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    },
+                    ThreadPool.Names.GENERIC,
+                    false);
+        });
+        thread.start();
+
+        barrier.await();
+
+        {
+            final TimeoutException e =
+                    expectThrows(TimeoutException.class, () -> permits.syncBlockOperations(1, TimeUnit.MILLISECONDS, () -> {}));
+            assertThat(e, hasToString(containsString("timeout while blocking operations")));
+        }
+
+        {
+            final AtomicReference<Exception> reference = new AtomicReference<>();
+            final CountDownLatch onFailureLatch = new CountDownLatch(1);
+            permits.asyncBlockOperations(
+                    1,
+                    TimeUnit.MILLISECONDS,
+                    () -> {},
+                    e -> {
+                        reference.set(e);
+                        onFailureLatch.countDown();
+                    });
+            onFailureLatch.await();
+            assertThat(reference.get(), hasToString(containsString("timeout while blocking operations")));
+        }
+
+        latch.countDown();
+
+        operationLatch.await();
+
+        thread.join();
+    }
+
 }

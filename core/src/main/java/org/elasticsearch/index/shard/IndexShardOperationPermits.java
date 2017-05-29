@@ -38,6 +38,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -111,14 +112,16 @@ final class IndexShardOperationPermits implements Closeable {
      * @param timeout   the maximum time to wait for the in-flight operations block
      * @param timeUnit  the time unit of the {@code timeout} argument
      * @param onBlocked the action to run once the block has been acquired
+     * @param onFailure the action to run if a failure occurs while blocking operations
      * @param <E>       the type of checked exception thrown by {@code onBlocked} (not thrown on the calling thread)
      */
-    <E extends Exception> void asyncBlockOperations(final long timeout, final TimeUnit timeUnit, final CheckedRunnable<E> onBlocked) {
+    <E extends Exception> void asyncBlockOperations(
+            final long timeout, final TimeUnit timeUnit, final CheckedRunnable<E> onBlocked, final Consumer<Exception> onFailure) {
         delayOperations();
         threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
             @Override
-            public void onFailure(Exception e) {
-                throw new RuntimeException(e);
+            public void onFailure(final Exception e) {
+                onFailure.accept(e);
             }
 
             @Override
@@ -160,7 +163,7 @@ final class IndexShardOperationPermits implements Closeable {
                 semaphore.release(TOTAL_PERMITS);
             }
         } else {
-            throw new TimeoutException("timed out during blockOperations");
+            throw new TimeoutException("timeout while blocking operations");
         }
     }
 

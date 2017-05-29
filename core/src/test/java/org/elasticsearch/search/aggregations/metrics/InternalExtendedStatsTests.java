@@ -79,10 +79,13 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         }
         assertEquals(sigma, reduced.getSigma(), 0);
         assertEquals(expectedCount, reduced.getCount());
-        assertEquals(expectedSum, reduced.getSum(), 1e-07);
+        // The order in which you add double values in java can give different results. The difference can
+        // be larger for large sum values, so we make the delta in the assertion depend on the values magnitude
+        assertEquals(expectedSum, reduced.getSum(), Math.abs(expectedSum) * 1e-12);
         assertEquals(expectedMin, reduced.getMin(), 0d);
         assertEquals(expectedMax, reduced.getMax(), 0d);
-        assertEquals(expectedSumOfSquare, reduced.getSumOfSquares(), 1e-07);
+        // summing squared values, see reason for delta above
+        assertEquals(expectedSumOfSquare, reduced.getSumOfSquares(), expectedSumOfSquare * 1e-14);
     }
 
     @Override

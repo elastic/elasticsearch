@@ -78,6 +78,7 @@ List projects = [
   'qa:smoke-test-reindex-with-all-modules',
   'qa:smoke-test-tribe-node',
   'qa:vagrant',
+  'qa:verify-version-constants',
   'qa:wildfly'
 ]
 

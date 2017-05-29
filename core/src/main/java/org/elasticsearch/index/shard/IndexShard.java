@@ -23,9 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Sort;
@@ -161,7 +159,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final String checkIndexOnStartup;
     private final CodecService codecService;
     private final Engine.Warmer warmer;
-    private final SnapshotDeletionPolicy deletionPolicy;
     private final SimilarityService similarityService;
     private final TranslogConfig translogConfig;
     private final IndexEventListener indexEventListener;
@@ -230,7 +227,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Settings settings = indexSettings.getSettings();
         this.codecService = new CodecService(mapperService, logger);
         this.warmer = warmer;
-        this.deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
         this.engineFactory = engineFactory == null ? new InternalEngineFactory() : engineFactory;
@@ -907,9 +903,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Store.MetadataSnapshot snapshotStoreMetadata() throws IOException {
         Engine.IndexCommitRef indexCommit = null;
-        Engine engine = null;
         store.incRef();
         try {
+            Engine engine;
             synchronized (mutex) {
                 // if the engine is not running, we can access the store directly, but we need to make sure no one starts
                 // the engine on us. If the engine is running, we can get a snapshot via the deletion policy which is initialized.
@@ -1082,7 +1078,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0_UNRELEASED) &&
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0) &&
             // TODO: LOCAL_SHARDS need to transfer this information
             recoveryState().getRecoverySource().getType() != RecoverySource.Type.LOCAL_SHARDS) {
             // as of 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.

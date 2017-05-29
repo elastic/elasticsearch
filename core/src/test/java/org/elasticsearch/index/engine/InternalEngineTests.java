@@ -2099,10 +2099,11 @@ public class InternalEngineTests extends ESTestCase {
     // this test writes documents to the engine while concurrently flushing/commit
     // and ensuring that the commit points contain the correct sequence number data
     public void testConcurrentWritesAndCommits() throws Exception {
+        List<Engine.IndexCommitRef> commits = new ArrayList<>();
         try (Store store = createStore();
              InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null))) {
 
-            final int numIndexingThreads = scaledRandomIntBetween(3, 6);
+            final int numIndexingThreads = scaledRandomIntBetween(2, 4);
             final int numDocsPerThread = randomIntBetween(500, 1000);
             final CyclicBarrier barrier = new CyclicBarrier(numIndexingThreads + 1);
             final List<Thread> indexingThreads = new ArrayList<>();
@@ -2135,13 +2136,14 @@ public class InternalEngineTests extends ESTestCase {
             boolean doneIndexing;
             do {
                 doneIndexing = indexingThreads.stream().filter(Thread::isAlive).count() == 0;
-                //engine.flush(); // flush and commit
+                commits.add(engine.acquireIndexCommit(true));
             } while (doneIndexing == false);
 
             // now, verify all the commits have the correct docs according to the user commit data
             long prevLocalCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
             long prevMaxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
-            for (IndexCommit commit : DirectoryReader.listCommits(store.directory())) {
+            for (Engine.IndexCommitRef commitRef : commits) {
+                final IndexCommit commit = commitRef.getIndexCommit();
                 Map<String, String> userData = commit.getUserData();
                 long localCheckpoint = userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) ?
                                            Long.parseLong(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) :
@@ -2173,6 +2175,8 @@ public class InternalEngineTests extends ESTestCase {
                 prevLocalCheckpoint = localCheckpoint;
                 prevMaxSeqNo = maxSeqNo;
             }
+        } finally {
+            IOUtils.close(commits);
         }
     }
 
@@ -2547,7 +2551,7 @@ public class InternalEngineTests extends ESTestCase {
                 for (int i = 0; i < numExtraDocs; i++) {
                     ParsedDocument doc = testParsedDocument("extra" + Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     Term uid;
-                    if (indexMetaData.getCreationVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                    if (indexMetaData.getCreationVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                         uid = new Term(IdFieldMapper.NAME, doc.id());
                     } else {
                         uid = new Term(UidFieldMapper.NAME, Uid.createUid(doc.type(), doc.id()));

@@ -155,8 +155,8 @@ public class FsProbe extends AbstractComponent {
         // since recomputing these once per second (default) could be costly,
         // and they should not change:
         fsPath.total = adjustForHugeFilesystems(nodePath.fileStore.getTotalSpace());
-        fsPath.free = nodePath.fileStore.getUnallocatedSpace();
-        fsPath.available = nodePath.fileStore.getUsableSpace();
+        fsPath.free = adjustForHugeFilesystems(nodePath.fileStore.getUnallocatedSpace());
+        fsPath.available = adjustForHugeFilesystems(nodePath.fileStore.getUsableSpace());
         fsPath.type = nodePath.fileStore.type();
         fsPath.mount = nodePath.fileStore.toString();
         return fsPath;

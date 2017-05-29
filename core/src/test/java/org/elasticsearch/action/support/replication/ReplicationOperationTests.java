@@ -341,11 +341,6 @@ public class ReplicationOperationTests extends ESTestCase {
         TestReplicationOperation operation = new TestReplicationOperation(request, primary, listener, replicas, () -> state);
         operation.execute();
 
-        if (fatal) {
-            assertTrue(primaryFailed.get());
-        } else {
-            assertFalse(primaryFailed.get());
-        }
         assertThat(primaryFailed.get(), equalTo(fatal));
         final ShardInfo shardInfo = listener.actionGet().getShardInfo();
         assertThat(shardInfo.getFailed(), equalTo(0));

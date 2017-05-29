@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -95,7 +96,11 @@ final class IndexShardOperationPermits implements Closeable {
             throw new IndexShardClosedException(shardId);
         }
         delayOperations();
-        doBlockOperations(timeout, timeUnit, onBlocked);
+        try {
+            doBlockOperations(timeout, timeUnit, onBlocked);
+        } finally {
+            releasedDelayedOperations();
+        }
     }
 
     /**
@@ -110,11 +115,20 @@ final class IndexShardOperationPermits implements Closeable {
      */
     <E extends Exception> void asyncBlockOperations(final long timeout, final TimeUnit timeUnit, final CheckedRunnable<E> onBlocked) {
         delayOperations();
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-            try {
-                doBlockOperations(timeout, timeUnit, onBlocked);
-            } catch (final Exception e) {
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
                 throw new RuntimeException(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                doBlockOperations(timeout, timeUnit, onBlocked);
+            }
+
+            @Override
+            public void onAfter() {
+                releasedDelayedOperations();
             }
         });
     }
@@ -138,37 +152,40 @@ final class IndexShardOperationPermits implements Closeable {
                 assert delayed;
             }
         }
-        try {
-            if (semaphore.tryAcquire(TOTAL_PERMITS, timeout, timeUnit)) {
-                assert semaphore.availablePermits() == 0;
-                try {
-                    onBlocked.run();
-                } finally {
-                    semaphore.release(TOTAL_PERMITS);
+        if (semaphore.tryAcquire(TOTAL_PERMITS, timeout, timeUnit)) {
+            assert semaphore.availablePermits() == 0;
+            try {
+                onBlocked.run();
+            } finally {
+                semaphore.release(TOTAL_PERMITS);
+            }
+        } else {
+            throw new TimeoutException("timed out during blockOperations");
+        }
+    }
+
+    private void releasedDelayedOperations() {
+        final List<ActionListener<Releasable>> queuedActions;
+        synchronized (this) {
+            assert delayed;
+            queuedActions = delayedOperations;
+            delayedOperations = null;
+            delayed = false;
+        }
+        if (queuedActions != null) {
+            /*
+             * Try acquiring permits on fresh thread (for two reasons):
+             * - blockOperations can be called on a recovery thread which can be expected to be interrupted when recovery is cancelled;
+             *   interruptions are bad here as permit acquisition will throw an interrupted exception which will be swallowed by
+             *   the threaded action listener if the queue of the thread pool on which it submits is full
+             * - if a permit is acquired and the queue of the thread pool which the the threaded action listener uses is full, the onFailure
+             *   handler is executed on the calling thread; this should not be the recovery thread as it would delay the recovery
+             */
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                for (ActionListener<Releasable> queuedAction : queuedActions) {
+                    acquire(queuedAction, null, false);
                 }
-            } else {
-                throw new TimeoutException("timed out during blockOperations");
-            }
-        } finally {
-            final List<ActionListener<Releasable>> queuedActions;
-            synchronized (this) {
-                queuedActions = delayedOperations;
-                delayedOperations = null;
-                delayed = false;
-            }
-            if (queuedActions != null) {
-                // Try acquiring permits on fresh thread (for two reasons):
-                // - blockOperations can be called on recovery thread which can be expected to be interrupted when recovery is cancelled.
-                //   Interruptions are bad here as permit acquisition will throw an InterruptedException which will be swallowed by
-                //   ThreadedActionListener if the queue of the thread pool on which it submits is full.
-                // - if permit is acquired and queue of the thread pool which the ThreadedActionListener uses is full, the onFailure
-                //   handler is executed on the calling thread. This should not be the recovery thread as it would delay the recovery.
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                    for (ActionListener<Releasable> queuedAction : queuedActions) {
-                        acquire(queuedAction, null, false);
-                    }
-                });
-            }
+            });
         }
     }
 

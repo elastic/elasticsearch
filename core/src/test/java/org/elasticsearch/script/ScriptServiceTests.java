@@ -20,20 +20,16 @@ package org.elasticsearch.script;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -49,23 +44,13 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-//TODO: this needs to be a base test class, and all scripting engines extend it
 public class ScriptServiceTests extends ESTestCase {
 
     private ScriptEngine scriptEngine;
-    private ScriptEngine dangerousScriptEngine;
     private Map<String, ScriptEngine> engines;
-    private ScriptContextRegistry scriptContextRegistry;
-    private ScriptContext[] scriptContexts;
+    private Map<String, ScriptContext<?>> contexts;
     private ScriptService scriptService;
     private Settings baseSettings;
-
-    private static final Map<ScriptType, Boolean> DEFAULT_SCRIPT_ENABLED = new HashMap<>();
-
-    static {
-        DEFAULT_SCRIPT_ENABLED.put(ScriptType.STORED, false);
-        DEFAULT_SCRIPT_ENABLED.put(ScriptType.INLINE, false);
-    }
 
     @Before
     public void setup() throws IOException {
@@ -75,39 +60,27 @@ public class ScriptServiceTests extends ESTestCase {
                 .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 10000)
                 .build();
-        scriptEngine = new TestEngine();
-        TestEngine defaultScriptServiceEngine = new TestEngine(Script.DEFAULT_SCRIPT_LANG) {};
-        //randomly register custom script contexts
-        int randomInt = randomIntBetween(0, 3);
-        //prevent duplicates using map
-        Map<String, ScriptContext.Plugin> contexts = new HashMap<>();
-        for (int i = 0; i < randomInt; i++) {
-            String plugin;
-            do {
-                plugin = randomAlphaOfLength(randomIntBetween(1, 10));
-            } while (ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS.contains(plugin));
-            String operation;
-            do {
-                operation = randomAlphaOfLength(randomIntBetween(1, 30));
-            } while (ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS.contains(operation));
-            String context = plugin + "_" + operation;
-            contexts.put(context, new ScriptContext.Plugin(plugin, operation));
+        Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+        for (int i = 0; i < 20; ++i) {
+            scripts.put(i + "+" + i, p -> null); // only care about compilation, not execution
         }
+        scripts.put("script", p -> null);
+        scriptEngine = new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, scripts);
+        //prevent duplicates using map
+        contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
         engines = new HashMap<>();
         engines.put(scriptEngine.getType(), scriptEngine);
-        engines.put(defaultScriptServiceEngine.getType(), defaultScriptServiceEngine);
-        scriptContextRegistry = new ScriptContextRegistry(contexts.values());
-        scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
+        engines.put("test", new MockScriptEngine("test", scripts));
         logger.info("--> setup script service");
     }
 
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
-        scriptService = new ScriptService(finalSettings, engines, scriptContextRegistry) {
+        scriptService = new ScriptService(finalSettings, engines, contexts) {
             @Override
             StoredScriptSource getScriptFromClusterState(String id, String lang) {
                 //mock the script that gets retrieved from an index
-                return new StoredScriptSource(lang, "100", Collections.emptyMap());
+                return new StoredScriptSource(lang, "1+1", Collections.emptyMap());
             }
         };
     }
@@ -147,115 +120,87 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testInlineScriptCompiledOnceCache() throws IOException {
         buildScriptService(Settings.EMPTY);
-        CompiledScript compiledScript1 = scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()),
-                randomFrom(scriptContexts));
-        CompiledScript compiledScript2 = scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()),
-                randomFrom(scriptContexts));
-        assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
+        Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
+        SearchScript.Factory factoryScript1 = scriptService.compile(script, SearchScript.CONTEXT);
+        SearchScript.Factory factoryScript2 = scriptService.compile(script, SearchScript.CONTEXT);
+        assertThat(factoryScript1, sameInstance(factoryScript2));
     }
 
     public void testAllowAllScriptTypeSettings() throws IOException {
         buildScriptService(Settings.EMPTY);
 
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
-        assertCompileAccepted("painless", "script", ScriptType.STORED, ScriptContext.Standard.SEARCH);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.STORED, SearchScript.CONTEXT);
     }
 
     public void testAllowAllScriptContextSettings() throws IOException {
         buildScriptService(Settings.EMPTY);
 
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.AGGS);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.UPDATE);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.INGEST);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, ExecutableScript.UPDATE_CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, ExecutableScript.INGEST_CONTEXT);
     }
 
     public void testAllowSomeScriptTypeSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.types_allowed", "inline");
+        builder.put("script.allowed_types", "inline");
         buildScriptService(builder.build());
 
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
-        assertCompileRejected("painless", "script", ScriptType.STORED, ScriptContext.Standard.SEARCH);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileRejected("painless", "script", ScriptType.STORED, SearchScript.CONTEXT);
     }
 
     public void testAllowSomeScriptContextSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.contexts_allowed", "search, aggs");
+        builder.put("script.allowed_contexts", "search, aggs");
         buildScriptService(builder.build());
 
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ScriptContext.Standard.AGGS);
-        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.UPDATE);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, ExecutableScript.UPDATE_CONTEXT);
     }
 
     public void testAllowNoScriptTypeSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.types_allowed", "none");
+        builder.put("script.allowed_types", "none");
         buildScriptService(builder.build());
 
-        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
-        assertCompileRejected("painless", "script", ScriptType.STORED, ScriptContext.Standard.SEARCH);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileRejected("painless", "script", ScriptType.STORED, SearchScript.CONTEXT);
     }
 
     public void testAllowNoScriptContextSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.contexts_allowed", "none");
+        builder.put("script.allowed_contexts", "none");
         buildScriptService(builder.build());
 
-        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.SEARCH);
-        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.AGGS);
-        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.UPDATE);
-        assertCompileRejected("painless", "script", ScriptType.INLINE, ScriptContext.Standard.INGEST);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
+        assertCompileRejected("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
     }
 
     public void testCompileNonRegisteredContext() throws IOException {
+        contexts.remove(ExecutableScript.INGEST_CONTEXT.name);
         buildScriptService(Settings.EMPTY);
-        String pluginName;
-        String unknownContext;
-        do {
-            pluginName = randomAlphaOfLength(randomIntBetween(1, 10));
-            unknownContext = randomAlphaOfLength(randomIntBetween(1, 30));
-        } while(scriptContextRegistry.isSupportedContext(new ScriptContext.Plugin(pluginName, unknownContext).getKey()));
 
         String type = scriptEngine.getType();
-        try {
-            scriptService.compile(new Script(randomFrom(ScriptType.values()), type, "test", Collections.emptyMap()),
-                new ScriptContext.Plugin(pluginName, unknownContext));
-            fail("script compilation should have been rejected");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            scriptService.compile(new Script(randomFrom(ScriptType.values()), type, "test", Collections.emptyMap()), ExecutableScript.INGEST_CONTEXT));
+        assertThat(e.getMessage(), containsString("script context [" + ExecutableScript.INGEST_CONTEXT.name + "] not supported"));
     }
 
     public void testCompileCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
-        assertEquals(1L, scriptService.stats().getCompilations());
-    }
-
-    public void testExecutableCountedInCompilationStats() throws IOException {
-        buildScriptService(Settings.EMPTY);
-        Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
-        CompiledScript compiledScript = scriptService.compile(script, randomFrom(scriptContexts));
-        scriptService.executable(compiledScript, script.getParams());
-        assertEquals(1L, scriptService.stats().getCompilations());
-    }
-
-    public void testSearchCountedInCompilationStats() throws IOException {
-        buildScriptService(Settings.EMPTY);
-        Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
-        CompiledScript compile = scriptService.compile(script, randomFrom(scriptContexts));
-        scriptService.search(null, compile, script.getParams());
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testMultipleCompilationsCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        int numberOfCompilations = randomIntBetween(1, 1024);
+        int numberOfCompilations = randomIntBetween(1, 20);
         for (int i = 0; i < numberOfCompilations; i++) {
             scriptService
-                    .compile(new Script(ScriptType.INLINE, "test", i + " + " + i, Collections.emptyMap()), randomFrom(scriptContexts));
+                    .compile(new Script(ScriptType.INLINE, "test", i + "+" + i, Collections.emptyMap()), randomFrom(contexts.values()));
         }
         assertEquals(numberOfCompilations, scriptService.stats().getCompilations());
     }
@@ -265,14 +210,15 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         buildScriptService(builder.build());
         Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
-        scriptService.compile(script, randomFrom(scriptContexts));
-        scriptService.compile(script, randomFrom(scriptContexts));
+        ScriptContext<?> context = randomFrom(contexts.values());
+        scriptService.compile(script, context);
+        scriptService.compile(script, context);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testIndexedScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.compile(new Script(ScriptType.STORED, "test", "script", Collections.emptyMap()), randomFrom(scriptContexts));
+        scriptService.compile(new Script(ScriptType.STORED, "test", "script", Collections.emptyMap()), randomFrom(contexts.values()));
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -280,18 +226,10 @@ public class ScriptServiceTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         buildScriptService(builder.build());
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(scriptContexts));
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(scriptContexts));
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(contexts.values()));
         assertEquals(2L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
-    }
-
-    public void testDefaultLanguage() throws IOException {
-        Settings.Builder builder = Settings.builder();
-        buildScriptService(builder.build());
-        CompiledScript script = scriptService.compile(
-            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 + 1", Collections.emptyMap()), randomFrom(scriptContexts));
-        assertEquals(script.lang(), Script.DEFAULT_SCRIPT_LANG);
     }
 
     public void testStoreScript() throws Exception {
@@ -349,45 +287,5 @@ public class ScriptServiceTests extends ESTestCase {
                 scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext),
                 notNullValue()
         );
-    }
-
-    public static class TestEngine implements ScriptEngine {
-
-        public static final String NAME = "test";
-
-        private final String name;
-
-        public TestEngine() {
-            this(NAME);
-        }
-
-        public TestEngine(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String getType() {
-            return name;
-        }
-
-        @Override
-        public Object compile(String scriptName, String scriptText, Map<String, String> params) {
-            return "compiled_" + scriptText;
-        }
-
-        @Override
-        public ExecutableScript executable(final CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
-            return null;
-        }
-
-        @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-            return null;
-        }
-
-        @Override
-        public void close() {
-
-        }
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -148,6 +149,26 @@ public class TCPTransportTests extends ESTestCase {
         assertEquals(100, addresses[0].getPort());
         assertEquals(101, addresses[1].getPort());
         assertEquals(102, addresses[2].getPort());
+    }
+
+    public void testEnsureVersionCompatibility() {
+        TcpTransport.ensureVersionCompatibility(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
+            Version.CURRENT), Version.CURRENT, randomBoolean());
+
+        TcpTransport.ensureVersionCompatibility(Version.fromString("5.0.0"), Version.fromString("6.0.0"), true);
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
+            TcpTransport.ensureVersionCompatibility(Version.fromString("5.0.0"), Version.fromString("6.0.0"), false));
+        assertEquals("Received message from unsupported version: [5.0.0] minimal compatible version is: [5.4.0]", ise.getMessage());
+
+        ise = expectThrows(IllegalStateException.class, () ->
+            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("6.0.0"), true));
+        assertEquals("Received handshake message from unsupported version: [2.3.0] minimal compatible version is: [5.4.0]",
+            ise.getMessage());
+
+        ise = expectThrows(IllegalStateException.class, () ->
+            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("6.0.0"), false));
+        assertEquals("Received message from unsupported version: [2.3.0] minimal compatible version is: [5.4.0]",
+            ise.getMessage());
     }
 
     public void testCompressRequest() throws IOException {

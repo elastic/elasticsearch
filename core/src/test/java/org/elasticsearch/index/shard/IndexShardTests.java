@@ -122,8 +122,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -338,11 +336,12 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testOperationPermitOnReplicaShards() throws InterruptedException, ExecutionException, IOException, BrokenBarrierException {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShard indexShard;
-
+        final boolean engineClosed;
         switch (randomInt(2)) {
             case 0:
                 // started replica
                 indexShard = newStartedShard(false);
+                engineClosed = false;
                 break;
             case 1: {
                 // initializing replica / primary
@@ -353,6 +352,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     ShardRoutingState.INITIALIZING,
                     relocating ? AllocationId.newRelocation(AllocationId.newInitializing()) : AllocationId.newInitializing());
                 indexShard = newShard(routing);
+                engineClosed = true;
                 break;
             }
             case 2: {
@@ -363,6 +363,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     true, ShardRoutingState.RELOCATING, AllocationId.newRelocation(routing.allocationId()));
                 indexShard.updateRoutingEntry(routing);
                 indexShard.relocated("test");
+                engineClosed = false;
                 break;
             }
             default:
@@ -380,6 +381,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         final long primaryTerm = indexShard.getPrimaryTerm();
+        final long translogGen = engineClosed ? -1 : indexShard.getTranslog().getGeneration().translogFileGeneration;
 
         final Releasable operation1 = acquireReplicaOperationPermitBlockingly(indexShard, primaryTerm);
         assertEquals(1, indexShard.getActiveOperationsCount());
@@ -414,8 +416,9 @@ public class IndexShardTests extends IndexShardTestCase {
 
         {
             final AtomicBoolean onResponse = new AtomicBoolean();
-            final AtomicBoolean onFailure = new AtomicBoolean();
+            final AtomicReference<Exception> onFailure = new AtomicReference<>();
             final CyclicBarrier barrier = new CyclicBarrier(2);
+            final long newPrimaryTerm = primaryTerm + 1 + randomInt(20);
             // but you can not increment with a new primary term until the operations on the older primary term complete
             final Thread thread = new Thread(() -> {
                 try {
@@ -424,22 +427,28 @@ public class IndexShardTests extends IndexShardTestCase {
                     throw new RuntimeException(e);
                 }
                 indexShard.acquireReplicaOperationPermit(
-                        primaryTerm + 1 + randomInt(20),
+                    newPrimaryTerm,
                         new ActionListener<Releasable>() {
                             @Override
                             public void onResponse(Releasable releasable) {
+                                assertThat(indexShard.getPrimaryTerm(), equalTo(newPrimaryTerm));
                                 onResponse.set(true);
                                 releasable.close();
+                                finish();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                onFailure.set(e);
+                                finish();
+                            }
+
+                            private void finish() {
                                 try {
                                     barrier.await();
                                 } catch (final BrokenBarrierException | InterruptedException e) {
                                     throw new RuntimeException(e);
                                 }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                onFailure.set(true);
                             }
                         },
                         ThreadPool.Names.SAME);
@@ -448,16 +457,25 @@ public class IndexShardTests extends IndexShardTestCase {
             barrier.await();
             // our operation should be blocked until the previous operations complete
             assertFalse(onResponse.get());
-            assertFalse(onFailure.get());
+            assertNull(onFailure.get());
+            assertThat(indexShard.getPrimaryTerm(), equalTo(primaryTerm));
             Releasables.close(operation1);
             // our operation should still be blocked
             assertFalse(onResponse.get());
-            assertFalse(onFailure.get());
+            assertNull(onFailure.get());
+            assertThat(indexShard.getPrimaryTerm(), equalTo(primaryTerm));
             Releasables.close(operation2);
             barrier.await();
             // now lock acquisition should have succeeded
-            assertTrue(onResponse.get());
-            assertFalse(onFailure.get());
+            assertThat(indexShard.getPrimaryTerm(), equalTo(newPrimaryTerm));
+            if (engineClosed) {
+                assertFalse(onResponse.get());
+                assertThat(onFailure.get(), instanceOf(AlreadyClosedException.class));
+            } else {
+                assertTrue(onResponse.get());
+                assertNull(onFailure.get());
+                assertThat(indexShard.getTranslog().getGeneration().translogFileGeneration, equalTo(translogGen + 1));
+            }
             thread.join();
             assertEquals(0, indexShard.getActiveOperationsCount());
         }
@@ -1046,7 +1064,7 @@ public class IndexShardTests extends IndexShardTestCase {
         test = otherShard.prepareIndexOnReplica(
             SourceToParse.source(shard.shardId().getIndexName(), test.type(), test.id(), test.source(),
                 XContentType.JSON),
-            1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            1, 1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         otherShard.index(test);
 
         final ShardRouting primaryShardRouting = shard.routingEntry();

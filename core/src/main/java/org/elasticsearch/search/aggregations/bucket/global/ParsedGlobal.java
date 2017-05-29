@@ -16,11 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.search.aggregations.bucket.global;
 
-package org.elasticsearch.index.engine;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
-/**
- * Exceptions implementing this interface will be ignored during recovery.
- */
-public interface IgnoreOnRecoveryEngineException {
+import java.io.IOException;
+
+public class ParsedGlobal extends ParsedSingleBucketAggregation implements Global {
+
+    @Override
+    public String getType() {
+        return GlobalAggregationBuilder.NAME;
+    }
+
+    public static ParsedGlobal fromXContent(XContentParser parser, final String name) throws IOException {
+        return parseXContent(parser, new ParsedGlobal(), name);
+    }
 }

@@ -19,106 +19,45 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 public class ScriptContextTests extends ESTestCase {
 
-    private static final String PLUGIN_NAME = "testplugin";
-
-    ScriptService makeScriptService() throws Exception {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put("script.contexts_allowed", "search, aggs, testplugin_custom_op")
-            .build();
-
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
-        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
-        List<ScriptContext.Plugin> customContexts = Arrays.asList(
-            new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"),
-            new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"),
-            new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
-        ScriptService scriptService = new ScriptService(settings, engines, scriptContextRegistry);
-
-        ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
-        ScriptMetaData smd = empty.metaData().custom(ScriptMetaData.TYPE);
-        smd = ScriptMetaData.putStoredScript(smd, "1", new StoredScriptSource(MockScriptEngine.NAME, "1", Collections.emptyMap()));
-        MetaData.Builder mdb = MetaData.builder(empty.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
-        ClusterState stored = ClusterState.builder(empty).metaData(mdb).build();
-        scriptService.clusterChanged(new ClusterChangedEvent("test", stored, empty));
-
-        return scriptService;
+    public interface TwoNewInstance {
+        String newInstance(int foo, int bar);
+        String newInstance(int foo);
     }
 
-    public void testCustomGlobalScriptContextSettings() throws Exception {
-        ScriptService scriptService = makeScriptService();
-        for (ScriptType scriptType : ScriptType.values()) {
-            try {
-                Script script = new Script(scriptType, MockScriptEngine.NAME, "1", Collections.emptyMap());
-                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
-                fail("script compilation should have been rejected");
-            } catch (IllegalArgumentException e) {
-                assertTrue(e.getMessage(), e.getMessage().contains("cannot execute scripts using [" + PLUGIN_NAME + "_custom_globally_disabled_op] context"));
-            }
+    public interface MissingNewInstance {
+        String typoNewInstanceMethod(int foo);
+    }
+
+    public interface DummyScript {
+        int execute(int foo);
+
+        interface Factory {
+            DummyScript newInstance();
         }
     }
 
-    public void testCustomScriptContextSettings() throws Exception {
-        ScriptService scriptService = makeScriptService();
-        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
-        try {
-            scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
-            fail("script compilation should have been rejected");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("cannot execute scripts using [" + PLUGIN_NAME + "_custom_exp_disabled_op] context"));
-        }
-
-        // still works for other script contexts
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.AGGS));
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH));
-        assertNotNull(scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_op")));
+    public void testTwoNewInstanceMethods() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            new ScriptContext<>("test", TwoNewInstance.class));
+        assertEquals("Cannot have multiple newInstance methods on FactoryType class ["
+            + TwoNewInstance.class.getName() + "] for script context [test]", e.getMessage());
     }
 
-    public void testUnknownPluginScriptContext() throws Exception {
-        ScriptService scriptService = makeScriptService();
-        for (ScriptType scriptType : ScriptType.values()) {
-            try {
-                Script script = new Script(scriptType, MockScriptEngine.NAME, "1", Collections.emptyMap());
-                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"));
-                fail("script compilation should have been rejected");
-            } catch (IllegalArgumentException e) {
-                assertTrue(e.getMessage(), e.getMessage().contains("script context [" + PLUGIN_NAME + "_unknown] not supported"));
-            }
-        }
+    public void testMissingNewInstanceMethod() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            new ScriptContext<>("test", MissingNewInstance.class));
+        assertEquals("Could not find method newInstance on FactoryType class ["
+            + MissingNewInstance.class.getName() + "] for script context [test]", e.getMessage());
     }
 
-    public void testUnknownCustomScriptContext() throws Exception {
-        ScriptContext context = new ScriptContext() {
-            @Override
-            public String getKey() {
-                return "test";
-            }
-        };
-        ScriptService scriptService = makeScriptService();
-        for (ScriptType scriptType : ScriptType.values()) {
-            try {
-                Script script = new Script(scriptType, MockScriptEngine.NAME, "1", Collections.emptyMap());
-                scriptService.compile(script, context);
-                fail("script compilation should have been rejected");
-            } catch (IllegalArgumentException e) {
-                assertTrue(e.getMessage(), e.getMessage().contains("script context [test] not supported"));
-            }
-        }
+    public void testInstanceTypeReflection() {
+        ScriptContext<?> context = new ScriptContext<>("test", DummyScript.Factory.class);
+        assertEquals("test", context.name);
+        assertEquals(DummyScript.class, context.instanceClazz);
+        assertEquals(DummyScript.Factory.class, context.factoryClazz);
     }
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 
 import java.io.IOException;
@@ -32,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+
 /**
  * An internal implementation of {@link Aggregations}.
  */
@@ -79,27 +79,6 @@ public final class InternalAggregations extends Aggregations implements ToXConte
         }
         return new InternalAggregations(reducedAggregations);
     }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (aggregations.isEmpty()) {
-            return builder;
-        }
-        builder.startObject("aggregations");
-        toXContentInternal(builder, params);
-        return builder.endObject();
-    }
-
-    /**
-     * Directly write all the aggregations without their bounding object. Used by sub-aggregations (non top level aggs)
-     */
-    public XContentBuilder toXContentInternal(XContentBuilder builder, Params params) throws IOException {
-        for (Aggregation aggregation : aggregations) {
-            ((InternalAggregation)aggregation).toXContent(builder, params);
-        }
-        return builder;
-    }
-
 
     public static InternalAggregations readAggregations(StreamInput in) throws IOException {
         InternalAggregations result = new InternalAggregations();

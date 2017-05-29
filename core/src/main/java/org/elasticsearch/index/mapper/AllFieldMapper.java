@@ -104,7 +104,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
                                                  ParserContext parserContext) throws MapperParsingException {
             if (node.isEmpty() == false &&
-                    parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                    parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
                 throw new IllegalArgumentException("[_all] is disabled in 6.0. As a replacement, you can use an [copy_to] " +
                                 "on mapping fields to create your own catch all field.");
             }

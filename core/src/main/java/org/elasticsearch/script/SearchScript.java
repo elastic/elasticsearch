@@ -19,8 +19,10 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * A search script.
@@ -36,4 +38,11 @@ public interface SearchScript {
      */
     boolean needsScores();
 
+    interface Factory {
+        SearchScript newInstance(Map<String, Object> params, SearchLookup lookup);
+    }
+
+    ScriptContext<Factory> CONTEXT = new ScriptContext<>("search", Factory.class);
+    // TODO: remove aggs context when it has its own interface
+    ScriptContext<Factory> AGGS_CONTEXT = new ScriptContext<>("aggs", Factory.class);
 }

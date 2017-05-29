@@ -207,7 +207,7 @@ public class IndexingIT extends ESRestTestCase {
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
             .put("index.routing.allocation.include._name", bwcNames);
 
-        final boolean checkGlobalCheckpoints = nodes.getMaster().getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED);
+        final boolean checkGlobalCheckpoints = nodes.getMaster().getVersion().onOrAfter(Version.V_6_0_0_alpha1);
         logger.info("master version is [{}], global checkpoints will be [{}]", nodes.getMaster().getVersion(),
             checkGlobalCheckpoints ? "checked" : "not be checked");
         final String index = "test";
@@ -287,7 +287,7 @@ public class IndexingIT extends ESRestTestCase {
                 final long expectedGlobalCkp;
                 final long expectMaxSeqNo;
                 logger.info("primary resolved to node {}", primaryShard.getNode());
-                if (primaryShard.getNode().getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                if (primaryShard.getNode().getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                     expectMaxSeqNo = numDocs - 1;
                     expectedGlobalCkp = numDocs - 1;
                 } else {
@@ -295,7 +295,7 @@ public class IndexingIT extends ESRestTestCase {
                     expectMaxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
                 }
                 for (Shard shard : shards) {
-                    if (shard.getNode().getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                    if (shard.getNode().getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                         final SeqNoStats seqNoStats = shard.getSeqNoStats();
                         logger.info("stats for {}, primary [{}]: [{}]", shard.getNode(), shard.isPrimary(), seqNoStats);
                         assertThat("max_seq no on " + shard.getNode() + " is wrong", seqNoStats.getMaxSeqNo(), equalTo(expectMaxSeqNo));
@@ -324,7 +324,7 @@ public class IndexingIT extends ESRestTestCase {
             final Boolean primary = ObjectPath.evaluate(shard, "routing.primary");
             final Node node = nodes.getSafe(nodeId);
             final SeqNoStats seqNoStats;
-            if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 Integer maxSeqNo = ObjectPath.evaluate(shard, "seq_no.max_seq_no");
                 Integer localCheckpoint = ObjectPath.evaluate(shard, "seq_no.local_checkpoint");
                 Integer globalCheckpoint = ObjectPath.evaluate(shard, "seq_no.global_checkpoint");

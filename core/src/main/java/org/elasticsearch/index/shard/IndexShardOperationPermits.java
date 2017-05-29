@@ -210,34 +210,35 @@ final class IndexShardOperationPermits implements Closeable {
         final Releasable releasable;
         try {
             synchronized (this) {
-                releasable = tryAcquire();
-                if (releasable == null) {
-                    assert delayed;
-                    // operations are delayed, this operation will be retried by doBlockOperations once the delay is remoked
+                if (delayed) {
                     if (delayedOperations == null) {
                         delayedOperations = new ArrayList<>();
                     }
                     final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                     if (executorOnDelay != null) {
                         delayedOperations.add(
-                            new ThreadedActionListener<>(logger, threadPool, executorOnDelay,
-                                new ContextPreservingActionListener<>(contextSupplier, onAcquired), forceExecution));
+                                new ThreadedActionListener<>(logger, threadPool, executorOnDelay,
+                                        new ContextPreservingActionListener<>(contextSupplier, onAcquired), forceExecution));
                     } else {
                         delayedOperations.add(new ContextPreservingActionListener<>(contextSupplier, onAcquired));
                     }
                     return;
+                } else {
+                    releasable = tryAcquire();
+                    assert releasable != null;
                 }
             }
         } catch (final InterruptedException e) {
             onAcquired.onFailure(e);
             return;
         }
+        // execute this outside the synchronized block!
         onAcquired.onResponse(releasable);
     }
 
     @Nullable private Releasable tryAcquire() throws InterruptedException {
         assert Thread.holdsLock(this);
-        if (!delayed && semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)) { // the untimed tryAcquire methods do not honor the fairness setting
+        if (semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)) { // the un-timed tryAcquire methods do not honor the fairness setting
             final AtomicBoolean closed = new AtomicBoolean();
             return () -> {
                 if (closed.compareAndSet(false, true)) {

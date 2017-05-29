@@ -33,7 +33,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
@@ -63,7 +62,6 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
@@ -100,7 +98,6 @@ public abstract class Engine implements Closeable {
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     protected final EventListener eventListener;
-    protected final SnapshotDeletionPolicy deletionPolicy;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
@@ -121,7 +118,6 @@ public abstract class Engine implements Closeable {
 
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
-        Objects.requireNonNull(engineConfig.getDeletionPolicy(), "Snapshot deletion policy must be provided to the engine");
 
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
@@ -129,7 +125,6 @@ public abstract class Engine implements Closeable {
         this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
                 engineConfig.getIndexSettings().getSettings(), engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
-        this.deletionPolicy = engineConfig.getDeletionPolicy();
     }
 
     /** Returns 0 in the case where accountable is null, otherwise returns {@code ramBytesUsed()} */

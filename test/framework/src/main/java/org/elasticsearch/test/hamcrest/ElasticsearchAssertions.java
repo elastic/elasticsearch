@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.hamcrest;
 
-import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
@@ -805,13 +804,13 @@ public class ElasticsearchAssertions {
      * Compares two maps recursively, using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
     private static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual, Stack<String> path) {
-        assertEquals("different field names at [" + Strings.join(path, '/') + "]: " + expected.keySet() + " vs. " + actual.keySet(),
-                expected.size(), actual.size());
+        assertEquals("different xContent at path [" + String.join("/", path) + "]. Expected " + expected.keySet() + ", but was "
+                + actual.keySet() + ". Number of fields", expected.size(), actual.size());
         for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {
             String expectedKey = expectedEntry.getKey();
             Object expectedValue = expectedEntry.getValue();
             if (expectedValue == null) {
-                assertTrue("different xContent at [" + Strings.join(path, '/') + "], [" + expectedValue + "] vs. ["
+                assertTrue("different xContent at [" + String.join("/", path) + "], [" + expectedValue + "] vs. ["
                         + actual.get(expectedKey) + "]", actual.get(expectedKey) == null && actual.containsKey(expectedKey));
             } else {
                 Object actualValue = actual.get(expectedKey);
@@ -826,7 +825,7 @@ public class ElasticsearchAssertions {
      * Compares two lists recursively, but using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
     private static void assertListEquals(List<Object> expected, List<Object> actual, Stack<String> path) {
-        assertEquals("different list values at [" + Strings.join(path, '/') + "]: " + expected + " vs. " + actual, expected.size(),
+        assertEquals("different list values at [" + String.join("/", path) + "]: " + expected + " vs. " + actual, expected.size(),
                 actual.size());
         Iterator<Object> actualIterator = actual.iterator();
         int item = 0;
@@ -853,9 +852,9 @@ public class ElasticsearchAssertions {
         } else if (expected instanceof byte[]) {
             //byte[] is really a special case for binary values when comparing SMILE and CBOR, arrays of other types
             //don't need to be handled. Ordinary arrays get parsed as lists.
-            assertArrayEquals("different xContent at [" + Strings.join(path, '/') + "]", (byte[]) expected, (byte[]) actual);
+            assertArrayEquals("different xContent at [" + String.join("/", path) + "]", (byte[]) expected, (byte[]) actual);
         } else {
-            assertEquals("different xContent at [" + Strings.join(path, '/') + "]", expected, actual);
+            assertEquals("different xContent at [" + String.join("/", path) + "]", expected, actual);
         }
     }
 }

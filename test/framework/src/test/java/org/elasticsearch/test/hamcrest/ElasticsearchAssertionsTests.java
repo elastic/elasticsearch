@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -61,29 +60,33 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
     }
 
     public void testAssertXContentEquivalent() throws IOException {
-        XContentBuilder original = JsonXContent.contentBuilder();
-        original.startObject();
-        addRandomNumberOfFields(original);
-        {
-            original.startObject(randomAlphaOfLength(10));
+        try (XContentBuilder original = JsonXContent.contentBuilder()) {
+            original.startObject();
             addRandomNumberOfFields(original);
-            original.endObject();
-        }
-        {
-            original.startArray(randomAlphaOfLength(10));
-            int elements = randomInt(5);
-            for (int i = 0; i < elements; i++) {
-                original.value(randomAlphaOfLength(10));
+            {
+                original.startObject(randomAlphaOfLength(10));
+                addRandomNumberOfFields(original);
+                original.endObject();
             }
-            original.endArray();
-        }
-        original.endObject();
+            {
+                original.startArray(randomAlphaOfLength(10));
+                int elements = randomInt(5);
+                for (int i = 0; i < elements; i++) {
+                    original.value(randomAlphaOfLength(10));
+                }
+                original.endArray();
+            }
+            original.endObject();
 
-        XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, original.bytes(), original.contentType());
-        XContentBuilder copy = JsonXContent.contentBuilder();
-        parser.nextToken();
-        XContentHelper.copyCurrentStructure(copy.generator(), parser);
-        assertToXContentEquivalent(original.bytes(), copy.bytes(), original.contentType());
+            try (XContentBuilder copy = JsonXContent.contentBuilder();
+                    XContentParser parser = createParser(original.contentType().xContent(), original.bytes())) {
+                parser.nextToken();
+                XContentHelper.copyCurrentStructure(copy.generator(), parser);
+                try (XContentBuilder copyShuffled = shuffleXContent(copy) ) {
+                    assertToXContentEquivalent(original.bytes(), copyShuffled.bytes(), original.contentType());
+                }
+            }
+        }
     }
 
     public void testAssertXContentEquivalentErrors() throws IOException {
@@ -112,8 +115,8 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             otherBuilder.endObject();
             AssertionError error = expectThrows(AssertionError.class,
                     () -> assertToXContentEquivalent(builder.bytes(), otherBuilder.bytes(), builder.contentType()));
-            assertEquals("different field names at [foo]: [field1, field2] vs. [field1] expected:<2> but was:<1>",
-                    error.getMessage());
+            assertEquals("different xContent at path [foo]. Expected [field1, field2], but was [field1]. "
+                    + "Number of fields expected:<2> but was:<1>", error.getMessage());
         }
         {
             XContentBuilder builder = JsonXContent.contentBuilder();
@@ -204,15 +207,21 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private static void addRandomNumberOfFields(XContentBuilder builder) throws IOException {
         int fields = randomInt(5);
         for (int i = 0; i < fields; i++) {
-            Supplier<Object> sup = randomFrom(new Supplier[] {
-                () -> randomAlphaOfLength(10),
-                () -> randomInt(),
-                () -> randomBoolean()
-            });
+            Supplier<Object> sup = () -> {
+                int supplier = randomInt(2);
+                switch (supplier) {
+                case 0:
+                    return randomAlphaOfLength(10);
+                case 1:
+                    return randomInt();
+                case 2:
+                default:
+                    return randomBoolean();
+                }
+            };
             builder.field(randomAlphaOfLength(10), sup.get());
         }
     }

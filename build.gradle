@@ -218,12 +218,22 @@ subprojects {
     "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
   ]
-  if (wireCompatVersions[-1].snapshot) {
-    // if the most previous version is a snapshot, we need to connect that version to the
-    // bwc project which will checkout and build that snapshot version
-    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${wireCompatVersions[-1]}"] = ':distribution:bwc'
-    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${wireCompatVersions[-1]}"] = ':distribution:bwc'
-    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${wireCompatVersions[-1]}"] = ':distribution:bwc'
+  if (indexCompatVersions[-1].snapshot) {
+    /* The last and second to last versions can be snapshots. Rather than use
+     * snapshots built by CI we connect these versions to projects that build
+     * those those versions from the HEAD of the appropriate branch. */
+    if (indexCompatVersions[-1].bugfix == 0) {
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+    } else {
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
+    }
   }
   project.afterEvaluate {
     configurations.all {

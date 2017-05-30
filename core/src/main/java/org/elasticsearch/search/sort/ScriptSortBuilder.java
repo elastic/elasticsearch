@@ -293,7 +293,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             @Override
                             public boolean advanceExact(int doc) throws IOException {
                                 leafScript.setDocument(doc);
-                                return false;
+                                return true;
                             }
                             @Override
                             public double doubleValue() {

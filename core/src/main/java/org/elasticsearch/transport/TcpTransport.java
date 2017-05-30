@@ -1033,7 +1033,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
         // only compress if asked and the request is not bytes. Otherwise only
         // the header part is compressed, and the "body" can't be extracted as compressed
-        boolean compressMessage = options.compress() && canCompress(request);
+        final boolean compressMessage = options.compress() && canCompress(request);
 
         status = TransportStatus.setRequest(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
@@ -1182,8 +1182,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             message.writeTo(stream);
             zeroCopyBuffer = BytesArray.EMPTY;
         }
-        // we have to call finishStream here before accessing the bytes. A CompressibleBytesOutputStream
-        // might be implementing compression. And finish stream ensures that some marker bytes (EOS marker)
+        // we have to call materializeBytes() here before accessing the bytes. A CompressibleBytesOutputStream
+        // might be implementing compression. And materializeBytes() ensures that some marker bytes (EOS marker)
         // are written. Otherwise we barf on the decompressing end when we read past EOF on purpose in the
         // #validateRequest method. this might be a problem in deflate after all but it's important to write
         // the marker bytes.

@@ -28,7 +28,21 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
+import java.util.zip.DeflaterOutputStream;
 
+/**
+ * This class exists to provide a stream with optional compression. This is useful as using compression
+ * requires that the underlying {@link DeflaterOutputStream} be closed to write EOS bytes. However, the
+ * {@link BytesStream} should not be closed yet, as we have not used the bytes. This class handles these
+ * intricacies.
+ *
+ * {@link CompressibleBytesOutputStream#materializeBytes()} should be called when all the bytes have been
+ * written to this stream. If compression is enabled, the proper EOS bytes will be written at that point.
+ * The underlying {@link BytesReference} will be returned.
+ *
+ * {@link CompressibleBytesOutputStream#close()} should be called when the bytes are no longer needed and
+ * can be safely released.
+ */
 final class CompressibleBytesOutputStream extends StreamOutput implements Releasable {
 
     private final StreamOutput stream;
@@ -79,7 +93,8 @@ final class CompressibleBytesOutputStream extends StreamOutput implements Releas
 
     @Override
     public void close() {
-        if (stream == bytesStreamOutput) {
+        // If we are not using compression stream == bytesStreamOutput
+        if (shouldCompress == false) {
             IOUtils.closeWhileHandlingException(stream);
         } else {
             IOUtils.closeWhileHandlingException(stream, bytesStreamOutput);

@@ -28,6 +28,10 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * An {@link IndexDeletionPolicy} that coordinates between Lucene's commits and the retention of translog generation files,
+ * making sure that all translog files that are need to recover from the lucene commit are not deleted.
+ */
 public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     private final TranslogDeletionPolicy translogDeletionPolicy;

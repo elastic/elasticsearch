@@ -25,13 +25,11 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 
-import java.io.IOException;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.Permissions;
@@ -101,10 +99,10 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         GenericElasticsearchScript painlessScript = compile(GenericElasticsearchScript.class, scriptName, scriptSource, params);
         if (context.instanceClazz.equals(SearchScript.class)) {
-            SearchScript.Factory factory = (p, lookup) -> new SearchScript() {
+            SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
                 @Override
-                public LeafSearchScript getLeafSearchScript(final LeafReaderContext context) throws IOException {
-                    return new ScriptImpl(painlessScript, p, lookup.getLeafSearchLookup(context));
+                public SearchScript newInstance(final LeafReaderContext context) {
+                    return new ScriptImpl(painlessScript, p, lookup, context);
                 }
                 @Override
                 public boolean needsScores() {
@@ -113,7 +111,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
-            ExecutableScript.Factory factory = (p) -> new ScriptImpl(painlessScript, p, null);
+            ExecutableScript.Factory factory = (p) -> new ScriptImpl(painlessScript, p, null, null);
             return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("painless does not know how to handle context [" + context.name + "]");

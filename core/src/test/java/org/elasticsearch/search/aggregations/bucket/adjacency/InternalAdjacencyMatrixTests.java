@@ -26,9 +26,11 @@ import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregationTestCase<InternalAdjacencyMatrix> {
 
@@ -37,22 +39,24 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        keys = new ArrayList<>();
+        List<String> listOfKeys = new ArrayList<>();
         int numFilters = randomIntBetween(2, 4);
         String[] filters = new String[numFilters];
         for (int i = 0; i < numFilters; i++) {
             filters[i] = randomAlphaOfLength(5);
         }
         for (int i = 0; i < filters.length; i++) {
-            keys.add(filters[i]);
+            listOfKeys.add(filters[i]);
             for (int j = i + 1; j < filters.length; j++) {
                 if (filters[i].compareTo(filters[j]) <= 0) {
-                    keys.add(filters[i] + "&" + filters[j]);
+                    listOfKeys.add(filters[i] + "&" + filters[j]);
                 } else {
-                    keys.add(filters[j] + "&" + filters[i]);
+                    listOfKeys.add(filters[j] + "&" + filters[i]);
                 }
             }
         }
+        Collections.shuffle(listOfKeys, random());
+        keys = Collections.unmodifiableList(listOfKeys.stream().limit(maxNumberOfBuckets()).collect(Collectors.toList()));
     }
 
     @Override

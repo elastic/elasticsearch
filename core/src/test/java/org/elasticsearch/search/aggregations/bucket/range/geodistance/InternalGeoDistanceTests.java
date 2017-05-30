@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoDistance> {
 
@@ -56,7 +57,8 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
             listOfRanges.add(Tuple.tuple(0.0, max / 2));
             listOfRanges.add(Tuple.tuple(max / 3, max / 3 * 2));
         }
-        geoDistanceRanges = Collections.unmodifiableList(listOfRanges);
+        Collections.shuffle(listOfRanges, random());
+        geoDistanceRanges = Collections.unmodifiableList(listOfRanges.stream().limit(maxNumberOfBuckets()).collect(Collectors.toList()));
     }
 
     @Override

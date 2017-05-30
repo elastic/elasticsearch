@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
 
@@ -43,7 +44,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
         format = randomNumericDocValueFormat();
 
         final int interval = randomFrom(1, 5, 10, 25, 50, 100);
-        final int numRanges = randomIntBetween(1, 10);
+        final int numRanges = randomNumberOfBuckets();
 
         List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
         for (int i = 0; i < numRanges; i++) {
@@ -67,7 +68,9 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
         if (rarely()) {
             listOfRanges.add(Tuple.tuple(randomDouble(), Double.POSITIVE_INFINITY));
         }
-        ranges = Collections.unmodifiableList(listOfRanges);
+
+        Collections.shuffle(listOfRanges, random());
+        ranges = Collections.unmodifiableList(listOfRanges.stream().limit(maxNumberOfBuckets()).collect(Collectors.toList()));
     }
 
     @Override

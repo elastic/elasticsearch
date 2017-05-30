@@ -53,7 +53,7 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
                                                           Map<String, Object> metaData,
                                                           InternalAggregations aggregations) {
         final int requiredSize = randomIntBetween(1, 5);
-        final int numBuckets = randomInt(requiredSize + 2);
+        final int numBuckets = randomNumberOfBuckets();
 
         long subsetSize = 0;
         long supersetSize = 0;

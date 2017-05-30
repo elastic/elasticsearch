@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRange> {
 
@@ -50,7 +51,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
                 dateTime -> dateTime.plusHours(1), dateTime -> dateTime.plusDays(1), dateTime -> dateTime.plusMonths(1), dateTime ->
                         dateTime.plusYears(1));
 
-        final int numRanges = randomIntBetween(1, 10);
+        final int numRanges = randomNumberOfBuckets();
         final List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
 
         DateTime date = new DateTime(DateTimeZone.UTC);
@@ -71,7 +72,8 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
                 listOfRanges.add(Tuple.tuple(start, randomDoubleBetween(start, end, false)));
             }
         }
-        dateRanges = Collections.unmodifiableList(listOfRanges);
+        Collections.shuffle(listOfRanges, random());
+        dateRanges = Collections.unmodifiableList(listOfRanges.stream().limit(maxNumberOfBuckets()).collect(Collectors.toList()));
     }
 
     @Override

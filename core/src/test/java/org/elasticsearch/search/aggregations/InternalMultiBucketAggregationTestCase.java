@@ -32,11 +32,27 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class InternalMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation>
         extends InternalAggregationTestCase<T> {
 
+    private static final int DEFAULT_MAX_NUMBER_OF_BUCKETS = 25;
+
     Supplier<InternalAggregations> subAggregationsSupplier;
+    int maxNumberOfBuckets = DEFAULT_MAX_NUMBER_OF_BUCKETS;
+
+    protected int randomNumberOfBuckets() {
+        return randomIntBetween(minNumberOfBuckets(), maxNumberOfBuckets());
+    }
+
+    protected int minNumberOfBuckets() {
+        return 0;
+    }
+
+    protected int maxNumberOfBuckets() {
+        return maxNumberOfBuckets;
+    }
 
     @Override
     public void setUp() throws Exception {
@@ -57,7 +73,13 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     @Override
     protected final T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return createTestInstance(name, pipelineAggregators, metaData, subAggregationsSupplier.get());
+        final int maxNumberOfBuckets = maxNumberOfBuckets();
+        T instance = createTestInstance(name, pipelineAggregators, metaData, subAggregationsSupplier.get());
+
+        int numberOfBuckets = instance.getBuckets().size();
+        assertThat("Expecting a maximum number of "+ maxNumberOfBuckets + " buckets for " + instance.getClass().getSimpleName()
+                + " aggregation but got " + numberOfBuckets, numberOfBuckets, lessThanOrEqualTo(maxNumberOfBuckets));
+        return instance;
     }
 
     protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,

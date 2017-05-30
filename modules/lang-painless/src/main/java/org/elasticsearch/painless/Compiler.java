@@ -24,6 +24,7 @@ import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.node.SSource;
 import org.objectweb.asm.util.Printer;
 
+import java.lang.reflect.Constructor;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.CodeSource;
@@ -105,27 +106,43 @@ final class Compiler {
     }
 
     /**
+     * The class/interface the script is guaranteed to derive/implement.
+     */
+    private final Class<?> base;
+
+    /**
+     * The whitelist the script will use.
+     */
+    private final Definition definition;
+
+    /**
+     * Standard constructor.
+     * @param base The class/interface the script is guaranteed to derive/implement.
+     * @param definition The whitelist the script will use.
+     */
+    Compiler(Class<?> base, Definition definition) {
+        this.base = base;
+        this.definition = definition;
+    }
+
+    /**
      * Runs the two-pass compiler to generate a Painless script.
-     * @param <T> the type of the script
      * @param loader The ClassLoader used to define the script.
-     * @param iface Interface the compiled script should implement
      * @param name The name of the script.
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
-     * @return An executable script that implements both {@code <T>} and is a subclass of {@link PainlessScript}
+     * @return An executable script that implements both a specified interface and is a subclass of {@link PainlessScript}
      */
-    static <T> T compile(Loader loader, Class<T> iface, String name, String source, CompilerSettings settings) {
+    Constructor<? extends PainlessScript> compile(Loader loader, String name, String source, CompilerSettings settings) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        Definition definition = Definition.BUILTINS;
-        ScriptInterface scriptInterface = new ScriptInterface(definition, iface);
 
+        ScriptInterface scriptInterface = new ScriptInterface(definition, base);
         SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, definition,
                 null);
-
         root.analyze(definition);
         root.write();
 
@@ -135,9 +152,8 @@ final class Compiler {
             clazz.getField("$SOURCE").set(null, source);
             clazz.getField("$STATEMENTS").set(null, root.getStatements());
             clazz.getField("$DEFINITION").set(null, definition);
-            java.lang.reflect.Constructor<? extends PainlessScript> constructor = clazz.getConstructor();
 
-            return iface.cast(constructor.newInstance());
+            return clazz.getConstructor();
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }
@@ -145,31 +161,23 @@ final class Compiler {
 
     /**
      * Runs the two-pass compiler to generate a Painless script.  (Used by the debugger.)
-     * @param iface Interface the compiled script should implement
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
      * @return The bytes for compilation.
      */
-    static byte[] compile(Class<?> iface, String name, String source, CompilerSettings settings, Printer debugStream) {
+    byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        Definition definition = Definition.BUILTINS;
-        ScriptInterface scriptInterface = new ScriptInterface(definition, iface);
 
+        ScriptInterface scriptInterface = new ScriptInterface(definition, base);
         SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, definition,
                 debugStream);
-
         root.analyze(definition);
         root.write();
 
         return root.getBytes();
     }
-
-    /**
-     * All methods in the compiler should be static.
-     */
-    private Compiler() {}
 }

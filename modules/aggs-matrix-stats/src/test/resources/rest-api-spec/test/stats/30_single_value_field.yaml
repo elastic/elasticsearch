@@ -133,6 +133,7 @@ setup:
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"]} } } }
 
   - match: {hits.total: 0}
+  - match: {aggregations.mfs.doc_count: 0}
 
 ---
 "Single value field":
@@ -144,6 +145,7 @@ setup:
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val3"]} } } }
 
   - match: {hits.total: 15}
+  - match: {aggregations.mfs.doc_count: 15}
   - match: {aggregations.mfs.fields.0.count: 15}
 
 ---
@@ -156,6 +158,7 @@ setup:
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"]} } } }
 
   - match: {hits.total: 15}
+  - match: {aggregations.mfs.doc_count: 14}
   - match: {aggregations.mfs.fields.0.count: 14}
   - match: {aggregations.mfs.fields.2.correlation.val2: 0.9569513137793205}
 
@@ -169,6 +172,7 @@ setup:
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"], "missing" : {"val2" : 10} } } } }
 
   - match: {hits.total: 15}
+  - match: {aggregations.mfs.doc_count: 15}
   - match: {aggregations.mfs.fields.0.count: 15}
   - match: {aggregations.mfs.fields.2.correlation.val2: 0.9567970467908384}
 

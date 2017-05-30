@@ -133,6 +133,7 @@ setup:
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "vals"]} } } }
 
   - match: {hits.total: 0}
+  - match: {aggregations.mfs.doc_count: 0}
 
 ---
 "Multi value field Max":
@@ -144,6 +145,7 @@ setup:
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "vals"], "mode" : "max"} } } }
 
   - match: {hits.total: 15}
+  - match: {aggregations.mfs.doc_count: 14}
   - match: {aggregations.mfs.fields.0.count: 14}
   - match: {aggregations.mfs.fields.0.correlation.val1: 0.06838646533369998}
 
@@ -157,6 +159,7 @@ setup:
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "vals"], "mode" : "min"} } } }
 
   - match: {hits.total: 15}
+  - match: {aggregations.mfs.doc_count: 14}
   - match: {aggregations.mfs.fields.0.count: 14}
   - match: {aggregations.mfs.fields.0.correlation.val1: -0.09777682707831963}
 
@@ -170,6 +173,7 @@ setup:
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "vals"]} } } }
 
   - match: {hits.total: 15}
+  - match: {aggregations.mfs.doc_count: 13}
   - match: {aggregations.mfs.fields.0.count: 13}
   - match: {aggregations.mfs.fields.0.correlation.val1: -0.044997535185684244}
 
@@ -183,6 +187,7 @@ setup:
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "vals"], "missing" : {"val2" : 10, "vals" : 5 } } } } }
 
   - match: {hits.total: 15}
+  - match: {aggregations.mfs.doc_count: 15}
   - match: {aggregations.mfs.fields.0.count: 15}
   - match: {aggregations.mfs.fields.0.correlation.val2: 0.04028024709708195}
 

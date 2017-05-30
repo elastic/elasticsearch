@@ -72,6 +72,9 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     /** get the number of documents */
     @Override
     public long getDocCount() {
+        if (stats == null) {
+            return 0;
+        }
         return stats.docCount;
     }
 
@@ -152,6 +155,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
         if (results != null && results.getFieldCounts().keySet().isEmpty() == false) {
             builder.startArray(Fields.FIELDS);
             for (String fieldName : results.getFieldCounts().keySet()) {

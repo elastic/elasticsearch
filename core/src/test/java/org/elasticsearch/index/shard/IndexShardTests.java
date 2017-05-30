@@ -401,13 +401,14 @@ public class IndexShardTests extends IndexShardTestCase {
         for (int i = 0; i < operations; i++) {
             final String id = Integer.toString(i);
             final ParsedDocument doc = testParsedDocument(id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
-            if (rarely()) {
-                gap = true;
+            if (!rarely()) {
                 final Term uid = new Term("_id", doc.id());
                 final Engine.Index index =
                         new Engine.Index(uid, doc, i, indexShard.getPrimaryTerm(), 1, EXTERNAL, REPLICA, System.nanoTime(), -1, false);
                 indexShard.index(index);
                 max = i;
+            } else {
+                gap = true;
             }
         }
 

@@ -464,7 +464,7 @@ public class XPackLicenseState {
     /**
      * Determine if Upgrade API should be enabled.
      * <p>
-     *  Upgrade API is not available in for all license types except {@link OperationMode#TRIAL}
+     *  Upgrade API is not available in for all license types except {@link OperationMode#MISSING}
      *
      * @return {@code true} as long as the license is valid. Otherwise
      *         {@code false}.
@@ -472,13 +472,7 @@ public class XPackLicenseState {
     public boolean isUpgradeAllowed() {
         // status is volatile
         Status localStatus = status;
-        OperationMode operationMode = localStatus.mode;
-
-        boolean licensed = operationMode == OperationMode.BASIC || operationMode == OperationMode.STANDARD ||
-                operationMode == OperationMode.GOLD || operationMode == OperationMode.PLATINUM;
-
-        return licensed && localStatus.active;
-
+        // Should work on all active licenses
+        return localStatus.active;
     }
-
 }

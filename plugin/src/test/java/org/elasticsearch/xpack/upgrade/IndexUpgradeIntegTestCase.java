@@ -60,11 +60,11 @@ public abstract class IndexUpgradeIntegTestCase extends AbstractLicensesIntegrat
         return nodePlugins();
     }
     private static String randomValidLicenseType() {
-        return randomFrom("platinum", "gold", "standard", "basic");
+        return randomFrom("trial", "platinum", "gold", "standard", "basic");
     }
 
     private static String randomInvalidLicenseType() {
-        return randomFrom("missing", "trial");
+        return "missing";
     }
 
     public void disableLicensing() throws Exception {

@@ -41,8 +41,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotCompressedException;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -1189,7 +1187,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         // are written. Otherwise we barf on the decompressing end when we read past EOF on purpose in the
         // #validateRequest method. this might be a problem in deflate after all but it's important to write
         // the marker bytes.
-        final BytesReference messageBody = stream.finishStream().bytes();
+        final BytesReference messageBody = stream.materializeBytes();
         final BytesReference header = buildHeader(requestId, status, stream.getVersion(), messageBody.length() + zeroCopyBuffer.length());
         return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
@@ -50,7 +51,7 @@ final class CompressibleBytesOutputStream extends StreamOutput implements Releas
      * @return bytes underlying the stream
      * @throws IOException if an exception occurs when writing or flushing
      */
-    BytesStream finishStream() throws IOException {
+    BytesReference materializeBytes() throws IOException {
         // If we are using compression the stream needs to be closed to ensure that EOS marker bytes are written.
         // The actual ReleasableBytesStreamOutput will not be closed yet as it is wrapped in flushOnCloseStream when
         // passed to the deflater stream.
@@ -58,7 +59,7 @@ final class CompressibleBytesOutputStream extends StreamOutput implements Releas
             stream.close();
         }
 
-        return bytesStreamOutput;
+        return bytesStreamOutput.bytes();
     }
 
     @Override

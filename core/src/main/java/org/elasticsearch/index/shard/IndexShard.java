@@ -131,6 +131,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -361,14 +362,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         "primary terms can only go up; current term [" + primaryTerm + "], new term [" + newPrimaryTerm + "]";
                 /*
                  * Before this call returns, we are guaranteed that all future operations are delayed and so this happens before we
-                 * increment the primary term.
+                 * increment the primary term. The latch is needed to ensure that we do not unblock operations before the primary term is
+                 * incremented.
                  */
+                final CountDownLatch latch = new CountDownLatch(1);
                 indexShardOperationPermits.asyncBlockOperations(
                         30,
                         TimeUnit.MINUTES,
-                        () -> {},
+                        latch::await,
                         e -> failShard("exception during primary term transition", e));
                 primaryTerm = newPrimaryTerm;
+                latch.countDown();
             }
         }
     }

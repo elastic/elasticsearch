@@ -471,7 +471,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void relocated(String reason) throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try {
-            indexShardOperationPermits.syncBlockOperations(30, TimeUnit.MINUTES, () -> {
+            indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
                     "in-flight operations in progress while moving shard state to relocated";
@@ -1878,7 +1878,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             synchronized (primaryTermMutex) {
                 if (operationPrimaryTerm > primaryTerm) {
                     try {
-                        indexShardOperationPermits.syncBlockOperations(30, TimeUnit.MINUTES, () -> {
+                        indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                             assert operationPrimaryTerm > primaryTerm :
                                 "shard term already update.  op term [" + operationPrimaryTerm + "], shardTerm [" + primaryTerm + "]";
                             primaryTerm = operationPrimaryTerm;

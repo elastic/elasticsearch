@@ -89,7 +89,7 @@ final class IndexShardOperationPermits implements Closeable {
      * @throws TimeoutException          if timed out waiting for in-flight operations to finish
      * @throws IndexShardClosedException if operation permit has been closed
      */
-    <E extends Exception> void syncBlockOperations(
+    <E extends Exception> void blockOperations(
             final long timeout,
             final TimeUnit timeUnit,
             final CheckedRunnable<E> onBlocked) throws InterruptedException, TimeoutException, E {
@@ -198,7 +198,7 @@ final class IndexShardOperationPermits implements Closeable {
     /**
      * Acquires a permit whenever permit acquisition is not blocked. If the permit is directly available, the provided
      * {@link ActionListener} will be called on the calling thread. During calls of
-     * {@link #syncBlockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed. The provided {@link ActionListener}
+     * {@link #blockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed. The provided {@link ActionListener}
      * will then be called using the provided executor once operations are no longer blocked.
      *
      * @param onAcquired      {@link ActionListener} that is invoked once acquisition is successful or failed

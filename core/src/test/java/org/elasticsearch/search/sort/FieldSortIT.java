@@ -1526,14 +1526,18 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testScriptFieldSort() throws Exception {
-        createIndex("test");
+        assertAcked(prepareCreate("test")
+            .addMapping("t", "keyword", "type=keyword", "number", "type=integer"));
         ensureGreen();
         final int numDocs = randomIntBetween(10, 20);
         IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
+        List<String> keywords = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
             indexReqs[i] = client().prepareIndex("test", "t")
-                .setSource("number", Integer.toString(i));
+                .setSource("number", i, "keyword", Integer.toString(i));
+            keywords.add(Integer.toString(i));
         }
+        Collections.sort(keywords);
         indexRandom(true, indexReqs);
 
         {
@@ -1545,7 +1549,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 .addSort(SortBuilders.scoreSort())
                 .execute().actionGet();
 
-            int expectedValue = 0;
+            double expectedValue = 0;
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(hit.getSortValues().length, equalTo(2));
                 assertThat(hit.getSortValues()[0], equalTo(expectedValue++));
@@ -1565,7 +1569,7 @@ public class FieldSortIT extends ESIntegTestCase {
             int expectedValue = 0;
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(hit.getSortValues().length, equalTo(2));
-                assertThat(hit.getSortValues()[0], equalTo(Integer.toString(expectedValue++)));
+                assertThat(hit.getSortValues()[0], equalTo(keywords.get(expectedValue++)));
                 assertThat(hit.getSortValues()[1], equalTo(1f));
             }
         }

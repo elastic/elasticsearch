@@ -48,7 +48,6 @@ class ExpressionSearchScript extends SearchScript {
         super(null, null); // expressions don't use lookup or params
         exprScript = e;
         bindings = b;
-
         specialValue = v;
         this.needsScores = needsScores;
     }
@@ -66,7 +65,7 @@ class ExpressionSearchScript extends SearchScript {
             script.values = source.getValues(leaf, new DoubleValues() {
                 @Override
                 public double doubleValue() throws IOException {
-                    return getScore();
+                    return script.getScore();
                 }
 
                 @Override

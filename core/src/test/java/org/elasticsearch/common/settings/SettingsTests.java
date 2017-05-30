@@ -155,7 +155,7 @@ public class SettingsTests extends ESTestCase {
         // time to say goodbye?
         assertTrue(
             "It's time to implement #22298. Please delete this test and Settings#getAsBooleanLenientForPreEs6Indices().",
-            Version.CURRENT.minimumCompatibilityVersion().before(Version.V_6_0_0_alpha1_UNRELEASED));
+            Version.CURRENT.minimumCompatibilityVersion().before(Version.V_6_0_0_alpha1));
 
 
         String falsy = randomFrom("false", "off", "no", "0");

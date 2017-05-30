@@ -52,7 +52,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-    private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED);
+    private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1);
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -224,7 +224,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 } else if (bwcLuceneVersion.equals(version)) {
                     numBwcVersion++;
                 } else {
-                    fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was" + line);
+                    fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
                 }
             }
             assertNotEquals("expected at least 1 current segment after translog recovery", 0, numCurrentVersion);

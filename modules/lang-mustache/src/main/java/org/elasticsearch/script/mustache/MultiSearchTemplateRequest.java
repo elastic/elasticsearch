@@ -112,7 +112,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
             maxConcurrentSearchRequests = in.readVInt();
         }
         requests = in.readStreamableList(SearchTemplateRequest::new);
@@ -121,7 +121,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
             out.writeVInt(maxConcurrentSearchRequests);
         }
         out.writeStreamableList(requests);

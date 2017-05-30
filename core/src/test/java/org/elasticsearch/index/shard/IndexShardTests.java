@@ -562,17 +562,17 @@ public class IndexShardTests extends IndexShardTestCase {
             indexDoc(shard, "type", "id_" + i);
         }
         final boolean flushFirst = randomBoolean();
-        IndexCommit commit = shard.acquireIndexCommit(flushFirst);
+        Engine.IndexCommitRef commit = shard.acquireIndexCommit(flushFirst);
         int moreDocs = randomInt(20);
         for (int i = 0; i < moreDocs; i++) {
             indexDoc(shard, "type", "id_" + numDocs + i);
         }
         flushShard(shard);
         // check that we can still read the commit that we captured
-        try (IndexReader reader = DirectoryReader.open(commit)) {
+        try (IndexReader reader = DirectoryReader.open(commit.getIndexCommit())) {
             assertThat(reader.numDocs(), equalTo(flushFirst ? numDocs : 0));
         }
-        shard.releaseIndexCommit(commit);
+        commit.close();
         flushShard(shard, true);
 
         // check it's clean up

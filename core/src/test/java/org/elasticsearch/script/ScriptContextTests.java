@@ -19,124 +19,45 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
-import static org.hamcrest.Matchers.containsString;
 
 public class ScriptContextTests extends ESTestCase {
 
-    private static final String PLUGIN_NAME = "testplugin";
-    private static final String SCRIPT_PLUGIN_CUSTOM_SETTING = "script." + PLUGIN_NAME + "_custom_globally_disabled_op";
-    private static final String SCRIPT_ENGINE_CUSTOM_SETTING = "script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op";
-
-    private ScriptSettings scriptSettings;
-
-    ScriptService makeScriptService() throws Exception {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(SCRIPT_PLUGIN_CUSTOM_SETTING, "false")
-            .put(SCRIPT_ENGINE_CUSTOM_SETTING, "false")
-            .build();
-
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(scriptEngine));
-        List<ScriptContext.Plugin> customContexts = Arrays.asList(
-            new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"),
-            new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"),
-            new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
-        scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(settings, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
-
-        ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
-        ScriptMetaData smd = empty.metaData().custom(ScriptMetaData.TYPE);
-        smd = ScriptMetaData.putStoredScript(smd, "1", new StoredScriptSource(MockScriptEngine.NAME, "1", Collections.emptyMap()));
-        MetaData.Builder mdb = MetaData.builder(empty.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
-        ClusterState stored = ClusterState.builder(empty).metaData(mdb).build();
-        scriptService.clusterChanged(new ClusterChangedEvent("test", stored, empty));
-
-        return scriptService;
+    public interface TwoNewInstance {
+        String newInstance(int foo, int bar);
+        String newInstance(int foo);
     }
 
-
-
-    public void testCustomGlobalScriptContextSettings() throws Exception {
-        ScriptService scriptService = makeScriptService();
-        for (ScriptType scriptType : ScriptType.values()) {
-            try {
-                Script script = new Script(scriptType, MockScriptEngine.NAME, "1", Collections.emptyMap());
-                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
-                fail("script compilation should have been rejected");
-            } catch (IllegalStateException e) {
-                assertThat(e.getMessage(), containsString("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
-            }
-        }
-        assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
+    public interface MissingNewInstance {
+        String typoNewInstanceMethod(int foo);
     }
 
-    public void testCustomScriptContextSettings() throws Exception {
-        ScriptService scriptService = makeScriptService();
-        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
-        try {
-            scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
-            fail("script compilation should have been rejected");
-        } catch (IllegalStateException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [inline], operation [" + PLUGIN_NAME + "_custom_exp_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
-        }
+    public interface DummyScript {
+        int execute(int foo);
 
-        // still works for other script contexts
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.AGGS));
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH));
-        assertNotNull(scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_op")));
-        assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
+        interface Factory {
+            DummyScript newInstance();
+        }
     }
 
-    public void testUnknownPluginScriptContext() throws Exception {
-        ScriptService scriptService = makeScriptService();
-        for (ScriptType scriptType : ScriptType.values()) {
-            try {
-                Script script = new Script(scriptType, MockScriptEngine.NAME, "1", Collections.emptyMap());
-                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"));
-                fail("script compilation should have been rejected");
-            } catch (IllegalArgumentException e) {
-                assertTrue(e.getMessage(), e.getMessage().contains("script context [" + PLUGIN_NAME + "_unknown] not supported"));
-            }
-        }
-        assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
+    public void testTwoNewInstanceMethods() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            new ScriptContext<>("test", TwoNewInstance.class));
+        assertEquals("Cannot have multiple newInstance methods on FactoryType class ["
+            + TwoNewInstance.class.getName() + "] for script context [test]", e.getMessage());
     }
 
-    public void testUnknownCustomScriptContext() throws Exception {
-        ScriptContext context = new ScriptContext() {
-            @Override
-            public String getKey() {
-                return "test";
-            }
-        };
-        ScriptService scriptService = makeScriptService();
-        for (ScriptType scriptType : ScriptType.values()) {
-            try {
-                Script script = new Script(scriptType, MockScriptEngine.NAME, "1", Collections.emptyMap());
-                scriptService.compile(script, context);
-                fail("script compilation should have been rejected");
-            } catch (IllegalArgumentException e) {
-                assertTrue(e.getMessage(), e.getMessage().contains("script context [test] not supported"));
-            }
-        }
-        assertSettingDeprecationsAndWarnings(
-            ScriptSettingsTests.buildDeprecatedSettingsArray(scriptSettings, SCRIPT_PLUGIN_CUSTOM_SETTING, SCRIPT_ENGINE_CUSTOM_SETTING));
+    public void testMissingNewInstanceMethod() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            new ScriptContext<>("test", MissingNewInstance.class));
+        assertEquals("Could not find method newInstance on FactoryType class ["
+            + MissingNewInstance.class.getName() + "] for script context [test]", e.getMessage());
+    }
+
+    public void testInstanceTypeReflection() {
+        ScriptContext<?> context = new ScriptContext<>("test", DummyScript.Factory.class);
+        assertEquals("test", context.name);
+        assertEquals(DummyScript.class, context.instanceClazz);
+        assertEquals(DummyScript.Factory.class, context.factoryClazz);
     }
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -551,18 +552,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             shard.updateRoutingEntry(shardRouting);
             if (shardRouting.primary()) {
-                IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(shardRouting.shardId());
-                Set<String> activeIds = indexShardRoutingTable.activeShards().stream()
-                    // filter to shards that track seq# and should be taken into consideration for checkpoint tracking
-                    // shards on old nodes will go through a file based recovery which will also transfer seq# information.
-                    .filter(sr -> nodes.get(sr.currentNodeId()).getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED))
-                    .map(r -> r.allocationId().getId())
-                    .collect(Collectors.toSet());
-                Set<String> initializingIds = indexShardRoutingTable.getAllInitializingShards().stream()
-                    .filter(sr -> nodes.get(sr.currentNodeId()).getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED))
-                    .map(r -> r.allocationId().getId())
-                    .collect(Collectors.toSet());
-               shard.updateAllocationIdsFromMaster(activeIds, initializingIds);
+                final IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(shardRouting.shardId());
+                /*
+                 * Filter to shards that track sequence numbers and should be taken into consideration for checkpoint tracking. Shards on
+                 * old nodes will go through a file-based recovery which will also transfer sequence number information.
+                 */
+                final Set<String> activeIds =
+                        allocationIdsForShardsOnNodesThatUnderstandSeqNos(indexShardRoutingTable.activeShards(), nodes);
+                final Set<String> initializingIds =
+                        allocationIdsForShardsOnNodesThatUnderstandSeqNos(indexShardRoutingTable.getAllInitializingShards(), nodes);
+                shard.updatePrimaryTerm(clusterState.metaData().index(shard.shardId().getIndex()).primaryTerm(shard.shardId().id()));
+                shard.updateAllocationIdsFromMaster(activeIds, initializingIds);
             }
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
@@ -584,6 +584,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     SHARD_STATE_ACTION_LISTENER, clusterState);
             }
         }
+    }
+
+    private Set<String> allocationIdsForShardsOnNodesThatUnderstandSeqNos(
+            final List<ShardRouting> shardRoutings,
+            final DiscoveryNodes nodes) {
+        return shardRoutings
+                .stream()
+                .filter(sr -> nodes.get(sr.currentNodeId()).getVersion().onOrAfter(Version.V_6_0_0_alpha1))
+                .map(ShardRouting::allocationId)
+                .map(AllocationId::getId)
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -726,6 +737,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @throws IOException                  if shard state could not be persisted
          */
         void updateRoutingEntry(ShardRouting shardRouting) throws IOException;
+
+        /**
+         * Update the primary term. This method should only be invoked on primary shards.
+         *
+         * @param primaryTerm the new primary term
+         */
+        void updatePrimaryTerm(long primaryTerm);
 
         /**
          * Notifies the service of the current allocation ids in the cluster state.

@@ -1324,16 +1324,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 }
                 streamIn = compressor.streamInput(streamIn);
             }
-            // for handshakes we are compatible with N-2 since otherwise we can't figure out our initial version
-            // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
-            // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
-            // once the connection is established
-            final Version compatibilityVersion = TransportStatus.isHandshake(status) ? getCurrentVersion().minimumCompatibilityVersion()
-                : getCurrentVersion();
-            if (version.isCompatible(compatibilityVersion) == false) {
-                throw new IllegalStateException("Received message from unsupported version: [" + version
-                    + "] minimal compatible version is: [" + compatibilityVersion.minimumCompatibilityVersion() + "]");
-            }
+            final boolean isHandshake = TransportStatus.isHandshake(status);
+            ensureVersionCompatibility(version, getCurrentVersion(), isHandshake);
             streamIn = new NamedWriteableAwareStreamInput(streamIn, namedWriteableRegistry);
             streamIn.setVersion(version);
             threadPool.getThreadContext().readHeaders(streamIn);
@@ -1341,7 +1333,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 handleRequest(channel, profileName, streamIn, requestId, messageLengthBytes, version, remoteAddress, status);
             } else {
                 final TransportResponseHandler<?> handler;
-                if (TransportStatus.isHandshake(status)) {
+                if (isHandshake) {
                     handler = pendingHandshakes.remove(requestId);
                 } else {
                     TransportResponseHandler theHandler = transportServiceAdapter.onResponseReceived(requestId);
@@ -1374,6 +1366,19 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             } else {
                 IOUtils.closeWhileHandlingException(streamIn);
             }
+        }
+    }
+
+    static void ensureVersionCompatibility(Version version, Version currentVersion, boolean isHandshake) {
+        // for handshakes we are compatible with N-2 since otherwise we can't figure out our initial version
+        // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
+        // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
+        // once the connection is established
+        final Version compatibilityVersion = isHandshake ? currentVersion.minimumCompatibilityVersion() : currentVersion;
+        if (version.isCompatible(compatibilityVersion) == false) {
+            final Version minCompatibilityVersion = isHandshake ? compatibilityVersion : compatibilityVersion.minimumCompatibilityVersion();
+            String msg = "Received " + (isHandshake? "handshake " : "") + "message from unsupported version: [";
+            throw new IllegalStateException(msg + version + "] minimal compatible version is: [" + minCompatibilityVersion + "]");
         }
     }
 

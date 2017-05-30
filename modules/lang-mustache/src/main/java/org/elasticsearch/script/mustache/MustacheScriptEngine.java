@@ -25,22 +25,16 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.io.UTF8StreamWriter;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Reader;
 import java.io.StringWriter;
-import java.lang.ref.SoftReference;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
@@ -67,10 +61,15 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * @return a compiled template object for later execution.
      * */
     @Override
-    public Object compile(String templateName, String templateSource, Map<String, String> params) {
+    public <T> T compile(String templateName, String templateSource, ScriptContext<T> context, Map<String, String> params) {
+        if (context.instanceClazz.equals(ExecutableScript.class) == false) {
+            throw new IllegalArgumentException("mustache engine does not know how to handle context [" + context.name + "]");
+        }
         final MustacheFactory factory = createMustacheFactory(params);
         Reader reader = new FastStringReader(templateSource);
-        return factory.compile(reader, "query-template");
+        Mustache template = factory.compile(reader, "query-template");
+        ExecutableScript.Factory compiled = p -> new MustacheExecutableScript(template, p);
+        return context.factoryClazz.cast(compiled);
     }
 
     private CustomMustacheFactory createMustacheFactory(Map<String, String> params) {
@@ -85,29 +84,12 @@ public final class MustacheScriptEngine implements ScriptEngine {
         return NAME;
     }
 
-    @Override
-    public ExecutableScript executable(CompiledScript compiledScript,
-            @Nullable Map<String, Object> vars) {
-        return new MustacheExecutableScript(compiledScript, vars);
-    }
-
-    @Override
-    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup,
-            @Nullable Map<String, Object> vars) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void close() {
-        // Nothing to do here
-    }
-
     /**
      * Used at query execution time by script service in order to execute a query template.
      * */
     private class MustacheExecutableScript implements ExecutableScript {
-        /** Compiled template object wrapper. */
-        private CompiledScript template;
+        /** Factory template. */
+        private Mustache template;
         /** Parameters to fill above object with. */
         private Map<String, Object> vars;
 
@@ -115,7 +97,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
          * @param template the compiled template object wrapper
          * @param vars the parameters to fill above object with
          **/
-        MustacheExecutableScript(CompiledScript template, Map<String, Object> vars) {
+        MustacheExecutableScript(Mustache template, Map<String, Object> vars) {
             this.template = template;
             this.vars = vars == null ? Collections.emptyMap() : vars;
         }
@@ -132,7 +114,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
                 // crazy reflection here
                 SpecialPermission.check();
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    ((Mustache) template.compiled()).execute(writer, vars);
+                    template.execute(writer, vars);
                     return null;
                 });
             } catch (Exception e) {
@@ -141,10 +123,5 @@ public final class MustacheScriptEngine implements ScriptEngine {
             }
             return writer.toString();
         }
-    }
-
-    @Override
-    public boolean isInlineScriptEnabled() {
-        return true;
     }
 }

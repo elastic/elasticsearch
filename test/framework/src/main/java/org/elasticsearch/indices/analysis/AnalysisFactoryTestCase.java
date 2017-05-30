@@ -66,6 +66,7 @@ import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.PorterStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
+import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ReverseTokenFilterFactory;
 import org.elasticsearch.index.analysis.ScandinavianFoldingFilterFactory;
 import org.elasticsearch.index.analysis.ScandinavianNormalizationFilterFactory;
@@ -95,6 +96,7 @@ import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -103,6 +105,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.typeCompatibleWith;
 
 /**
  * Alerts us if new analysis components are added to Lucene, so we don't miss them.
@@ -147,26 +150,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("simplepattern",    Void.class)
         .put("simplepatternsplit",    Void.class)
         .immutableMap();
-
-    static final Map<PreBuiltTokenizers, Class<?>> PREBUILT_TOKENIZERS;
-    static {
-        PREBUILT_TOKENIZERS = new EnumMap<>(PreBuiltTokenizers.class);
-        for (PreBuiltTokenizers tokenizer : PreBuiltTokenizers.values()) {
-            Class<?> luceneFactoryClazz;
-            switch (tokenizer) {
-            case UAX_URL_EMAIL:
-                luceneFactoryClazz = org.apache.lucene.analysis.standard.UAX29URLEmailTokenizerFactory.class;
-                break;
-            case PATH_HIERARCHY:
-                luceneFactoryClazz = Void.class;
-                break;
-            default:
-                luceneFactoryClazz = org.apache.lucene.analysis.util.TokenizerFactory.lookupClass(
-                        toCamelCase(tokenizer.getTokenizerFactory(Version.CURRENT).name()));
-            }
-            PREBUILT_TOKENIZERS.put(tokenizer, luceneFactoryClazz);
-        }
-    }
 
     static final Map<String,Class<?>> KNOWN_TOKENFILTERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
@@ -319,22 +302,26 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         this.plugin = Objects.requireNonNull(plugin, "plugin is required. use an empty plugin for core");
     }
 
-    protected Map<String, Class<?>> getTokenizers() {
-        return KNOWN_TOKENIZERS;
+    protected Map<String, Class<?>> getCharFilters() {
+        return KNOWN_CHARFILTERS;
     }
 
     protected Map<String, Class<?>> getTokenFilters() {
         return KNOWN_TOKENFILTERS;
     }
 
+    protected Map<String, Class<?>> getTokenizers() {
+        return KNOWN_TOKENIZERS;
+    }
+
     /**
      * Map containing pre-configured token filters that should be available
      * after installing this plugin. The map is from the name of the token
      * filter to the class of the Lucene {@link TokenFilterFactory} that it
-     * is emulating. If the Lucene filter factory is {@code null} then the
-     * test will look it up for you from the name. If there is no Lucene
-     * {@linkplain TokenFilterFactory} then the right hand side should
-     * be {@link Void}.
+     * is emulating. If the Lucene {@linkplain TokenFilterFactory} is
+     * {@code null} then the test will look it up for you from the name. If
+     * there is no Lucene {@linkplain TokenFilterFactory} then the right
+     * hand side should be {@link Void}.
      */
     protected Map<String, Class<?>> getPreConfiguredTokenFilters() {
         Map<String, Class<?>> filters = new HashMap<>();
@@ -343,8 +330,33 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         return filters;
     }
 
-    protected Map<String, Class<?>> getCharFilters() {
-        return KNOWN_CHARFILTERS;
+    /**
+     * Map containing pre-configured tokenizers that should be available
+     * after installing this plugin. The map is from the name of the token
+     * filter to the class of the Lucene {@link TokenizerFactory} that it
+     * is emulating. If the Lucene {@linkplain TokenizerFactory} is
+     * {@code null} then the test will look it up for you from the name.
+     * If there is no Lucene {@linkplain TokenizerFactory} then the right
+     * hand side should be {@link Void}.
+     */
+    protected Map<String, Class<?>> getPreConfiguredTokenizers() {
+        Map<String, Class<?>> tokenizers = new HashMap<>();
+        // TODO drop this temporary shim when all the old style tokenizers have been migrated to new style
+        for (PreBuiltTokenizers tokenizer : PreBuiltTokenizers.values()) {
+            final Class<?> luceneFactoryClazz;
+            switch (tokenizer) {
+            case UAX_URL_EMAIL:
+                luceneFactoryClazz = org.apache.lucene.analysis.standard.UAX29URLEmailTokenizerFactory.class;
+                break;
+            case PATH_HIERARCHY:
+                luceneFactoryClazz = Void.class;
+                break;
+            default:
+                luceneFactoryClazz = null;
+            }
+            tokenizers.put(tokenizer.name().toLowerCase(Locale.ROOT), luceneFactoryClazz);
+        }
+        return tokenizers;
     }
 
     public void testTokenizers() {
@@ -421,21 +433,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         Collection<Object> expected = new HashSet<>();
         Collection<Object> actual = new HashSet<>();
 
-        for (Map.Entry<PreBuiltTokenizers, Class<?>> entry : PREBUILT_TOKENIZERS.entrySet()) {
-            PreBuiltTokenizers tokenizer = entry.getKey();
-            Class<?> luceneFactory = entry.getValue();
-            if (luceneFactory == Void.class) {
-                continue;
-            }
-            assertTrue(TokenizerFactory.class.isAssignableFrom(luceneFactory));
-            if (tokenizer.getTokenizerFactory(Version.CURRENT) instanceof MultiTermAwareComponent) {
-                actual.add(tokenizer);
-            }
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
-                expected.add(tokenizer);
-            }
-        }
-        Map<String, PreConfiguredTokenFilter> preBuiltTokenFilters = AnalysisModule.setupPreConfiguredTokenFilters(singletonList(plugin));
+        Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters =
+                AnalysisModule.setupPreConfiguredTokenFilters(singletonList(plugin));
         for (Map.Entry<String, Class<?>> entry : getPreConfiguredTokenFilters().entrySet()) {
             String name = entry.getKey();
             Class<?> luceneFactory = entry.getValue();
@@ -445,14 +444,33 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
             if (luceneFactory == null) {
                 luceneFactory = TokenFilterFactory.lookupClass(toCamelCase(name));
             }
-            assertTrue(TokenFilterFactory.class.isAssignableFrom(luceneFactory));
-            PreConfiguredTokenFilter filter = preBuiltTokenFilters.get(name);
+            assertThat(luceneFactory, typeCompatibleWith(TokenFilterFactory.class));
+            PreConfiguredTokenFilter filter = preConfiguredTokenFilters.get(name);
             assertNotNull("test claims pre built token filter [" + name + "] should be available but it wasn't", filter);
             if (filter.shouldUseFilterForMultitermQueries()) {
                 actual.add("token filter [" + name + "]");
             }
             if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
                 expected.add("token filter [" + name + "]");
+            }
+        }
+        Map<String, PreConfiguredTokenizer> preConfiguredTokenizers = AnalysisModule.setupPreConfiguredTokenizers(singletonList(plugin));
+        for (Map.Entry<String, Class<?>> entry : getPreConfiguredTokenizers().entrySet()) {
+            String name = entry.getKey();
+            Class<?> luceneFactory = entry.getValue();
+            if (luceneFactory == Void.class) {
+                continue;
+            }
+            if (luceneFactory == null) {
+                luceneFactory = TokenizerFactory.lookupClass(toCamelCase(name));
+            }
+            assertThat(luceneFactory, typeCompatibleWith(TokenizerFactory.class));
+            PreConfiguredTokenizer tokenizer = preConfiguredTokenizers.get(name);
+            if (tokenizer.hasMultiTermComponent()) {
+                actual.add(tokenizer);
+            }
+            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
+                expected.add(tokenizer);
             }
         }
         for (Map.Entry<PreBuiltCharFilters, Class<?>> entry : PREBUILT_CHARFILTERS.entrySet()) {

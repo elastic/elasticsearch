@@ -74,15 +74,17 @@ public class Version implements Comparable<Version> {
     public static final Version V_5_3_2 = new Version(V_5_3_2_ID, org.apache.lucene.util.Version.LUCENE_6_4_2);
     public static final int V_5_4_0_ID = 5040099;
     public static final Version V_5_4_0 = new Version(V_5_4_0_ID, org.apache.lucene.util.Version.LUCENE_6_5_0);
-    public static final int V_5_5_0_ID_UNRELEASED = 5050099;
-    public static final Version V_5_5_0_UNRELEASED = new Version(V_5_5_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_5_0);
-    public static final int V_6_0_0_alpha1_ID_UNRELEASED = 6000001;
-    public static final Version V_6_0_0_alpha1_UNRELEASED =
-            new Version(V_6_0_0_alpha1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final int V_6_0_0_alpha2_ID_UNRELEASED = 6000002;
-    public static final Version V_6_0_0_alpha2_UNRELEASED =
-            new Version(V_6_0_0_alpha2_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version CURRENT = V_6_0_0_alpha2_UNRELEASED;
+    public static final int V_5_4_1_ID = 5040199;
+    public static final Version V_5_4_1 = new Version(V_5_4_1_ID, org.apache.lucene.util.Version.LUCENE_6_5_1);
+    public static final int V_5_5_0_ID = 5050099;
+    public static final Version V_5_5_0 = new Version(V_5_5_0_ID, org.apache.lucene.util.Version.LUCENE_6_5_1);
+    public static final int V_6_0_0_alpha1_ID = 6000001;
+    public static final Version V_6_0_0_alpha1 =
+            new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final int V_6_0_0_alpha2_ID = 6000002;
+    public static final Version V_6_0_0_alpha2 =
+            new Version(V_6_0_0_alpha2_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final Version CURRENT = V_6_0_0_alpha2;
 
     // unreleased versions must be added to the above list with the suffix _UNRELEASED (with the exception of CURRENT)
 
@@ -97,12 +99,14 @@ public class Version implements Comparable<Version> {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_6_0_0_alpha2_ID_UNRELEASED:
-                return V_6_0_0_alpha2_UNRELEASED;
-            case V_6_0_0_alpha1_ID_UNRELEASED:
-                return V_6_0_0_alpha1_UNRELEASED;
-            case V_5_5_0_ID_UNRELEASED:
-                return V_5_5_0_UNRELEASED;
+            case V_6_0_0_alpha2_ID:
+                return V_6_0_0_alpha2;
+            case V_6_0_0_alpha1_ID:
+                return V_6_0_0_alpha1;
+            case V_5_5_0_ID:
+                return V_5_5_0;
+            case V_5_4_1_ID:
+                return V_5_4_1;
             case V_5_4_0_ID:
                 return V_5_4_0;
             case V_5_3_2_ID:

@@ -242,7 +242,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH);
+        final SearchScript searchScript = context.getSearchScript(script, SearchScript.CONTEXT);
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {
@@ -293,7 +293,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             @Override
                             public boolean advanceExact(int doc) throws IOException {
                                 leafScript.setDocument(doc);
-                                return false;
+                                return true;
                             }
                             @Override
                             public double doubleValue() {

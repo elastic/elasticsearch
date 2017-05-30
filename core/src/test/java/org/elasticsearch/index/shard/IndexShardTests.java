@@ -33,6 +33,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -118,8 +119,10 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -130,11 +133,13 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
+import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -262,20 +267,20 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(indexShard);
         assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
         try {
-            indexShard.acquirePrimaryOperationLock(null, ThreadPool.Names.INDEX);
+            indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.INDEX);
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
             // expected
         }
         try {
-            indexShard.acquireReplicaOperationLock(indexShard.getPrimaryTerm(), null, ThreadPool.Names.INDEX);
+            indexShard.acquireReplicaOperationPermit(indexShard.getPrimaryTerm(), null, ThreadPool.Names.INDEX);
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
             // expected
         }
     }
 
-    public void testOperationLocksOnPrimaryShards() throws InterruptedException, ExecutionException, IOException {
+    public void testOperationPermitsOnPrimaryShards() throws InterruptedException, ExecutionException, IOException {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShard indexShard;
 
@@ -287,10 +292,10 @@ public class IndexShardTests extends IndexShardTestCase {
             // simulate promotion
             indexShard = newStartedShard(false);
             ShardRouting replicaRouting = indexShard.routingEntry();
-            indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
             ShardRouting primaryRouting = TestShardRouting.newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,
                 true, ShardRoutingState.STARTED, replicaRouting.allocationId());
             indexShard.updateRoutingEntry(primaryRouting);
+            indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
         } else {
             indexShard = newStartedShard(true);
         }
@@ -298,15 +303,15 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, indexShard.getActiveOperationsCount());
         if (indexShard.routingEntry().isRelocationTarget() == false) {
             try {
-                indexShard.acquireReplicaOperationLock(primaryTerm, null, ThreadPool.Names.INDEX);
+                indexShard.acquireReplicaOperationPermit(primaryTerm, null, ThreadPool.Names.INDEX);
                 fail("shard shouldn't accept operations as replica");
             } catch (IllegalStateException ignored) {
 
             }
         }
-        Releasable operation1 = acquirePrimaryOperationLockBlockingly(indexShard);
+        Releasable operation1 = acquirePrimaryOperationPermitBlockingly(indexShard);
         assertEquals(1, indexShard.getActiveOperationsCount());
-        Releasable operation2 = acquirePrimaryOperationLockBlockingly(indexShard);
+        Releasable operation2 = acquirePrimaryOperationPermitBlockingly(indexShard);
         assertEquals(2, indexShard.getActiveOperationsCount());
 
         Releasables.close(operation1, operation2);
@@ -315,27 +320,28 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(indexShard);
     }
 
-    private Releasable acquirePrimaryOperationLockBlockingly(IndexShard indexShard) throws ExecutionException, InterruptedException {
+    private Releasable acquirePrimaryOperationPermitBlockingly(IndexShard indexShard) throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
-        indexShard.acquirePrimaryOperationLock(fut, ThreadPool.Names.INDEX);
+        indexShard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.INDEX);
         return fut.get();
     }
 
-    private Releasable acquireReplicaOperationLockBlockingly(IndexShard indexShard, long opPrimaryTerm)
+    private Releasable acquireReplicaOperationPermitBlockingly(IndexShard indexShard, long opPrimaryTerm)
         throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
-        indexShard.acquireReplicaOperationLock(opPrimaryTerm, fut, ThreadPool.Names.INDEX);
+        indexShard.acquireReplicaOperationPermit(opPrimaryTerm, fut, ThreadPool.Names.INDEX);
         return fut.get();
     }
 
-    public void testOperationLocksOnReplicaShards() throws InterruptedException, ExecutionException, IOException {
+    public void testOperationPermitOnReplicaShards() throws InterruptedException, ExecutionException, IOException, BrokenBarrierException {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShard indexShard;
-
+        final boolean engineClosed;
         switch (randomInt(2)) {
             case 0:
                 // started replica
                 indexShard = newStartedShard(false);
+                engineClosed = false;
                 break;
             case 1: {
                 // initializing replica / primary
@@ -346,6 +352,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     ShardRoutingState.INITIALIZING,
                     relocating ? AllocationId.newRelocation(AllocationId.newInitializing()) : AllocationId.newInitializing());
                 indexShard = newShard(routing);
+                engineClosed = true;
                 break;
             }
             case 2: {
@@ -356,6 +363,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     true, ShardRoutingState.RELOCATING, AllocationId.newRelocation(routing.allocationId()));
                 indexShard.updateRoutingEntry(routing);
                 indexShard.relocated("test");
+                engineClosed = false;
                 break;
             }
             default:
@@ -367,33 +375,182 @@ public class IndexShardTests extends IndexShardTestCase {
 
         assertEquals(0, indexShard.getActiveOperationsCount());
         if (shardRouting.primary() == false) {
-            try {
-                indexShard.acquirePrimaryOperationLock(null, ThreadPool.Names.INDEX);
-                fail("shard shouldn't accept primary ops");
-            } catch (IllegalStateException ignored) {
-
-            }
+            final IllegalStateException e =
+                    expectThrows(IllegalStateException.class, () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.INDEX));
+            assertThat(e, hasToString(containsString("shard is not a primary")));
         }
 
         final long primaryTerm = indexShard.getPrimaryTerm();
+        final long translogGen = engineClosed ? -1 : indexShard.getTranslog().getGeneration().translogFileGeneration;
 
-        Releasable operation1 = acquireReplicaOperationLockBlockingly(indexShard, primaryTerm);
+        final Releasable operation1 = acquireReplicaOperationPermitBlockingly(indexShard, primaryTerm);
         assertEquals(1, indexShard.getActiveOperationsCount());
-        Releasable operation2 = acquireReplicaOperationLockBlockingly(indexShard, primaryTerm);
+        final Releasable operation2 = acquireReplicaOperationPermitBlockingly(indexShard, primaryTerm);
         assertEquals(2, indexShard.getActiveOperationsCount());
 
-        try {
-            indexShard.acquireReplicaOperationLock(primaryTerm - 1, null, ThreadPool.Names.INDEX);
-            fail("you can not increment the operation counter with an older primary term");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("operation term"));
-            assertThat(e.getMessage(), containsString("too old"));
+        {
+            final AtomicBoolean onResponse = new AtomicBoolean();
+            final AtomicBoolean onFailure = new AtomicBoolean();
+            final AtomicReference<Exception> onFailureException = new AtomicReference<>();
+            ActionListener<Releasable> onLockAcquired = new ActionListener<Releasable>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    onResponse.set(true);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    onFailure.set(true);
+                    onFailureException.set(e);
+                }
+            };
+
+            indexShard.acquireReplicaOperationPermit(primaryTerm - 1, onLockAcquired, ThreadPool.Names.INDEX);
+
+            assertFalse(onResponse.get());
+            assertTrue(onFailure.get());
+            assertThat(onFailureException.get(), instanceOf(IllegalStateException.class));
+            assertThat(
+                    onFailureException.get(), hasToString(containsString("operation primary term [" + (primaryTerm - 1) + "] is too old")));
         }
 
-        // but you can increment with a newer one..
-        acquireReplicaOperationLockBlockingly(indexShard, primaryTerm + 1 + randomInt(20)).close();
-        Releasables.close(operation1, operation2);
-        assertEquals(0, indexShard.getActiveOperationsCount());
+        {
+            final AtomicBoolean onResponse = new AtomicBoolean();
+            final AtomicReference<Exception> onFailure = new AtomicReference<>();
+            final CyclicBarrier barrier = new CyclicBarrier(2);
+            final long newPrimaryTerm = primaryTerm + 1 + randomInt(20);
+            // but you can not increment with a new primary term until the operations on the older primary term complete
+            final Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                indexShard.acquireReplicaOperationPermit(
+                    newPrimaryTerm,
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                assertThat(indexShard.getPrimaryTerm(), equalTo(newPrimaryTerm));
+                                onResponse.set(true);
+                                releasable.close();
+                                finish();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                onFailure.set(e);
+                                finish();
+                            }
+
+                            private void finish() {
+                                try {
+                                    barrier.await();
+                                } catch (final BrokenBarrierException | InterruptedException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                        },
+                        ThreadPool.Names.SAME);
+            });
+            thread.start();
+            barrier.await();
+            // our operation should be blocked until the previous operations complete
+            assertFalse(onResponse.get());
+            assertNull(onFailure.get());
+            assertThat(indexShard.getPrimaryTerm(), equalTo(primaryTerm));
+            Releasables.close(operation1);
+            // our operation should still be blocked
+            assertFalse(onResponse.get());
+            assertNull(onFailure.get());
+            assertThat(indexShard.getPrimaryTerm(), equalTo(primaryTerm));
+            Releasables.close(operation2);
+            barrier.await();
+            // now lock acquisition should have succeeded
+            assertThat(indexShard.getPrimaryTerm(), equalTo(newPrimaryTerm));
+            if (engineClosed) {
+                assertFalse(onResponse.get());
+                assertThat(onFailure.get(), instanceOf(AlreadyClosedException.class));
+            } else {
+                assertTrue(onResponse.get());
+                assertNull(onFailure.get());
+                assertThat(indexShard.getTranslog().getGeneration().translogFileGeneration, equalTo(translogGen + 1));
+            }
+            thread.join();
+            assertEquals(0, indexShard.getActiveOperationsCount());
+        }
+
+        closeShards(indexShard);
+    }
+
+    public void testConcurrentTermIncreaseOnReplicaShard() throws BrokenBarrierException, InterruptedException, IOException {
+        final IndexShard indexShard = newStartedShard(false);
+
+        final CyclicBarrier barrier = new CyclicBarrier(3);
+        final CountDownLatch latch = new CountDownLatch(2);
+
+        final long primaryTerm = indexShard.getPrimaryTerm();
+        final AtomicLong counter = new AtomicLong();
+        final AtomicReference<Exception> onFailure = new AtomicReference<>();
+
+        final LongFunction<Runnable> function = increment -> () -> {
+            assert increment > 0;
+            try {
+                barrier.await();
+            } catch (final BrokenBarrierException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            indexShard.acquireReplicaOperationPermit(
+                    primaryTerm + increment,
+                    new ActionListener<Releasable>() {
+                        @Override
+                        public void onResponse(Releasable releasable) {
+                            counter.incrementAndGet();
+                            assertThat(indexShard.getPrimaryTerm(), equalTo(primaryTerm + increment));
+                            latch.countDown();
+                            releasable.close();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            onFailure.set(e);
+                            latch.countDown();
+                        }
+                    },
+                    ThreadPool.Names.INDEX);
+        };
+
+        final long firstIncrement = 1 + (randomBoolean() ? 0 : 1);
+        final long secondIncrement = 1 + (randomBoolean() ? 0 : 1);
+        final Thread first = new Thread(function.apply(firstIncrement));
+        final Thread second = new Thread(function.apply(secondIncrement));
+
+        first.start();
+        second.start();
+
+        // the two threads synchronize attempting to acquire an operation permit
+        barrier.await();
+
+        // we wait for both operations to complete
+        latch.await();
+
+        first.join();
+        second.join();
+
+        final Exception e;
+        if ((e = onFailure.get()) != null) {
+            /*
+             * If one thread tried to set the primary term to a higher value than the other thread and the thread with the higher term won
+             * the race, then the other thread lost the race and only one operation should have been executed.
+             */
+            assertThat(e, instanceOf(IllegalStateException.class));
+            assertThat(e, hasToString(matches("operation primary term \\[\\d+\\] is too old")));
+            assertThat(counter.get(), equalTo(1L));
+        } else {
+            assertThat(counter.get(), equalTo(2L));
+        }
+
+        assertThat(indexShard.getPrimaryTerm(), equalTo(primaryTerm + Math.max(firstIncrement, secondIncrement)));
 
         closeShards(indexShard);
     }
@@ -405,17 +562,17 @@ public class IndexShardTests extends IndexShardTestCase {
             indexDoc(shard, "type", "id_" + i);
         }
         final boolean flushFirst = randomBoolean();
-        IndexCommit commit = shard.acquireIndexCommit(flushFirst);
+        Engine.IndexCommitRef commit = shard.acquireIndexCommit(flushFirst);
         int moreDocs = randomInt(20);
         for (int i = 0; i < moreDocs; i++) {
             indexDoc(shard, "type", "id_" + numDocs + i);
         }
         flushShard(shard);
         // check that we can still read the commit that we captured
-        try (IndexReader reader = DirectoryReader.open(commit)) {
+        try (IndexReader reader = DirectoryReader.open(commit.getIndexCommit())) {
             assertThat(reader.numDocs(), equalTo(flushFirst ? numDocs : 0));
         }
-        shard.releaseIndexCommit(commit);
+        commit.close();
         flushShard(shard, true);
 
         // check it's clean up
@@ -701,7 +858,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         });
 
-        try (Releasable ignored = acquirePrimaryOperationLockBlockingly(shard)) {
+        try (Releasable ignored = acquirePrimaryOperationPermitBlockingly(shard)) {
             // start finalization of recovery
             recoveryThread.start();
             latch.await();
@@ -711,7 +868,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // recovery can be now finalized
         recoveryThread.join();
         assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
-        try (Releasable ignored = acquirePrimaryOperationLockBlockingly(shard)) {
+        try (Releasable ignored = acquirePrimaryOperationPermitBlockingly(shard)) {
             // lock can again be acquired
             assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
         }
@@ -740,7 +897,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     super.onResponse(releasable);
                 }
             };
-            shard.acquirePrimaryOperationLock(onLockAcquired, ThreadPool.Names.INDEX);
+            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.INDEX);
             onLockAcquiredActions.add(onLockAcquired);
         }
 
@@ -764,7 +921,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexThreads[i] = new Thread() {
                 @Override
                 public void run() {
-                    try (Releasable operationLock = acquirePrimaryOperationLockBlockingly(shard)) {
+                    try (Releasable operationLock = acquirePrimaryOperationPermitBlockingly(shard)) {
                         allPrimaryOperationLocksAcquired.countDown();
                         barrier.await();
                     } catch (InterruptedException | BrokenBarrierException | ExecutionException e) {
@@ -907,7 +1064,7 @@ public class IndexShardTests extends IndexShardTestCase {
         test = otherShard.prepareIndexOnReplica(
             SourceToParse.source(shard.shardId().getIndexName(), test.type(), test.id(), test.source(),
                 XContentType.JSON),
-            1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            1, 1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         otherShard.index(test);
 
         final ShardRouting primaryShardRouting = shard.routingEntry();
@@ -1496,6 +1653,52 @@ public class IndexShardTests extends IndexShardTestCase {
         } finally {
             closeShards(indexShard);
         }
+    }
+
+    /**
+     * here we are simulating the scenario that happens when we do async shard fetching from GatewaySerivce while we are finishing
+     * a recovery and concurrently clean files. This should always be possible without any exception. Yet there was a bug where IndexShard
+     * acquired the index writer lock before it called into the store that has it's own locking for metadata reads
+     */
+    public void testReadSnapshotConcurrently() throws IOException, InterruptedException {
+        IndexShard indexShard = newStartedShard();
+        indexDoc(indexShard, "doc", "0", "{\"foo\" : \"bar\"}");
+        if (randomBoolean()) {
+            indexShard.refresh("test");
+        }
+        indexDoc(indexShard, "doc", "1", "{\"foo\" : \"bar\"}");
+        indexShard.flush(new FlushRequest());
+        closeShards(indexShard);
+
+        final IndexShard newShard = reinitShard(indexShard);
+        Store.MetadataSnapshot storeFileMetaDatas = newShard.snapshotStoreMetadata();
+        assertTrue("at least 2 files, commit and data: " +storeFileMetaDatas.toString(), storeFileMetaDatas.size() > 1);
+        AtomicBoolean stop = new AtomicBoolean(false);
+        CountDownLatch latch = new CountDownLatch(1);
+        expectThrows(AlreadyClosedException.class, () -> newShard.getEngine()); // no engine
+        Thread thread = new Thread(() -> {
+            latch.countDown();
+            while(stop.get() == false){
+                try {
+                    Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
+                    assertEquals(0, storeFileMetaDatas.recoveryDiff(readMeta).different.size());
+                    assertEquals(0, storeFileMetaDatas.recoveryDiff(readMeta).missing.size());
+                    assertEquals(storeFileMetaDatas.size(), storeFileMetaDatas.recoveryDiff(readMeta).identical.size());
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        });
+        thread.start();
+        latch.await();
+
+        int iters = iterations(10, 100);
+        for (int i = 0; i < iters; i++) {
+            newShard.store().cleanupAndVerify("test", storeFileMetaDatas);
+        }
+        assertTrue(stop.compareAndSet(false, true));
+        thread.join();
+        closeShards(newShard);
     }
 
     /** A dummy repository for testing which just needs restore overridden */

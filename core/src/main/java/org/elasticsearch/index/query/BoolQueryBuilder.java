@@ -88,7 +88,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         shouldClauses.addAll(readQueries(in));
         filterClauses.addAll(readQueries(in));
         adjustPureNegative = in.readBoolean();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             in.readBoolean(); // disable_coord
         }
         minimumShouldMatch = in.readOptionalString();
@@ -101,7 +101,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         writeQueries(out, shouldClauses);
         writeQueries(out, filterClauses);
         out.writeBoolean(adjustPureNegative);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             out.writeBoolean(true); // disable_coord
         }
         out.writeOptionalString(minimumShouldMatch);
@@ -454,13 +454,13 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
-    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+    protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         List<QueryBuilder> clauses = new ArrayList<>(filter());
         clauses.addAll(must());
         clauses.addAll(should());
         // no need to include must_not (since there will be no hits for it)
         for (QueryBuilder clause : clauses) {
-            InnerHitBuilder.extractInnerHits(clause, innerHits);
+            InnerHitContextBuilder.extractInnerHits(clause, innerHits);
         }
     }
 

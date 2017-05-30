@@ -49,30 +49,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
                 return cred;
             }
         };
-        assertSame(cred, service.getCredential("_default_", "default"));
-    }
-
-    public void testFileCredentialBackcompat() throws Exception {
-        Path home = createTempDir();
-        Path config = home.resolve("config");
-        Files.createDirectories(config);
-        Settings settings = Settings.builder()
-            .put("path.home", home).build();
-        Environment env = new Environment(settings);
-        Files.copy(getDummyCredentialStream(), config.resolve("test-cred.json"));
-        InternalGoogleCloudStorageService service = new InternalGoogleCloudStorageService(env, Collections.emptyMap());
-        GoogleCredential cred = service.getCredential("test-cred.json", "default");
-        assertEquals("some-project-name@appspot.gserviceaccount.com", cred.getServiceAccountId());
-        assertWarnings("Using GCS service account file from disk is deprecated. Move the file into the elasticsearch keystore.");
-    }
-
-    public void testFileCredentialMissing() throws Exception {
-        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
-        InternalGoogleCloudStorageService service = new InternalGoogleCloudStorageService(env, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            service.getCredential("test-cred.json", "default"));
-        assertThat(e.getMessage(), containsString("Unable to find service account file"));
-        assertWarnings("Using GCS service account file from disk is deprecated. Move the file into the elasticsearch keystore.");
+        assertSame(cred, service.getCredential("default"));
     }
 
     public void testClientCredential() throws Exception {
@@ -80,6 +57,6 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         Map<String, GoogleCredential> credentials = Collections.singletonMap("clientname", cred);
         Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         InternalGoogleCloudStorageService service = new InternalGoogleCloudStorageService(env, credentials);
-        assertSame(cred, service.getCredential("_default_", "clientname"));
+        assertSame(cred, service.getCredential("clientname"));
     }
 }

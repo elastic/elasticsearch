@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -51,6 +50,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
@@ -61,7 +62,9 @@ import org.mockito.internal.matchers.VarargMatcher;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -566,8 +569,18 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testNamedXContents() {
-        List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getNamedXContents();
-        assertEquals(0, namedXContents.size());
+        List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
+        assertEquals(45, namedXContents.size());
+        Map<Class<?>, Integer> categories = new HashMap<>();
+        for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
+            Integer counter = categories.putIfAbsent(namedXContent.categoryClass, 1);
+            if (counter != null) {
+                categories.put(namedXContent.categoryClass, counter + 1);
+            }
+        }
+        assertEquals(2, categories.size());
+        assertEquals(Integer.valueOf(42), categories.get(Aggregation.class));
+        assertEquals(Integer.valueOf(3), categories.get(Suggest.Suggestion.class));
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {

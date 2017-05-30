@@ -189,7 +189,7 @@ public class ReplicationOperation<
                 try {
                     primary.updateLocalCheckpointForShard(response.allocationId(), response.localCheckpoint());
                 } catch (final AlreadyClosedException e) {
-                    // okay, the index was deleted or this shard was never activated after a relocation; fallthrough and finish normally
+                    // okay, the index was deleted or this shard was never activated after a relocation; fall through and finish normally
                 } catch (final Exception e) {
                     // fail the primary but fall through and let the rest of operation processing complete
                     final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);

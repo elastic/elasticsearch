@@ -191,14 +191,16 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
     }
 
     /**
-     * We intentionally ignore wildcards in the request. This tests that
-     * <code>log*</code> in the request isn't granted by <code>logstash-*</code>
-     * in the role, but <code>logstash-2016-*</code> is, because it's just
-     * treated as the name of an index.
+     * Wildcards in the request are treated as
+     * <em>does the user have ___ privilege on every possible index that matches this pattern?</em>
+     * Or, expressed differently,
+     * <em>does the user have ___ privilege on a wildcard that covers (is a superset of) this pattern?</em>
      */
-    public void testWildcardsInRequestAreIgnored() throws Exception {
+    public void testWildcardHandling() throws Exception {
         role = Role.builder("test3")
-                .add(IndexPrivilege.ALL, "logstash-*")
+                .add(IndexPrivilege.ALL, "logstash-*", "foo?")
+                .add(IndexPrivilege.READ, "abc*")
+                .add(IndexPrivilege.WRITE, "*xyz")
                 .build();
 
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
@@ -207,11 +209,31 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         request.indexPrivileges(
                 RoleDescriptor.IndicesPrivileges.builder()
                         .indices("logstash-2016-*")
-                        .privileges("write")
+                        .privileges("write") // Yes, because (ALL,"logstash-*")
+                        .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                        .indices("logstash-*")
+                        .privileges("read") // Yes, because (ALL,"logstash-*")
                         .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                         .indices("log*")
-                        .privileges("read")
+                        .privileges("manage") // No, because "log*" includes indices that "logstash-*" does not
+                        .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                        .indices("foo*", "foo?")
+                        .privileges("read") // Yes, "foo?", but not "foo*", because "foo*" > "foo?"
+                        .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                        .indices("abcd*")
+                        .privileges("read", "write") // read = Yes, because (READ, "abc*"), write = No
+                        .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                        .indices("abc*xyz")
+                        .privileges("read", "write", "manage") // read = Yes ( READ "abc*"), write = Yes (WRITE, "*xyz"), manage = No
+                        .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                        .indices("a*xyz")
+                        .privileges("read", "write", "manage") // read = No, write = Yes (WRITE, "*xyz"), manage = No
                         .build()
         );
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
@@ -220,10 +242,16 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
         assertThat(response.isCompleteMatch(), is(false));
-        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(2));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(8));
         assertThat(response.getIndexPrivileges(), containsInAnyOrder(
                 new IndexPrivileges("logstash-2016-*", Collections.singletonMap("write", true)),
-                new IndexPrivileges("log*", Collections.singletonMap("read", false))
+                new IndexPrivileges("logstash-*", Collections.singletonMap("read", true)),
+                new IndexPrivileges("log*", Collections.singletonMap("manage", false)),
+                new IndexPrivileges("foo?", Collections.singletonMap("read", true)),
+                new IndexPrivileges("foo*", Collections.singletonMap("read", false)),
+                new IndexPrivileges("abcd*", mapBuilder().put("read", true).put("write", false).map()),
+                new IndexPrivileges("abc*xyz", mapBuilder().put("read", true).put("write", true).put("manage", false).map()),
+                new IndexPrivileges("a*xyz", mapBuilder().put("read", false).put("write", true).put("manage", false).map())
         ));
     }
 
@@ -259,4 +287,9 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 )
         ));
     }
+
+    private static MapBuilder<String, Boolean> mapBuilder() {
+        return MapBuilder.newMapBuilder();
+    }
+
 }

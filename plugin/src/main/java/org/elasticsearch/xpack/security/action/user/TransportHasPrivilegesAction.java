@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -81,7 +80,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             cluster.put(checkAction, testPrivilege(checkPrivilege, rolePrivilege.getAutomaton()));
         }
 
-        final Map<IndicesPermission.Group, Predicate<String>> predicateCache = new HashMap<>();
+        final Map<IndicesPermission.Group, Automaton> predicateCache = new HashMap<>();
 
         final Map<String, HasPrivilegesResponse.IndexPrivileges> indices = new LinkedHashMap<>();
         boolean allMatch = true;
@@ -109,13 +108,15 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     }
 
     private boolean testIndexMatch(String checkIndex, String checkPrivilegeName, Role userRole,
-                                   Map<IndicesPermission.Group, Predicate<String>> predicateCache) {
+                                   Map<IndicesPermission.Group, Automaton> predicateCache) {
         final IndexPrivilege checkPrivilege = IndexPrivilege.get(Collections.singleton(checkPrivilegeName));
+
+        final Automaton checkIndexAutomaton = Automatons.patterns(checkIndex);
 
         List<Automaton> privilegeAutomatons = new ArrayList<>();
         for (IndicesPermission.Group group : userRole.indices().groups()) {
-            final Predicate<String> predicate = predicateCache.computeIfAbsent(group, g -> Automatons.predicate(g.indices()));
-            if (predicate.test(checkIndex)) {
+            final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group, g -> Automatons.patterns(g.indices()));
+            if (testIndex(checkIndexAutomaton, groupIndexAutomaton)) {
                 final IndexPrivilege rolePrivilege = group.privilege();
                 if (rolePrivilege.name().contains(checkPrivilegeName)) {
                     return true;
@@ -126,7 +127,11 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         return testPrivilege(checkPrivilege, Automatons.unionAndMinimize(privilegeAutomatons));
     }
 
-    private boolean testPrivilege(Privilege checkPrivilege, Automaton roleAutomaton) {
+    private static boolean testIndex(Automaton checkIndex, Automaton roleIndex) {
+        return Operations.subsetOf(checkIndex, roleIndex);
+    }
+
+    private static boolean testPrivilege(Privilege checkPrivilege, Automaton roleAutomaton) {
         return Operations.subsetOf(checkPrivilege.getAutomaton(), roleAutomaton);
     }
 }

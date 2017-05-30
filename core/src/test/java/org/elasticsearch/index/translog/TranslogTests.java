@@ -1578,7 +1578,7 @@ public class TranslogTests extends ESTestCase {
         Path tempDir = createTempDir();
         final FailSwitch fail = new FailSwitch();
         TranslogConfig config = getTranslogConfig(tempDir);
-        Translog translog = getFailableTranslog(fail, config, false, true, null);
+        Translog translog = getFailableTranslog(fail, config, false, true, null, new TranslogDeletionPolicy());
         LineFileDocs lineFileDocs = new LineFileDocs(random()); // writes pretty big docs so we cross buffer boarders regularly
         translog.add(new Translog.Index("test", "1", 0, lineFileDocs.nextDoc().toString().getBytes(Charset.forName("UTF-8"))));
         fail.failAlways();
@@ -1694,7 +1694,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     private Translog getFailableTranslog(FailSwitch fail, final TranslogConfig config) throws IOException {
-        return getFailableTranslog(fail, config, randomBoolean(), false, null);
+        return getFailableTranslog(fail, config, randomBoolean(), false, null, new TranslogDeletionPolicy());
     }
 
     private static class FailSwitch {
@@ -1727,9 +1727,10 @@ public class TranslogTests extends ESTestCase {
     }
 
 
-    private Translog getFailableTranslog(final FailSwitch fail, final TranslogConfig config, final boolean paritalWrites,
-                                         final boolean throwUnknownException, String translogUUID) throws IOException {
-        return new Translog(config, translogUUID, new TranslogDeletionPolicy(), () -> SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+    private Translog getFailableTranslog(final FailSwitch fail, final TranslogConfig config, final boolean partialWrites,
+                                         final boolean throwUnknownException, String translogUUID,
+                                         final TranslogDeletionPolicy deletionPolicy) throws IOException {
+        return new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO) {
             @Override
             ChannelFactory getChannelFactory() {
                 final ChannelFactory factory = super.getChannelFactory();
@@ -1739,7 +1740,7 @@ public class TranslogTests extends ESTestCase {
                     boolean success = false;
                     try {
                         final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp"); // don't do partial writes for checkpoints we rely on the fact that the bytes are written as an atomic operation
-                        ThrowingFileChannel throwingFileChannel = new ThrowingFileChannel(fail, isCkpFile ? false : paritalWrites, throwUnknownException, channel);
+                        ThrowingFileChannel throwingFileChannel = new ThrowingFileChannel(fail, isCkpFile ? false : partialWrites, throwUnknownException, channel);
                         success = true;
                         return throwingFileChannel;
                     } finally {
@@ -1954,6 +1955,7 @@ public class TranslogTests extends ESTestCase {
             fail.failRandomly();
             TranslogConfig config = getTranslogConfig(tempDir);
             final int numOps = randomIntBetween(100, 200);
+            long minGenForRecovery = 1;
             List<String> syncedDocs = new ArrayList<>();
             List<String> unsynced = new ArrayList<>();
             if (randomBoolean()) {
@@ -1961,7 +1963,7 @@ public class TranslogTests extends ESTestCase {
             }
             String generationUUID = null;
             try {
-                final Translog failableTLog = getFailableTranslog(fail, config, randomBoolean(), false, generationUUID);
+                final Translog failableTLog = getFailableTranslog(fail, config, randomBoolean(), false, generationUUID, new TranslogDeletionPolicy());
                 try {
                     LineFileDocs lineFileDocs = new LineFileDocs(random()); //writes pretty big docs so we cross buffer boarders regularly
                     for (int opsAdded = 0; opsAdded < numOps; opsAdded++) {
@@ -1998,6 +2000,7 @@ public class TranslogTests extends ESTestCase {
                         unsynced.clear();
                     }
                     generationUUID = failableTLog.getTranslogUUID();
+                    minGenForRecovery = failableTLog.getDeletionPolicy().getMinTranslogGenerationForRecovery();
                     IOUtils.closeWhileHandlingException(failableTLog);
                 }
             } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
@@ -2008,7 +2011,9 @@ public class TranslogTests extends ESTestCase {
             // now randomly open this failing tlog again just to make sure we can also recover from failing during recovery
             if (randomBoolean()) {
                 try {
-                    IOUtils.close(getFailableTranslog(fail, config, randomBoolean(), false, generationUUID));
+                    TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy();
+                    deletionPolicy.setMinTranslogGenerationForRecovery(minGenForRecovery);
+                    IOUtils.close(getFailableTranslog(fail, config, randomBoolean(), false, generationUUID, deletionPolicy));
                 } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
                     // failed - that's ok, we didn't even create it
                 } catch (IOException ex) {
@@ -2017,7 +2022,9 @@ public class TranslogTests extends ESTestCase {
             }
 
             fail.failNever(); // we don't wanna fail here but we might since we write a new checkpoint and create a new tlog file
-            try (Translog translog = new Translog(config, generationUUID, new TranslogDeletionPolicy(), () -> SequenceNumbersService.UNASSIGNED_SEQ_NO)) {
+            TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy();
+            deletionPolicy.setMinTranslogGenerationForRecovery(minGenForRecovery);
+            try (Translog translog = new Translog(config, generationUUID, deletionPolicy, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO)) {
                 Translog.Snapshot snapshot = translog.newSnapshot();
                 assertEquals(syncedDocs.size(), snapshot.totalOperations());
                 for (int i = 0; i < syncedDocs.size(); i++) {

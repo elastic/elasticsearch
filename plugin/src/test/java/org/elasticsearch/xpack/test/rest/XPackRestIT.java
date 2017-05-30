@@ -37,11 +37,6 @@ import static java.util.Collections.singletonMap;
 /** Runs rest tests against external cluster */
 public class XPackRestIT extends XPackRestTestCase {
 
-    @After
-    public void clearMlState() throws Exception {
-        new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
-    }
-
     public XPackRestIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
@@ -89,10 +84,24 @@ public class XPackRestIT extends XPackRestTestCase {
     }
 
     /**
-     * Disable monitoring
+     * Cleanup after tests.
+     *
+     * Feature-specific cleanup methods should be called from here rather than using
+     * separate @After annotated methods to ensure there is a well-defined cleanup order.
      */
     @After
-    public void disableMonitoring() throws Exception {
+    public void cleanup() throws Exception {
+        disableMonitoring();
+        // This also generically waits for pending tasks to complete, so must go last (otherwise
+        // it could be waiting for pending tasks while monitoring is still running).
+        // TODO: consider moving the bit that waits for pending tasks into a general X-Pack component
+        clearMlState();
+    }
+
+    /**
+     * Disable monitoring
+     */
+    private void disableMonitoring() throws Exception {
         if (isMonitoringTest()) {
             final Map<String, Object> settings = new HashMap<>();
             settings.put("xpack.monitoring.collection.interval", (String) null);
@@ -140,6 +149,16 @@ public class XPackRestIT extends XPackRestTestCase {
                 return retries.countDown();
             });
         }
+    }
+
+    /**
+     * Delete any left over machine learning datafeeds and jobs.
+     *
+     * Also waits for pending tasks to complete (which is not really an ML-specific
+     * thing and could be moved into a general X-Pack method at some point).
+     */
+    private void clearMlState() throws Exception {
+        new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
     }
 
     /**

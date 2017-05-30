@@ -236,7 +236,8 @@ final class IndexShardOperationPermits implements Closeable {
         onAcquired.onResponse(releasable);
     }
 
-    @Nullable private Releasable tryAcquire() throws InterruptedException {
+    @Nullable
+    private Releasable tryAcquire() throws InterruptedException {
         assert Thread.holdsLock(this);
         if (semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)) { // the un-timed tryAcquire methods do not honor the fairness setting
             final AtomicBoolean closed = new AtomicBoolean();

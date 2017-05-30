@@ -29,11 +29,69 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class TermsAggregatorTests extends AggregatorTestCase {
+    public void testGlobalOrdinalsExecutionHint() throws Exception {
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        indexWriter.close();
+        IndexReader indexReader = DirectoryReader.open(directory);
+        // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader
+        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.STRING)
+            .field("string")
+            .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
+        fieldType.setName("string");
+        fieldType.setHasDocValues(true);
+
+        MappedFieldType fieldTypeNumber = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldTypeNumber.setName("number");
+        fieldTypeNumber.setHasDocValues(true);
+
+        TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType, fieldTypeNumber);
+        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+        GlobalOrdinalsStringTermsAggregator globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+        assertFalse(globalAgg.remapGlobalOrds());
+        aggregator.close();
+
+        aggregationBuilder
+            .subAggregation(AggregationBuilders.max("max").field("number"));
+        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+        assertFalse(globalAgg.remapGlobalOrds());
+        aggregator.close();
+
+        aggregationBuilder
+            .order(Terms.Order.aggregation("max", true));
+        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+        assertTrue(globalAgg.remapGlobalOrds());
+        aggregator.close();
+
+        aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.STRING)
+            .field("string")
+            .executionHint("global_ordinals_hash");
+        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+        assertTrue(globalAgg.remapGlobalOrds());
+        aggregator.close();
+
+        indexReader.close();
+        directory.close();
+    }
 
     public void testTermsAggregator() throws Exception {
         Directory directory = newDirectory();

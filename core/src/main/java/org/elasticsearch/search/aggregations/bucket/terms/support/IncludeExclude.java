@@ -267,7 +267,6 @@ public class IncludeExclude implements Writeable, ToXContent {
 
     public abstract static class OrdinalsFilter {
         public abstract LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals) throws IOException;
-
     }
 
     class PartitionedOrdinalsFilter extends OrdinalsFilter {
@@ -302,8 +301,7 @@ public class IncludeExclude implements Writeable, ToXContent {
          *
          */
         @Override
-        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals)
-                throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals) throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
             TermsEnum globalTermsEnum;
             Terms globalTerms = new DocValuesTerms(globalOrdinals);

@@ -53,7 +53,7 @@ public interface SignificantTerms extends MultiBucketsAggregation, Iterable<Sign
         long getSupersetDf();
 
         /**
-         * @return The numbers of docs in the superset (also known as the background count
+         * @return The numbers of docs in the superset (ordinarily the background count
          * of the containing aggregation).
          */
         long getSupersetSize();

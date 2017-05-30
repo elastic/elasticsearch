@@ -143,7 +143,7 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
 
         assertEquals(expectedSigTerm.getSignificanceScore(), actualSigTerm.getSignificanceScore(), 0.0);
         assertEquals(expectedSigTerm.getSubsetDf(), actualSigTerm.getSubsetDf());
-        assertEquals(actualSigTerm.getDocCount(), actualSigTerm.getSubsetDf());
+        assertEquals(expectedSigTerm.getDocCount(), actualSigTerm.getSubsetDf());
         assertEquals(expectedSigTerm.getSupersetDf(), actualSigTerm.getSupersetDf());
         assertEquals(expectedSigTerm.getSubsetSize(), actualSigTerm.getSubsetSize());
         assertEquals(expectedSigTerm.getSupersetSize(), actualSigTerm.getSupersetSize());

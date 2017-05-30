@@ -25,23 +25,14 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 
 public abstract class AbstractTokenizerFactory extends AbstractIndexComponent implements TokenizerFactory {
-
-    private final String name;
-
     protected final Version version;
 
-
-    public AbstractTokenizerFactory(IndexSettings indexSettings, String name, Settings settings) {
+    // TODO drop `String ignored` in a followup
+    public AbstractTokenizerFactory(IndexSettings indexSettings, String ignored, Settings settings) {
         super(indexSettings);
-        this.name = name;
         this.version = Analysis.parseAnalysisVersion(this.indexSettings.getSettings(), settings, logger);
     }
 
-    @Override
-    public String name() {
-        return this.name;
-    }
-    
     public final Version version() {
         return version;
     }

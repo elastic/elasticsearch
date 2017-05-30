@@ -5,5 +5,5 @@ See {ref}/query-dsl-match-all-query.html[Match All Query]
 
 [source,java]
 --------------------------------------------------
-QueryBuilder qb = matchAllQuery();
+MatchAllQueryBuilder qb = QueryBuilders.matchAllQuery();
 --------------------------------------------------

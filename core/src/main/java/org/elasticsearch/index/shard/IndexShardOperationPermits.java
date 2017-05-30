@@ -107,7 +107,8 @@ final class IndexShardOperationPermits implements Closeable {
     /**
      * Immediately delays operations and on another thread waits for in-flight operations to finish and then executes {@code onBlocked}
      * under the guarantee that no new operations are started. Delayed operations are run after {@code onBlocked} has executed. After
-     * operations are delayed and the blocking is forked to another thread, returns to the caller.
+     * operations are delayed and the blocking is forked to another thread, returns to the caller. If a failure occurs while blocking
+     * operations or executing {@code onBlocked} then the {@code onFailure} handler will be invoked.
      *
      * @param timeout   the maximum time to wait for the in-flight operations block
      * @param timeUnit  the time unit of the {@code timeout} argument

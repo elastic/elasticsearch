@@ -360,8 +360,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert newPrimaryTerm > primaryTerm :
                         "primary terms can only go up; current term [" + primaryTerm + "], new term [" + newPrimaryTerm + "]";
                 /*
-                 * Before this call returns, we are guarantee that all future operations are delayed and so this happens before we increment
-                 * the primary term.
+                 * Before this call returns, we are guaranteed that all future operations are delayed and so this happens before we
+                 * increment the primary term.
                  */
                 indexShardOperationPermits.asyncBlockOperations(
                         30,

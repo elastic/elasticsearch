@@ -153,7 +153,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
         return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, 0, supersetSize, significanceHeuristic, emptyList());
+                pipelineAggregators(), metaData(), format, numCollectedDocs, supersetSize, significanceHeuristic, emptyList());
     }
 
     @Override

@@ -111,7 +111,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         throw new IllegalArgumentException("painless does not know how to handle context [" + context.name + "]");
     }
 
-    private SearchScript newSearchScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+    private SearchScript.LeafFactory newSearchScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         MapperService mapper = lookup.doc().mapperService();
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)

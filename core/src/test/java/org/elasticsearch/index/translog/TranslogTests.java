@@ -701,6 +701,8 @@ public class TranslogTests extends ESTestCase {
         // a signal for all threads to stop
         final AtomicBoolean run = new AtomicBoolean(true);
 
+        final Object flushMutex = new Object();
+
         // any errors on threads
         final List<Exception> errors = new CopyOnWriteArrayList<>();
         logger.debug("using [{}] readers. [{}] writers. flushing every ~[{}] ops.", readers.length, writers.length, flushEveryOps);
@@ -740,7 +742,11 @@ public class TranslogTests extends ESTestCase {
                             translog.ensureSynced(location);
                         }
                         if (id % flushEveryOps == 0) {
-                            rollAndCommit(translog);
+                            synchronized (flushMutex) {
+                                // we need not do this concurrently as we need to make sure that the generation
+                                // we're committing - is still present when we're committing
+                                rollAndCommit(translog);
+                            }
                         }
                         if (id % 7 == 0) {
                             synchronized (signalReaderSomeDataWasIndexed) {

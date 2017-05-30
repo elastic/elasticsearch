@@ -533,6 +533,28 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         thread.join();
     }
 
+    public void testNoPermitsRemaining() throws InterruptedException {
+        permits.semaphore.tryAcquire(IndexShardOperationPermits.TOTAL_PERMITS, 1, TimeUnit.SECONDS);
+        final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> this.permits.acquire(
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                assert false;
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                assert false;
+                            }
+                        },
+                        ThreadPool.Names.GENERIC,
+                        false));
+        assertThat(e, hasToString(containsString("failed to obtain permit but operations are not delayed")));
+        permits.semaphore.release(IndexShardOperationPermits.TOTAL_PERMITS);
+    }
+
     /**
      * Returns an operation that acquires a permit and synchronizes in the following manner:
      * <ul>

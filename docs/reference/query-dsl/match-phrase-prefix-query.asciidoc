@@ -53,7 +53,7 @@ dictionary to find the first 50 terms that begin with `f`, and
 adds these terms to the phrase query.
 
 The problem is that the first 50 terms may not include the term `fox` so the
-phase `quick brown fox` will not be found.  This usually isn't a problem as
+phrase `quick brown fox` will not be found.  This usually isn't a problem as
 the user will continue to type more letters until the word they are looking
 for appears.
 

@@ -131,6 +131,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -332,12 +333,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * notifies the shard of an increase in the primary term
+     * Notifies the shard of an increase in the primary term.
+     *
+     * @param newPrimaryTerm the new primary term
      */
-    public void updatePrimaryTerm(final long newTerm) {
+    public void updatePrimaryTerm(final long newPrimaryTerm) {
         assert shardRouting.primary() : "primary term can only be explicitly updated on a primary shard";
         synchronized (mutex) {
-            if (newTerm != primaryTerm) {
+            if (newPrimaryTerm != primaryTerm) {
                 // Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
                 // in one state causing it's term to be incremented. Note that if both current shard state and new
                 // shard state are initializing, we could replace the current shard and reinitialize it. It is however
@@ -354,10 +357,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         "a started primary shard should never update its term; "
                                 + "shard " + shardRouting + ", "
                                 + "current term [" + primaryTerm + "], "
-                                + "new term [" + newTerm + "]";
-                assert newTerm > primaryTerm :
-                        "primary terms can only go up; current term [" + primaryTerm + "], new term [" + newTerm + "]";
-                primaryTerm = newTerm;
+                                + "new term [" + newPrimaryTerm + "]";
+                assert newPrimaryTerm > primaryTerm :
+                        "primary terms can only go up; current term [" + primaryTerm + "], new term [" + newPrimaryTerm + "]";
+                /*
+                 * Before this call returns, we are guaranteed that all future operations are delayed and so this happens before we
+                 * increment the primary term. The latch is needed to ensure that we do not unblock operations before the primary term is
+                 * incremented.
+                 */
+                final CountDownLatch latch = new CountDownLatch(1);
+                indexShardOperationPermits.asyncBlockOperations(
+                        30,
+                        TimeUnit.MINUTES,
+                        latch::await,
+                        e -> failShard("exception during primary term transition", e));
+                primaryTerm = newPrimaryTerm;
+                latch.countDown();
             }
         }
     }

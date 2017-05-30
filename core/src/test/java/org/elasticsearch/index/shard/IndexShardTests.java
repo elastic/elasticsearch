@@ -280,6 +280,114 @@ public class IndexShardTests extends IndexShardTestCase {
         }
     }
 
+    public void testPrimaryPromotionDelaysOperations() throws IOException, BrokenBarrierException, InterruptedException {
+        final IndexShard indexShard = newStartedShard(false);
+
+        final int operations = scaledRandomIntBetween(1, 64);
+        final CyclicBarrier barrier = new CyclicBarrier(1 + operations);
+        final CountDownLatch latch = new CountDownLatch(operations);
+        final CountDownLatch operationLatch = new CountDownLatch(1);
+        final List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < operations; i++) {
+            final Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                indexShard.acquireReplicaOperationPermit(
+                        indexShard.getPrimaryTerm(),
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                latch.countDown();
+                                try {
+                                    operationLatch.await();
+                                } catch (final InterruptedException e) {
+                                    throw new RuntimeException(e);
+                                }
+                                releasable.close();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        },
+                        ThreadPool.Names.INDEX);
+            });
+            thread.start();
+            threads.add(thread);
+        }
+
+        barrier.await();
+        latch.await();
+
+        // promote the replica
+        final ShardRouting replicaRouting = indexShard.routingEntry();
+        final ShardRouting primaryRouting =
+                TestShardRouting.newShardRouting(
+                        replicaRouting.shardId(),
+                        replicaRouting.currentNodeId(),
+                        null,
+                        true,
+                        ShardRoutingState.STARTED,
+                        replicaRouting.allocationId());
+        indexShard.updateRoutingEntry(primaryRouting);
+        indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
+
+        final int delayedOperations = scaledRandomIntBetween(1, 64);
+        final CyclicBarrier delayedOperationsBarrier = new CyclicBarrier(1 + delayedOperations);
+        final CountDownLatch delayedOperationsLatch = new CountDownLatch(delayedOperations);
+        final AtomicLong counter = new AtomicLong();
+        final List<Thread> delayedThreads = new ArrayList<>();
+        for (int i = 0; i < delayedOperations; i++) {
+            final Thread thread = new Thread(() -> {
+                try {
+                    delayedOperationsBarrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                indexShard.acquirePrimaryOperationPermit(
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                counter.incrementAndGet();
+                                releasable.close();
+                                delayedOperationsLatch.countDown();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        },
+                        ThreadPool.Names.INDEX);
+            });
+            thread.start();
+            delayedThreads.add(thread);
+        }
+
+        delayedOperationsBarrier.await();
+
+        assertThat(counter.get(), equalTo(0L));
+
+        operationLatch.countDown();
+        for (final Thread thread : threads) {
+            thread.join();
+        }
+
+        delayedOperationsLatch.await();
+
+        assertThat(counter.get(), equalTo((long) delayedOperations));
+
+        for (final Thread thread : delayedThreads) {
+            thread.join();
+        }
+
+        closeShards(indexShard);
+    }
+
     public void testOperationPermitsOnPrimaryShards() throws InterruptedException, ExecutionException, IOException {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShard indexShard;

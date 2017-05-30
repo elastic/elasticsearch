@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -52,6 +53,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
+
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
  */
@@ -66,67 +69,104 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     // first defined one.
     // So currently for each instance of this aggregator the acceptedglobalValues will be computed, this is unnecessary
     // especially if this agg is on a second layer or deeper.
-    protected LongBitSet acceptedGlobalOrdinals;
+    protected final LongBitSet acceptedGlobalOrdinals;
+    protected final long valueCount;
+    protected final GlobalOrdLookupFunction lookupGlobalOrd;
 
-    protected SortedSetDocValues globalOrds;
+    private final LongHash bucketOrds;
 
-    public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-           BucketOrder order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
-           IncludeExclude.OrdinalsFilter includeExclude, SearchContext context, Aggregator parent,
-           SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators,
-           Map<String, Object> metaData) throws IOException {
+    public interface GlobalOrdLookupFunction {
+        BytesRef apply(long ord) throws IOException;
+    }
+
+    public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories,
+                                                ValuesSource.Bytes.WithOrdinals valuesSource,
+                                                BucketOrder order,
+                                                DocValueFormat format,
+                                                BucketCountThresholds bucketCountThresholds,
+                                                IncludeExclude.OrdinalsFilter includeExclude,
+                                                SearchContext context,
+                                                Aggregator parent,
+                                                boolean forceRemapGlobalOrds,
+                                                SubAggCollectionMode collectionMode,
+                                                boolean showTermDocCountError,
+                                                List<PipelineAggregator> pipelineAggregators,
+                                                Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
                 pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
+        final IndexReader reader = context.searcher().getIndexReader();
+        final SortedSetDocValues values = reader.leaves().size() > 0 ?
+            valuesSource.globalOrdinalsValues(context.searcher().getIndexReader().leaves().get(0)) : DocValues.emptySortedSet();
+        this.valueCount = values.getValueCount();
+        this.lookupGlobalOrd = values::lookupOrd;
+        this.acceptedGlobalOrdinals = includeExclude != null ? includeExclude.acceptedGlobalOrdinals(values) : null;
+
+        /**
+         * Remap global ords to dense bucket ordinals if any sub-aggregator cannot be deferred.
+         * Sub-aggregators expect dense buckets and allocate memories based on this assumption.
+         * Deferred aggregators are safe because the selected ordinals are remapped when the buckets
+         * are replayed.
+         */
+        boolean remapGlobalOrds = forceRemapGlobalOrds || Arrays.stream(subAggregators).anyMatch((a) -> shouldDefer(a) == false);
+        this.bucketOrds = remapGlobalOrds ? new LongHash(1, context.bigArrays()) : null;
     }
 
-    protected long getBucketOrd(long termOrd) {
-        return termOrd;
+
+    boolean remapGlobalOrds() {
+        return bucketOrds != null;
+    }
+
+    protected final long getBucketOrd(long globalOrd) {
+        return bucketOrds == null ? globalOrd : bucketOrds.find(globalOrd);
+    }
+
+    private void collectGlobalOrd(int doc, long globalOrd, LeafBucketCollector sub) throws IOException {
+        if (bucketOrds == null) {
+            collectExistingBucket(sub, doc, globalOrd);
+        } else {
+            long bucketOrd = bucketOrds.add(globalOrd);
+            if (bucketOrd < 0) {
+                bucketOrd = -1 - bucketOrd;
+                collectExistingBucket(sub, doc, bucketOrd);
+            } else {
+                collectBucket(sub, doc, bucketOrd);
+            }
+        }
+    }
+
+    private SortedSetDocValues getGlobalOrds(LeafReaderContext ctx) throws IOException {
+        return acceptedGlobalOrdinals == null ?
+            valuesSource.globalOrdinalsValues(ctx) : new FilteredOrdinals(valuesSource.globalOrdinalsValues(ctx), acceptedGlobalOrdinals);
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
-
-        globalOrds = valuesSource.globalOrdinalsValues(ctx);
-
-        if (acceptedGlobalOrdinals == null && includeExclude != null) {
-            acceptedGlobalOrdinals = includeExclude.acceptedGlobalOrdinals(globalOrds);
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+        final SortedSetDocValues globalOrds = getGlobalOrds(ctx);
+        if (bucketOrds == null) {
+            grow(globalOrds.getValueCount());
         }
-
-        if (acceptedGlobalOrdinals != null) {
-            globalOrds = new FilteredOrdinals(globalOrds, acceptedGlobalOrdinals);
-        }
-
-        return newCollector(globalOrds, sub);
-    }
-
-    protected LeafBucketCollector newCollector(final SortedSetDocValues ords,
-            final LeafBucketCollector sub) {
-        grow(ords.getValueCount());
-        final SortedDocValues singleValues = DocValues.unwrapSingleton(ords);
+        final SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
         if (singleValues != null) {
-            return new LeafBucketCollectorBase(sub, ords) {
+            return new LeafBucketCollectorBase(sub, globalOrds) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     assert bucket == 0;
                     if (singleValues.advanceExact(doc)) {
                         final int ord = singleValues.ordValue();
-                        collectExistingBucket(sub, doc, ord);
+                        collectGlobalOrd(doc, ord, sub);
                     }
                 }
             };
         } else {
-            return new LeafBucketCollectorBase(sub, ords) {
+            return new LeafBucketCollectorBase(sub, globalOrds) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     assert bucket == 0;
-                    if (ords.advanceExact(doc)) {
-                        for (long globalOrd = ords.nextOrd();
-                                globalOrd != SortedSetDocValues.NO_MORE_ORDS;
-                                globalOrd = ords.nextOrd()) {
-                            collectExistingBucket(sub, doc, globalOrd);
+                    if (globalOrds.advanceExact(doc)) {
+                        for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                            collectGlobalOrd(doc, globalOrd, sub);
                         }
                     }
                 }
@@ -145,21 +185,21 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        if (globalOrds == null) { // no context in this reader
+        if (valueCount == 0) { // no context in this reader
             return buildEmptyAggregation();
         }
 
         final int size;
         if (bucketCountThresholds.getMinDocCount() == 0) {
             // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-            size = (int) Math.min(globalOrds.getValueCount(), bucketCountThresholds.getShardSize());
+            size = (int) Math.min(valueCount, bucketCountThresholds.getShardSize());
         } else {
             size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
         }
         long otherDocCount = 0;
         BucketPriorityQueue<OrdBucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
         OrdBucket spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
-        for (long globalTermOrd = 0; globalTermOrd < globalOrds.getValueCount(); ++globalTermOrd) {
+        for (long globalTermOrd = 0; globalTermOrd < valueCount; ++globalTermOrd) {
             if (includeExclude != null && !acceptedGlobalOrdinals.get(globalTermOrd)) {
                 continue;
             }
@@ -184,10 +224,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         final StringTerms.Bucket[] list = new StringTerms.Bucket[ordered.size()];
         long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final OrdBucket bucket = (OrdBucket) ordered.pop();
+            final OrdBucket bucket = ordered.pop();
             survivingBucketOrds[i] = bucket.bucketOrd;
             BytesRef scratch = new BytesRef();
-            copy(globalOrds.lookupOrd(bucket.globalOrd), scratch);
+            copy(lookupGlobalOrd.apply(bucket.globalOrd), scratch);
             list[i] = new StringTerms.Bucket(scratch, bucket.docCount, null, showTermDocCountError, 0, format);
             list[i].bucketOrd = bucket.bucketOrd;
             otherDocCount -= list[i].docCount;
@@ -254,76 +294,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
     }
 
-    /**
-     * Variant of {@link GlobalOrdinalsStringTermsAggregator} that rebases hashes in order to make them dense. Might be
-     * useful in case few hashes are visited.
-     */
-    public static class WithHash extends GlobalOrdinalsStringTermsAggregator {
-
-        private final LongHash bucketOrds;
-
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource, BucketOrder order,
-                DocValueFormat format, BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude,
-                SearchContext context, Aggregator parent, SubAggCollectionMode collectionMode,
-                boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                        throws IOException {
-            super(name, factories, valuesSource, order, format, bucketCountThresholds, includeExclude, context, parent, collectionMode,
-                    showTermDocCountError, pipelineAggregators, metaData);
-            bucketOrds = new LongHash(1, context.bigArrays());
-        }
-
-        @Override
-        protected LeafBucketCollector newCollector(final SortedSetDocValues ords,
-                final LeafBucketCollector sub) {
-            final SortedDocValues singleValues = DocValues.unwrapSingleton(ords);
-            if (singleValues != null) {
-                return new LeafBucketCollectorBase(sub, ords) {
-                    @Override
-                    public void collect(int doc, long bucket) throws IOException {
-                        if (singleValues.advanceExact(doc)) {
-                            final int globalOrd = singleValues.ordValue();
-                            long bucketOrd = bucketOrds.add(globalOrd);
-                            if (bucketOrd < 0) {
-                                bucketOrd = -1 - bucketOrd;
-                                collectExistingBucket(sub, doc, bucketOrd);
-                            } else {
-                                collectBucket(sub, doc, bucketOrd);
-                            }
-                        }
-                    }
-                };
-            } else {
-                return new LeafBucketCollectorBase(sub, ords) {
-                    @Override
-                    public void collect(int doc, long bucket) throws IOException {
-                        if (ords.advanceExact(doc)) {
-                            for (long globalOrd = ords.nextOrd();
-                                    globalOrd != SortedSetDocValues.NO_MORE_ORDS;
-                                    globalOrd = ords.nextOrd()) {
-                                long bucketOrd = bucketOrds.add(globalOrd);
-                                if (bucketOrd < 0) {
-                                    bucketOrd = -1 - bucketOrd;
-                                    collectExistingBucket(sub, doc, bucketOrd);
-                                } else {
-                                    collectBucket(sub, doc, bucketOrd);
-                                }
-                            }
-                        }
-                    }
-                };
-            }
-        }
-
-        @Override
-        protected long getBucketOrd(long termOrd) {
-            return bucketOrds.find(termOrd);
-        }
-
-        @Override
-        protected void doClose() {
-            Releasables.close(bucketOrds);
-        }
-
+    @Override
+    protected void doClose() {
+        Releasables.close(bucketOrds);
     }
 
     /**
@@ -331,32 +304,44 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      * instead of on the fly for each match.This is beneficial for low cardinality fields, because it can reduce
      * the amount of look-ups significantly.
      */
-    public static class LowCardinality extends GlobalOrdinalsStringTermsAggregator {
+    static class LowCardinality extends GlobalOrdinalsStringTermsAggregator {
 
         private IntArray segmentDocCounts;
-
+        private SortedSetDocValues globalOrds;
         private SortedSetDocValues segmentOrds;
 
-        public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-                BucketOrder order, DocValueFormat format,
-                BucketCountThresholds bucketCountThresholds, SearchContext context, Aggregator parent,
-                SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            super(name, factories, valuesSource, order, format, bucketCountThresholds, null, context, parent, collectionMode,
-                    showTermDocCountError, pipelineAggregators, metaData);
+        LowCardinality(String name,
+                       AggregatorFactories factories,
+                       ValuesSource.Bytes.WithOrdinals valuesSource,
+                       BucketOrder order,
+                       DocValueFormat format,
+                       BucketCountThresholds bucketCountThresholds,
+                       SearchContext context,
+                       Aggregator parent,
+                       boolean forceDenseMode,
+                       SubAggCollectionMode collectionMode,
+                       boolean showTermDocCountError,
+                       List<PipelineAggregator> pipelineAggregators,
+                       Map<String, Object> metaData) throws IOException {
+            super(name, factories, valuesSource, order, format, bucketCountThresholds, null,
+                context, parent, forceDenseMode, collectionMode, showTermDocCountError, pipelineAggregators, metaData);
             assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newIntArray(1, true);
         }
 
-        // bucketOrd is ord + 1 to avoid a branch to deal with the missing ord
         @Override
-        protected LeafBucketCollector newCollector(final SortedSetDocValues ords,
-                LeafBucketCollector sub) {
-            segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + ords.getValueCount());
+        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+                                                    final LeafBucketCollector sub) throws IOException {
+            if (segmentOrds != null) {
+                mapSegmentCountsToGlobalCounts();
+            }
+            globalOrds = valuesSource.globalOrdinalsValues(ctx);
+            segmentOrds = valuesSource.ordinalsValues(ctx);
+            segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
-            final SortedDocValues singleValues = DocValues.unwrapSingleton(ords);
+            final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
             if (singleValues != null) {
-                return new LeafBucketCollectorBase(sub, ords) {
+                return new LeafBucketCollectorBase(sub, segmentOrds) {
                     @Override
                     public void collect(int doc, long bucket) throws IOException {
                         assert bucket == 0;
@@ -367,32 +352,18 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     }
                 };
             } else {
-                return new LeafBucketCollectorBase(sub, ords) {
+                return new LeafBucketCollectorBase(sub, segmentOrds) {
                     @Override
                     public void collect(int doc, long bucket) throws IOException {
                         assert bucket == 0;
-                        if (ords.advanceExact(doc)) {
-                            for (long segmentOrd = ords.nextOrd();
-                                    segmentOrd != SortedSetDocValues.NO_MORE_ORDS;
-                                    segmentOrd = ords.nextOrd()) {
+                        if (segmentOrds.advanceExact(doc)) {
+                            for (long segmentOrd = segmentOrds.nextOrd(); segmentOrd != NO_MORE_ORDS; segmentOrd = segmentOrds.nextOrd()) {
                                 segmentDocCounts.increment(segmentOrd + 1, 1);
                             }
                         }
                     }
                 };
             }
-        }
-
-        @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-                final LeafBucketCollector sub) throws IOException {
-            if (segmentOrds != null) {
-                mapSegmentCountsToGlobalCounts();
-            }
-
-            globalOrds = valuesSource.globalOrdinalsValues(ctx);
-            segmentOrds = valuesSource.ordinalsValues(ctx);
-            return newCollector(segmentOrds, sub);
         }
 
         @Override
@@ -426,7 +397,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
                 final long ord = i - 1; // remember we do +1 when counting
                 final long globalOrd = mapping == null ? ord : mapping.getGlobalOrd(ord);
-                incrementBucketDocCount(globalOrd, inc);
+                long bucketOrd = getBucketOrd(globalOrd);
+                incrementBucketDocCount(bucketOrd, inc);
             }
         }
     }

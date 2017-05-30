@@ -50,11 +50,6 @@ public enum PreBuiltCharFilters {
 
             charFilterFactory = new CharFilterFactory() {
                 @Override
-                public String name() {
-                    return finalName.toLowerCase(Locale.ROOT);
-                }
-
-                @Override
                 public Reader create(Reader tokenStream) {
                     return valueOf(finalName).create(tokenStream, version);
                 }

@@ -396,11 +396,6 @@ public class AnalysisModuleTests extends ESTestCase {
         public static TokenFilterFactory factoryForSuffix(String suffix) {
             return new TokenFilterFactory() {
                 @Override
-                public String name() {
-                    return suffix;
-                }
-
-                @Override
                 public TokenStream create(TokenStream tokenStream) {
                     return new AppendTokenFilter(tokenStream, suffix);
                 }

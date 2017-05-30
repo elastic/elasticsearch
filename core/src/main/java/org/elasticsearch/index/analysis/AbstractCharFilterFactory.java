@@ -23,17 +23,9 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 
 public abstract class AbstractCharFilterFactory extends AbstractIndexComponent implements CharFilterFactory {
-
-    private final String name;
-
+    // TODO replace with AbstractIndexComponent
     public AbstractCharFilterFactory(IndexSettings indexSettings, String name) {
         super(indexSettings);
-        this.name = name;
-    }
-
-    @Override
-    public String name() {
-        return this.name;
     }
 }
 

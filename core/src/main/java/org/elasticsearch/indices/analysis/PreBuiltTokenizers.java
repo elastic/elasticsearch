@@ -141,7 +141,7 @@ public enum PreBuiltTokenizers {
 
     /**
      * Old style resolution for {@link TokenizerFactory}. Exists entirely to keep
-     * {@link CustomNormalizerProvider#build(java.util.Map, java.util.Map)} working during the migration.
+     * {@link CustomNormalizerProvider#build(String, java.util.Map, java.util.Map)} working during the migration.
      */
     public synchronized TokenizerFactory getTokenizerFactory(final Version version) {
             TokenizerFactory tokenizerFactory = cache.get(version);

@@ -60,10 +60,6 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
             // See https://issues.apache.org/jira/browse/LUCENE-7536 for the reasoning
             return new TokenFilterFactory() {
                 @Override
-                public String name() {
-                    return ASCIIFoldingTokenFilterFactory.this.name();
-                }
-                @Override
                 public TokenStream create(TokenStream tokenStream) {
                     return new ASCIIFoldingFilter(tokenStream, false);
                 }

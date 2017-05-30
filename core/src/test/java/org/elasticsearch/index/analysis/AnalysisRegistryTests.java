@@ -127,7 +127,9 @@ public class AnalysisRegistryTests extends ESTestCase {
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.filter.testFilter.type", "mock")
+                .put("index.analysis.filter.testFilter.stopset", "english")
                 .put("index.analysis.filter.test_filter.type", "mock")
+                .put("index.analysis.filter.test_filter.stopset", "empty")
                 .put("index.analysis.analyzer.custom_analyzer_with_camel_case.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.custom_analyzer_with_camel_case.filter", "lowercase", "testFilter")
                 .put("index.analysis.analyzer.custom_analyzer_with_snake_case.tokenizer", "standard")
@@ -139,16 +141,24 @@ public class AnalysisRegistryTests extends ESTestCase {
          * camelCase version will filter out English stopwords. */
         AnalysisPlugin plugin = new AnalysisPlugin() {
             class MockFactory extends AbstractTokenFilterFactory {
+                private final Settings settings;
+
                 MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
                     super(indexSettings, name, settings);
+                    this.settings = settings;
                 }
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    if (name().equals("test_filter")) {
+                    String stopset = settings.get("stopset");
+                    switch (stopset) {
+                    case "empty":
                         return new MockTokenFilter(tokenStream, MockTokenFilter.EMPTY_STOPSET);
+                    case "english":
+                        return new MockTokenFilter(tokenStream, MockTokenFilter.ENGLISH_STOPSET);
+                    default:
+                        throw new IllegalArgumentException("Illegal stopset [" + stopset + "]");
                     }
-                    return new MockTokenFilter(tokenStream, MockTokenFilter.ENGLISH_STOPSET);
                 }
             }
 

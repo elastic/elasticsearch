@@ -21,9 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import java.io.Reader;
 
-public interface CharFilterFactory {
-
-    String name();
-
+public interface CharFilterFactory {   // TODO replace with Function<Reader, Reader>
     Reader create(Reader reader);
 }

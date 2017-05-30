@@ -30,23 +30,29 @@ public final class CustomAnalyzer extends Analyzer {
     private final String tokenizerName;
     private final TokenizerFactory tokenizerFactory;
 
+    private final String[] charFilterNames;
     private final CharFilterFactory[] charFilters;
 
+    private final String[] tokenFilterNames;
     private final TokenFilterFactory[] tokenFilters;
 
     private final int positionIncrementGap;
     private final int offsetGap;
 
-    public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-            TokenFilterFactory[] tokenFilters) {
-        this(tokenizerName, tokenizerFactory, charFilters, tokenFilters, 0, -1);
+    public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory,
+            String[] charFilterNames, CharFilterFactory[] charFilters,
+            String[] tokenFilterNames, TokenFilterFactory[] tokenFilters) {
+        this(tokenizerName, tokenizerFactory, charFilterNames, charFilters, tokenFilterNames, tokenFilters, 0, -1);
     }
 
-    public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-            TokenFilterFactory[] tokenFilters, int positionIncrementGap, int offsetGap) {
+    public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory,
+            String[] charFilterNames, CharFilterFactory[] charFilters,
+            String[] tokenFilterNames, TokenFilterFactory[] tokenFilters, int positionIncrementGap, int offsetGap) {
         this.tokenizerName = tokenizerName;
         this.tokenizerFactory = tokenizerFactory;
+        this.charFilterNames = charFilterNames;
         this.charFilters = charFilters;
+        this.tokenFilterNames = tokenFilterNames;
         this.tokenFilters = tokenFilters;
         this.positionIncrementGap = positionIncrementGap;
         this.offsetGap = offsetGap;
@@ -63,8 +69,22 @@ public final class CustomAnalyzer extends Analyzer {
         return tokenizerFactory;
     }
 
+    /**
+     * Names of the token filters.
+     */
+    public String[] getTokenFilterNames() {
+        return tokenFilterNames;
+    }
+
     public TokenFilterFactory[] tokenFilters() {
         return tokenFilters;
+    }
+
+    /**
+     * Names of the char filters.
+     */
+    public String[] getCharFilterNames() {
+        return charFilterNames;
     }
 
     public CharFilterFactory[] charFilters() {

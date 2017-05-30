@@ -26,30 +26,19 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 
 public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends AbstractIndexComponent implements AnalyzerProvider<T> {
-
-    private final String name;
-
     protected final Version version;
 
     /**
      * Constructs a new analyzer component, with the index name and its settings and the analyzer name.
      *
      * @param indexSettings the settings and the name of the index
-     * @param name          The analyzer name
      */
-    public AbstractIndexAnalyzerProvider(IndexSettings indexSettings, String name, Settings settings) {
+    // TODO drop ignored
+    public AbstractIndexAnalyzerProvider(IndexSettings indexSettings, String ignored, Settings settings) {
         super(indexSettings);
-        this.name = name;
         this.version = Analysis.parseAnalysisVersion(this.indexSettings.getSettings(), settings, logger);
     }
 
-    /**
-     * Returns the injected name of the analyzer.
-     */
-    @Override
-    public final String name() {
-        return this.name;
-    }
 
     @Override
     public final AnalyzerScope scope() {

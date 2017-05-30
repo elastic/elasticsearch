@@ -120,10 +120,6 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
             return singletonMap("mock_char_filter", (indexSettings, env, name, settings) -> {
                 class Factory implements CharFilterFactory, MultiTermAwareComponent {
                     @Override
-                    public String name() {
-                        return name;
-                    }
-                    @Override
                     public Reader create(Reader reader) {
                         return new Reader() {
                             @Override

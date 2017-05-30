@@ -36,11 +36,6 @@ public abstract class AbstractTokenFilterFactory extends AbstractIndexComponent 
         this.version = Analysis.parseAnalysisVersion(this.indexSettings.getSettings(), settings, logger);
     }
 
-    @Override
-    public String name() {
-        return this.name;
-    }
-    
     public final Version version() {
         return version;
     }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices.analysis;
 
+import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
+import org.apache.lucene.analysis.charfilter.HTMLStripCharFilterFactory;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
@@ -105,6 +107,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.typeCompatibleWith;
 
 /**
@@ -279,19 +282,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("persian",        Void.class)
         .immutableMap();
 
-    static final Map<PreBuiltCharFilters, Class<?>> PREBUILT_CHARFILTERS;
-    static {
-        PREBUILT_CHARFILTERS = new EnumMap<>(PreBuiltCharFilters.class);
-        for (PreBuiltCharFilters tokenizer : PreBuiltCharFilters.values()) {
-            Class<?> luceneFactoryClazz;
-            switch (tokenizer) {
-            default:
-                luceneFactoryClazz = org.apache.lucene.analysis.util.CharFilterFactory.lookupClass(
-                        toCamelCase(tokenizer.getCharFilterFactory(Version.CURRENT).name()));
-            }
-            PREBUILT_CHARFILTERS.put(tokenizer, luceneFactoryClazz);
-        }
-    }
+    static final Map<PreBuiltCharFilters, Class<?>> PREBUILT_CHARFILTERS =
+            singletonMap(PreBuiltCharFilters.HTML_STRIP, HTMLStripCharFilterFactory.class);
 
     /**
      * The plugin being tested. Core uses an "empty" plugin so we don't have to throw null checks all over the place.

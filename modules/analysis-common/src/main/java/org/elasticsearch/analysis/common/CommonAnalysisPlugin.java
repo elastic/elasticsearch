@@ -184,11 +184,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         List<PreConfiguredTokenizer> tokenizers = new ArrayList<>();
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", LowerCaseTokenizer::new, () -> new TokenFilterFactory() {
             @Override
-            public String name() {
-                return "lowercase";
-            }
-
-            @Override
             public TokenStream create(TokenStream tokenStream) {
                 return new LowerCaseFilter(tokenStream);
             }

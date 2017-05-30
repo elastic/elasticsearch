@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -183,13 +184,15 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers,
                         analysisRegistry, environment);
 
-            TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
-            tokenFilterFactories = getTokenFilterFactories(request, indexSettings, analysisRegistry, environment, tokenFilterFactories);
+            Tuple<String[], TokenFilterFactory[]> tokenFilterFactories =
+                        getTokenFilterFactories(request, indexSettings, analysisRegistry, environment);
 
-            CharFilterFactory[] charFilterFactories = new CharFilterFactory[0];
-            charFilterFactories = getCharFilterFactories(request, indexSettings, analysisRegistry, environment, charFilterFactories);
+            Tuple<String[], CharFilterFactory[]> charFilterFactories =
+                        getCharFilterFactories(request, indexSettings, analysisRegistry, environment);
 
-            analyzer = new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(), charFilterFactories, tokenFilterFactories);
+            analyzer = new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
+                    charFilterFactories.v1(), charFilterFactories.v2(),
+                    tokenFilterFactories.v1(), tokenFilterFactories.v2());
             closeAnalyzer = true;
         } else if (analyzer == null) {
             if (indexAnalyzers == null) {
@@ -317,14 +320,15 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             if (charFilterFactories != null) {
                 for (int charFilterIndex = 0; charFilterIndex < charFiltersTexts.length; charFilterIndex++) {
                     charFilteredLists[charFilterIndex] = new DetailAnalyzeResponse.CharFilteredText(
-                        charFilterFactories[charFilterIndex].name(), charFiltersTexts[charFilterIndex]);
+                            customAnalyzer.getCharFilterNames()[charFilterIndex], charFiltersTexts[charFilterIndex]);
                 }
             }
             DetailAnalyzeResponse.AnalyzeTokenList[] tokenFilterLists = new DetailAnalyzeResponse.AnalyzeTokenList[tokenFiltersTokenListCreator.length];
             if (tokenFilterFactories != null) {
                 for (int tokenFilterIndex = 0; tokenFilterIndex < tokenFiltersTokenListCreator.length; tokenFilterIndex++) {
                     tokenFilterLists[tokenFilterIndex] = new DetailAnalyzeResponse.AnalyzeTokenList(
-                        tokenFilterFactories[tokenFilterIndex].name(), tokenFiltersTokenListCreator[tokenFilterIndex].getArrayTokens());
+                            customAnalyzer.getTokenFilterNames()[tokenFilterIndex],
+                            tokenFiltersTokenListCreator[tokenFilterIndex].getArrayTokens());
                 }
             }
             detailResponse = new DetailAnalyzeResponse(charFilteredLists, new DetailAnalyzeResponse.AnalyzeTokenList(
@@ -462,96 +466,106 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return extendedAttributes;
     }
 
-    private static CharFilterFactory[] getCharFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
-                                                              Environment environment, CharFilterFactory[] charFilterFactories) throws IOException {
-        if (request.charFilters() != null && request.charFilters().size() > 0) {
-            charFilterFactories = new CharFilterFactory[request.charFilters().size()];
-            for (int i = 0; i < request.charFilters().size(); i++) {
-                final AnalyzeRequest.NameOrDefinition charFilter = request.charFilters().get(i);
-                // parse anonymous settings
-                if (charFilter.definition != null) {
-                    Settings settings = getAnonymousSettings(charFilter.definition);
-                    String charFilterTypeName = settings.get("type");
-                    if (charFilterTypeName == null) {
-                        throw new IllegalArgumentException("Missing [type] setting for anonymous char filter: " + charFilter.definition);
-                    }
-                    AnalysisModule.AnalysisProvider<CharFilterFactory> charFilterFactoryFactory =
-                        analysisRegistry.getCharFilterProvider(charFilterTypeName);
-                    if (charFilterFactoryFactory == null) {
-                        throw new IllegalArgumentException("failed to find global char filter under [" + charFilterTypeName + "]");
-                    }
-                    // Need to set anonymous "name" of char_filter
-                    charFilterFactories[i] = charFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_charfilter_[" + i + "]", settings);
-                } else {
-                    AnalysisModule.AnalysisProvider<CharFilterFactory> charFilterFactoryFactory;
-                    if (indexSettings == null) {
-                        charFilterFactoryFactory = analysisRegistry.getCharFilterProvider(charFilter.name);
-                        if (charFilterFactoryFactory == null) {
-                            throw new IllegalArgumentException("failed to find global char filter under [" + charFilter.name + "]");
-                        }
-                        charFilterFactories[i] = charFilterFactoryFactory.get(environment, charFilter.name);
-                    } else {
-                        charFilterFactoryFactory = analysisRegistry.getCharFilterProvider(charFilter.name, indexSettings);
-                        if (charFilterFactoryFactory == null) {
-                            throw new IllegalArgumentException("failed to find char filter under [" + charFilter.name + "]");
-                        }
-                        charFilterFactories[i] = charFilterFactoryFactory.get(indexSettings, environment, charFilter.name,
-                            AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
-                                AnalysisRegistry.INDEX_ANALYSIS_CHAR_FILTER + "." + charFilter.name));
-                    }
+    private static Tuple<String[], CharFilterFactory[]> getCharFilterFactories(AnalyzeRequest request, IndexSettings indexSettings,
+            AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
+        if (request.charFilters() == null || request.charFilters().isEmpty()) {
+            return new Tuple<>(Strings.EMPTY_ARRAY, new CharFilterFactory[0]);
+        }
+        String[] names = new String[request.charFilters().size()];
+        CharFilterFactory[] charFilterFactories = new CharFilterFactory[request.charFilters().size()];
+        for (int i = 0; i < request.charFilters().size(); i++) {
+            final AnalyzeRequest.NameOrDefinition charFilter = request.charFilters().get(i);
+            // parse anonymous settings
+            if (charFilter.definition != null) {
+                Settings settings = getAnonymousSettings(charFilter.definition);
+                String charFilterTypeName = settings.get("type");
+                if (charFilterTypeName == null) {
+                    throw new IllegalArgumentException("Missing [type] setting for anonymous char filter: " + charFilter.definition);
                 }
-                if (charFilterFactories[i] == null) {
-                    throw new IllegalArgumentException("failed to find char filter under [" + charFilter.name + "]");
+                AnalysisModule.AnalysisProvider<CharFilterFactory> charFilterFactoryFactory =
+                    analysisRegistry.getCharFilterProvider(charFilterTypeName);
+                if (charFilterFactoryFactory == null) {
+                    throw new IllegalArgumentException("failed to find global char filter under [" + charFilterTypeName + "]");
+                }
+                // Need to set anonymous "name" of char_filter
+                names[i] = "_anonymous_charfilter_[" + i + "]";
+                charFilterFactories[i] = charFilterFactoryFactory.get(getNaIndexSettings(settings), environment, names[i], settings);
+            } else {
+                AnalysisModule.AnalysisProvider<CharFilterFactory> charFilterFactoryFactory;
+                if (indexSettings == null) {
+                    charFilterFactoryFactory = analysisRegistry.getCharFilterProvider(charFilter.name);
+                    if (charFilterFactoryFactory == null) {
+                        throw new IllegalArgumentException("failed to find global char filter under [" + charFilter.name + "]");
+                    }
+                    names[i] = charFilter.name;
+                    charFilterFactories[i] = charFilterFactoryFactory.get(environment, charFilter.name);
+                } else {
+                    charFilterFactoryFactory = analysisRegistry.getCharFilterProvider(charFilter.name, indexSettings);
+                    if (charFilterFactoryFactory == null) {
+                        throw new IllegalArgumentException("failed to find char filter under [" + charFilter.name + "]");
+                    }
+                    names[i] = charFilter.name;
+                    charFilterFactories[i] = charFilterFactoryFactory.get(indexSettings, environment, charFilter.name,
+                        AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
+                            AnalysisRegistry.INDEX_ANALYSIS_CHAR_FILTER + "." + charFilter.name));
                 }
             }
+            if (charFilterFactories[i] == null) {
+                throw new IllegalArgumentException("failed to find char filter under [" + charFilter.name + "]");
+            }
         }
-        return charFilterFactories;
+        return new Tuple<>(names, charFilterFactories);
     }
 
-    private static TokenFilterFactory[] getTokenFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
-                                                                Environment environment, TokenFilterFactory[] tokenFilterFactories) throws IOException {
-        if (request.tokenFilters() != null && request.tokenFilters().size() > 0) {
-            tokenFilterFactories = new TokenFilterFactory[request.tokenFilters().size()];
-            for (int i = 0; i < request.tokenFilters().size(); i++) {
-                final AnalyzeRequest.NameOrDefinition tokenFilter = request.tokenFilters().get(i);
-                // parse anonymous settings
-                if (tokenFilter.definition != null) {
-                    Settings settings = getAnonymousSettings(tokenFilter.definition);
-                    String filterTypeName = settings.get("type");
-                    if (filterTypeName == null) {
-                        throw new IllegalArgumentException("Missing [type] setting for anonymous token filter: " + tokenFilter.definition);
-                    }
-                    AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory =
-                        analysisRegistry.getTokenFilterProvider(filterTypeName);
-                    if (tokenFilterFactoryFactory == null) {
-                        throw new IllegalArgumentException("failed to find global token filter under [" + filterTypeName + "]");
-                    }
-                    // Need to set anonymous "name" of tokenfilter
-                    tokenFilterFactories[i] = tokenFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenfilter_[" + i + "]", settings);
-                } else {
-                    AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory;
-                    if (indexSettings == null) {
-                        tokenFilterFactoryFactory = analysisRegistry.getTokenFilterProvider(tokenFilter.name);
-                        if (tokenFilterFactoryFactory == null) {
-                            throw new IllegalArgumentException("failed to find global token filter under [" + tokenFilter.name + "]");
-                        }
-                        tokenFilterFactories[i] = tokenFilterFactoryFactory.get(environment, tokenFilter.name);
-                    } else {
-                        tokenFilterFactoryFactory = analysisRegistry.getTokenFilterProvider(tokenFilter.name, indexSettings);
-                       if (tokenFilterFactoryFactory == null) {
-                            throw new IllegalArgumentException("failed to find token filter under [" + tokenFilter.name + "]");
-                        }
-                        tokenFilterFactories[i] = tokenFilterFactoryFactory.get(indexSettings, environment, tokenFilter.name,
-                            AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
-                                AnalysisRegistry.INDEX_ANALYSIS_FILTER + "." + tokenFilter.name));
-                    }
+    private static Tuple<String[], TokenFilterFactory[]> getTokenFilterFactories(AnalyzeRequest request, IndexSettings indexSettings,
+            AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
+        if (request.tokenFilters() == null || request.tokenFilters().isEmpty()) {
+            return new Tuple<>(Strings.EMPTY_ARRAY, new TokenFilterFactory[0]);
+        }
+        String[] names = new String[request.tokenFilters().size()];
+        TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[request.tokenFilters().size()];
+        for (int i = 0; i < request.tokenFilters().size(); i++) {
+            final AnalyzeRequest.NameOrDefinition tokenFilter = request.tokenFilters().get(i);
+            // parse anonymous settings
+            if (tokenFilter.definition != null) {
+                Settings settings = getAnonymousSettings(tokenFilter.definition);
+                String filterTypeName = settings.get("type");
+                if (filterTypeName == null) {
+                    throw new IllegalArgumentException("Missing [type] setting for anonymous token filter: " + tokenFilter.definition);
                 }
-                if (tokenFilterFactories[i] == null) {
-                    throw new IllegalArgumentException("failed to find or create token filter under [" + tokenFilter.name + "]");
+                AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory =
+                    analysisRegistry.getTokenFilterProvider(filterTypeName);
+                if (tokenFilterFactoryFactory == null) {
+                    throw new IllegalArgumentException("failed to find global token filter under [" + filterTypeName + "]");
+                }
+                // Need to set anonymous "name" of tokenfilter
+                names[i] = "_anonymous_tokenfilter_[" + i + "]";
+                tokenFilterFactories[i] = tokenFilterFactoryFactory.get(getNaIndexSettings(settings), environment, names[i], settings);
+            } else {
+                AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory;
+                if (indexSettings == null) {
+                    tokenFilterFactoryFactory = analysisRegistry.getTokenFilterProvider(tokenFilter.name);
+                    if (tokenFilterFactoryFactory == null) {
+                        throw new IllegalArgumentException("failed to find global token filter under [" + tokenFilter.name + "]");
+                    }
+                    names[i] = tokenFilter.name;
+                    tokenFilterFactories[i] = tokenFilterFactoryFactory.get(environment, tokenFilter.name);
+                } else {
+                    tokenFilterFactoryFactory = analysisRegistry.getTokenFilterProvider(tokenFilter.name, indexSettings);
+                    if (tokenFilterFactoryFactory == null) {
+                        throw new IllegalArgumentException("failed to find token filter under [" + tokenFilter.name + "]");
+                    }
+                    names[i] = tokenFilter.name;
+                    tokenFilterFactories[i] = tokenFilterFactoryFactory.get(indexSettings, environment, tokenFilter.name,
+                        AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
+                            AnalysisRegistry.INDEX_ANALYSIS_FILTER + "." + tokenFilter.name));
                 }
             }
+            if (tokenFilterFactories[i] == null) {
+                throw new IllegalArgumentException("failed to find or create token filter under [" + tokenFilter.name + "]");
+            }
         }
-        return tokenFilterFactories;
+        return new Tuple<>(names, tokenFilterFactories);
     }
 
     private static Tuple<String, TokenizerFactory> parseTokenizerFactory(AnalyzeRequest request, IndexAnalyzers indexAnalzyers,

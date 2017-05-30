@@ -38,7 +38,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         Boolean outputUnigramsIfNoShingles = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "output_unigrams_if_no_shingles", false, deprecationLogger);
         String tokenSeparator = settings.get("token_separator", ShingleFilter.DEFAULT_TOKEN_SEPARATOR);
         String fillerToken = settings.get("filler_token", ShingleFilter.DEFAULT_FILLER_TOKEN);
-        factory = new Factory("shingle", minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator, fillerToken);
+        factory = new Factory(minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator, fillerToken);
     }
 
 
@@ -64,20 +64,17 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
         private int minShingleSize;
 
-        private final String name;
-
-        public Factory(String name) {
-            this(name, ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE, ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE, true, false, ShingleFilter.DEFAULT_TOKEN_SEPARATOR, ShingleFilter.DEFAULT_FILLER_TOKEN);
+        public Factory() {
+            this(ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE, ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE, true, false, ShingleFilter.DEFAULT_TOKEN_SEPARATOR, ShingleFilter.DEFAULT_FILLER_TOKEN);
         }
 
-        Factory(String name, int minShingleSize, int maxShingleSize, boolean outputUnigrams, boolean outputUnigramsIfNoShingles, String tokenSeparator, String fillerToken) {
+        Factory(int minShingleSize, int maxShingleSize, boolean outputUnigrams, boolean outputUnigramsIfNoShingles, String tokenSeparator, String fillerToken) {
             this.maxShingleSize = maxShingleSize;
             this.outputUnigrams = outputUnigrams;
             this.outputUnigramsIfNoShingles = outputUnigramsIfNoShingles;
             this.tokenSeparator = tokenSeparator;
             this.minShingleSize = minShingleSize;
             this.fillerToken = fillerToken;
-            this.name = name;
         }
 
         @Override
@@ -113,11 +110,6 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
         public boolean getOutputUnigramsIfNoShingles() {
             return outputUnigramsIfNoShingles;
-        }
-
-        @Override
-        public String name() {
-            return name;
         }
     }
 }

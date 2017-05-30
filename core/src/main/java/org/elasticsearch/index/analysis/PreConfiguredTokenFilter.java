@@ -82,11 +82,6 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
         if (useFilterForMultitermQueries) {
             return new MultiTermAwareTokenFilterFactory() {
                 @Override
-                public String name() {
-                    return getName();
-                }
-
-                @Override
                 public TokenStream create(TokenStream tokenStream) {
                     return create.apply(tokenStream, version);
                 }
@@ -98,11 +93,6 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
             };
         }
         return new TokenFilterFactory() {
-            @Override
-            public String name() {
-                return getName();
-            }
-
             @Override
             public TokenStream create(TokenStream tokenStream) {
                 return create.apply(tokenStream, version);

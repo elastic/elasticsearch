@@ -36,7 +36,6 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
-import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -540,7 +539,7 @@ public final class AnalysisRegistry implements Closeable {
          */
         int overridePositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         if (analyzerFactory instanceof CustomAnalyzerProvider) {
-            ((CustomAnalyzerProvider) analyzerFactory).build(tokenizers, charFilters, tokenFilters);
+            ((CustomAnalyzerProvider) analyzerFactory).build(name, tokenizers, charFilters, tokenFilters);
             /*
              * Custom analyzers already default to the correct, version
              * dependent positionIncrementGap and the user is be able to
@@ -552,7 +551,7 @@ public final class AnalysisRegistry implements Closeable {
         }
         Analyzer analyzerF = analyzerFactory.get();
         if (analyzerF == null) {
-            throw new IllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
+            throw new IllegalArgumentException("analyzer [" + name + "] created null analyzer");
         }
         NamedAnalyzer analyzer;
         if (analyzerF instanceof NamedAnalyzer) {
@@ -570,7 +569,7 @@ public final class AnalysisRegistry implements Closeable {
         }
         analyzers.put(name, analyzer);
         // TODO: remove alias support completely when we no longer support pre 5.0 indices
-        final String analyzerAliasKey = "index.analysis.analyzer." + analyzerFactory.name() + ".alias";
+        final String analyzerAliasKey = "index.analysis.analyzer." + name + ".alias";
         if (indexSettings.getSettings().get(analyzerAliasKey) != null) {
             if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_0_0_beta1)) {
                 // do not allow alias creation if the index was created on or after v5.0 alpha6
@@ -597,11 +596,11 @@ public final class AnalysisRegistry implements Closeable {
             Map<String, TokenFilterFactory> tokenFilters,
             Map<String, CharFilterFactory> charFilters) {
         if (normalizerFactory instanceof CustomNormalizerProvider) {
-            ((CustomNormalizerProvider) normalizerFactory).build(charFilters, tokenFilters);
+            ((CustomNormalizerProvider) normalizerFactory).build(name, charFilters, tokenFilters);
         }
         Analyzer normalizerF = normalizerFactory.get();
         if (normalizerF == null) {
-            throw new IllegalArgumentException("normalizer [" + normalizerFactory.name() + "] created null normalizer");
+            throw new IllegalArgumentException("normalizer [" + name + "] created null normalizer");
         }
         NamedAnalyzer normalizer = new NamedAnalyzer(name, normalizerFactory.scope(), normalizerF);
         if (normalizers.containsKey(name)) {

@@ -29,12 +29,8 @@ public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer>
         // we create the named analyzer here so the resources associated with it will be shared
         // and we won't wrap a shared analyzer with named analyzer each time causing the resources
         // to not be shared...
+        // TODO why not pass a NamedAnalyzer into the method?
         this.analyzer = new NamedAnalyzer(name, scope, analyzer);
-    }
-
-    @Override
-    public String name() {
-        return analyzer.name();
     }
 
     @Override

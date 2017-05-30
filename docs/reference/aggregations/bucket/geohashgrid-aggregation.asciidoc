@@ -10,7 +10,7 @@ The resulting grid can be sparse and only contains cells that have matching data
 Geohashes used in this aggregation can have a choice of precision between 1 and 12.
 
 WARNING: The highest-precision geohash of length 12 produces cells that cover less than a square metre of land and so high-precision requests can be very costly in terms of RAM and result sizes.
-Please see the example below on how to first filter the aggregation to a smaller geographic area before requesting high-levels of detail.
+Please see the example below on how to first filter the aggregation to a larger geographic area before requesting high-levels of detail.
 
 The specified field must be of type `geo_point` (which can only be set explicitly in the mappings) and it can also hold an array of `geo_point` fields, in which case all points will be taken into account during aggregation.
 

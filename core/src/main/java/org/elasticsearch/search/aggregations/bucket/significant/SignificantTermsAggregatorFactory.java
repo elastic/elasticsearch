@@ -292,7 +292,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
-                        aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
+                        aggregationContext, parent, false, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
 
             }
 
@@ -316,7 +316,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
                     (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter, aggregationContext, parent,
-                    significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
+                    true, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
 
             }
         };

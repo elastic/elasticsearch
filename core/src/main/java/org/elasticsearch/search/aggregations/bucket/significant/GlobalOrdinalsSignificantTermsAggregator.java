@@ -61,14 +61,16 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                                                     IncludeExclude.OrdinalsFilter includeExclude,
                                                     SearchContext context,
                                                     Aggregator parent,
+                                                    boolean forceRemapGlobalOrds,
                                                     SignificanceHeuristic significanceHeuristic,
                                                     SignificantTermsAggregatorFactory termsAggFactory,
                                                     List<PipelineAggregator> pipelineAggregators,
                                                     Map<String, Object> metaData) throws IOException {
         super(name, factories, valuesSource, null, format, bucketCountThresholds, includeExclude, context, parent,
-            false, SubAggCollectionMode.DEPTH_FIRST, false, pipelineAggregators, metaData);
+            forceRemapGlobalOrds, SubAggCollectionMode.DEPTH_FIRST, false, pipelineAggregators, metaData);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
+        this.numCollectedDocs = 0;
     }
 
     @Override

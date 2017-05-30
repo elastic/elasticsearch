@@ -65,6 +65,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
@@ -83,7 +84,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.Stack;
 
 import static java.util.Collections.emptyList;
 import static org.apache.lucene.util.LuceneTestCase.random;
@@ -791,32 +791,34 @@ public class ElasticsearchAssertions {
         //1) whenever anything goes through a map while parsing, ordering is not preserved, which is perfectly ok
         //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
         //Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
+        Map<String, Object> actualMap = null;
+        Map<String, Object> expectedMap = null;
         try (XContentParser actualParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, actual)) {
-            Map<String, Object> actualMap = actualParser.map();
+            actualMap = actualParser.map();
             try (XContentParser expectedParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, expected)) {
-                Map<String, Object> expectedMap = expectedParser.map();
-                assertMapEquals(expectedMap, actualMap, new Stack<>());
+                expectedMap = expectedParser.map();
+                assertMapEquals(expectedMap, actualMap);
             }
+        } catch (AssertionError error) {
+            NotEqualMessageBuilder message = new NotEqualMessageBuilder();
+            message.compareMaps(actualMap, expectedMap);
+            throw new AssertionError("Error when comparing xContent.\n" + message.toString(), error);
         }
     }
 
     /**
      * Compares two maps recursively, using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
-    private static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual, Stack<String> path) {
-        assertEquals("different xContent at path [" + String.join("/", path) + "]. Expected " + expected.keySet() + ", but was "
-                + actual.keySet() + ". Number of fields", expected.size(), actual.size());
+    private static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual) {
+        assertEquals(expected.size(), actual.size());
         for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {
             String expectedKey = expectedEntry.getKey();
             Object expectedValue = expectedEntry.getValue();
             if (expectedValue == null) {
-                assertTrue("different xContent at [" + String.join("/", path) + "], [" + expectedValue + "] vs. ["
-                        + actual.get(expectedKey) + "]", actual.get(expectedKey) == null && actual.containsKey(expectedKey));
+                assertTrue(actual.get(expectedKey) == null && actual.containsKey(expectedKey));
             } else {
                 Object actualValue = actual.get(expectedKey);
-                path.push(expectedKey);
-                assertObjectEquals(expectedValue, actualValue, path);
-                path.pop();
+                assertObjectEquals(expectedValue, actualValue);
             }
         }
     }
@@ -824,17 +826,13 @@ public class ElasticsearchAssertions {
     /**
      * Compares two lists recursively, but using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
-    private static void assertListEquals(List<Object> expected, List<Object> actual, Stack<String> path) {
-        assertEquals("different list values at [" + String.join("/", path) + "]: " + expected + " vs. " + actual, expected.size(),
-                actual.size());
+    @SuppressWarnings("unchecked")
+    private static void assertListEquals(List<Object> expected, List<Object> actual) {
+        assertEquals(expected.size(), actual.size());
         Iterator<Object> actualIterator = actual.iterator();
-        int item = 0;
         for (Object expectedValue : expected) {
             Object actualValue = actualIterator.next();
-            path.push(Integer.toString(item));
-            assertObjectEquals(expectedValue, actualValue, path);
-            path.pop();
-            item++;
+            assertObjectEquals(expectedValue, actualValue);
         }
     }
 
@@ -843,18 +841,18 @@ public class ElasticsearchAssertions {
      * for byte[] through Arrays.equals(byte[], byte[])
      */
     @SuppressWarnings("unchecked")
-    private static void assertObjectEquals(Object expected, Object actual, Stack<String> path) {
+    private static void assertObjectEquals(Object expected, Object actual) {
         if (expected instanceof Map) {
             assertThat(actual, instanceOf(Map.class));
-            assertMapEquals((Map<String, Object>) expected, (Map<String, Object>) actual, path);
+            assertMapEquals((Map<String, Object>) expected, (Map<String, Object>) actual);
         } else if (expected instanceof List) {
-            assertListEquals((List<Object>) expected, (List<Object>) actual, path);
+            assertListEquals((List<Object>) expected, (List<Object>) actual);
         } else if (expected instanceof byte[]) {
             //byte[] is really a special case for binary values when comparing SMILE and CBOR, arrays of other types
             //don't need to be handled. Ordinary arrays get parsed as lists.
-            assertArrayEquals("different xContent at [" + String.join("/", path) + "]", (byte[]) expected, (byte[]) actual);
+            assertArrayEquals((byte[]) expected, (byte[]) actual);
         } else {
-            assertEquals("different xContent at [" + String.join("/", path) + "]", expected, actual);
+            assertEquals(expected, actual);
         }
     }
 }

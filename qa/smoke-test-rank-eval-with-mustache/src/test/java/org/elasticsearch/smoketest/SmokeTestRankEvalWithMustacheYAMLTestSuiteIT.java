@@ -25,8 +25,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-import java.io.IOException;
-
 public class SmokeTestRankEvalWithMustacheYAMLTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public SmokeTestRankEvalWithMustacheYAMLTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -34,7 +32,7 @@ public class SmokeTestRankEvalWithMustacheYAMLTestSuiteIT extends ESClientYamlSu
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException {
+    public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
     }
 

@@ -152,8 +152,7 @@ public class InternalEngine extends Engine {
         this.versionMap = new LiveVersionMap();
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         this.deletionPolicy = new CombinedDeletionPolicy(
-            new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()),
-            translogDeletionPolicy, openMode);
+            new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), translogDeletionPolicy, openMode);
         store.incRef();
         IndexWriter writer = null;
         Translog translog = null;

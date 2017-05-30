@@ -19,15 +19,17 @@
 
 package org.elasticsearch.index.translog;
 
+import org.apache.lucene.util.Counter;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TranslogDeletionPolicy {
+public final class TranslogDeletionPolicy {
 
     /** Records how many views are held against each
      *  translog generation */
-    protected final Map<Long,Integer> translogRefCounts = new HashMap<>();
+    protected final Map<Long, Counter> translogRefCounts = new HashMap<>();
 
     /**
      * the translog generation that is requires to properly recover from the oldest non deleted
@@ -48,8 +50,7 @@ public class TranslogDeletionPolicy {
      * will not be deleted until a corresponding call to {@link #releaseTranslogGenView(long)} is called.
      */
     public synchronized long acquireTranslogGenForView() {
-        int current = translogRefCounts.getOrDefault(minTranslogGenerationForRecovery, 0);
-        translogRefCounts.put(minTranslogGenerationForRecovery, current + 1);
+        translogRefCounts.computeIfAbsent(minTranslogGenerationForRecovery, l -> Counter.newCounter(false)).addAndGet(1);
         return minTranslogGenerationForRecovery;
     }
 
@@ -62,14 +63,12 @@ public class TranslogDeletionPolicy {
      * releases a generation that was acquired by {@link #acquireTranslogGenForView()}
      */
     public synchronized void releaseTranslogGenView(long translogGen) {
-        Integer current = translogRefCounts.get(translogGen);
-        if (current == null || current <= 0) {
+        Counter current = translogRefCounts.get(translogGen);
+        if (current == null || current.get() <= 0) {
             throw new IllegalArgumentException("translog gen [" + translogGen + "] wasn't acquired");
         }
-        if (current == 1) {
+        if (current.addAndGet(-1) == 0) {
             translogRefCounts.remove(translogGen);
-        } else {
-            translogRefCounts.put(translogGen, current - 1);
         }
     }
 

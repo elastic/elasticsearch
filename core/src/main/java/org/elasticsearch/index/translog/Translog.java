@@ -40,7 +40,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -1437,7 +1436,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Trims unreferenced translog generations by asking {@link CombinedDeletionPolicy} for the minimum
+     * Trims unreferenced translog generations by asking {@link TranslogDeletionPolicy} for the minimum
      * required generation
      */
     public void trimUnreferencedReaders() {
@@ -1447,6 +1446,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 return;
             }
             long minReferencedGen = deletionPolicy.minTranslogGenRequired(readers, current);
+            final long minExistingGen = readers.isEmpty() ? current.getGeneration() : readers.get(0).getGeneration();
+            assert minReferencedGen >= minExistingGen :
+                "deletion policy requires a minReferenceGen of [" + minReferencedGen + "] but the lowest gen available is ["
+                    + minExistingGen + "]";
             final List<TranslogReader> unreferenced =
                     readers.stream().filter(r -> r.getGeneration() < minReferencedGen).collect(Collectors.toList());
             for (final TranslogReader unreferencedReader : unreferenced) {

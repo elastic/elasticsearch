@@ -250,10 +250,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return operationCounter;
     }
 
-    public long lastSyncedGlobalCheckpoint() {
-        return getLastSyncedCheckpoint().globalCheckpoint;
-    }
-
     @Override
     Checkpoint getCheckpoint() {
         return getLastSyncedCheckpoint();

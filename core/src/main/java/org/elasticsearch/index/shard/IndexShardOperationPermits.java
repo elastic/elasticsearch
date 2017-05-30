@@ -100,7 +100,7 @@ final class IndexShardOperationPermits implements Closeable {
         try {
             doBlockOperations(timeout, timeUnit, onBlocked);
         } finally {
-            releasedDelayedOperations();
+            releaseDelayedOperations();
         }
     }
 
@@ -132,7 +132,7 @@ final class IndexShardOperationPermits implements Closeable {
 
             @Override
             public void onAfter() {
-                releasedDelayedOperations();
+                releaseDelayedOperations();
             }
         });
     }
@@ -153,6 +153,7 @@ final class IndexShardOperationPermits implements Closeable {
             final TimeUnit timeUnit,
             final CheckedRunnable<E> onBlocked) throws InterruptedException, TimeoutException, E {
         if (Assertions.ENABLED) {
+            // since delayed is not volatile, we have to synchronize even here for visibility
             synchronized (this) {
                 assert delayed;
             }
@@ -169,7 +170,7 @@ final class IndexShardOperationPermits implements Closeable {
         }
     }
 
-    private void releasedDelayedOperations() {
+    private void releaseDelayedOperations() {
         final List<ActionListener<Releasable>> queuedActions;
         synchronized (this) {
             assert delayed;

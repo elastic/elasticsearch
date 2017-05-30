@@ -26,11 +26,17 @@ import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -45,7 +51,7 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     @Before
     public void setup() {
-        scriptEngine = new PainlessScriptEngine(scriptEngineSettings());
+        scriptEngine = new PainlessScriptEngine(scriptEngineSettings(), scriptContexts());
     }
 
     /**
@@ -53,6 +59,17 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     protected Settings scriptEngineSettings() {
         return Settings.EMPTY;
+    }
+
+    /**
+     * Script contexts used to build the script engine. Override to customize which script contexts are available.
+     */
+    protected Collection<ScriptContext<?>> scriptContexts() {
+        Collection<ScriptContext<?>> contexts = new ArrayList<>();
+        contexts.add(SearchScript.CONTEXT);
+        contexts.add(ExecutableScript.CONTEXT);
+
+        return contexts;
     }
 
     /** Compiles and returns the result of {@code script} */

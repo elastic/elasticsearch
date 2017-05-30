@@ -41,14 +41,20 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
     private final Map<String, Map<String, Double>> covariances = new HashMap<>();
     private final Map<String, Map<String, Double>> correlations = new HashMap<>();
 
+    private long docCount;
+
     @Override
     public String getType() {
         return MatrixStatsAggregationBuilder.NAME;
     }
 
+    private void setDocCount(long docCount) {
+        this.docCount = docCount;
+    }
+
     @Override
     public long getDocCount() {
-        throw new UnsupportedOperationException();
+        return docCount;
     }
 
     @Override
@@ -97,6 +103,7 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
         if (counts != null && counts.isEmpty() == false) {
             builder.startArray(InternalMatrixStats.Fields.FIELDS);
             for (String fieldName : counts.keySet()) {
@@ -148,6 +155,7 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
             new ObjectParser<>(ParsedMatrixStats.class.getSimpleName(), true, ParsedMatrixStats::new);
     static {
         declareAggregationFields(PARSER);
+        PARSER.declareLong(ParsedMatrixStats::setDocCount, CommonFields.DOC_COUNT);
         PARSER.declareObjectArray((matrixStats, results) -> {
             for (ParsedMatrixStatsResult result : results) {
                 final String fieldName = result.name;

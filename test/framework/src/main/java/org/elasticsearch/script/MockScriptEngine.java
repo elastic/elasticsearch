@@ -151,64 +151,48 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public class MockSearchScript implements SearchScript {
+    public class MockSearchScript extends SearchScript {
 
         private final Function<Map<String, Object>, Object> script;
-        private final Map<String, Object> vars;
-        private final SearchLookup lookup;
+        private Map<String, Object> vars;
 
         public MockSearchScript(SearchLookup lookup, Map<String, Object> vars, Function<Map<String, Object>, Object> script) {
-            this.lookup = lookup;
-            this.vars = vars;
+            super(vars, lookup);
+            this.vars = new HashMap<>(vars == null ? Collections.emptyMap() : vars);
             this.script = script;
         }
 
         @Override
-        public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
-            LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
+        public SearchScript forSegment(LeafReaderContext context) {
+            MockSearchScript script = (MockSearchScript) super.forSegment(context);
+            script.vars = new HashMap<>(script.vars); // unique copy of vars for this segment
+            script.vars.putAll(script.getLeafLookup().asMap());
+            return script;
+        }
 
-            Map<String, Object> ctx = new HashMap<>(leafLookup.asMap());
-            if (vars != null) {
-                ctx.putAll(vars);
-            }
+        @Override
+        public Object run() {
+            return script.apply(vars);
+        }
 
-            return new LeafSearchScript() {
-                @Override
-                public Object run() {
-                    return script.apply(ctx);
-                }
+        @Override
+        public long runAsLong() {
+            return ((Number) run()).longValue();
+        }
 
-                @Override
-                public long runAsLong() {
-                    return ((Number) run()).longValue();
-                }
+        @Override
+        public double runAsDouble() {
+            return ((Number) run()).doubleValue();
+        }
 
-                @Override
-                public double runAsDouble() {
-                    return ((Number) run()).doubleValue();
-                }
+        @Override
+        public void setNextVar(String name, Object value) {
+            vars.put(name, value);
+        }
 
-                @Override
-                public void setNextVar(String name, Object value) {
-                    ctx.put(name, value);
-                }
-
-                @Override
-                public void setScorer(Scorer scorer) {
-                    ctx.put("_score", new ScoreAccessor(scorer));
-                }
-
-                @Override
-                public void setDocument(int doc) {
-                    leafLookup.setDocument(doc);
-                }
-
-                @Override
-                public void setSource(Map<String, Object> source) {
-                    leafLookup.source().setSource(source);
-                }
-
-            };
+        @Override
+        public void setScorer(Scorer scorer) {
+            vars.put("_score", new ScoreAccessor(scorer));
         }
 
         @Override

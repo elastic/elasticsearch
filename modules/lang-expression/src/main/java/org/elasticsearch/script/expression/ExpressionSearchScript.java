@@ -25,32 +25,29 @@ import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.GeneralScriptException;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context
  * of a {@link SearchScript}.
  */
-class ExpressionSearchScript implements SearchScript {
+class ExpressionSearchScript extends SearchScript {
 
     final Expression exprScript;
     final SimpleBindings bindings;
-    final DoubleValuesSource source;
     final ReplaceableConstDoubleValueSource specialValue; // _value
     final boolean needsScores;
-    Scorer scorer;
-    int docid;
+
+    // set when binding to a leaf
+    DoubleValues values;
 
     ExpressionSearchScript(Expression e, SimpleBindings b, ReplaceableConstDoubleValueSource v, boolean needsScores) {
+        super(null, null); // expressions don't use lookup or params
         exprScript = e;
         bindings = b;
-        source = exprScript.getDoubleValuesSource(bindings);
         specialValue = v;
         this.needsScores = needsScores;
     }
@@ -60,15 +57,15 @@ class ExpressionSearchScript implements SearchScript {
         return needsScores;
     }
 
-
     @Override
-    public LeafSearchScript getLeafSearchScript(final LeafReaderContext leaf) throws IOException {
-        return new LeafSearchScript() {
-            // Fake the scorer until setScorer is called.
-            DoubleValues values = source.getValues(leaf, new DoubleValues() {
+    public SearchScript forSegment(LeafReaderContext leaf) {
+        ExpressionSearchScript script = (ExpressionSearchScript) super.forSegment(leaf);
+        DoubleValuesSource source = exprScript.getDoubleValuesSource(bindings);
+        try {
+            script.values = source.getValues(leaf, new DoubleValues() {
                 @Override
                 public double doubleValue() throws IOException {
-                    return Double.NaN;
+                    return script.getScore();
                 }
 
                 @Override
@@ -76,77 +73,46 @@ class ExpressionSearchScript implements SearchScript {
                     return true;
                 }
             });
-            double evaluate() {
-                try {
-                    return values.doubleValue();
-                } catch (Exception exception) {
-                    throw new GeneralScriptException("Error evaluating " + exprScript, exception);
-                }
+        } catch (IOException e) {
+            throw new IllegalStateException("Can't get values using " + exprScript, e);
+        }
+        return script;
+    }
+
+    @Override
+    public void setNextAggregationValue(Object value) {
+        // _value isn't used in script if specialValue == null
+        if (specialValue != null) {
+            if (value instanceof Number) {
+                specialValue.setValue(((Number)value).doubleValue());
+            } else {
+                throw new GeneralScriptException("Cannot use expression with text variable using " + exprScript);
             }
+        }
+    }
 
-            @Override
-            public Object run() { return Double.valueOf(evaluate()); }
+    @Override
+    public void setDocument(int d) {
+        try {
+            values.advanceExact(d);
+        } catch (IOException e) {
+            throw new IllegalStateException("Can't advance to doc using " + exprScript, e);
+        }
+    }
 
-            @Override
-            public long runAsLong() { return (long)evaluate(); }
+    @Override
+    public Object run() { return Double.valueOf(runAsDouble()); }
 
-            @Override
-            public double runAsDouble() { return evaluate(); }
+    @Override
+    public long runAsLong() { return (long)runAsDouble(); }
 
-            @Override
-            public void setDocument(int d) {
-                docid = d;
-                try {
-                    values.advanceExact(d);
-                } catch (IOException e) {
-                    throw new IllegalStateException("Can't advance to doc using " + exprScript, e);
-                }
-            }
-
-            @Override
-            public void setScorer(Scorer s) {
-                scorer = s;
-                try {
-                    // We have a new binding for the scorer so we need to reset the values
-                    values = source.getValues(leaf, new DoubleValues() {
-                        @Override
-                        public double doubleValue() throws IOException {
-                            return scorer.score();
-                        }
-
-                        @Override
-                        public boolean advanceExact(int doc) throws IOException {
-                            return true;
-                        }
-                    });
-                } catch (IOException e) {
-                    throw new IllegalStateException("Can't get values using " + exprScript, e);
-                }
-            }
-
-            @Override
-            public void setSource(Map<String, Object> source) {
-                // noop: expressions don't use source data
-            }
-
-            @Override
-            public void setNextAggregationValue(Object value) {
-                // _value isn't used in script if specialValue == null
-                if (specialValue != null) {
-                    if (value instanceof Number) {
-                        specialValue.setValue(((Number)value).doubleValue());
-                    } else {
-                        throw new GeneralScriptException("Cannot use expression with text variable using " + exprScript);
-                    }
-                }
-            }
-
-            @Override
-            public void setNextVar(String name, Object value) {
-                // other per-document variables aren't supported yet, even if they are numbers
-                // but we shouldn't encourage this anyway.
-            }
-        };
+    @Override
+    public double runAsDouble() {
+        try {
+            return values.doubleValue();
+        } catch (Exception exception) {
+            throw new GeneralScriptException("Error evaluating " + exprScript, exception);
+        }
     }
 
 }

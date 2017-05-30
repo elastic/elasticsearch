@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.functionscore;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,7 +29,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ExplainableSearchScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -38,7 +36,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -78,32 +76,16 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
                     assert context == SearchScript.CONTEXT;
-                    SearchScript.Factory factory = (p, lookup) -> new SearchScript() {
-                        @Override
-                        public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
-                            return new MyScript(lookup.doc().getLeafDocLookup(context));
-                        }
-                        @Override
-                        public boolean needsScores() {
-                            return false;
-                        }
-                    };
+                    SearchScript.Factory factory = MyScript::new;
                     return context.factoryClazz.cast(factory);
                 }
             };
         }
     }
 
-    static class MyScript implements ExplainableSearchScript {
-        LeafDocLookup docLookup;
-
-        MyScript(LeafDocLookup docLookup) {
-            this.docLookup = docLookup;
-        }
-
-        @Override
-        public void setDocument(int doc) {
-            docLookup.setDocument(doc);
+    static class MyScript extends SearchScript implements ExplainableSearchScript {
+        MyScript(Map<String, Object> params, SearchLookup lookup) {
+            super(params, lookup);
         }
 
         @Override
@@ -114,7 +96,12 @@ public class ExplainableScriptIT extends ESIntegTestCase {
 
         @Override
         public double runAsDouble() {
-            return ((Number) ((ScriptDocValues) docLookup.get("number_field")).getValues().get(0)).doubleValue();
+            return ((Number) ((ScriptDocValues) getLeafLookup().doc().get("number_field")).getValues().get(0)).doubleValue();
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 

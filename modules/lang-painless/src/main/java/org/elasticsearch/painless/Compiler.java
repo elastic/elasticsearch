@@ -131,7 +131,7 @@ final class Compiler {
      * @param name The name of the script.
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
-     * @return An executable script that implements both {@link #base} and is a subclass of {@link PainlessScript}
+     * @return An executable script that implements both a specified interface and is a subclass of {@link PainlessScript}
      */
     Constructor<? extends PainlessScript> compile(Loader loader, String name, String source, CompilerSettings settings) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {

@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.sear
 public class LdapMetaDataResolver {
 
     public static final Setting<List<String>> ADDITIONAL_META_DATA_SETTING = Setting.listSetting(
-            "meta_data", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
+            "metadata", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
 
     private final String[] attributeNames;
     private final boolean ignoreReferralErrors;

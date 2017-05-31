@@ -93,19 +93,21 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     }
 
     public final void run() {
-        if (scrollId.getContext().length == 0) {
+        final ScrollIdForNode[] context = scrollId.getContext();
+        if (context.length == 0) {
             listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", ShardSearchFailure.EMPTY_ARRAY));
             return;
         }
         final CountDown counter = new CountDown(scrollId.getContext().length);
-        ScrollIdForNode[] context = scrollId.getContext();
-
         for (int i = 0; i < context.length; i++) {
             ScrollIdForNode target = context[i];
             DiscoveryNode node = nodes.get(target.getNode());
             final int shardIndex = i;
             if (node != null) { // it might happen that a node is going down in-between scrolls...
                 InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(target.getScrollId(), request);
+                // we can't create a SearchShardTarget here since we don't know the index and shard ID we are talking to
+                // we only know the node and the search context ID. Yet, the response will contain the SearchShardTarget
+                // from the target node instead...that's why we pass null here
                 SearchActionListener<T> searchActionListener = new SearchActionListener<T>(null, shardIndex) {
 
                     @Override
@@ -122,9 +124,11 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                         if (counter.countDown()) {
                             SearchPhase phase = moveToNextPhase();
                             try {
-                                moveToNextPhase().run();
+                                phase.run();
                             } catch (Exception e) {
-                                // we need to fail the entire request here - fail just blew up
+                                // we need to fail the entire request here - the entire phase just blew up
+                                // don't call onShardFailure or onFailure here since otherwise we'd countDown the counter
+                                // again which would result in an exception
                                 listener.onFailure(new SearchPhaseExecutionException(phase.getName(), "Phase failed", e,
                                     ShardSearchFailure.EMPTY_ARRAY));
                             }

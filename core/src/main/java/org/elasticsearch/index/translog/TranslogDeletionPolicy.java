@@ -76,8 +76,7 @@ public final class TranslogDeletionPolicy {
      * returns the minimum translog generation that is still required by the system. Any generation below
      * the returned value may be safely deleted
      */
-    public synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter currentWriter) {
-        // TODO: here we can do things like check for translog size etc.
+    public synchronized long minTranslogGenRequired() {
         long viewRefs = translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
         return Math.min(viewRefs, minTranslogGenerationForRecovery);
     }

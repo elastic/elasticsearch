@@ -32,27 +32,21 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBinaryRange> {
 
     private List<Tuple<BytesRef, BytesRef>> ranges;
 
     @Override
+    protected int minNumberOfBuckets() {
+        return 1;
+    }
+
+    @Override
     public void setUp() throws Exception {
         super.setUp();
 
-        final int numRanges = randomNumberOfBuckets();
-        List<Tuple<BytesRef, BytesRef>> listOfRanges = new ArrayList<>(numRanges);
-
-        for (int i = 0; i < numRanges; i++) {
-            BytesRef[] values = new BytesRef[2];
-            values[0] = new BytesRef(randomAlphaOfLength(15));
-            values[1] = new BytesRef(randomAlphaOfLength(15));
-            Arrays.sort(values);
-            listOfRanges.add(Tuple.tuple(values[0], values[1]));
-        }
-
+        List<Tuple<BytesRef, BytesRef>> listOfRanges = new ArrayList<>();
         if (randomBoolean()) {
             listOfRanges.add(Tuple.tuple(null, new BytesRef(randomAlphaOfLength(15))));
         }
@@ -62,8 +56,17 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         if (randomBoolean()) {
             listOfRanges.add(Tuple.tuple(null, null));
         }
+
+        final int numRanges = randomNumberOfBuckets() - listOfRanges.size();
+        for (int i = 0; i < numRanges; i++) {
+            BytesRef[] values = new BytesRef[2];
+            values[0] = new BytesRef(randomAlphaOfLength(15));
+            values[1] = new BytesRef(randomAlphaOfLength(15));
+            Arrays.sort(values);
+            listOfRanges.add(Tuple.tuple(values[0], values[1]));
+        }
         Collections.shuffle(listOfRanges, random());
-        ranges = Collections.unmodifiableList(listOfRanges.stream().limit(maxNumberOfBuckets()).collect(Collectors.toList()));
+        ranges = Collections.unmodifiableList(listOfRanges);
     }
 
     @Override

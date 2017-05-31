@@ -32,12 +32,11 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class InternalMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation>
         extends InternalAggregationTestCase<T> {
 
-    private static final int DEFAULT_MAX_NUMBER_OF_BUCKETS = 25;
+    private static final int DEFAULT_MAX_NUMBER_OF_BUCKETS = 10;
 
     Supplier<InternalAggregations> subAggregationsSupplier;
     int maxNumberOfBuckets = DEFAULT_MAX_NUMBER_OF_BUCKETS;
@@ -73,12 +72,9 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     @Override
     protected final T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        final int maxNumberOfBuckets = maxNumberOfBuckets();
         T instance = createTestInstance(name, pipelineAggregators, metaData, subAggregationsSupplier.get());
-
-        int numberOfBuckets = instance.getBuckets().size();
-        assertThat("Expecting a maximum number of "+ maxNumberOfBuckets + " buckets for " + instance.getClass().getSimpleName()
-                + " aggregation but got " + numberOfBuckets, numberOfBuckets, lessThanOrEqualTo(maxNumberOfBuckets));
+        assert instance.getBuckets().size() <= maxNumberOfBuckets() :
+                "Maximum number of buckets exceeded for " + instance.getClass().getSimpleName() + " aggregation";
         return instance;
     }
 

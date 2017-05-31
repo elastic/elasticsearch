@@ -26,11 +26,9 @@ import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregationTestCase<InternalAdjacencyMatrix> {
 
@@ -39,24 +37,27 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        List<String> listOfKeys = new ArrayList<>();
+        keys = new ArrayList<>();
+        // InternalAdjacencyMatrix represents the upper triangular matrix:
+        // 2 filters (matrix of 2x2) generates 3 buckets
+        // 3 filters generates 6 buckets
+        // 4 filters generates 10 buckets
         int numFilters = randomIntBetween(2, 4);
         String[] filters = new String[numFilters];
         for (int i = 0; i < numFilters; i++) {
             filters[i] = randomAlphaOfLength(5);
         }
         for (int i = 0; i < filters.length; i++) {
-            listOfKeys.add(filters[i]);
+            keys.add(filters[i]);
             for (int j = i + 1; j < filters.length; j++) {
                 if (filters[i].compareTo(filters[j]) <= 0) {
-                    listOfKeys.add(filters[i] + "&" + filters[j]);
+                    keys.add(filters[i] + "&" + filters[j]);
                 } else {
-                    listOfKeys.add(filters[j] + "&" + filters[i]);
+                    keys.add(filters[j] + "&" + filters[i]);
                 }
             }
         }
-        Collections.shuffle(listOfKeys, random());
-        keys = Collections.unmodifiableList(listOfKeys.stream().limit(maxNumberOfBuckets()).collect(Collectors.toList()));
+        System.out.println("");
     }
 
     @Override

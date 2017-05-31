@@ -35,7 +35,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRange> {
 
@@ -61,19 +60,19 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
             double from = date.getMillis();
             date = interval.apply(date);
             double to = date.getMillis();
-            listOfRanges.add(Tuple.tuple(from, to));
             if (to > end) {
                 end = to;
             }
-        }
-        if (randomBoolean()) {
-            final int randomOverlaps = randomIntBetween(1, 5);
-            for (int i = 0; i < randomOverlaps; i++) {
+
+            if (randomBoolean()) {
+                listOfRanges.add(Tuple.tuple(from, to));
+            } else {
+                // Add some overlapping range
                 listOfRanges.add(Tuple.tuple(start, randomDoubleBetween(start, end, false)));
             }
         }
         Collections.shuffle(listOfRanges, random());
-        dateRanges = Collections.unmodifiableList(listOfRanges.stream().limit(maxNumberOfBuckets()).collect(Collectors.toList()));
+        dateRanges = Collections.unmodifiableList(listOfRanges);
     }
 
     @Override

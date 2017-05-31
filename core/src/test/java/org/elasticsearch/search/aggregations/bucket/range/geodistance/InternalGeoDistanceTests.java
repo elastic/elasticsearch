@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoDistance> {
 
@@ -42,23 +41,25 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
         super.setUp();
 
         final int interval = randomFrom(1, 5, 10, 25, 50, 100);
-        final int numRanges = randomIntBetween(1, 10);
+        final int numRanges = randomNumberOfBuckets();
+        final double max = (double) numRanges * interval;
 
         List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
         for (int i = 0; i < numRanges; i++) {
             double from = i * interval;
             double to = from + interval;
-            listOfRanges.add(Tuple.tuple(from, to));
-        }
-        if (randomBoolean()) {
-            // Add some overlapping ranges
-            double max = (double) numRanges * interval;
-            listOfRanges.add(Tuple.tuple(0.0, max));
-            listOfRanges.add(Tuple.tuple(0.0, max / 2));
-            listOfRanges.add(Tuple.tuple(max / 3, max / 3 * 2));
+
+            Tuple<Double, Double> range;
+            if (randomBoolean()) {
+                range = Tuple.tuple(from, to);
+            } else {
+                // Add some overlapping range
+                range = Tuple.tuple(randomFrom(0.0, max / 3), randomFrom(max, max / 2, max / 3 * 2));
+            }
+            listOfRanges.add(range);
         }
         Collections.shuffle(listOfRanges, random());
-        geoDistanceRanges = Collections.unmodifiableList(listOfRanges.stream().limit(maxNumberOfBuckets()).collect(Collectors.toList()));
+        geoDistanceRanges = Collections.unmodifiableList(listOfRanges);
     }
 
     @Override

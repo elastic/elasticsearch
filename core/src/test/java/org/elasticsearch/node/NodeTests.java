@@ -75,6 +75,7 @@ public class NodeTests extends ESTestCase {
             } else {
                 assertThat(Node.NODE_NAME_SETTING.get(nodeSettings), equalTo(name));
             }
+            assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
         }
     }
 
@@ -121,6 +122,7 @@ public class NodeTests extends ESTestCase {
         }) {
             expectThrows(NodeValidationException.class, () -> node.start());
             assertTrue(executed.get());
+            assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
         }
     }
 
@@ -154,6 +156,7 @@ public class NodeTests extends ESTestCase {
         try (Node node = new MockNode(settings.build(), Collections.singleton(MockTcpTransportPlugin.class))) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
             assertEquals(attr, Node.NODE_ATTRIBUTES.get(nodeSettings).getAsMap().get("test_attr"));
+            assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
         }
 
         // leading whitespace not allowed

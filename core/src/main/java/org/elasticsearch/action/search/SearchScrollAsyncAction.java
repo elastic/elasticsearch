@@ -155,6 +155,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
 
     protected abstract void moveToNextPhase();
 
+    protected abstract void onFirstPhaseResult(int shardId, T result);
+
     protected final void sendResponse(SearchPhaseController.ReducedQueryPhase queryPhase,
                                       final AtomicArray<? extends SearchPhaseResult> fetchResults) {
         try {
@@ -171,7 +173,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         }
     }
 
-    private final void onInitialPhaseFailure(final int shardIndex, final CountDown counter, final long searchId, Exception failure) {
+    private void onInitialPhaseFailure(final int shardIndex, final CountDown counter, final long searchId, Exception failure) {
         if (logger.isDebugEnabled()) {
             logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] Failed to execute query phase", searchId), failure);
         }
@@ -191,5 +193,4 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         }
     }
 
-    protected abstract void onFirstPhaseResult(int shardId, T result);
 }

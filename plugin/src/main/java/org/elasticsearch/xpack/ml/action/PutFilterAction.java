@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -182,6 +183,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
                 throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
             }
             BulkRequest bulkRequest = new BulkRequest().add(indexRequest);
+            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
             transportBulkAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
                 @Override

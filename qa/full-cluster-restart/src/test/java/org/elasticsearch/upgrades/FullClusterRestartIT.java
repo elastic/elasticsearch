@@ -71,6 +71,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     public void testSearch() throws Exception {
+        String index = getTestName().toLowerCase(Locale.ROOT);
         if (runningAgainstOldCluster) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
@@ -99,11 +100,11 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
-            client().performRequest("PUT", "/index", Collections.emptyMap(),
+            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
                 new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
 
             int numDocs = randomIntBetween(2000, 3000);
-            indexRandomDocuments("index", numDocs, true, i -> {
+            indexRandomDocuments(index, numDocs, true, i -> {
                 return JsonXContent.contentBuilder().startObject()
                 .field("string", randomAlphaOfLength(10))
                 .field("int", randomInt(100))
@@ -114,21 +115,20 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 // TODO a binary field
                 .endObject();
             });
-            client().performRequest("POST", "/_flush");
         }
-        assertBasicSearchWorks();
+        assertBasicSearchWorks(index);
     }
 
-    void assertBasicSearchWorks() throws IOException {
+    void assertBasicSearchWorks(String index) throws IOException {
         logger.info("--> testing basic search");
-        Map<String, Object> response = toMap(client().performRequest("GET", "/index/_search"));
+        Map<String, Object> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
         assertNoFailures(response);
         int numDocs1 = (int) XContentMapValues.extractValue("hits.total", response);
         logger.info("Found {} in old index", numDocs1);
 
         logger.info("--> testing basic search with sort");
         String searchRequestBody = "{ \"sort\": [{ \"int\" : \"asc\" }]}";
-        response = toMap(client().performRequest("GET", "/index/_search", Collections.emptyMap(),
+        response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
             new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
         assertNoFailures(response);
         int numDocs2 = (int) XContentMapValues.extractValue("hits.total", response);
@@ -136,14 +136,14 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
         logger.info("--> testing exists filter");
         searchRequestBody = "{ \"query\": { \"exists\" : {\"field\": \"string\"} }}";
-        response = toMap(client().performRequest("GET", "/index/_search", Collections.emptyMap(),
+        response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
             new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
         assertNoFailures(response);
         numDocs2 = (int) XContentMapValues.extractValue("hits.total", response);
         assertEquals(numDocs1, numDocs2);
 
         searchRequestBody = "{ \"query\": { \"exists\" : {\"field\": \"field.with.dots\"} }}";
-        response = toMap(client().performRequest("GET", "/index/_search", Collections.emptyMap(),
+        response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
             new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
         assertNoFailures(response);
         numDocs2 = (int) XContentMapValues.extractValue("hits.total", response);
@@ -236,13 +236,16 @@ public class FullClusterRestartIT extends ESRestTestCase {
     private void indexRandomDocuments(String index, int count, boolean flushAllowed,
                                       CheckedFunction<Integer, XContentBuilder, IOException> docSupplier) throws IOException {
         for (int i = 0; i < count; i++) {
+            logger.debug("Indexing document [{}]", i);
             client().performRequest("POST", "/" + index + "/doc/" + i, emptyMap(),
                     new StringEntity(docSupplier.apply(i).string(), ContentType.APPLICATION_JSON));
             if (rarely()) {
-                client().performRequest("POST", "/_refresh");
+                logger.info("Refreshing [{}]", index);
+                client().performRequest("POST", "/" + index + "/_refresh");
             }
             if (flushAllowed && rarely()) {
-                client().performRequest("POST", "/_flush");
+                logger.info("Flushing [{}]", index);
+                client().performRequest("POST", "/" + index + "/_flush");
             }
         }
     }

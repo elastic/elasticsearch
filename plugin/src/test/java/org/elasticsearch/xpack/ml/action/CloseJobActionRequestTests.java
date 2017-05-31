@@ -280,9 +280,8 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
     }
 
     public void testBuildWaitForCloseRequest() {
-        CloseJobAction.Request request = new Request();
-        request.setOpenJobIds(new String[] {"openjob1", "openjob2"});
-        request.setClosingJobIds(new String[] {"closingjob1"});
+        List<String> openJobIds = Arrays.asList(new String[] {"openjob1", "openjob2"});
+        List<String> closingJobIds = Arrays.asList(new String[] {"closingjob1"});
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("openjob1", null, JobState.OPENED, tasksBuilder);
@@ -290,14 +289,14 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         addJobTask("closingjob1", null, JobState.CLOSING, tasksBuilder);
 
         CloseJobAction.TransportAction.WaitForCloseRequest waitForCloseRequest =
-                CloseJobAction.buildWaitForCloseRequest(request, tasksBuilder.build(), mock(Auditor.class));
+                CloseJobAction.buildWaitForCloseRequest(openJobIds, closingJobIds, tasksBuilder.build(), mock(Auditor.class));
         assertEquals(waitForCloseRequest.jobsToFinalize, Arrays.asList("openjob1", "openjob2"));
         assertEquals(waitForCloseRequest.persistentTaskIds,
                 Arrays.asList("job-openjob1", "job-openjob2", "job-closingjob1"));
         assertTrue(waitForCloseRequest.hasJobsToWaitFor());
 
-        request = new Request();
-        waitForCloseRequest = CloseJobAction.buildWaitForCloseRequest(request, tasksBuilder.build(), mock(Auditor.class));
+        waitForCloseRequest = CloseJobAction.buildWaitForCloseRequest(Collections.emptyList(), Collections.emptyList(),
+                tasksBuilder.build(), mock(Auditor.class));
         assertFalse(waitForCloseRequest.hasJobsToWaitFor());
     }
 

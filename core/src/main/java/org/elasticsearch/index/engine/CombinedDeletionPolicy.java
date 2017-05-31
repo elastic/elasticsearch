@@ -67,7 +67,7 @@ class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        indexDeletionPolicy.onInit(commits);
+        indexDeletionPolicy.onCommit(commits);
         setLastCommittedTranslogGeneration(commits);
     }
 

@@ -22,10 +22,9 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.util.Counter;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-public final class TranslogDeletionPolicy {
+public class TranslogDeletionPolicy {
 
     /** Records how many views are held against each
      *  translog generation */

@@ -23,13 +23,13 @@ class VagrantSupportPlugin implements Plugin<Project> {
             project.rootProject.ext.virtualBoxInstallation = virtualBoxInstallation
             project.rootProject.ext.vagrantSupported = vagrantInstallation.supported && virtualBoxInstallation.supported
             project.rootProject.ext.vagrantEnvChecksDone = true
-        }
 
-        // Finding that HOME needs to be set when performing vagrant updates
-        String homeLocation = System.getenv("HOME")
-        if (project.rootProject.ext.vagrantSupported && homeLocation == null) {
-            throw new GradleException("Could not locate \$HOME environment variable. Vagrant is enabled " +
-                    "and requires \$HOME to be set to function properly.")
+            // Finding that HOME needs to be set when performing vagrant updates
+            String homeLocation = System.getenv("HOME")
+            if (project.rootProject.ext.vagrantSupported && homeLocation == null) {
+                throw new GradleException("Could not locate \$HOME environment variable. Vagrant is enabled " +
+                        "and requires \$HOME to be set to function properly.")
+            }
         }
 
         addVerifyInstallationTasks(project)

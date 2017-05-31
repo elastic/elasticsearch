@@ -43,12 +43,11 @@ import java.util.Set;
  * A field mapper used internally by the {@link ParentJoinFieldMapper} to index
  * the value that link documents in the index (parent _id or _id if the document is a parent).
  */
-public final class ParentIDFieldMapper extends FieldMapper {
-    public static final String NAME = "parent";
-    public static final String CONTENT_TYPE = "parent";
+public final class ParentIdFieldMapper extends FieldMapper {
+    static final String CONTENT_TYPE = "parent";
 
     static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new ParentIDFieldType();
+        public static final MappedFieldType FIELD_TYPE = new ParentIdFieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
@@ -59,7 +58,7 @@ public final class ParentIDFieldMapper extends FieldMapper {
         }
     }
 
-    static class Builder extends FieldMapper.Builder<Builder, ParentIDFieldMapper> {
+    static class Builder extends FieldMapper.Builder<Builder, ParentIdFieldMapper> {
         private final String parent;
         private final Set<String> children;
 
@@ -75,24 +74,24 @@ public final class ParentIDFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ParentIDFieldMapper build(BuilderContext context) {
+        public ParentIdFieldMapper build(BuilderContext context) {
             fieldType.setName(name);
-            return new ParentIDFieldMapper(name, parent, children, fieldType, context.indexSettings());
+            return new ParentIdFieldMapper(name, parent, children, fieldType, context.indexSettings());
         }
     }
 
-    public static final class ParentIDFieldType extends StringFieldType {
-        public ParentIDFieldType() {
+    public static final class ParentIdFieldType extends StringFieldType {
+        public ParentIdFieldType() {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
-        protected ParentIDFieldType(ParentIDFieldType ref) {
+        protected ParentIdFieldType(ParentIdFieldType ref) {
             super(ref);
         }
 
-        public ParentIDFieldType clone() {
-            return new ParentIDFieldType(this);
+        public ParentIdFieldType clone() {
+            return new ParentIdFieldType(this);
         }
 
         @Override
@@ -119,7 +118,7 @@ public final class ParentIDFieldMapper extends FieldMapper {
     private final String parentName;
     private Set<String> children;
 
-    protected ParentIDFieldMapper(String simpleName,
+    protected ParentIdFieldMapper(String simpleName,
                                   String parentName,
                                   Set<String> children,
                                   MappedFieldType fieldType,
@@ -130,8 +129,8 @@ public final class ParentIDFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected ParentIDFieldMapper clone() {
-        return (ParentIDFieldMapper) super.clone();
+    protected ParentIdFieldMapper clone() {
+        return (ParentIdFieldMapper) super.clone();
     }
 
     /**
@@ -164,7 +163,7 @@ public final class ParentIDFieldMapper extends FieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
-        ParentIDFieldMapper parentMergeWith = (ParentIDFieldMapper) mergeWith;
+        ParentIdFieldMapper parentMergeWith = (ParentIdFieldMapper) mergeWith;
         this.children = parentMergeWith.children;
     }
 

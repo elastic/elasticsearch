@@ -60,7 +60,7 @@ public final class ParentJoinFieldSubFetchPhase implements FetchSubPhase {
                     ParentJoinFieldMapper joinFieldMapper = (ParentJoinFieldMapper) fieldMapper;
                     joinField = new Tuple<>(fieldMapper.name(), joinName);
                     // we retrieve the parent id only for children.
-                    FieldMapper parentMapper = joinFieldMapper.getParentIDFieldMapper(joinName, false);
+                    FieldMapper parentMapper = joinFieldMapper.getParentIdFieldMapper(joinName, false);
                     if (parentMapper != null) {
                         String parent = getSortedDocValue(parentMapper.name(), hitContext.reader(), hitContext.docId());
                         parentField = new Tuple<>(parentMapper.name(), parent);

@@ -85,7 +85,7 @@ public class CompressibleBytesOutputStreamTests extends ESTestCase {
         BytesStream bStream = new ZeroOutOnCloseStream();
         CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, true);
 
-        byte[] expectedBytes = randomBytes(randomInt(30));
+        byte[] expectedBytes = randomBytes(between(1, 30));
         stream.write(expectedBytes);
 
 

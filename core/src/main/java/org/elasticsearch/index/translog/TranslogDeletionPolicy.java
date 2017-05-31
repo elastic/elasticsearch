@@ -28,7 +28,7 @@ public class TranslogDeletionPolicy {
 
     /** Records how many views are held against each
      *  translog generation */
-    protected final Map<Long, Counter> translogRefCounts = new HashMap<>();
+    private final Map<Long, Counter> translogRefCounts = new HashMap<>();
 
     /**
      * the translog generation that is requires to properly recover from the oldest non deleted
@@ -48,20 +48,20 @@ public class TranslogDeletionPolicy {
      * acquires the basis generation for a new view. Any translog generation above, and including, the returned generation
      * will not be deleted until a corresponding call to {@link #releaseTranslogGenView(long)} is called.
      */
-    public synchronized long acquireTranslogGenForView() {
+    synchronized long acquireTranslogGenForView() {
         translogRefCounts.computeIfAbsent(minTranslogGenerationForRecovery, l -> Counter.newCounter(false)).addAndGet(1);
         return minTranslogGenerationForRecovery;
     }
 
     /** returns the number of generations that were acquired for views */
-    public synchronized int pendingViewsCount() {
+    synchronized int pendingViewsCount() {
         return translogRefCounts.size();
     }
 
     /**
      * releases a generation that was acquired by {@link #acquireTranslogGenForView()}
      */
-    public synchronized void releaseTranslogGenView(long translogGen) {
+    synchronized void releaseTranslogGenView(long translogGen) {
         Counter current = translogRefCounts.get(translogGen);
         if (current == null || current.get() <= 0) {
             throw new IllegalArgumentException("translog gen [" + translogGen + "] wasn't acquired");
@@ -75,7 +75,7 @@ public class TranslogDeletionPolicy {
      * returns the minimum translog generation that is still required by the system. Any generation below
      * the returned value may be safely deleted
      */
-    public synchronized long minTranslogGenRequired() {
+    synchronized long minTranslogGenRequired() {
         long viewRefs = translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
         return Math.min(viewRefs, minTranslogGenerationForRecovery);
     }

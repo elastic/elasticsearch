@@ -30,7 +30,7 @@ import java.util.List;
 
 /**
  * An {@link IndexDeletionPolicy} that coordinates between Lucene's commits and the retention of translog generation files,
- * making sure that all translog files that are need to recover from the lucene commit are not deleted.
+ * making sure that all translog files that are needed to recover from the Lucene commit are not deleted.
  */
 class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
@@ -73,7 +73,7 @@ class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     private void setLastCommittedTranslogGeneration(List<? extends IndexCommit> commits) throws IOException {
         // when opening an existing lucene index, we currently always open the last commit.
-        // we therefore use the translog gen in to as the one that will be required for recovery
+        // we therefore use the translog gen as the one that will be required for recovery
         final IndexCommit indexCommit = commits.get(commits.size() - 1);
         assert indexCommit.isDeleted() == false : "last commit is deleted";
         long minGen = Long.parseLong(indexCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));

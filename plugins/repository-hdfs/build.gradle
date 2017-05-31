@@ -181,7 +181,6 @@ RestIntegTestTask integTestSecure = project.tasks.create('integTestSecure', Rest
 }
 
 if (secureFixtureSupported) {
-  integTestSecure.mustRunAfter(project.integTest)
   project.check.dependsOn(integTestSecure)
 
   // Fixture dependencies

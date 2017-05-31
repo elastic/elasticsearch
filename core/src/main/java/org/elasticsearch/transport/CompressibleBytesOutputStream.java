@@ -93,10 +93,11 @@ final class CompressibleBytesOutputStream extends StreamOutput implements Releas
 
     @Override
     public void close() {
-        // If we are not using compression stream == bytesStreamOutput
-        if (shouldCompress == false) {
+        if (stream == bytesStreamOutput) {
+            assert shouldCompress == false : "If the streams are the same we should not be compressing";
             IOUtils.closeWhileHandlingException(stream);
         } else {
+            assert shouldCompress : "If the streams are different we should be compressing";
             IOUtils.closeWhileHandlingException(stream, bytesStreamOutput);
         }
     }

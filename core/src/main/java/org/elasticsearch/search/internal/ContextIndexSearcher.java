@@ -33,6 +33,7 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
 import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -116,12 +117,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // each invocation so that it can build an internal representation of the query
             // tree
             QueryProfileBreakdown profile = profiler.getQueryBreakdown(query);
-            profile.startTime(QueryTimingType.CREATE_WEIGHT);
+            Timer timer = profile.getTimer(QueryTimingType.CREATE_WEIGHT);
+            timer.start();
             final Weight weight;
             try {
                 weight = super.createWeight(query, needsScores, boost);
             } finally {
-                profile.stopAndRecordTime();
+                timer.stop();
                 profiler.pollLastElement();
             }
             return new ProfileWeight(query, weight, profile);

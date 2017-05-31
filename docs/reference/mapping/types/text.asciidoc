@@ -57,7 +57,7 @@ The following parameters are accepted by `text` fields:
     Mapping field-level query time boosting. Accepts a floating point number, defaults
     to `1.0`.
 
-<<global-ordinals,`eager_global_ordinals`>>::
+<<eager-global-ordinals,`eager_global_ordinals`>>::
 
     Should global ordinals be loaded eagerly on refresh? Accepts `true` or `false`
     (default). Enabling this is a good idea on fields that are frequently used for

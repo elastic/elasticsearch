@@ -70,16 +70,11 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     private final LongObjectPagedHashMap<long[]> parentOrdToOtherBuckets;
     private boolean multipleBucketsPerParentOrd = false;
 
-    public ParentToChildrenAggregator(String name,
-                                      AggregatorFactories factories,
-                                      SearchContext context,
-                                      Aggregator parent,
-                                      Query childFilter,
-                                      Query parentFilter,
-                                      ValuesSource.Bytes.WithOrdinals valuesSource,
-                                      long maxOrd,
-                                      List<PipelineAggregator> pipelineAggregators,
-                                      Map<String, Object> metaData) throws IOException {
+    public ParentToChildrenAggregator(String name, AggregatorFactories factories,
+            SearchContext context, Aggregator parent, Query childFilter,
+            Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
+            long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         // these two filters are cached in the parser
         this.childFilter = context.searcher().createNormalizedWeight(childFilter, false);

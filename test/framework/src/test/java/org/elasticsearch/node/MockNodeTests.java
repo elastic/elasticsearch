@@ -68,7 +68,6 @@ public class MockNodeTests extends ESTestCase {
             } else {
                 assertSame(searchService.getClass(), SearchService.class);
             }
-            assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
         }
     }
 }

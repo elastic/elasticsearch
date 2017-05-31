@@ -220,9 +220,6 @@ public class TribeService extends AbstractLifecycleComponent {
                         NamedWriteableRegistry namedWriteableRegistry, Function<Settings, Node> clientNodeBuilder) {
         super(settings);
 
-        new DeprecationLogger(Loggers.getLogger(TribeService.class))
-            .deprecated("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
-
         this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
@@ -283,7 +280,14 @@ public class TribeService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-
+        if (nodes.isEmpty() == false) {
+            // remove the initial election / recovery blocks since we are not going to have a
+            // master elected in this single tribe  node local "cluster"
+            clusterService.removeInitialStateBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+            clusterService.removeInitialStateBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+            new DeprecationLogger(Loggers.getLogger(TribeService.class))
+                .deprecated("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
+        }
     }
 
     public void startNodes() {

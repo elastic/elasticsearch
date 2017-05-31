@@ -27,6 +27,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
@@ -75,7 +76,6 @@ public class NodeTests extends ESTestCase {
             } else {
                 assertThat(Node.NODE_NAME_SETTING.get(nodeSettings), equalTo(name));
             }
-            assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
         }
     }
 
@@ -122,7 +122,6 @@ public class NodeTests extends ESTestCase {
         }) {
             expectThrows(NodeValidationException.class, () -> node.start());
             assertTrue(executed.get());
-            assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
         }
     }
 
@@ -156,7 +155,6 @@ public class NodeTests extends ESTestCase {
         try (Node node = new MockNode(settings.build(), Collections.singleton(MockTcpTransportPlugin.class))) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
             assertEquals(attr, Node.NODE_ATTRIBUTES.get(nodeSettings).getAsMap().get("test_attr"));
-            assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
         }
 
         // leading whitespace not allowed
@@ -241,6 +239,34 @@ public class NodeTests extends ESTestCase {
             final Logger mock = mock(Logger.class);
             Node.checkForIndexDataInDefaultPathData(settings, nodeEnv, mock);
             verifyNoMoreInteractions(mock);
+        }
+    }
+
+    public void testTribeNodeDeprecation() throws IOException {
+        final Settings.Builder settings = baseSettings();
+        boolean useTribeService = randomBoolean();
+        if (useTribeService) {
+            String clusterName = InternalTestCluster.clusterName("single-node-cluster", randomLong());
+            String tribeSetting = "tribe." + clusterName + ".";
+            settings
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put(tribeSetting + ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
+                .put(tribeSetting + DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "100ms")
+                .put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), NetworkModule.LOCAL_TRANSPORT);
+        }
+        AtomicBoolean executed = new AtomicBoolean(false);
+        try (Node node = new MockNode(settings.build(), Collections.singleton(MockTcpTransportPlugin.class)){
+            @Override
+            protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress,
+                                                               List<BootstrapCheck> bootstrapChecks) throws NodeValidationException {
+                if (useTribeService) {
+                    assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
+                }
+                executed.set(true);
+                throw new NodeValidationException("boom");
+            }
+        }) {
+            expectThrows(NodeValidationException.class, () -> node.start());
+            assertTrue(executed.get());
         }
     }
 

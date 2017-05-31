@@ -100,20 +100,8 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static void createBatsConfiguration(Project project) {
         project.configurations.create(BATS)
 
-        final long seed
-        final String formattedSeed
-        String maybeTestsSeed = System.getProperty("tests.seed")
-        if (maybeTestsSeed != null) {
-            if (maybeTestsSeed.trim().isEmpty()) {
-                throw new GradleException("explicit tests.seed cannot be empty")
-            }
-            String masterSeed = maybeTestsSeed.tokenize(':').get(0)
-            seed = new BigInteger(masterSeed, 16).longValue()
-            formattedSeed = maybeTestsSeed
-        } else {
-            seed = new Random().nextLong()
-            formattedSeed = String.format("%016X", seed)
-        }
+        String firstPartOfSeed = project.testSeed.tokenize(':').get(0)
+        final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16)
 
         String upgradeFromVersion = System.getProperty("tests.packaging.upgradeVersion");
         if (upgradeFromVersion == null) {
@@ -131,7 +119,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
 
         project.extensions.esvagrant.testSeed = seed
-        project.extensions.esvagrant.formattedTestSeed = formattedSeed
         project.extensions.esvagrant.upgradeFromVersion = upgradeFromVersion
     }
 
@@ -395,7 +382,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 void afterExecute(Task task, TaskState state) {
                     if (state.failure != null) {
                         println "REPRODUCE WITH: gradle ${packaging.path} " +
-                            "-Dtests.seed=${project.extensions.esvagrant.formattedTestSeed} "
+                            "-Dtests.seed=${project.testSeed} "
                     }
                 }
             }
@@ -415,14 +402,14 @@ class VagrantTestPlugin implements Plugin<Project> {
                 environmentVars vagrantEnvVars
                 dependsOn up
                 finalizedBy halt
-                args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.extensions.esvagrant.formattedTestSeed}"
+                args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.testSeed}"
             }
             TaskExecutionAdapter platformReproListener = new TaskExecutionAdapter() {
                 @Override
                 void afterExecute(Task task, TaskState state) {
                     if (state.failure != null) {
                         println "REPRODUCE WITH: gradle ${platform.path} " +
-                            "-Dtests.seed=${project.extensions.esvagrant.formattedTestSeed} "
+                            "-Dtests.seed=${project.testSeed} "
                     }
                 }
             }

@@ -29,9 +29,6 @@ class VagrantPropertiesExtension {
     Long testSeed
 
     @Input
-    String formattedTestSeed
-
-    @Input
     String upgradeFromVersion
 
     @Input

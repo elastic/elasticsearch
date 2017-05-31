@@ -120,6 +120,7 @@ class BuildPlugin implements Plugin<Project> {
                 println "  JDK Version           : ${gradleJavaVersionDetails}"
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
+            println " Random Testing Seed    : ${project.testSeed}"
 
             // enforce gradle version
             GradleVersion minGradle = GradleVersion.version('3.3')
@@ -512,6 +513,7 @@ class BuildPlugin implements Plugin<Project> {
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
             systemProperty 'java.io.tmpdir', './temp'
             systemProperty 'java.awt.headless', 'true'
+            systemProperty 'tests.seed', project.testSeed
             systemProperty 'tests.gradle', 'true'
             systemProperty 'tests.artifact', project.name
             systemProperty 'tests.task', path
@@ -525,7 +527,7 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
                 if (property.getKey().startsWith('tests.') ||
-                    property.getKey().startsWith('es.')) {
+                        property.getKey().startsWith('es.')) {
                     systemProperty property.getKey(), property.getValue()
                 }
             }

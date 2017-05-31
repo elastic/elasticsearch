@@ -123,6 +123,18 @@ allprojects {
   }
 }
 
+// Setup the seed
+String testSeed = System.getProperty('tests.seed')
+if (testSeed == null) {
+    long seed = new Random(System.currentTimeMillis()).nextLong()
+    testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT)
+} else {
+    System.clearProperty("tests.seed")
+}
+allprojects {
+    project.ext.testSeed = testSeed
+}
+
 task('verifyVersions') {
   description 'Verifies that all released versions that are indexed compatible are listed in Version.java.'
   group 'Verification'

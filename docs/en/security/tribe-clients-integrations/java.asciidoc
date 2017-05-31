@@ -90,7 +90,7 @@ dependencies {
 --------------------------------------------------------------
 --
 
-If you are using a repository manager such as [Nexus OSS](https://www.sonatype.com/nexus-repository-oss) within your
+If you are using a repository manager such as https://www.sonatype.com/nexus-repository-oss[Nexus OSS] within your
 company, you need to add the repository as per the following screenshot:
 
 +

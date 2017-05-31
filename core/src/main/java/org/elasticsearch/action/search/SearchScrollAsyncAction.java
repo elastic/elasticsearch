@@ -25,12 +25,15 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -42,15 +45,30 @@ import static org.elasticsearch.action.search.TransportSearchHelper.internalScro
  * run separate fetch phases etc.
  */
 abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements Runnable {
+    /*
+     * Some random TODO:
+     * Today we still have a dedicated executing mode for scrolls while we could simplify this by implementing
+     * scroll like functionality (mainly syntactic sugar) as an ordinary search with search_after. We could even go further and
+     * make the scroll entirely stateless and encode the state per shard in the scroll ID.
+     *
+     * Today we also hold a context per shard but maybe
+     * we want the context per coordinating node such that we route the scroll to the same coordinator all the time and hold the context here?
+     * This would have the advantage that if we loose that node the entire scroll is deal not just one shard.
+     *
+     * Additionally there is the possibility to associate the scroll with a seq. id. such that we can talk to any replica as long as
+     * the shards engine hasn't advanced that seq. id yet. Such a resume is possible and best effort, it could be even a safety net since
+     * if you rely on indices being read-only things can change in-between without notification or it's hard to detect if there where any changes
+     * while scrolling. These are all options to improve the current situation which we can look into down the road
+     */
     protected final Logger logger;
     protected final ActionListener<SearchResponse> listener;
     protected final ParsedScrollId scrollId;
     protected final DiscoveryNodes nodes;
-    protected final AtomicInteger successfulOps;
     protected final SearchPhaseController searchPhaseController;
     protected final SearchScrollRequest request;
     private final long startTime;
     private volatile AtomicArray<ShardSearchFailure> shardFailures; // we initialize this on-demand
+    private final AtomicInteger successfulOps;
 
     protected SearchScrollAsyncAction(ParsedScrollId scrollId, Logger logger, DiscoveryNodes nodes,
                                       ActionListener<SearchResponse> listener, SearchPhaseController searchPhaseController,
@@ -85,8 +103,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         for (int i = 0; i < context.length; i++) {
             ScrollIdForNode target = context[i];
             DiscoveryNode node = nodes.get(target.getNode());
-            if (node != null) {
-                final int shardIndex = i;
+            final int shardIndex = i;
+            if (node != null) { // it might happen that a node is going down in-between scrolls...
                 InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(target.getScrollId(), request);
                 SearchActionListener<T> searchActionListener = new SearchActionListener<T>(null, shardIndex) {
 
@@ -103,7 +121,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                         onFirstPhaseResult(shardIndex, result);
                         if (counter.countDown()) {
                             try {
-                                moveToNextPhase();
+                                moveToNextPhase().run();
                             } catch (Exception e) {
                                 onFailure(e);
                             }
@@ -112,23 +130,15 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
 
                     @Override
                     public void onFailure(Exception t) {
-                        onInitialPhaseFailure(shardIndex, counter, target.getScrollId(), t);
+                        onShardFailure("query", shardIndex, counter, target.getScrollId(), t, null,
+                            SearchScrollAsyncAction.this::moveToNextPhase);
                     }
                 };
                 executeInitialPhase(node, internalRequest, searchActionListener);
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Node [{}] not available for scroll request [{}]", target.getNode(), scrollId.getSource());
-                }
-                successfulOps.decrementAndGet();
-                if (counter.countDown()) {
-                    try {
-                        moveToNextPhase();
-                    } catch (RuntimeException e) {
-                        listener.onFailure(new SearchPhaseExecutionException("query", "Fetch failed", e, ShardSearchFailure.EMPTY_ARRAY));
-                        return;
-                    }
-                }
+            } else { // the node is not available we treat this as a shard failure here
+                onShardFailure("query", shardIndex, counter, target.getScrollId(),
+                    new IllegalStateException("node [" + target.getNode() + "] is not available"), null,
+                    SearchScrollAsyncAction.this::moveToNextPhase);
             }
         }
     }
@@ -143,7 +153,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
 
     // we do our best to return the shard failures, but its ok if its not fully concurrently safe
     // we simply try and return as much as possible
-    protected void addShardFailure(final int shardIndex, ShardSearchFailure failure) {
+    private void addShardFailure(final int shardIndex, ShardSearchFailure failure) {
         if (shardFailures == null) {
             shardFailures = new AtomicArray<>(scrollId.getContext().length);
         }
@@ -153,15 +163,27 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     protected abstract void executeInitialPhase(DiscoveryNode node, InternalScrollSearchRequest internalRequest,
                                                 SearchActionListener<T> searchActionListener);
 
-    protected abstract void moveToNextPhase();
+    protected abstract SearchPhase moveToNextPhase();
 
     protected abstract void onFirstPhaseResult(int shardId, T result);
+
+    protected SearchPhase sendResponsePhase(SearchPhaseController.ReducedQueryPhase queryPhase,
+                                            final AtomicArray<? extends SearchPhaseResult> fetchResults) {
+        return new SearchPhase("fetch") {
+            @Override
+            public void run() throws IOException {
+                sendResponse(queryPhase, fetchResults);
+            }
+        };
+    }
 
     protected final void sendResponse(SearchPhaseController.ReducedQueryPhase queryPhase,
                                       final AtomicArray<? extends SearchPhaseResult> fetchResults) {
         try {
             final InternalSearchResponse internalResponse = searchPhaseController.merge(true, queryPhase, fetchResults.asList(),
                 fetchResults::get);
+            // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
+            // such that we can talk to them abgain in the next roundtrip.
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();
@@ -173,24 +195,28 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         }
     }
 
-    private void onInitialPhaseFailure(final int shardIndex, final CountDown counter, final long searchId, Exception failure) {
+    protected void onShardFailure(String phaseName, final int shardIndex, final CountDown counter, final long searchId, Exception failure,
+                                @Nullable SearchShardTarget searchShardTarget,
+                                Supplier<SearchPhase> nextPhaseSupplier) {
         if (logger.isDebugEnabled()) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] Failed to execute query phase", searchId), failure);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] Failed to execute {} phase", searchId, phaseName), failure);
         }
-        addShardFailure(shardIndex, new ShardSearchFailure(failure));
-        successfulOps.decrementAndGet();
+        addShardFailure(shardIndex, new ShardSearchFailure(failure, searchShardTarget));
+        int successfulOperations = successfulOps.decrementAndGet();
+        assert successfulOperations >= 0 : "successfulOperations must be >= 0 but was: " + successfulOperations;
         if (counter.countDown()) {
             if (successfulOps.get() == 0) {
-                listener.onFailure(new SearchPhaseExecutionException("query", "all shards failed", failure, buildShardFailures()));
+                listener.onFailure(new SearchPhaseExecutionException(phaseName, "all shards failed", failure, buildShardFailures()));
             } else {
+                SearchPhase phase = nextPhaseSupplier.get();
                 try {
-                    moveToNextPhase();
+                    phase.run();
                 } catch (Exception e) {
                     e.addSuppressed(failure);
-                    listener.onFailure(new SearchPhaseExecutionException("query", "Fetch failed", e, ShardSearchFailure.EMPTY_ARRAY));
+                    listener.onFailure(new SearchPhaseExecutionException(phase.getName(), "Phase failed", e,
+                        ShardSearchFailure.EMPTY_ARRAY));
                 }
             }
         }
     }
-
 }

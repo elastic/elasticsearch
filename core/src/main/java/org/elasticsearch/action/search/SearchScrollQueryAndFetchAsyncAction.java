@@ -63,8 +63,8 @@ final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction
     }
 
     @Override
-    protected void moveToNextPhase() {
-        sendResponse(searchPhaseController.reducedQueryPhase(queryFetchResults.asList(), true), queryFetchResults);
+    protected SearchPhase moveToNextPhase() {
+        return sendResponsePhase(searchPhaseController.reducedQueryPhase(queryFetchResults.asList(), true), queryFetchResults);
     }
 
     @Override

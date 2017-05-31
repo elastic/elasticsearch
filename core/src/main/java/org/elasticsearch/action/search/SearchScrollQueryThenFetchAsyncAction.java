@@ -33,6 +33,8 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 
+import java.io.IOException;
+
 import static org.elasticsearch.action.search.TransportSearchHelper.internalScrollSearchRequest;
 
 final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncAction<ScrollQuerySearchResult> {
@@ -41,6 +43,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
     private final SearchTransportService searchTransportService;
     private final AtomicArray<FetchSearchResult> fetchResults;
     private final AtomicArray<QuerySearchResult> queryResults;
+
     SearchScrollQueryThenFetchAsyncAction(Logger logger, ClusterService clusterService, SearchTransportService searchTransportService,
                                           SearchPhaseController searchPhaseController, SearchScrollRequest request, SearchTask task,
                                           ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
@@ -62,52 +65,54 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
     }
 
     @Override
-    protected void moveToNextPhase() {
-        final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResults.asList(),
-            true);
-        if (reducedQueryPhase.scoreDocs.length == 0) {
-            sendResponse(reducedQueryPhase, fetchResults);
-            return;
-        }
-
-        final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), reducedQueryPhase.scoreDocs);
-        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, queryResults.length());
-        final CountDown counter = new CountDown(docIdsToLoad.length);
-        for (int i = 0; i < docIdsToLoad.length; i++) {
-            final int index = i;
-            final IntArrayList docIds = docIdsToLoad[index];
-            if (docIds != null) {
-                final QuerySearchResult querySearchResult = queryResults.get(index);
-                ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[index];
-                ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.getRequestId(), docIds, lastEmittedDoc);
-                DiscoveryNode node = nodes.get(querySearchResult.getSearchShardTarget().getNodeId());
-                searchTransportService.sendExecuteFetchScroll(node, shardFetchRequest, task,
-                    new SearchActionListener<FetchSearchResult>(querySearchResult.getSearchShardTarget(), index) {
-                        @Override
-                        protected void innerOnResponse(FetchSearchResult response) {
-                            fetchResults.setOnce(response.getShardIndex(), response);
-                            if (counter.countDown()) {
-                                sendResponse(reducedQueryPhase, fetchResults);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception t) {
-                            if (logger.isDebugEnabled()) {
-                                logger.debug("Failed to execute fetch phase", t);
-                            }
-                            successfulOps.decrementAndGet();
-                            if (counter.countDown()) {
-                                sendResponse(reducedQueryPhase, fetchResults);
-                            }
-                        }
-                    });
-            } else {
-                // the counter is set to the total size of docIdsToLoad which can have null values so we have to count them down too
-                if (counter.countDown()) {
+    protected SearchPhase moveToNextPhase() {
+        return new SearchPhase("fetch") {
+            @Override
+            public void run() throws IOException {
+                final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResults.asList(),
+                    true);
+                if (reducedQueryPhase.scoreDocs.length == 0) {
                     sendResponse(reducedQueryPhase, fetchResults);
+                    return;
+                }
+
+                final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), reducedQueryPhase.scoreDocs);
+                final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, queryResults.length());
+                final CountDown counter = new CountDown(docIdsToLoad.length);
+                for (int i = 0; i < docIdsToLoad.length; i++) {
+                    final int index = i;
+                    final IntArrayList docIds = docIdsToLoad[index];
+                    if (docIds != null) {
+                        final QuerySearchResult querySearchResult = queryResults.get(index);
+                        ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[index];
+                        ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.getRequestId(), docIds, lastEmittedDoc);
+                        DiscoveryNode node = nodes.get(querySearchResult.getSearchShardTarget().getNodeId());
+                        searchTransportService.sendExecuteFetchScroll(node, shardFetchRequest, task,
+                            new SearchActionListener<FetchSearchResult>(querySearchResult.getSearchShardTarget(), index) {
+                                @Override
+                                protected void innerOnResponse(FetchSearchResult response) {
+                                    fetchResults.setOnce(response.getShardIndex(), response);
+                                    if (counter.countDown()) {
+                                        sendResponse(reducedQueryPhase, fetchResults);
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Exception t) {
+                                    onShardFailure(getName(), querySearchResult.getShardIndex(), counter, querySearchResult.getRequestId(),
+                                        t, querySearchResult.getSearchShardTarget(),
+                                        () -> sendResponsePhase(reducedQueryPhase, fetchResults));
+                                }
+                            });
+                    } else {
+                        // the counter is set to the total size of docIdsToLoad which can have null values so we have to count them down too
+                        if (counter.countDown()) {
+                            sendResponse(reducedQueryPhase, fetchResults);
+                        }
+                    }
                 }
             }
-        }
+        };
     }
+
 }

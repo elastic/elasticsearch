@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
@@ -66,10 +67,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
 
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
-            (searchResponse) -> new SearchPhase("test") {
+            (searchResponse, scrollId) -> new SearchPhase("test") {
             @Override
             public void run() throws IOException {
-                responseRef.set(searchResponse);
+                responseRef.set(mockSearchPhaseContext.buildSearchResponse(searchResponse, null));
             }
         });
         assertEquals("fetch", phase.getName());
@@ -119,10 +120,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
         };
         mockSearchPhaseContext.searchTransport = searchTransportService;
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
-            (searchResponse) -> new SearchPhase("test") {
+            (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
-                    responseRef.set(searchResponse);
+                    responseRef.set(mockSearchPhaseContext.buildSearchResponse(searchResponse, null));
                 }
             });
         assertEquals("fetch", phase.getName());
@@ -173,10 +174,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
         };
         mockSearchPhaseContext.searchTransport = searchTransportService;
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
-            (searchResponse) -> new SearchPhase("test") {
+            (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
-                    responseRef.set(searchResponse);
+                    responseRef.set(mockSearchPhaseContext.buildSearchResponse(searchResponse, null));
                 }
             });
         assertEquals("fetch", phase.getName());
@@ -224,10 +225,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
         mockSearchPhaseContext.searchTransport = searchTransportService;
         CountDownLatch latch = new CountDownLatch(1);
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
-            (searchResponse) -> new SearchPhase("test") {
+            (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
-                    responseRef.set(searchResponse);
+                    responseRef.set(mockSearchPhaseContext.buildSearchResponse(searchResponse, null));
                     latch.countDown();
                 }
             });
@@ -290,10 +291,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
         };
         mockSearchPhaseContext.searchTransport = searchTransportService;
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
-            (searchResponse) -> new SearchPhase("test") {
+            (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
-                    responseRef.set(searchResponse);
+                    responseRef.set(mockSearchPhaseContext.buildSearchResponse(searchResponse, null));
                 }
             });
         assertEquals("fetch", phase.getName());
@@ -339,10 +340,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
         };
         mockSearchPhaseContext.searchTransport = searchTransportService;
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
-            (searchResponse) -> new SearchPhase("test") {
+            (searchResponse, scrollId) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
-                    responseRef.set(searchResponse);
+                    responseRef.set(mockSearchPhaseContext.buildSearchResponse(searchResponse, null));
                 }
             });
         assertEquals("fetch", phase.getName());
@@ -357,5 +358,4 @@ public class FetchSearchPhaseTests extends ESTestCase {
         assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(123L));
     }
-
 }

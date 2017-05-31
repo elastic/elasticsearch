@@ -52,13 +52,13 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
      * make the scroll entirely stateless and encode the state per shard in the scroll ID.
      *
      * Today we also hold a context per shard but maybe
-     * we want the context per coordinating node such that we route the scroll to the same coordinator all the time and hold the context here?
-     * This would have the advantage that if we loose that node the entire scroll is deal not just one shard.
+     * we want the context per coordinating node such that we route the scroll to the same coordinator all the time and hold the context
+     * here? This would have the advantage that if we loose that node the entire scroll is deal not just one shard.
      *
      * Additionally there is the possibility to associate the scroll with a seq. id. such that we can talk to any replica as long as
      * the shards engine hasn't advanced that seq. id yet. Such a resume is possible and best effort, it could be even a safety net since
-     * if you rely on indices being read-only things can change in-between without notification or it's hard to detect if there where any changes
-     * while scrolling. These are all options to improve the current situation which we can look into down the road
+     * if you rely on indices being read-only things can change in-between without notification or it's hard to detect if there where any
+     * changes while scrolling. These are all options to improve the current situation which we can look into down the road
      */
     protected final Logger logger;
     protected final ActionListener<SearchResponse> listener;
@@ -116,14 +116,17 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
 
                     @Override
                     protected void innerOnResponse(T result) {
-                        assert shardIndex == result.getShardIndex() : "shard index mismatch: "
-                            + shardIndex + " but got: " + result.getShardIndex();
+                        assert shardIndex == result.getShardIndex() : "shard index mismatch: " + shardIndex + " but got: "
+                            + result.getShardIndex();
                         onFirstPhaseResult(shardIndex, result);
                         if (counter.countDown()) {
+                            SearchPhase phase = moveToNextPhase();
                             try {
                                 moveToNextPhase().run();
                             } catch (Exception e) {
-                                onFailure(e);
+                                // we need to fail the entire request here - fail just blew up
+                                listener.onFailure(new SearchPhaseExecutionException(phase.getName(), "Phase failed", e,
+                                    ShardSearchFailure.EMPTY_ARRAY));
                             }
                         }
                     }

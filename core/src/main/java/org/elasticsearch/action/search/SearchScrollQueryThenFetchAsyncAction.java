@@ -69,15 +69,17 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
         return new SearchPhase("fetch") {
             @Override
             public void run() throws IOException {
-                final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResults.asList(),
-                    true);
+                final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(
+                    queryResults.asList(), true);
                 if (reducedQueryPhase.scoreDocs.length == 0) {
                     sendResponse(reducedQueryPhase, fetchResults);
                     return;
                 }
 
-                final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), reducedQueryPhase.scoreDocs);
-                final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, queryResults.length());
+                final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(),
+                    reducedQueryPhase.scoreDocs);
+                final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase,
+                    queryResults.length());
                 final CountDown counter = new CountDown(docIdsToLoad.length);
                 for (int i = 0; i < docIdsToLoad.length; i++) {
                     final int index = i;
@@ -85,7 +87,8 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     if (docIds != null) {
                         final QuerySearchResult querySearchResult = queryResults.get(index);
                         ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[index];
-                        ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.getRequestId(), docIds, lastEmittedDoc);
+                        ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.getRequestId(), docIds,
+                            lastEmittedDoc);
                         DiscoveryNode node = nodes.get(querySearchResult.getSearchShardTarget().getNodeId());
                         searchTransportService.sendExecuteFetchScroll(node, shardFetchRequest, task,
                             new SearchActionListener<FetchSearchResult>(querySearchResult.getSearchShardTarget(), index) {
@@ -105,7 +108,8 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                                 }
                             });
                     } else {
-                        // the counter is set to the total size of docIdsToLoad which can have null values so we have to count them down too
+                        // the counter is set to the total size of docIdsToLoad
+                        // which can have null values so we have to count them down too
                         if (counter.countDown()) {
                             sendResponse(reducedQueryPhase, fetchResults);
                         }

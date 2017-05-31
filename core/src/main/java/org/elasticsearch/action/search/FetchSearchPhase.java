@@ -36,7 +36,7 @@ import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 /**
  * This search phase merges the query results from the previous phase together and calculates the topN hits for this search.
@@ -46,7 +46,7 @@ final class FetchSearchPhase extends SearchPhase {
     private final AtomicArray<FetchSearchResult> fetchResults;
     private final SearchPhaseController searchPhaseController;
     private final AtomicArray<SearchPhaseResult> queryResults;
-    private final Function<SearchResponse, SearchPhase> nextPhaseFactory;
+    private final BiFunction<InternalSearchResponse, String, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final Logger logger;
     private final InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> resultConsumer;
@@ -55,13 +55,13 @@ final class FetchSearchPhase extends SearchPhase {
                      SearchPhaseController searchPhaseController,
                      SearchPhaseContext context) {
         this(resultConsumer, searchPhaseController, context,
-            (response) -> new ExpandSearchPhase(context, response, // collapse only happens if the request has inner hits
-                (finalResponse) -> sendResponsePhase(finalResponse, context)));
+            (response, scrollId) -> new ExpandSearchPhase(context, response, // collapse only happens if the request has inner hits
+                (finalResponse) -> sendResponsePhase(finalResponse, scrollId, context)));
     }
 
     FetchSearchPhase(InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
-                     SearchPhaseContext context, Function<SearchResponse, SearchPhase> nextPhaseFactory) {
+                     SearchPhaseContext context, BiFunction<InternalSearchResponse, String, SearchPhase> nextPhaseFactory) {
         super("fetch");
         if (context.getNumShards() != resultConsumer.getNumShards()) {
             throw new IllegalStateException("number of shards must match the length of the query results but doesn't:"
@@ -205,14 +205,14 @@ final class FetchSearchPhase extends SearchPhase {
                                  AtomicArray<? extends SearchPhaseResult> fetchResultsArr) {
         final InternalSearchResponse internalResponse = searchPhaseController.merge(context.getRequest().scroll() != null,
             reducedQueryPhase, fetchResultsArr.asList(), fetchResultsArr::get);
-        context.executeNextPhase(this, nextPhaseFactory.apply(context.buildSearchResponse(internalResponse, scrollId)));
+        context.executeNextPhase(this, nextPhaseFactory.apply(internalResponse, scrollId));
     }
 
-    private static SearchPhase sendResponsePhase(SearchResponse response, SearchPhaseContext context) {
+    private static SearchPhase sendResponsePhase(InternalSearchResponse response, String scrollId, SearchPhaseContext context) {
         return new SearchPhase("response") {
             @Override
             public void run() throws IOException {
-                context.onResponse(response);
+                context.onResponse(context.buildSearchResponse(response, scrollId));
             }
         };
     }

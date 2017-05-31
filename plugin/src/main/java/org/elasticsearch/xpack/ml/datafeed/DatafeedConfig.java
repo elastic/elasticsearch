@@ -240,11 +240,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     /**
      * Returns the date histogram interval as epoch millis if valid, or throws
-     * an {@link IllegalArgumentException} with the validation error
+     * an {@link ElasticsearchException} with the validation error
      */
     private static long validateAndGetDateHistogramInterval(DateHistogramAggregationBuilder dateHistogram) {
         if (dateHistogram.timeZone() != null && dateHistogram.timeZone().equals(DateTimeZone.UTC) == false) {
-            throw new IllegalArgumentException("ML requires date_histogram.time_zone to be UTC");
+            throw ExceptionsHelper.badRequestException("ML requires date_histogram.time_zone to be UTC");
         }
 
         if (dateHistogram.dateHistogramInterval() != null) {
@@ -277,21 +277,21 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 case MONTH_OF_YEAR:
                 case YEAR_OF_CENTURY:
                 case QUARTER:
-                    throw new IllegalArgumentException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
+                    throw ExceptionsHelper.badRequestException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
                 default:
-                    throw new IllegalArgumentException("Unexpected dateTimeUnit [" + dateTimeUnit + "]");
+                    throw ExceptionsHelper.badRequestException("Unexpected dateTimeUnit [" + dateTimeUnit + "]");
             }
         } else {
             interval = TimeValue.parseTimeValue(calendarInterval, "date_histogram.interval");
         }
         if (interval.days() > 7) {
-            throw new IllegalArgumentException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
+            throw ExceptionsHelper.badRequestException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
         }
         return interval.millis();
     }
 
     private static String invalidDateHistogramCalendarIntervalMessage(String interval) {
-        throw new IllegalArgumentException("When specifying a date_histogram calendar interval ["
+        throw ExceptionsHelper.badRequestException("When specifying a date_histogram calendar interval ["
                 + interval + "], ML does not accept intervals longer than a week because of " +
                 "variable lengths of periods greater than a week");
     }
@@ -512,7 +512,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (scrollSize < 0) {
                 String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE,
                         DatafeedConfig.SCROLL_SIZE.getPreferredName(), scrollSize);
-                throw new IllegalArgumentException(msg);
+                throw ExceptionsHelper.badRequestException(msg);
             }
             this.scrollSize = scrollSize;
         }
@@ -529,7 +529,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
             if (!MlStrings.isValidId(id)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName()));
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName()));
             }
             if (indices == null || indices.isEmpty() || indices.contains(null) || indices.contains("")) {
                 throw invalidOptionValue(INDICES.getPreferredName(), indices);
@@ -548,23 +548,24 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 return;
             }
             if (scriptFields != null && !scriptFields.isEmpty()) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
             }
             List<AggregationBuilder> aggregatorFactories = aggregations.getAggregatorFactories();
             if (aggregatorFactories.isEmpty()) {
-                throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
+                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
             }
             AggregationBuilder topLevelAgg = aggregatorFactories.get(0);
             if (topLevelAgg instanceof HistogramAggregationBuilder) {
                 if (((HistogramAggregationBuilder) topLevelAgg).interval() <= 0) {
-                    throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+                    throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
                 }
             } else if (topLevelAgg instanceof DateHistogramAggregationBuilder) {
                 if (validateAndGetDateHistogramInterval((DateHistogramAggregationBuilder) topLevelAgg) <= 0) {
-                    throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+                    throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
                 }
             } else {
-                throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
+                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
             }
         }
 
@@ -582,7 +583,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         private static ElasticsearchException invalidOptionValue(String fieldName, Object value) {
             String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, fieldName, value);
-            throw new IllegalArgumentException(msg);
+            throw ExceptionsHelper.badRequestException(msg);
         }
     }
 }

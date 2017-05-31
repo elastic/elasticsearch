@@ -186,7 +186,7 @@ public class JobManager extends AbstractComponent {
             public void onFailure(Exception e) {
                 if (e instanceof IllegalArgumentException
                         && e.getMessage().matches("mapper \\[.*\\] of different type, current_type \\[.*\\], merged_type \\[.*\\]")) {
-                    actionListener.onFailure(new IllegalArgumentException(Messages.JOB_CONFIG_MAPPING_TYPE_CLASH, e));
+                    actionListener.onFailure(ExceptionsHelper.badRequestException(Messages.JOB_CONFIG_MAPPING_TYPE_CLASH, e));
                 } else {
                     actionListener.onFailure(e);
                 }

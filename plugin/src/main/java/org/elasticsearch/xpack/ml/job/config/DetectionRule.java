@@ -202,17 +202,17 @@ public class DetectionRule extends ToXContentToBytes implements Writeable {
         public DetectionRule build() {
             if (targetFieldValue != null && targetFieldName == null) {
                 String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_MISSING_TARGET_FIELD_NAME, targetFieldValue);
-                throw new IllegalArgumentException(msg);
+                throw ExceptionsHelper.badRequestException(msg);
             }
             if (ruleConditions == null || ruleConditions.isEmpty()) {
                 String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_REQUIRES_AT_LEAST_ONE_CONDITION);
-                throw new IllegalArgumentException(msg);
+                throw ExceptionsHelper.badRequestException(msg);
             }
             for (RuleCondition condition : ruleConditions) {
                 if (condition.getConditionType() == RuleConditionType.CATEGORICAL && targetFieldName != null) {
                     String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_CATEGORICAL_INVALID_OPTION,
                             DetectionRule.TARGET_FIELD_NAME_FIELD.getPreferredName());
-                    throw new IllegalArgumentException(msg);
+                    throw ExceptionsHelper.badRequestException(msg);
                 }
             }
             return new DetectionRule(ruleAction, targetFieldName, targetFieldValue, conditionsConnective, ruleConditions);

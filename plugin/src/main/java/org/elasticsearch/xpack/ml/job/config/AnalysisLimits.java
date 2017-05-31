@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -55,7 +56,7 @@ public class AnalysisLimits extends ToXContentToBytes implements Writeable {
         if (categorizationExamplesLimit != null && categorizationExamplesLimit < 0) {
             String msg = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, CATEGORIZATION_EXAMPLES_LIMIT, 0,
                     categorizationExamplesLimit);
-            throw new IllegalArgumentException(msg);
+            throw ExceptionsHelper.badRequestException(msg);
         }
         this.categorizationExamplesLimit = categorizationExamplesLimit;
     }

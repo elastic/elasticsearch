@@ -42,6 +42,10 @@ public class ExceptionsHelper {
         return new ElasticsearchStatusException(msg, RestStatus.CONFLICT, args);
     }
 
+    public static ElasticsearchStatusException badRequestException(String msg, Throwable cause, Object... args) {
+        return new ElasticsearchStatusException(msg, RestStatus.BAD_REQUEST, cause, args);
+    }
+
     public static ElasticsearchStatusException badRequestException(String msg, Object... args) {
         return new ElasticsearchStatusException(msg, RestStatus.BAD_REQUEST, args);
     }

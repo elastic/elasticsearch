@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -67,7 +68,7 @@ public class Condition extends ToXContentToBytes implements Writeable {
 
     public Condition(Operator op, String filterValue) {
         if (filterValue == null) {
-            throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_NULL));
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_NULL));
         }
 
         if (op.expectsANumericArgument()) {
@@ -75,14 +76,14 @@ public class Condition extends ToXContentToBytes implements Writeable {
                 Double.parseDouble(filterValue);
             } catch (NumberFormatException nfe) {
                 String msg = Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_NUMBER, filterValue);
-                throw new IllegalArgumentException(msg);
+                throw ExceptionsHelper.badRequestException(msg);
             }
         } else {
             try {
                 Pattern.compile(filterValue);
             } catch (PatternSyntaxException e) {
                 String msg = Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_REGEX, filterValue);
-                throw new IllegalArgumentException(msg);
+                throw ExceptionsHelper.badRequestException(msg);
             }
         }
         this.op = op;

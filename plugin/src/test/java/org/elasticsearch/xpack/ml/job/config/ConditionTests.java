@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -68,17 +69,17 @@ public class ConditionTests extends AbstractSerializingTestCase<Condition> {
     }
 
     public void testVerify_GivenEmptyValue() {
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> new Condition(Operator.LT, ""));
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, () -> new Condition(Operator.LT, ""));
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_NUMBER, ""), e.getMessage());
     }
 
     public void testVerify_GivenInvalidRegex() {
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> new Condition(Operator.MATCH, "[*"));
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, () -> new Condition(Operator.MATCH, "[*"));
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_REGEX, "[*"), e.getMessage());
     }
 
     public void testVerify_GivenNullRegex() {
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class,
                 () -> new Condition(Operator.MATCH, null));
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_NULL, "[*"), e.getMessage());
     }

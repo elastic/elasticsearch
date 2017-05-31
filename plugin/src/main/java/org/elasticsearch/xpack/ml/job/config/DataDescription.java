@@ -339,7 +339,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
                     try {
                         DateTimeFormatterTimestampConverter.ofPattern(format, ZoneOffset.UTC);
                     } catch (IllegalArgumentException e) {
-                        throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, format));
+                        throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, format));
                     }
             }
             timeFormat = format;

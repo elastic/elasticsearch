@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
@@ -25,6 +25,9 @@ import org.apache.lucene.analysis.miscellaneous.PatternKeywordMarkerFilter;
 import org.apache.lucene.analysis.miscellaneous.SetKeywordMarkerFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase.TestAnalysis;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
@@ -49,7 +52,7 @@ public class KeywordMarkerFilterFactoryTests extends ESTokenStreamTestCase {
             .put("index.analysis.analyzer.my_keyword.filter", "my_keyword, porter_stem")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_keyword");
         assertThat(tokenFilter, instanceOf(KeywordMarkerTokenFilterFactory.class));
         TokenStream filter = tokenFilter.create(new WhitespaceTokenizer());
@@ -72,7 +75,7 @@ public class KeywordMarkerFilterFactoryTests extends ESTokenStreamTestCase {
             .put("index.analysis.analyzer.my_keyword.filter", "my_keyword, porter_stem")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_keyword");
         assertThat(tokenFilter, instanceOf(KeywordMarkerTokenFilterFactory.class));
         TokenStream filter = tokenFilter.create(new WhitespaceTokenizer());
@@ -96,7 +99,7 @@ public class KeywordMarkerFilterFactoryTests extends ESTokenStreamTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings));
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin()));
         assertEquals("cannot specify both `keywords_pattern` and `keywords` or `keywords_path`",
             e.getMessage());
     }

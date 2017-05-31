@@ -484,35 +484,39 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
     public void testManyPercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
-        createIndex("test", client().admin().indices().prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("doc_type", "field", "type=keyword")
-                .addMapping("query_type1", queryFieldName, "type=percolator")
-                .addMapping("query_type2", queryFieldName, "type=percolator", "second_query_field", "type=percolator")
-                .addMapping("query_type3", jsonBuilder().startObject().startObject("query_type3").startObject("properties")
-                        .startObject("object_field")
-                        .field("type", "object")
-                        .startObject("properties")
-                        .startObject(queryFieldName)
-                        .field("type", "percolator")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject().endObject())
+        createIndex("test1", client().admin().indices().prepareCreate("test1")
+                .addMapping("type", queryFieldName, "type=percolator", "field", "type=keyword")
+        );
+        createIndex("test2", client().admin().indices().prepareCreate("test2")
+            .addMapping("type", queryFieldName, "type=percolator", "second_query_field", "type=percolator", "field", "type=keyword")
+        );
+        createIndex("test3", client().admin().indices().prepareCreate("test3")
+            .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("field")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("object_field")
+                .field("type", "object")
+                .startObject("properties")
+                .startObject(queryFieldName)
+                .field("type", "percolator")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject())
         );
     }
 
     public void testWithMultiplePercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
         createIndex("test1", client().admin().indices().prepareCreate("test1")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("doc_type", "field", "type=keyword")
-                .addMapping("query_type", queryFieldName, "type=percolator"));
+                .addMapping("type", queryFieldName, "type=percolator", "field", "type=keyword"));
         createIndex("test2", client().admin().indices().prepareCreate("test2")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("doc_type", "field", "type=keyword")
-                .addMapping("query_type", jsonBuilder().startObject().startObject("query_type").startObject("properties")
+                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                        .startObject("field")
+                        .field("type", "keyword")
+                        .endObject()
                         .startObject("object_field")
                         .field("type", "object")
                         .startObject("properties")
@@ -526,10 +530,10 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         );
 
         // Acceptable:
-        client().prepareIndex("test1", "query_type", "1")
+        client().prepareIndex("test1", "type", "1")
                 .setSource(jsonBuilder().startObject().field(queryFieldName, matchQuery("field", "value")).endObject())
                 .get();
-        client().prepareIndex("test2", "query_type", "1")
+        client().prepareIndex("test2", "type", "1")
                 .setSource(jsonBuilder().startObject().startObject("object_field")
                         .field(queryFieldName, matchQuery("field", "value"))
                         .endObject().endObject())
@@ -538,26 +542,26 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
         BytesReference source = jsonBuilder().startObject().field("field", "value").endObject().bytes();
         SearchResponse response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder(queryFieldName, "doc_type", source, XContentType.JSON))
+                .setQuery(new PercolateQueryBuilder(queryFieldName, "type", source, XContentType.JSON))
                 .setIndices("test1")
                 .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getType(), equalTo("query_type"));
+        assertThat(response.getHits().getAt(0).getType(), equalTo("type"));
         assertThat(response.getHits().getAt(0).getIndex(), equalTo("test1"));
 
         response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("object_field." + queryFieldName, "doc_type", source, XContentType.JSON))
+                .setQuery(new PercolateQueryBuilder("object_field." + queryFieldName, "type", source, XContentType.JSON))
                 .setIndices("test2")
                 .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getType(), equalTo("query_type"));
+        assertThat(response.getHits().getAt(0).getType(), equalTo("type"));
         assertThat(response.getHits().getAt(0).getIndex(), equalTo("test2"));
 
         // Unacceptable:
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-            client().prepareIndex("test2", "query_type", "1")
+            client().prepareIndex("test2", "type", "1")
                     .setSource(jsonBuilder().startObject().startArray("object_field")
                             .startObject().field(queryFieldName, matchQuery("field", "value")).endObject()
                             .startObject().field(queryFieldName, matchQuery("field", "value")).endObject()

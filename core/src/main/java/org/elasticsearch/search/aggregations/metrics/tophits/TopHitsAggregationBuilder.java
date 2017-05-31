@@ -533,7 +533,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         List<ScriptFieldsContext.ScriptField> fields = new ArrayList<>();
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
-                SearchScript searchScript = context.getQueryShardContext().getSearchScript(field.script(),
+                SearchScript.LeafFactory searchScript = context.getQueryShardContext().getSearchScript(field.script(),
                     SearchScript.CONTEXT);
                 fields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), searchScript, field.ignoreFailure()));

@@ -18,10 +18,13 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -296,6 +299,32 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     protected static DirectoryReader wrap(DirectoryReader directoryReader) throws IOException {
         return ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("_index", "_na_"), 0));
+    }
+
+    /**
+     * Added to randomly run with more assertions on the index searcher level,
+     * like {@link org.apache.lucene.util.LuceneTestCase#newSearcher(IndexReader)}, which can't be used because it also
+     * wraps in the IndexSearcher's IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
+     */
+    protected static IndexSearcher newIndexSearcher(IndexReader indexReader) {
+        if (randomBoolean()) {
+            return new AssertingIndexSearcher(random(), indexReader);
+        } else {
+            return new IndexSearcher(indexReader);
+        }
+    }
+
+    /**
+     * Added to randomly run with more assertions on the index reader level,
+     * like {@link org.apache.lucene.util.LuceneTestCase#wrapReader(IndexReader)}, which can't be used because it also
+     * wraps in the IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
+     */
+    protected static IndexReader maybeWrapReaderEs(DirectoryReader reader) throws IOException {
+        if (randomBoolean()) {
+            return new AssertingDirectoryReader(reader);
+        } else {
+            return reader;
+        }
     }
 
     @After

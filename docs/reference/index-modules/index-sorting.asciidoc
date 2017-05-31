@@ -158,7 +158,7 @@ GET /events/_search
 // CONSOLE
 // TEST[continued]
 
-ES will detect that the top docs of each segment are already sorted in the index
+Elasticsearch will detect that the top docs of each segment are already sorted in the index
 but we still need to compute the total number of documents that match the query.
 If you're only looking for the last 10 events and have no interest in
 the total number of documents that match the query you can set `track_total_hits`

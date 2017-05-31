@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class EarlyTerminatingCollector extends FilterCollector {
     private final int maxCountHits;
     private int numCollected;
-    private final AtomicBoolean terminatedEarly = new AtomicBoolean(false);
+    private boolean terminatedEarly = false;
 
     EarlyTerminatingCollector(final Collector delegate, int maxCountHits) {
         super(delegate);
@@ -52,7 +52,7 @@ public class EarlyTerminatingCollector extends FilterCollector {
             public void collect(int doc) throws IOException {
                 super.collect(doc);
                 if (++numCollected >= maxCountHits) {
-                    terminatedEarly.set(true);
+                    terminatedEarly = true;
                     throw new CollectionTerminatedException();
                 }
             };
@@ -60,6 +60,6 @@ public class EarlyTerminatingCollector extends FilterCollector {
     }
 
     public boolean terminatedEarly() {
-        return terminatedEarly.get();
+        return terminatedEarly;
     }
 }

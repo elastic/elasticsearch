@@ -22,6 +22,7 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
@@ -244,6 +245,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             // a constant_score query
             if (query instanceof ConstantScoreQuery) {
                 query = ((ConstantScoreQuery) query).getQuery();
+            } else if (query instanceof BoostQuery) {
+                query = ((BoostQuery) query).getQuery();
             } else {
                 break;
             }

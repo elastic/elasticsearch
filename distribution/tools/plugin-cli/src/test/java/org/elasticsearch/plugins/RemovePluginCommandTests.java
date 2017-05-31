@@ -59,9 +59,13 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     static MockTerminal removePlugin(String name, Path home) throws Exception {
+        return removePlugin(name, home, false);
+    }
+
+    static MockTerminal removePlugin(String name, Path home, boolean purge) throws Exception {
         Environment env = new Environment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
-        new RemovePluginCommand().execute(terminal, name, env);
+        new RemovePluginCommand().execute(terminal, env, name, purge);
         return terminal;
     }
 
@@ -121,6 +125,17 @@ public class RemovePluginCommandTests extends ESTestCase {
         final MockTerminal terminal = removePlugin("fake", home);
         assertTrue(Files.exists(env.configFile().resolve("fake")));
         assertThat(terminal.getOutput(), containsString(expectedConfigDirPreservedMessage(configDir)));
+        assertRemoveCleaned(env);
+    }
+
+    public void testConfigDirPurged() throws Exception {
+        Files.createDirectories(env.pluginsFile().resolve("fake"));
+        final Path configDir = env.configFile().resolve("fake");
+        Files.createDirectories(configDir);
+        Files.createFile(configDir.resolve("fake.yml"));
+        final MockTerminal terminal = removePlugin("fake", home, true);
+        assertFalse(Files.exists(env.configFile().resolve("fake")));
+        assertThat(terminal.getOutput(), not(containsString(expectedConfigDirPreservedMessage(configDir))));
         assertRemoveCleaned(env);
     }
 

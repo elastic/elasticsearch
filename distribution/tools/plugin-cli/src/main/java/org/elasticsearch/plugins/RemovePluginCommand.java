@@ -26,7 +26,6 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -87,41 +86,72 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         terminal.println("-> removing [" + pluginName + "]...");
 
         final Path pluginDir = env.pluginsFile().resolve(pluginName);
-        if (Files.exists(pluginDir) == false) {
+        final Path pluginConfigDir = env.configFile().resolve(pluginName);
+        /*
+         * If the plugin does not exist and the plugin config does not exist, fail to the user that the plugin is not found. Or, if the
+         * plugin does not exist, the plugin config does, and we are not purging, again fail to the user that the plugin is not found.
+         */
+        if ((!Files.exists(pluginDir) && !Files.exists(pluginConfigDir))
+                || (!Files.exists(pluginDir) && Files.exists(pluginConfigDir) && !purge)) {
             final String message = String.format(
-                    Locale.ROOT,
-                    "plugin [%s] not found; "
-                            + "run 'elasticsearch-plugin list' to get list of installed plugins",
-                    pluginName);
+                    Locale.ROOT, "plugin [%s] not found; run 'elasticsearch-plugin list' to get list of installed plugins", pluginName);
             throw new UserException(ExitCodes.CONFIG, message);
         }
 
         final List<Path> pluginPaths = new ArrayList<>();
 
+        /*
+         * Add the contents of the plugin directory before creating the marker file and adding it to the list of paths to be deleted so
+         * that the marker file is the last file to be deleted.
+         */
+        if (Files.exists(pluginDir)) {
+            try (Stream<Path> paths = Files.list(pluginDir)) {
+                pluginPaths.addAll(paths.collect(Collectors.toList()));
+            }
+            terminal.println(VERBOSE, "removing [" + pluginDir + "]");
+        }
+
         final Path pluginBinDir = env.binFile().resolve(pluginName);
         if (Files.exists(pluginBinDir)) {
-            if (Files.isDirectory(pluginBinDir) == false) {
-                throw new UserException(
-                        ExitCodes.IO_ERROR, "bin dir for " + pluginName + " is not a directory");
+            if (!Files.isDirectory(pluginBinDir)) {
+                throw new UserException(ExitCodes.IO_ERROR, "bin dir for " + pluginName + " is not a directory");
+            }
+            try (Stream<Path> paths = Files.list(pluginBinDir)) {
+                pluginPaths.addAll(paths.collect(Collectors.toList()));
             }
             pluginPaths.add(pluginBinDir);
             terminal.println(VERBOSE, "removing [" + pluginBinDir + "]");
         }
 
-        terminal.println(VERBOSE, "removing [" + pluginDir + "]");
-         /*
+        if (Files.exists(pluginConfigDir)) {
+            if (purge) {
+                try (Stream<Path> paths = Files.list(pluginConfigDir)) {
+                    pluginPaths.addAll(paths.collect(Collectors.toList()));
+                }
+                pluginPaths.add(pluginConfigDir);
+                terminal.println(VERBOSE, "removing [" + pluginConfigDir + "]");
+            } else {
+                /*
+                 * By default we preserve the config files in case the user is upgrading the plugin, but we print a message so the user
+                 * knows in case they want to remove manually.
+                 */
+                final String message = String.format(
+                        Locale.ROOT,
+                        "-> preserving plugin config files [%s] in case of upgrade; use --purge if not needed",
+                        pluginConfigDir);
+                terminal.println(message);
+            }
+        }
+
+        /*
          * We are going to create a marker file in the plugin directory that indicates that this plugin is a state of removal. If the
          * removal fails, the existence of this marker file indicates that the plugin is in a garbage state. We check for existence of this
-         * marker file during startup so that we do not startup with plugins in such a garbage state.
+         * marker file during startup so that we do not startup with plugins in such a garbage state. Up to this point, we have not done
+         * anything destructive, so we create the marker file as the last action before executing destructive operations. We place this
+         * marker file in the root plugin directory (not the specific plugin directory) so that we do not have to create the specific plugin
+         * directory if it does not exist (we are purging configuration files).
          */
-        final Path removing = pluginDir.resolve(".removing-" + pluginName);
-        /*
-         * Add the contents of the plugin directory before creating the marker file and adding it to the list of paths to be deleted so
-         * that the marker file is the last file to be deleted.
-         */
-        try (Stream<Path> paths = Files.list(pluginDir)) {
-            pluginPaths.addAll(paths.collect(Collectors.toList()));
-        }
+        final Path removing = env.pluginsFile().resolve(".removing-" + pluginName);
         try {
             Files.createFile(removing);
         } catch (final FileAlreadyExistsException e) {
@@ -132,30 +162,12 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
             terminal.println(VERBOSE, "marker file [" + removing + "] already exists");
         }
 
-        final Path pluginConfigDir = env.configFile().resolve(pluginName);
-        if (Files.exists(pluginConfigDir)) {
-            if (purge) {
-                try (Stream<Path> paths = Files.list(pluginConfigDir)) {
-                    pluginPaths.addAll(paths.collect(Collectors.toList()));
-                }
-                pluginPaths.add(pluginConfigDir);
-            } else {
-                /*
-                 * By default we preserve the config files in case the user is upgrading the plugin, but we print a message so the user
-                 * knows in case they want to remove manually.
-                 */
-                final String message = String.format(
-                        Locale.ROOT,
-                        "-> preserving plugin config files [%s] in case of upgrade; delete manually if not needed",
-                        pluginConfigDir);
-                terminal.println(message);
-            }
-        }
-
-        // now add the marker file
-        pluginPaths.add(removing);
-        // finally, add the plugin directory
+        // add the plugin directory
         pluginPaths.add(pluginDir);
+
+        // finally, add the marker file
+        pluginPaths.add(removing);
+
         IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
     }
 

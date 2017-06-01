@@ -24,13 +24,13 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
@@ -55,8 +55,6 @@ import static org.hamcrest.Matchers.containsString;
  * with {@code tests.is_old_cluster} set to {@code false}.
  */
 public class FullClusterRestartIT extends ESRestTestCase {
-    private static final String REPO = "/_snapshot/repo";
-
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
     private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1);
@@ -293,9 +291,10 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 repoConfig.endObject();
             }
             repoConfig.endObject();
-            client().performRequest("PUT", REPO, emptyMap(), new StringEntity(repoConfig.string(), ContentType.APPLICATION_JSON));
+            client().performRequest("PUT", "/_snapshot/repo", emptyMap(),
+                    new StringEntity(repoConfig.string(), ContentType.APPLICATION_JSON));
 
-            client().performRequest("PUT", REPO + "/snap", singletonMap("wait_for_completion", "true"));
+            client().performRequest("PUT", "/_snapshot/repo/snap", singletonMap("wait_for_completion", "true"));
         } else {
             count = countOfIndexedRandomDocuments();
         }
@@ -313,21 +312,21 @@ public class FullClusterRestartIT extends ESRestTestCase {
             client().performRequest("DELETE", "/restored_*");
         }
 
-        if (runningAgainstOldCluster) {
-            // TODO restoring the snapshot against the new cluster seems to fail! This seems like a bug.
-            XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
-            restoreCommand.field("include_global_state", false);
-            restoreCommand.field("indices", index);
-            restoreCommand.field("rename_pattern", index);
-            restoreCommand.field("rename_replacement", "restored_" + index);
-            restoreCommand.endObject();
-            client().performRequest("POST", REPO + "/snap/_restore", singletonMap("wait_for_completion", "true"),
-                    new StringEntity(restoreCommand.string(), ContentType.APPLICATION_JSON));
+        Map<String, Object> response = toMap(client().performRequest("GET", "/_snapshot/repo/*", singletonMap("verbose", "true")));
+        fail (response.toString());
 
-            countResponse = EntityUtils.toString(
-                    client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")).getEntity());
-            assertThat(countResponse, containsString("\"total\":" + count));
-        }
+        XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
+        restoreCommand.field("include_global_state", false);
+        restoreCommand.field("indices", index);
+        restoreCommand.field("rename_pattern", index);
+        restoreCommand.field("rename_replacement", "restored_" + index);
+        restoreCommand.endObject();
+        client().performRequest("POST", "/_snapshot/repo/snap/_restore", singletonMap("wait_for_completion", "true"),
+                new StringEntity(restoreCommand.string(), ContentType.APPLICATION_JSON));
+
+        countResponse = EntityUtils.toString(
+                client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")).getEntity());
+        assertThat(countResponse, containsString("\"total\":" + count));
     }
 
     // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
@@ -379,7 +378,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     private void refresh() throws IOException {
-        logger.info("Refreshing [{}]", index);
+        logger.debug("Refreshing [{}]", index);
         client().performRequest("POST", "/" + index + "/_refresh");
     }
 }

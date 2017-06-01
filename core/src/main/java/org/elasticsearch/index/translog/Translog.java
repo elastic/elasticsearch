@@ -512,16 +512,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * while receiving future ones as well
      */
     public Translog.View newView() {
-        long viewGenToClean = -1;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            viewGenToClean = deletionPolicy.acquireTranslogGenForView();
-            View view = new View(viewGenToClean);
-            viewGenToClean = -1;
-            return view;
-        } finally {
-            if (viewGenToClean != -1) {
-                deletionPolicy.releaseTranslogGenView(viewGenToClean);
+            final long viewGen = deletionPolicy.acquireTranslogGenForView();
+            try {
+                return new View(viewGen);
+            } catch (Exception e) {
+                deletionPolicy.releaseTranslogGenView(viewGen);
+                throw e;
             }
         }
     }

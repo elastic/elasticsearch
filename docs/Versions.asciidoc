@@ -1,9 +1,9 @@
-:version:               5.3.2
+:version:               5.3.3
 :major-version:         5.x
 :lucene_version:        6.4.2
 :lucene_version_path:   6_4_2
 :branch:                5.3
-:jdk:                   1.8.0_73
+:jdk:                   1.8.0_131
 
 //////////
 release-state can be: released | prerelease | unreleased

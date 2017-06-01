@@ -476,7 +476,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // if another master was elected and took over finalizing the snapshot, it is possible
             // that both nodes try to finalize the snapshot and write to the same blobs, so we just
             // log a warning here and carry on
-            logger.warn("Blob already exists while finalizing snapshot, assume the snapshot has already been saved", ex);
+            throw new RepositoryException(metadata.name(), "Blob already exists while " +
+                "finalizing snapshot, assume the snapshot has already been saved", ex);
         } catch (IOException ex) {
             throw new RepositoryException(metadata.name(), "failed to update snapshot in repository", ex);
         }

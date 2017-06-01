@@ -20,7 +20,7 @@ The main {ml} resources can be accessed with a variety of endpoints:
 [[ml-api-jobs]]
 === /anomaly_detectors/
 
-* <<ml-put-job,POST /anomaly_detectors>>: Create a job
+* <<ml-put-job,PUT /anomaly_detectors/<job_id+++>+++>>: Create a job
 * <<ml-open-job,POST /anomaly_detectors/<job_id>/_open>>: Open a job
 * <<ml-post-data,POST /anomaly_detectors/<job_id>/_data>>: Send data to a job
 * <<ml-get-job,GET /anomaly_detectors>>: List jobs

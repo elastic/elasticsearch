@@ -23,10 +23,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.join.mapper.ParentIdFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -47,32 +45,21 @@ public final class ParentJoinFieldSubFetchPhase implements FetchSubPhase {
         if (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false) {
             return;
         }
-        if (context.mapperService().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha2)) {
-            return;
-        }
-        DocumentMapper docMapper = context.mapperService().documentMapper(hitContext.hit().getType());
-        Tuple<String, String> joinField = null;
-        Tuple<String, String> parentField = null;
-        for (FieldMapper fieldMapper : docMapper.mappers()) {
-            if (fieldMapper instanceof ParentJoinFieldMapper) {
-                String joinName = getSortedDocValue(fieldMapper.name(), hitContext.reader(), hitContext.docId());
-                if (joinName != null) {
-                    ParentJoinFieldMapper joinFieldMapper = (ParentJoinFieldMapper) fieldMapper;
-                    joinField = new Tuple<>(fieldMapper.name(), joinName);
-                    // we retrieve the parent id only for children.
-                    FieldMapper parentMapper = joinFieldMapper.getParentIdFieldMapper(joinName, false);
-                    if (parentMapper != null) {
-                        String parent = getSortedDocValue(parentMapper.name(), hitContext.reader(), hitContext.docId());
-                        parentField = new Tuple<>(parentMapper.name(), parent);
-                    }
-                    break;
-                }
-            }
-        }
-
-        if (joinField == null) {
+        ParentJoinFieldMapper mapper = ParentJoinFieldMapper.getMapper(context.mapperService());
+        if (mapper == null) {
             // hit has no join field.
             return;
+        }
+        String joinName = getSortedDocValue(mapper.name(), hitContext.reader(), hitContext.docId());
+        if (joinName == null) {
+            return;
+        }
+
+        // if the hit is a children we extract the parentId (if it's a parent we can use the _id field directly)
+        ParentIdFieldMapper parentMapper = mapper.getParentIdFieldMapper(joinName, false);
+        String parentId = null;
+        if (parentMapper != null) {
+            parentId = getSortedDocValue(parentMapper.name(), hitContext.reader(), hitContext.docId());
         }
 
         Map<String, SearchHitField> fields = hitContext.hit().fieldsOrNull();
@@ -80,9 +67,9 @@ public final class ParentJoinFieldSubFetchPhase implements FetchSubPhase {
             fields = new HashMap<>();
             hitContext.hit().fields(fields);
         }
-        fields.put(joinField.v1(), new SearchHitField(joinField.v1(), Collections.singletonList(joinField.v2())));
-        if (parentField != null) {
-            fields.put(parentField.v1(), new SearchHitField(parentField.v1(), Collections.singletonList(parentField.v2())));
+        fields.put(mapper.name(), new SearchHitField(mapper.name(), Collections.singletonList(joinName)));
+        if (parentId != null) {
+            fields.put(parentMapper.name(), new SearchHitField(parentMapper.name(), Collections.singletonList(parentId)));
         }
     }
 

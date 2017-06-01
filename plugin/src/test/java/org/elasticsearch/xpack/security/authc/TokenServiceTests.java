@@ -136,7 +136,7 @@ public class TokenServiceTests extends ESTestCase {
         assertNotNull(token);
         doAnswer(invocationOnMock -> {
             GetRequest request = (GetRequest) invocationOnMock.getArguments()[1];
-            assertEquals(token.getId(), request.id());
+            assertEquals(TokenService.DOC_TYPE + "_" + token.getId(), request.id());
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[2];
             GetResponse response = mock(GetResponse.class);
             when(response.isExists()).thenReturn(true);

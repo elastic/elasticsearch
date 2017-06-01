@@ -87,11 +87,13 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
         final Path pluginDir = env.pluginsFile().resolve(pluginName);
         final Path pluginConfigDir = env.configFile().resolve(pluginName);
+        final Path removing = env.pluginsFile().resolve(".removing-" + pluginName);
         /*
-         * If the plugin does not exist and the plugin config does not exist, fail to the user that the plugin is not found. Or, if the
-         * plugin does not exist, the plugin config does, and we are not purging, again fail to the user that the plugin is not found.
+         * If the plugin does not exist and the plugin config does not exist, fail to the user that the plugin is not found, unless there's
+         * a marker file left from a previously failed attempt in which case we proceed to clean up the marker file. Or, if the plugin does
+         * not exist, the plugin config does, and we are not purging, again fail to the user that the plugin is not found.
          */
-        if ((!Files.exists(pluginDir) && !Files.exists(pluginConfigDir))
+        if ((!Files.exists(pluginDir) && !Files.exists(pluginConfigDir) && !Files.exists(removing))
                 || (!Files.exists(pluginDir) && Files.exists(pluginConfigDir) && !purge)) {
             final String message = String.format(
                     Locale.ROOT, "plugin [%s] not found; run 'elasticsearch-plugin list' to get list of installed plugins", pluginName);
@@ -151,7 +153,6 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
          * marker file in the root plugin directory (not the specific plugin directory) so that we do not have to create the specific plugin
          * directory if it does not exist (we are purging configuration files).
          */
-        final Path removing = env.pluginsFile().resolve(".removing-" + pluginName);
         try {
             Files.createFile(removing);
         } catch (final FileAlreadyExistsException e) {

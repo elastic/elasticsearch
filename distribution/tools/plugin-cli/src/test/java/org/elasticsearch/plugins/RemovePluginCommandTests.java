@@ -153,6 +153,15 @@ public class RemovePluginCommandTests extends ESTestCase {
         assertThat(e, hasToString(containsString("plugin [fake] not found")));
     }
 
+    public void testPurgeOnlyMarkerFileExists() throws Exception {
+        final Path configDir = env.configFile().resolve("fake");
+        final Path removing = env.pluginsFile().resolve(".removing-fake");
+        Files.createFile(removing);
+        final MockTerminal terminal = removePlugin("fake", home, randomBoolean());
+        assertFalse(Files.exists(removing));
+        assertThat(terminal.getOutput(), not(containsString(expectedConfigDirPreservedMessage(configDir))));
+    }
+
     public void testNoConfigDirPreserved() throws Exception {
         Files.createDirectories(env.pluginsFile().resolve("fake"));
         final Path configDir = env.configFile().resolve("fake");

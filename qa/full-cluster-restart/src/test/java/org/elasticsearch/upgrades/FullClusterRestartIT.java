@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
+import java.nio.charset.UnsupportedCharsetException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -59,6 +60,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
     private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1);
+    private final String index = getTestName().toLowerCase(Locale.ROOT);
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -71,7 +73,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     public void testSearch() throws Exception {
-        String index = getTestName().toLowerCase(Locale.ROOT);
         if (runningAgainstOldCluster) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
@@ -104,7 +105,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
 
             int numDocs = randomIntBetween(2000, 3000);
-            indexRandomDocuments(index, numDocs, true, i -> {
+            indexRandomDocuments(numDocs, true, i -> {
                 return JsonXContent.contentBuilder().startObject()
                 .field("string", randomAlphaOfLength(10))
                 .field("int", randomInt(100))
@@ -118,10 +119,10 @@ public class FullClusterRestartIT extends ESRestTestCase {
             logger.info("Refreshing [{}]", index);
             client().performRequest("POST", "/" + index + "/_refresh");
         }
-        assertBasicSearchWorks(index);
+        assertBasicSearchWorks();
     }
 
-    void assertBasicSearchWorks(String index) throws IOException {
+    void assertBasicSearchWorks() throws IOException {
         logger.info("--> testing basic search");
         Map<String, Object> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
         assertNoFailures(response);
@@ -165,7 +166,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
      * Tests that a single document survives. Super basic smoke test.
      */
     public void testSingleDoc() throws IOException {
-        String docLocation = "/" + getTestName().toLowerCase(Locale.ROOT) + "/doc/1";
+        String docLocation = "/" + index + "/doc/1";
         String doc = "{\"test\": \"test\"}";
 
         if (runningAgainstOldCluster) {
@@ -176,11 +177,11 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(client().performRequest("GET", docLocation).getEntity()), containsString(doc));
     }
 
-    public void testRandomDocumentsAndSnapshot() throws IOException {
-        String testName = getTestName().toLowerCase(Locale.ROOT);
-        String index = testName + "_data";
-        String infoDocument = "/" + testName + "_info/doc/info";
-
+    /**
+     * Tests recovery of an index with or without a translog and the
+     * statistics we gather about that. 
+     */
+    public void testRecovery() throws IOException {
         int count;
         boolean shouldHaveTranslog;
         if (runningAgainstOldCluster) {
@@ -189,34 +190,19 @@ public class FullClusterRestartIT extends ESRestTestCase {
              * an index without a translog so we randomize whether
              * or not we have one. */
             shouldHaveTranslog = randomBoolean();
-            logger.info("Creating {} documents", count);
-            indexRandomDocuments(index, count, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
-            createSnapshot();
+
+            indexRandomDocuments(count, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
             // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
             client().performRequest("POST", "/_flush");
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
-                indexRandomDocuments(index, count / 10, false /* Flushing here would invalidate the whole thing....*/,
+                indexRandomDocuments(count / 10, false /* Flushing here would invalidate the whole thing....*/,
                     i -> jsonBuilder().startObject().field("field", "value").endObject());
             }
-
-            // Record how many documents we built so we can compare later
-            XContentBuilder infoDoc = JsonXContent.contentBuilder().startObject();
-            infoDoc.field("count", count);
-            infoDoc.field("should_have_translog", shouldHaveTranslog);
-            infoDoc.endObject();
-            client().performRequest("PUT", infoDocument, singletonMap("refresh", "true"),
-                    new StringEntity(infoDoc.string(), ContentType.APPLICATION_JSON));
+            saveInfoDocument("should_have_translog", Boolean.toString(shouldHaveTranslog));
         } else {
-            // Load the number of documents that were written to the old cluster
-            String doc = EntityUtils.toString(
-                    client().performRequest("GET", infoDocument, singletonMap("filter_path", "_source")).getEntity());
-            Matcher m = Pattern.compile("\"count\":(\\d+)").matcher(doc);
-            assertTrue(doc, m.find());
-            count = Integer.parseInt(m.group(1));
-            m = Pattern.compile("\"should_have_translog\":(true|false)").matcher(doc);
-            assertTrue(doc, m.find());
-            shouldHaveTranslog = Booleans.parseBoolean(m.group(1));
+            count = countOfIndexedRandomDocuments();
+            shouldHaveTranslog = Booleans.parseBoolean(loadInfoDocument("should_have_translog"));
         }
 
         // Count the documents in the index to make sure we have as many as we put there
@@ -225,106 +211,91 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertThat(countResponse, containsString("\"total\":" + count));
 
         if (false == runningAgainstOldCluster) {
-            assertTranslogRecoveryStatistics(index, shouldHaveTranslog);
-        }
-
-        restoreSnapshot(index, count);
-
-        // TODO finish adding tests for the things in OldIndexBackwardsCompatibilityIT
-    }
-
-    // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
-
-    private void indexRandomDocuments(String index, int count, boolean flushAllowed,
-                                      CheckedFunction<Integer, XContentBuilder, IOException> docSupplier) throws IOException {
-        for (int i = 0; i < count; i++) {
-            logger.debug("Indexing document [{}]", i);
-            client().performRequest("POST", "/" + index + "/doc/" + i, emptyMap(),
-                    new StringEntity(docSupplier.apply(i).string(), ContentType.APPLICATION_JSON));
-            if (rarely()) {
-                logger.info("Refreshing [{}]", index);
-                client().performRequest("POST", "/" + index + "/_refresh");
-            }
-            if (flushAllowed && rarely()) {
-                logger.info("Flushing [{}]", index);
-                client().performRequest("POST", "/" + index + "/_flush");
-            }
-        }
-    }
-
-    private void createSnapshot() throws IOException {
-        XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject(); {
-            repoConfig.field("type", "fs");
-            repoConfig.startObject("settings"); {
-                repoConfig.field("compress", randomBoolean());
-                repoConfig.field("location", System.getProperty("tests.path.repo"));
-            }
-            repoConfig.endObject();
-        }
-        repoConfig.endObject();
-        client().performRequest("PUT", REPO, emptyMap(), new StringEntity(repoConfig.string(), ContentType.APPLICATION_JSON));
-
-        client().performRequest("PUT", REPO + "/snap", singletonMap("wait_for_completion", "true"));
-    }
-
-    private void assertTranslogRecoveryStatistics(String index, boolean shouldHaveTranslog) throws ParseException, IOException {
-        boolean restoredFromTranslog = false;
-        boolean foundPrimary = false;
-        Map<String, String> params = new HashMap<>();
-        params.put("h", "index,shard,type,stage,translog_ops_recovered");
-        params.put("s", "index,shard,type");
-        String recoveryResponse = EntityUtils.toString(client().performRequest("GET", "/_cat/recovery/" + index, params).getEntity());
-        for (String line : recoveryResponse.split("\n")) {
-            // Find the primaries
-            foundPrimary = true;
-            if (false == line.contains("done") && line.contains("existing_store")) {
-                continue;
-            }
-            /* Mark if we see a primary that looked like it restored from the translog.
-             * Not all primaries will look like this all the time because we modify
-             * random documents when we want there to be a translog and they might
-             * not be spread around all the shards. */
-            Matcher m = Pattern.compile("(\\d+)$").matcher(line);
-            assertTrue(line, m.find());
-            int translogOps = Integer.parseInt(m.group(1));
-            if (translogOps > 0) {
-                restoredFromTranslog = true;
-            }
-        }
-        assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
-        assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
-
-        String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
-        String bwcLuceneVersion = oldClusterVersion.luceneVersion.toString();
-        if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
-            int numCurrentVersion = 0;
-            int numBwcVersion = 0;
-            params.clear();
-            params.put("h", "prirep,shard,index,version");
-            params.put("s", "prirep,shard,index");
-            String segmentsResponse = EntityUtils.toString(
-                    client().performRequest("GET", "/_cat/segments/" + index, params).getEntity());
-            for (String line : segmentsResponse.split("\n")) {
-                if (false == line.startsWith("p")) {
+            boolean restoredFromTranslog = false;
+            boolean foundPrimary = false;
+            Map<String, String> params = new HashMap<>();
+            params.put("h", "index,shard,type,stage,translog_ops_recovered");
+            params.put("s", "index,shard,type");
+            String recoveryResponse = EntityUtils.toString(client().performRequest("GET", "/_cat/recovery/" + index, params).getEntity());
+            for (String line : recoveryResponse.split("\n")) {
+                // Find the primaries
+                foundPrimary = true;
+                if (false == line.contains("done") && line.contains("existing_store")) {
                     continue;
                 }
-                Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
+                /* Mark if we see a primary that looked like it restored from the translog.
+                 * Not all primaries will look like this all the time because we modify
+                 * random documents when we want there to be a translog and they might
+                 * not be spread around all the shards. */
+                Matcher m = Pattern.compile("(\\d+)$").matcher(line);
                 assertTrue(line, m.find());
-                String version = m.group(1);
-                if (currentLuceneVersion.equals(version)) {
-                    numCurrentVersion++;
-                } else if (bwcLuceneVersion.equals(version)) {
-                    numBwcVersion++;
-                } else {
-                    fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
+                int translogOps = Integer.parseInt(m.group(1));
+                if (translogOps > 0) {
+                    restoredFromTranslog = true;
                 }
             }
-            assertNotEquals("expected at least 1 current segment after translog recovery", 0, numCurrentVersion);
-            assertNotEquals("expected at least 1 old segment", 0, numBwcVersion);
+            assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
+            assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
+
+            String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
+            String bwcLuceneVersion = oldClusterVersion.luceneVersion.toString();
+            if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
+                int numCurrentVersion = 0;
+                int numBwcVersion = 0;
+                params.clear();
+                params.put("h", "prirep,shard,index,version");
+                params.put("s", "prirep,shard,index");
+                String segmentsResponse = EntityUtils.toString(
+                        client().performRequest("GET", "/_cat/segments/" + index, params).getEntity());
+                for (String line : segmentsResponse.split("\n")) {
+                    if (false == line.startsWith("p")) {
+                        continue;
+                    }
+                    Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
+                    assertTrue(line, m.find());
+                    String version = m.group(1);
+                    if (currentLuceneVersion.equals(version)) {
+                        numCurrentVersion++;
+                    } else if (bwcLuceneVersion.equals(version)) {
+                        numBwcVersion++;
+                    } else {
+                        fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
+                    }
+                }
+                assertNotEquals("expected at least 1 current segment after translog recovery", 0, numCurrentVersion);
+                assertNotEquals("expected at least 1 old segment", 0, numBwcVersion);
+            }
         }
     }
 
-    private void restoreSnapshot(String index, int count) throws ParseException, IOException {
+    public void testSnapshotRestore() throws IOException {
+        int count;
+        if (runningAgainstOldCluster) {
+            count = between(200, 300);
+            indexRandomDocuments(count, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+
+            // Create the repo and the snapshot
+            XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject(); {
+                repoConfig.field("type", "fs");
+                repoConfig.startObject("settings"); {
+                    repoConfig.field("compress", randomBoolean());
+                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                }
+                repoConfig.endObject();
+            }
+            repoConfig.endObject();
+            client().performRequest("PUT", REPO, emptyMap(), new StringEntity(repoConfig.string(), ContentType.APPLICATION_JSON));
+
+            client().performRequest("PUT", REPO + "/snap", singletonMap("wait_for_completion", "true"));
+        } else {
+            count = countOfIndexedRandomDocuments();
+        }
+
+        // Count the documents in the index to make sure we have as many as we put there
+        String countResponse = EntityUtils.toString(
+                client().performRequest("GET", "/" + index + "/_search", singletonMap("size", "0")).getEntity());
+        assertThat(countResponse, containsString("\"total\":" + count));
+
         if (false == runningAgainstOldCluster) {
             /* Remove any "restored" indices from the old cluster run of this test.
              * We intentionally don't remove them while running this against the
@@ -334,7 +305,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
 
         if (runningAgainstOldCluster) {
-            // TODO restoring the snapshot seems to fail! This seems like a bug.
+            // TODO restoring the snapshot against the new cluster seems to fail! This seems like a bug.
             XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
             restoreCommand.field("include_global_state", false);
             restoreCommand.field("indices", index);
@@ -344,11 +315,53 @@ public class FullClusterRestartIT extends ESRestTestCase {
             client().performRequest("POST", REPO + "/snap/_restore", singletonMap("wait_for_completion", "true"),
                     new StringEntity(restoreCommand.string(), ContentType.APPLICATION_JSON));
 
-            String countResponse = EntityUtils.toString(
+            countResponse = EntityUtils.toString(
                     client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")).getEntity());
             assertThat(countResponse, containsString("\"total\":" + count));
         }
+    }
 
+    // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
+
+    private void indexRandomDocuments(int count, boolean flushAllowed,
+                                      CheckedFunction<Integer, XContentBuilder, IOException> docSupplier) throws IOException {
+        logger.info("Indexing {} random documents", count);
+        for (int i = 0; i < count; i++) {
+            logger.debug("Indexing document [{}]", i);
+            client().performRequest("POST", "/" + index + "/doc/" + i, emptyMap(),
+                    new StringEntity(docSupplier.apply(i).string(), ContentType.APPLICATION_JSON));
+            if (rarely()) {
+                logger.debug("Refreshing [{}]", index);
+                client().performRequest("POST", "/" + index + "/_refresh");
+            }
+            if (flushAllowed && rarely()) {
+                logger.debug("Flushing [{}]", index);
+                client().performRequest("POST", "/" + index + "/_flush");
+            }
+        }
+        saveInfoDocument("count", Integer.toString(count));
+    }
+
+    private int countOfIndexedRandomDocuments() throws IOException {
+        return Integer.parseInt(loadInfoDocument("count"));
+    }
+
+    private void saveInfoDocument(String type, String value) throws IOException {
+        XContentBuilder infoDoc = JsonXContent.contentBuilder().startObject();
+        infoDoc.field("value", value);
+        infoDoc.endObject();
+        // Only create the first version so we know how many documents are created when the index is first created
+        Map<String, String> params = singletonMap("op_type", "create");
+        client().performRequest("PUT", "/info/doc/" + index + "_" + type, params,
+                new StringEntity(infoDoc.string(), ContentType.APPLICATION_JSON));
+    }
+
+    private String loadInfoDocument(String type) throws IOException {
+        String doc = EntityUtils.toString(
+                client().performRequest("GET", "/info/doc/" + index + "_" + type, singletonMap("filter_path", "_source")).getEntity());
+        Matcher m = Pattern.compile("\"" + type + "\":\".+\"").matcher(doc);
+        assertTrue(doc, m.find());
+        return m.group(1);
     }
 
     private Object randomLenientBoolean() {

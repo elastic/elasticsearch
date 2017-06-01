@@ -797,12 +797,14 @@ public class ElasticsearchAssertions {
             actualMap = actualParser.map();
             try (XContentParser expectedParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, expected)) {
                 expectedMap = expectedParser.map();
-                assertMapEquals(expectedMap, actualMap);
+                try {
+                    assertMapEquals(expectedMap, actualMap);
+                } catch (AssertionError error) {
+                    NotEqualMessageBuilder message = new NotEqualMessageBuilder();
+                    message.compareMaps(actualMap, expectedMap);
+                    throw new AssertionError("Error when comparing xContent.\n" + message.toString(), error);
+                }
             }
-        } catch (AssertionError error) {
-            NotEqualMessageBuilder message = new NotEqualMessageBuilder();
-            message.compareMaps(actualMap, expectedMap);
-            throw new AssertionError("Error when comparing xContent.\n" + message.toString(), error);
         }
     }
 

@@ -29,9 +29,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
@@ -63,17 +63,20 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
     public void testAssertXContentEquivalent() throws IOException {
         try (XContentBuilder original = JsonXContent.contentBuilder()) {
             original.startObject();
-            addRandomNumberOfFields(original);
+            for (Object value : RandomObjects.randomStoredFieldValues(random(), original.contentType()).v1()) {
+                original.field(randomAlphaOfLength(10), value);
+            }
             {
                 original.startObject(randomAlphaOfLength(10));
-                addRandomNumberOfFields(original);
+                for (Object value : RandomObjects.randomStoredFieldValues(random(), original.contentType()).v1()) {
+                    original.field(randomAlphaOfLength(10), value);
+                }
                 original.endObject();
             }
             {
                 original.startArray(randomAlphaOfLength(10));
-                int elements = randomInt(5);
-                for (int i = 0; i < elements; i++) {
-                    original.value(randomAlphaOfLength(10));
+                for (Object value : RandomObjects.randomStoredFieldValues(random(), original.contentType()).v1()) {
+                    original.value(value);
                 }
                 original.endArray();
             }
@@ -206,25 +209,6 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             AssertionError error = expectThrows(AssertionError.class,
                     () -> assertToXContentEquivalent(builder.bytes(), otherBuilder.bytes(), builder.contentType()));
             assertThat(error.getMessage(), containsString("expected [1] more entries"));
-        }
-    }
-
-    private static void addRandomNumberOfFields(XContentBuilder builder) throws IOException {
-        int fields = randomInt(5);
-        for (int i = 0; i < fields; i++) {
-            Supplier<Object> sup = () -> {
-                int supplier = randomInt(2);
-                switch (supplier) {
-                case 0:
-                    return randomAlphaOfLength(10);
-                case 1:
-                    return randomInt();
-                case 2:
-                default:
-                    return randomBoolean();
-                }
-            };
-            builder.field(randomAlphaOfLength(10), sup.get());
         }
     }
 }

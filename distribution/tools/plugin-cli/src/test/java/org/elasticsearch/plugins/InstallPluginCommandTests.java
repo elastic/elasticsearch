@@ -37,7 +37,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.BufferedReader;

@@ -244,24 +244,56 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
             .endObject().endObject().string();
         DocumentMapper initMapper = parser.parse("child", new CompressedXContent(initMapping));
 
-        String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("child")
+        assertThat(initMapper.mappers().getMapper("_parent#parent"), notNullValue());
+
+        String updatedMapping1 = XContentFactory.jsonBuilder().startObject().startObject("child")
             .startObject("properties")
             .startObject("name").field("type", "text").endObject()
             .endObject().endObject().endObject().string();
-        DocumentMapper updatedMapper = parser.parse("child", new CompressedXContent(updatedMapping));
-        DocumentMapper mergedMapper = initMapper.merge(updatedMapper.mapping(), false);
+        DocumentMapper updatedMapper1 = parser.parse("child", new CompressedXContent(updatedMapping1));
+        DocumentMapper mergedMapper1 = initMapper.merge(updatedMapper1.mapping(), false);
 
-        assertThat(mergedMapper.mappers().getMapper("_parent"), notNullValue());
-        assertThat(mergedMapper.mappers().getMapper("name"), notNullValue());
+        assertThat(mergedMapper1.mappers().getMapper("_parent#parent"), notNullValue());
+        assertThat(mergedMapper1.mappers().getMapper("name"), notNullValue());
+
+        String updatedMapping2 = XContentFactory.jsonBuilder().startObject().startObject("child")
+            .startObject("_parent").field("type", "parent").endObject()
+            .startObject("properties")
+            .startObject("age").field("type", "byte").endObject()
+            .endObject().endObject().endObject().string();
+        DocumentMapper updatedMapper2 = parser.parse("child", new CompressedXContent(updatedMapping2));
+        DocumentMapper mergedMapper2 = mergedMapper1.merge(updatedMapper2.mapping(), false);
+
+        assertThat(mergedMapper2.mappers().getMapper("_parent#parent"), notNullValue());
+        assertThat(mergedMapper2.mappers().getMapper("name"), notNullValue());
+        assertThat(mergedMapper2.mappers().getMapper("age"), notNullValue());
 
         String modParentMapping = XContentFactory.jsonBuilder().startObject().startObject("child")
             .startObject("_parent").field("type", "new_parent").endObject()
             .endObject().endObject().string();
         DocumentMapper modParentMapper = parser.parse("child", new CompressedXContent(modParentMapping));
-        try {
-            initMapper.merge(modParentMapper.mapping(), false);
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("The _parent field's type option can't be changed:"));
-        }
+        Exception e = expectThrows(IllegalArgumentException.class, () -> initMapper.merge(modParentMapper.mapping(), false));
+        assertThat(e.getMessage(), containsString("The _parent field's type option can't be changed: [parent]->[new_parent]"));
+    }
+
+    public void testMergeAddingParent() throws IOException {
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        String initMapping = XContentFactory.jsonBuilder().startObject().startObject("cowboy")
+            .startObject("properties")
+            .startObject("name").field("type", "text").endObject()
+            .endObject().endObject().endObject().string();
+        DocumentMapper initMapper = parser.parse("cowboy", new CompressedXContent(initMapping));
+
+        assertThat(initMapper.mappers().getMapper("name"), notNullValue());
+
+        String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("cowboy")
+            .startObject("_parent").field("type", "parent").endObject()
+            .startObject("properties")
+            .startObject("age").field("type", "byte").endObject()
+            .endObject().endObject().endObject().string();
+        DocumentMapper updatedMapper = parser.parse("cowboy", new CompressedXContent(updatedMapping));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> initMapper.merge(updatedMapper.mapping(), false));
+        assertThat(e.getMessage(), containsString("The _parent field's type option can't be changed: [null]->[parent]"));
     }
 }

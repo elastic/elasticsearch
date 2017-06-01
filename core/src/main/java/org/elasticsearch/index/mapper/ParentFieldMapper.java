@@ -295,6 +295,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        ParentFieldType currentFieldType = (ParentFieldType) fieldType.clone();
         super.doMerge(mergeWith, updateAllTypes);
         ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
         if (fieldMergeWith.parentType != null && Objects.equals(parentType, fieldMergeWith.parentType) == false) {
@@ -308,7 +309,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         }
 
         if (active()) {
-            fieldType = fieldMergeWith.fieldType.clone();
+            fieldType = currentFieldType;
         }
     }
 

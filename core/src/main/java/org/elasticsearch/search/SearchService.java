@@ -86,6 +86,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -310,7 +311,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
+        final SearchContext context = findContext(request.id(), request);
         SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         context.incRef();
         try {
@@ -334,7 +335,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public QuerySearchResult executeQueryPhase(QuerySearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
+        final SearchContext context = findContext(request.id(), request);
         context.setTask(task);
         IndexShard indexShard = context.indexShard();
         SearchOperationListener operationListener = indexShard.getSearchOperationListener();
@@ -375,7 +376,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public ScrollQueryFetchSearchResult executeFetchPhase(InternalScrollSearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
+        final SearchContext context = findContext(request.id(), request);
         context.incRef();
         try {
             context.setTask(task);
@@ -406,7 +407,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public FetchSearchResult executeFetchPhase(ShardFetchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
+        final SearchContext context = findContext(request.id(), request);
         final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         context.incRef();
         try {
@@ -436,7 +437,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private SearchContext findContext(long id) throws SearchContextMissingException {
+    private SearchContext findContext(long id, TransportRequest request) throws SearchContextMissingException {
         SearchContext context = activeContexts.get(id);
         if (context == null) {
             throw new SearchContextMissingException(id);
@@ -444,7 +445,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         try {
-            operationListener.validateSearchContext(context);
+            operationListener.validateSearchContext(context, request);
             return context;
         } catch (Exception e) {
             processFailure(context, e);

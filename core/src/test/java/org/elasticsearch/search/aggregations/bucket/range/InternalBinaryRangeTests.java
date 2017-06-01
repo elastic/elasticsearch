@@ -57,7 +57,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
             listOfRanges.add(Tuple.tuple(null, null));
         }
 
-        final int numRanges = randomNumberOfBuckets() - listOfRanges.size();
+        final int numRanges = Math.max(0, randomNumberOfBuckets() - listOfRanges.size());
         for (int i = 0; i < numRanges; i++) {
             BytesRef[] values = new BytesRef[2];
             values[0] = new BytesRef(randomAlphaOfLength(15));

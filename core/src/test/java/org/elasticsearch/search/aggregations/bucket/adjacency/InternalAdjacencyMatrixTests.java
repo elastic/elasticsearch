@@ -57,7 +57,6 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
                 }
             }
         }
-        System.out.println("");
     }
 
     @Override

@@ -38,7 +38,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/metrics/tophits-aggregation.asciidoc',
   'reference/cluster/allocation-explain.asciidoc',
   'reference/cluster/nodes-info.asciidoc',
-  'reference/cluster/nodes-stats.asciidoc',
   'reference/cluster/pending.asciidoc',
   'reference/cluster/state.asciidoc',
   'reference/cluster/stats.asciidoc',

@@ -48,10 +48,10 @@ import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.PropertyPermission;
 import java.util.Set;
+import java.util.PropertyPermission;
 
 /**
  * Runs tika with limited parsers and limited permissions.
@@ -61,7 +61,15 @@ import java.util.Set;
 final class TikaImpl {
 
     /** Exclude some formats */
-    private static final Set<MediaType> EXCLUDES = Collections.singleton(MediaType.application("x-tika-ooxml"));
+    private static final Set<MediaType> EXCLUDES = new HashSet<>(Arrays.asList(
+        MediaType.application("vnd.ms-visio.drawing"),
+        MediaType.application("vnd.ms-visio.drawing.macroenabled.12"),
+        MediaType.application("vnd.ms-visio.stencil"),
+        MediaType.application("vnd.ms-visio.stencil.macroenabled.12"),
+        MediaType.application("vnd.ms-visio.template"),
+        MediaType.application("vnd.ms-visio.template.macroenabled.12"),
+        MediaType.application("vnd.ms-visio.drawing")
+    ));
 
     /** subset of parsers for types we support */
     private static final Parser PARSERS[] = new Parser[] {

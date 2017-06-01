@@ -118,7 +118,6 @@ compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-tr
 forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'
-  exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
 }
 
 task generateModulesList {

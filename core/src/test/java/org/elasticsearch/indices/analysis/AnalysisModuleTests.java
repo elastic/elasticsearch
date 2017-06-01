@@ -258,15 +258,18 @@ public class AnalysisModuleTests extends ESTestCase {
      * and that do not vary based on version at all.
      */
     public void testPluginPreConfiguredCharFilters() throws IOException {
+        boolean noVersionSupportsMultiTerm = randomBoolean();
+        boolean luceneVersionSupportsMultiTerm = randomBoolean();
+        boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
         AnalysisRegistry registry = new AnalysisModule(new Environment(emptyNodeSettings), singletonList(new AnalysisPlugin() {
             @Override
             public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
                 return Arrays.asList(
-                        PreConfiguredCharFilter.singleton("no_version",
+                        PreConfiguredCharFilter.singleton("no_version", noVersionSupportsMultiTerm,
                                 tokenStream -> new AppendCharFilter(tokenStream, "no_version")),
-                        PreConfiguredCharFilter.luceneVersion("lucene_version",
+                        PreConfiguredCharFilter.luceneVersion("lucene_version", luceneVersionSupportsMultiTerm,
                                 (tokenStream, luceneVersion) -> new AppendCharFilter(tokenStream, luceneVersion.toString())),
-                        PreConfiguredCharFilter.elasticsearchVersion("elasticsearch_version",
+                        PreConfiguredCharFilter.elasticsearchVersion("elasticsearch_version", elasticsearchVersionSupportsMultiTerm,
                                 (tokenStream, esVersion) -> new AppendCharFilter(tokenStream, esVersion.toString()))
                         );
             }
@@ -285,6 +288,13 @@ public class AnalysisModuleTests extends ESTestCase {
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] {"testno_version"});
         assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] {"test" + version.luceneVersion});
         assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] {"test" + version});
+
+        assertEquals("test" + (noVersionSupportsMultiTerm ? "no_version" : ""),
+                analyzers.get("no_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
+                analyzers.get("lucene_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
+                analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString());
     }
 
     /**

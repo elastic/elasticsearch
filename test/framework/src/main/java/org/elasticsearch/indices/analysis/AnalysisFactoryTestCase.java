@@ -278,20 +278,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("persian",        Void.class)
         .immutableMap();
 
-    static final Map<PreBuiltCharFilters, Class<?>> PREBUILT_CHARFILTERS;
-    static {
-        PREBUILT_CHARFILTERS = new EnumMap<>(PreBuiltCharFilters.class);
-        for (PreBuiltCharFilters tokenizer : PreBuiltCharFilters.values()) {
-            Class<?> luceneFactoryClazz;
-            switch (tokenizer) {
-            default:
-                luceneFactoryClazz = org.apache.lucene.analysis.util.CharFilterFactory.lookupClass(
-                        toCamelCase(tokenizer.getCharFilterFactory(Version.CURRENT).name()));
-            }
-            PREBUILT_CHARFILTERS.put(tokenizer, luceneFactoryClazz);
-        }
-    }
-
     /**
      * The plugin being tested. Core uses an "empty" plugin so we don't have to throw null checks all over the place.
      */
@@ -500,7 +486,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                 luceneFactory = TokenFilterFactory.lookupClass(toCamelCase(name));
             }
             assertThat(luceneFactory, typeCompatibleWith(CharFilterFactory.class));
-            // We don't support multi-term aware char filters so lets hope there aren't any
+            if (filter.shouldUseFilterForMultitermQueries()) {
+                actual.add(filter);
+            }
             if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
                 expected.add("token filter [" + name + "]");
             }

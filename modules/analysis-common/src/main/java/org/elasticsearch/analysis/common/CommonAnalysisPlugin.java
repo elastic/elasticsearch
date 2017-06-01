@@ -111,9 +111,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
         List<PreConfiguredCharFilter> filters = new ArrayList<>();
-        filters.add(PreConfiguredCharFilter.singleton("html_strip", HTMLStripCharFilter::new));
+        filters.add(PreConfiguredCharFilter.singleton("html_strip", false, HTMLStripCharFilter::new));
         // TODO deprecate htmlStrip
-        filters.add(PreConfiguredCharFilter.singleton("htmlStrip", HTMLStripCharFilter::new));
+        filters.add(PreConfiguredCharFilter.singleton("htmlStrip", false, HTMLStripCharFilter::new));
         return filters;
     }
 

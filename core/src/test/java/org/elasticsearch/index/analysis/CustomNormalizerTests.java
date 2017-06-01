@@ -118,7 +118,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
 
         @Override
         public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
-            return singletonList(PreConfiguredCharFilter.singleton("mock_forbidden", Function.identity()));
+            return singletonList(PreConfiguredCharFilter.singleton("mock_forbidden", false, Function.identity()));
         }
 
         @Override

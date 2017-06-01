@@ -110,7 +110,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
             @Override
             public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
-                return singletonList(PreConfiguredCharFilter.singleton("append_foo", reader -> new AppendCharFilter(reader, "foo")));
+                return singletonList(PreConfiguredCharFilter.singleton("append_foo", false, reader -> new AppendCharFilter(reader, "foo")));
             }
         };
         registry = new AnalysisModule(environment, singletonList(plugin)).getAnalysisRegistry();

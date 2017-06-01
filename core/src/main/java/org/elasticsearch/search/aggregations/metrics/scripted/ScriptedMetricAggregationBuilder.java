@@ -190,7 +190,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         } else {
             executableInitScript = (p) -> null;
         }
-        Function<Map<String, Object>, SearchScript> searchMapScript =
+        Function<Map<String, Object>, SearchScript.LeafFactory> searchMapScript =
             queryShardContext.getLazySearchScript(mapScript, SearchScript.AGGS_CONTEXT);
         Function<Map<String, Object>, ExecutableScript> executableCombineScript;
         if (combineScript != null) {

@@ -53,7 +53,8 @@ import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.painless.WriterConstants.BASE_CLASS_TYPE;
+import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
+import static org.elasticsearch.painless.WriterConstants.BITSET_TYPE;
 import static org.elasticsearch.painless.WriterConstants.BOOTSTRAP_METHOD_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.COLLECTIONS_TYPE;
@@ -65,11 +66,16 @@ import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_DELEGATE_
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_METHOD;
 import static org.elasticsearch.painless.WriterConstants.EMPTY_MAP_METHOD;
 import static org.elasticsearch.painless.WriterConstants.EXCEPTION_TYPE;
+import static org.elasticsearch.painless.WriterConstants.GET_NAME_METHOD;
+import static org.elasticsearch.painless.WriterConstants.GET_SOURCE_METHOD;
+import static org.elasticsearch.painless.WriterConstants.GET_STATEMENTS_METHOD;
+import static org.elasticsearch.painless.WriterConstants.OBJECT_TYPE;
 import static org.elasticsearch.painless.WriterConstants.OUT_OF_MEMORY_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.STACK_OVERFLOW_ERROR_TYPE;
+import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
 
 /**
  * The root of all Painless trees.  Contains a series of statements.
@@ -203,9 +209,9 @@ public final class SSource extends AStatement {
 
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
-        String classBase = BASE_CLASS_TYPE.getInternalName();
+        String interfaceBase = BASE_INTERFACE_TYPE.getInternalName();
         String className = CLASS_TYPE.getInternalName();
-        String classInterfaces[] = new String[] { Type.getType(scriptInterface.getInterface()).getInternalName() };
+        String classInterfaces[] = new String[] { interfaceBase, Type.getType(scriptInterface.getInterface()).getInternalName() };
 
         ClassWriter writer = new ClassWriter(classFrames);
         ClassVisitor visitor = writer;
@@ -218,7 +224,7 @@ public final class SSource extends AStatement {
         if (debugStream != null) {
             visitor = new TraceClassVisitor(visitor, debugStream, null);
         }
-        visitor.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, classBase, classInterfaces);
+        visitor.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
         visitor.visitSource(Location.computeSourceName(name, source), null);
 
         // Write the a method to bootstrap def calls
@@ -231,6 +237,11 @@ public final class SSource extends AStatement {
         bootstrapDef.returnValue();
         bootstrapDef.endMethod();
 
+        // Write static variables for name, source and statements used for writing exception messages
+        visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$NAME", STRING_TYPE.getDescriptor(), null, null).visitEnd();
+        visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$SOURCE", STRING_TYPE.getDescriptor(), null, null).visitEnd();
+        visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$STATEMENTS", BITSET_TYPE.getDescriptor(), null, null).visitEnd();
+
         // Write the static variable used by the method to bootstrap def calls
         visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$DEFINITION", DEFINITION_TYPE.getDescriptor(), null, null).visitEnd();
 
@@ -239,9 +250,31 @@ public final class SSource extends AStatement {
         constructor.visitCode();
         constructor.loadThis();
         constructor.loadArgs();
-        constructor.invokeConstructor(BASE_CLASS_TYPE, CONSTRUCTOR);
+        constructor.invokeConstructor(OBJECT_TYPE, CONSTRUCTOR);
         constructor.returnValue();
         constructor.endMethod();
+
+        // Write a method to get static variable source
+        MethodWriter nameMethod = new MethodWriter(Opcodes.ACC_PUBLIC, GET_NAME_METHOD, visitor, globals.getStatements(), settings);
+        nameMethod.visitCode();
+        nameMethod.getStatic(CLASS_TYPE, "$NAME", STRING_TYPE);
+        nameMethod.returnValue();
+        nameMethod.endMethod();
+
+        // Write a method to get static variable source
+        MethodWriter sourceMethod = new MethodWriter(Opcodes.ACC_PUBLIC, GET_SOURCE_METHOD, visitor, globals.getStatements(), settings);
+        sourceMethod.visitCode();
+        sourceMethod.getStatic(CLASS_TYPE, "$SOURCE", STRING_TYPE);
+        sourceMethod.returnValue();
+        sourceMethod.endMethod();
+
+        // Write a method to get static variable statements
+        MethodWriter statementsMethod =
+            new MethodWriter(Opcodes.ACC_PUBLIC, GET_STATEMENTS_METHOD, visitor, globals.getStatements(), settings);
+        statementsMethod.visitCode();
+        statementsMethod.getStatic(CLASS_TYPE, "$STATEMENTS", BITSET_TYPE);
+        statementsMethod.returnValue();
+        statementsMethod.endMethod();
 
         // Write the method defined in the interface:
         MethodWriter executeMethod = new MethodWriter(Opcodes.ACC_PUBLIC, scriptInterface.getExecuteMethod(), visitor,
@@ -357,7 +390,7 @@ public final class SSource extends AStatement {
         writer.dup();
         writer.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
         writer.invokeVirtual(PAINLESS_EXPLAIN_ERROR_TYPE, PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD);
-        writer.invokeVirtual(BASE_CLASS_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
+        writer.invokeInterface(BASE_INTERFACE_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
         writer.throwException();
         // This looks like:
         // } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
@@ -373,7 +406,7 @@ public final class SSource extends AStatement {
         writer.loadThis();
         writer.swap();
         writer.invokeStatic(COLLECTIONS_TYPE, EMPTY_MAP_METHOD);
-        writer.invokeVirtual(BASE_CLASS_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
+        writer.invokeInterface(BASE_INTERFACE_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
         writer.throwException();
         writer.mark(endCatch);
     }

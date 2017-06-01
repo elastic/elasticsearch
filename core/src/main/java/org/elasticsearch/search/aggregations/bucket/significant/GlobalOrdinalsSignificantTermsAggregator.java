@@ -53,22 +53,28 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
     protected final SignificantTermsAggregatorFactory termsAggFactory;
     private final SignificanceHeuristic significanceHeuristic;
 
-    public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories,
-            ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, DocValueFormat format,
-            BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude,
-            SearchContext context, Aggregator parent,
-            SignificanceHeuristic significanceHeuristic, SignificantTermsAggregatorFactory termsAggFactory,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-
+    public GlobalOrdinalsSignificantTermsAggregator(String name,
+                                                    AggregatorFactories factories,
+                                                    ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
+                                                    DocValueFormat format,
+                                                    BucketCountThresholds bucketCountThresholds,
+                                                    IncludeExclude.OrdinalsFilter includeExclude,
+                                                    SearchContext context,
+                                                    Aggregator parent,
+                                                    boolean forceRemapGlobalOrds,
+                                                    SignificanceHeuristic significanceHeuristic,
+                                                    SignificantTermsAggregatorFactory termsAggFactory,
+                                                    List<PipelineAggregator> pipelineAggregators,
+                                                    Map<String, Object> metaData) throws IOException {
         super(name, factories, valuesSource, null, format, bucketCountThresholds, includeExclude, context, parent,
-                SubAggCollectionMode.DEPTH_FIRST, false, pipelineAggregators, metaData);
+            forceRemapGlobalOrds, SubAggCollectionMode.DEPTH_FIRST, false, pipelineAggregators, metaData);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
+        this.numCollectedDocs = 0;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         return new LeafBucketCollectorBase(super.getLeafCollector(ctx, sub), null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -78,18 +84,17 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         };
     }
 
-
     @Override
     public SignificantStringTerms buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        if (globalOrds == null) { // no context in this reader
+        if (valueCount == 0) { // no context in this reader
             return buildEmptyAggregation();
         }
 
         final int size;
         if (bucketCountThresholds.getMinDocCount() == 0) {
             // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-            size = (int) Math.min(globalOrds.getValueCount(), bucketCountThresholds.getShardSize());
+            size = (int) Math.min(valueCount, bucketCountThresholds.getShardSize());
         } else {
             size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
         }
@@ -98,7 +103,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         BucketSignificancePriorityQueue<SignificantStringTerms.Bucket> ordered = new BucketSignificancePriorityQueue<>(size);
         SignificantStringTerms.Bucket spare = null;
-        for (long globalTermOrd = 0; globalTermOrd < globalOrds.getValueCount(); ++globalTermOrd) {
+        for (long globalTermOrd = 0; globalTermOrd < valueCount; ++globalTermOrd) {
             if (includeExclude != null && !acceptedGlobalOrdinals.get(globalTermOrd)) {
                 continue;
             }
@@ -115,7 +120,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                 spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format);
             }
             spare.bucketOrd = bucketOrd;
-            copy(globalOrds.lookupOrd(globalTermOrd), spare.termBytes);
+            copy(lookupGlobalOrd.apply(globalTermOrd), spare.termBytes);
             spare.subsetDf = bucketDocCount;
             spare.subsetSize = subsetSize;
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
@@ -148,63 +153,13 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
         return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, 0, supersetSize, significanceHeuristic, emptyList());
+                pipelineAggregators(), metaData(), format, numCollectedDocs, supersetSize, significanceHeuristic, emptyList());
     }
 
     @Override
     protected void doClose() {
+        super.doClose();
         Releasables.close(termsAggFactory);
     }
-
-    public static class WithHash extends GlobalOrdinalsSignificantTermsAggregator {
-
-        private final LongHash bucketOrds;
-
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
-                DocValueFormat format, BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude,
-                SearchContext context, Aggregator parent, SignificanceHeuristic significanceHeuristic,
-                SignificantTermsAggregatorFactory termsAggFactory, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            super(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, context, parent, significanceHeuristic,
-                    termsAggFactory, pipelineAggregators, metaData);
-            bucketOrds = new LongHash(1, context.bigArrays());
-        }
-
-        @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-                final LeafBucketCollector sub) throws IOException {
-            return new LeafBucketCollectorBase(super.getLeafCollector(ctx, sub), null) {
-                @Override
-                public void collect(int doc, long bucket) throws IOException {
-                    assert bucket == 0;
-                    numCollectedDocs++;
-                    if (globalOrds.advanceExact(doc)) {
-                        for (long globalOrd = globalOrds.nextOrd(); 
-                                globalOrd != SortedSetDocValues.NO_MORE_ORDS; 
-                                globalOrd = globalOrds.nextOrd()) {
-                            long bucketOrd = bucketOrds.add(globalOrd);
-                            if (bucketOrd < 0) {
-                                bucketOrd = -1 - bucketOrd;
-                                collectExistingBucket(sub, doc, bucketOrd);
-                            } else {
-                                collectBucket(sub, doc, bucketOrd);
-                            }
-                        }
-                    }
-                }
-            };
-        }
-
-        @Override
-        protected long getBucketOrd(long termOrd) {
-            return bucketOrds.find(termOrd);
-        }
-
-        @Override
-        protected void doClose() {
-            Releasables.close(termsAggFactory, bucketOrds);
-        }
-    }
-
 }
 

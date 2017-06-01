@@ -56,7 +56,7 @@ public class ClientYamlTestExecutionContext {
         //makes a copy of the parameters before modifying them for this specific request
         HashMap<String, String> requestParams = new HashMap<>(params);
         // By default ask for error traces, this my be overridden by params
-        if (false == (esVersion().before(Version.V_5_2_0_UNRELEASED) && apiName.endsWith("put_settings"))) {
+        if (false == (esVersion().before(Version.V_5_2_0) && apiName.endsWith("put_settings"))) {
             // But not for APIs for which it is broken....
             // You should able to remove this branch and keep the statement below after releasing 5.2
             requestParams.putIfAbsent("error_trace", "true");

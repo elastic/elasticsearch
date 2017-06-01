@@ -20,8 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -38,7 +36,6 @@ import org.elasticsearch.index.query.SimpleQueryParser.Settings;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -159,16 +156,16 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         flags = in.readInt();
         analyzer = in.readOptionalString();
         defaultOperator = Operator.readFromStream(in);
-        if (in.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_1)) {
             in.readBoolean(); // lowercase_expanded_terms
         }
         settings.lenient(in.readBoolean());
         settings.analyzeWildcard(in.readBoolean());
-        if (in.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_1)) {
             in.readString(); // locale
         }
         minimumShouldMatch = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             settings.quoteFieldSuffix(in.readOptionalString());
             useAllFields = in.readOptionalBoolean();
         }
@@ -185,16 +182,16 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeInt(flags);
         out.writeOptionalString(analyzer);
         defaultOperator.writeTo(out);
-        if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_1)) {
             out.writeBoolean(true); // lowercase_expanded_terms
         }
         out.writeBoolean(settings.lenient());
         out.writeBoolean(settings.analyzeWildcard());
-        if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_1)) {
             out.writeString(Locale.ROOT.toLanguageTag()); // locale
         }
         out.writeOptionalString(minimumShouldMatch);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             out.writeOptionalString(settings.quoteFieldSuffix());
             out.writeOptionalBoolean(useAllFields);
         }

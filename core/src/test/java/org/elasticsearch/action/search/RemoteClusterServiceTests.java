@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -217,7 +216,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             DiscoveryNode otherSeedNode = otherSeedTransport.getLocalDiscoNode();
             knownNodes.add(seedNode);
             knownNodes.add(otherSeedNode);
-            assertTrue(seedNode.getVersion().before(Version.V_5_3_0_UNRELEASED));
+            assertTrue(seedNode.getVersion().before(Version.V_5_3_0));
             Collections.shuffle(knownNodes, random());
 
             try (MockTransportService transportService = MockTransportService.mockTcp(Settings.EMPTY, Version.CURRENT, threadPool,

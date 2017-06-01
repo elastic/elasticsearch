@@ -34,7 +34,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -363,7 +362,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * only the code parameter will be read in as a bytes reference.
      */
     public StoredScriptSource(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             this.lang = in.readString();
             this.code = in.readString();
             @SuppressWarnings("unchecked")
@@ -383,7 +382,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeString(lang);
             out.writeString(code);
             @SuppressWarnings("unchecked")

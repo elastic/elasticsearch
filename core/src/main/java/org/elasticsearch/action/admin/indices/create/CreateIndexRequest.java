@@ -52,9 +52,9 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -552,7 +552,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (int i = 0; i < size; i++) {
             final String type = in.readString();
             String source = in.readString();
-            if (in.getVersion().before(Version.V_5_3_0_UNRELEASED)) {
+            if (in.getVersion().before(Version.V_5_3_0)) {
                 // we do not know the content type that comes from earlier versions so we autodetect and convert
                 source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
             }

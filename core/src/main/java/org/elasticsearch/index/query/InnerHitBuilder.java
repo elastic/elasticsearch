@@ -212,7 +212,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         name = in.readOptionalString();
         nestedPath = in.readOptionalString();
         parentChildType = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
             ignoreUnmapped = in.readBoolean();
         }
         from = in.readVInt();
@@ -253,7 +253,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         out.writeOptionalString(name);
         out.writeOptionalString(nestedPath);
         out.writeOptionalString(parentChildType);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
             out.writeBoolean(ignoreUnmapped);
         }
         out.writeVInt(from);

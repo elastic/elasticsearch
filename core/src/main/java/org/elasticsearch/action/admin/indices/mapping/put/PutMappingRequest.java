@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -317,7 +316,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
         source = in.readString();
-        if (in.getVersion().before(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_3_0)) {
             // we do not know the format from earlier versions so convert if necessary
             source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
         }

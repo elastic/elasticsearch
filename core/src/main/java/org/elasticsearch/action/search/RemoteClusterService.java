@@ -26,14 +26,12 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -137,7 +135,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         } else {
             CountDown countDown = new CountDown(seeds.size());
             Predicate<DiscoveryNode> nodePredicate = (node) -> Version.CURRENT.isCompatible(node.getVersion())
-                && node.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED); // only 5.3 an onwards has the proxy actions for _search
+                && node.getVersion().onOrAfter(Version.V_5_3_0); // only 5.3 an onwards has the proxy actions for _search
             if (REMOTE_NODE_ATTRIBUTE.exists(settings)) {
                 // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for
                 // cross cluster search

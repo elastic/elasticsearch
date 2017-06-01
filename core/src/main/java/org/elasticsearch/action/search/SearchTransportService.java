@@ -46,9 +46,9 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TaskAwareTransportRequestHandler;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
-import org.elasticsearch.transport.TaskAwareTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -130,7 +130,7 @@ public class SearchTransportService extends AbstractLifecycleComponent {
         // this used to be the QUERY_AND_FETCH which doesn't exists anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<QuerySearchResultProvider> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
-        if (connection.getVersion().before(Version.V_5_3_0_UNRELEASED) && fetchDocuments) {
+        if (connection.getVersion().before(Version.V_5_3_0) && fetchDocuments) {
             // this is a BWC layer for pre 5.3 indices
             transportService.sendChildRequest(connection, QUERY_FETCH_ACTION_NAME, request, task,
                 new ActionListenerResponseHandler<>(listener, supplier));

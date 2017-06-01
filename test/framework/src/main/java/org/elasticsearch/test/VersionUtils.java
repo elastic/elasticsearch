@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -104,6 +103,16 @@ public class VersionUtils {
     public static Version getPreviousVersion() {
         Version version = getPreviousVersion(Version.CURRENT);
         assert version.before(Version.CURRENT);
+        return version;
+    }
+
+    /** Returns the {@link Version} before the {@link Version#CURRENT} where the minor version is less than the currents minor version. */
+    public static Version getPreviousMinorVersion() {
+        Version version = Version.CURRENT;
+        do {
+            version = getPreviousVersion(version);
+            assert version.before(Version.CURRENT);
+        } while (version.minor == Version.CURRENT.minor);
         return version;
     }
 

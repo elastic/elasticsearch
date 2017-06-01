@@ -36,6 +36,7 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -62,6 +63,9 @@ public class RestNodesUsageAction extends BaseRestHandler {
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesUsageRequest.all();
+        } else if (metrics.contains("_all")) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "request [%s] contains _all and individual metrics [%s]",
+                    request.path(), request.param("metric")));
         } else {
             nodesUsageRequest.clear();
             nodesUsageRequest.restActions(metrics.contains("rest_actions"));

@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,10 +62,16 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         super(settings);
     }
 
-    public long getUsageCount() {
+    public final long getUsageCount() {
         return usageCount.sum();
     }
 
+    /**
+     * @return the name of this handler. The name should be human readable and
+     *         should describe the action that will performed when this API is
+     *         called. This name is used in the response to the
+     *         {@link RestNodesUsageAction}.
+     */
     public abstract String getName();
 
     @Override

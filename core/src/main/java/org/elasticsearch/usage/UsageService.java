@@ -56,7 +56,7 @@ import java.util.Map;
 public class UsageService extends AbstractComponent {
 
     private final List<BaseRestHandler> handlers;
-    private long sinceTime;
+    private final long sinceTime;
 
     @Inject
     public UsageService(Settings settings) {

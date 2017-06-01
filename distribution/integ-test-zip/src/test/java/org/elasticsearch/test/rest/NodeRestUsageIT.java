@@ -22,12 +22,14 @@ package org.elasticsearch.test.rest;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -37,7 +39,8 @@ public class NodeRestUsageIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testWithRestUsage() throws IOException {
         // First get the current usage figures
-        Response beforeResponse = client().performRequest("GET", "_nodes/usage");
+        Response beforeResponse = client().performRequest("GET",
+                randomFrom("_nodes/usage", "_nodes/usage/rest_actions", "_nodes/usage/_all"));
         Map<String, Object> beforeResponseBodyMap = entityAsMap(beforeResponse);
         assertThat(beforeResponseBodyMap, notNullValue());
         Map<String, Object> before_nodesMap = (Map<String, Object>) beforeResponseBodyMap.get("_nodes");
@@ -132,6 +135,14 @@ public class NodeRestUsageIT extends ESRestTestCase {
         assertThat(combinedRestUsage.get("nodes_stats_action") - beforeCombinedRestUsage.get("nodes_stats_action"), equalTo(1L));
         assertThat(combinedRestUsage.get("delete_index_action") - beforeCombinedRestUsage.get("delete_index_action"), equalTo(1L));
 
+    }
+
+    public void testMetricsWithAll() throws IOException {
+        ResponseException exception = expectThrows(ResponseException.class,
+                () -> client().performRequest("GET", "_nodes/usage/_all,rest_actions"));
+        assertNotNull(exception);
+        assertThat(exception.getMessage(), containsString("\"type\":\"illegal_argument_exception\","
+                + "\"reason\":\"request [_nodes/usage/_all,rest_actions] contains _all and individual metrics [_all,rest_actions]\""));
     }
 
 }

@@ -35,6 +35,11 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     private List<String> keys;
 
     @Override
+    protected int maxNumberOfBuckets() {
+        return 10;
+    }
+
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         keys = new ArrayList<>();

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.input.search;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,15 +19,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.watcher.input.search.SearchInput.TYPE;
 
@@ -37,12 +39,12 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
-    private final WatcherClientProxy client;
+    private final Client client;
     private final WatcherSearchTemplateService searchTemplateService;
-    @Nullable private final TimeValue timeout;
+    private final TimeValue timeout;
 
-    public ExecutableSearchInput(SearchInput input, Logger logger, WatcherClientProxy client,
-                                 WatcherSearchTemplateService searchTemplateService, @Nullable TimeValue defaultTimeout) {
+    public ExecutableSearchInput(SearchInput input, Logger logger, Client client,
+                                 WatcherSearchTemplateService searchTemplateService, TimeValue defaultTimeout) {
         super(input, logger);
         this.client = client;
         this.searchTemplateService = searchTemplateService;
@@ -69,7 +71,8 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), request.getSearchSource().utf8ToString());
         }
 
-        SearchResponse response = client.search(searchTemplateService.toSearchRequest(request), timeout);
+        SearchResponse response = client.search(searchTemplateService.toSearchRequest(request))
+                .get(timeout.millis(), TimeUnit.MILLISECONDS);
 
         if (logger.isDebugEnabled()) {
             logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits());

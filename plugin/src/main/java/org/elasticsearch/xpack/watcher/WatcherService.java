@@ -11,8 +11,11 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -27,10 +30,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatch;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
@@ -60,18 +63,20 @@ public class WatcherService extends AbstractComponent {
     private final TimeValue scrollTimeout;
     private final int scrollSize;
     private final Watch.Parser parser;
-    private final WatcherClientProxy client;
+    private final Client client;
     // package-private for testing
     final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STOPPED);
+    private final TimeValue defaultSearchTimeout;
 
     public WatcherService(Settings settings, TriggerService triggerService, TriggeredWatchStore triggeredWatchStore,
-                          ExecutionService executionService, Watch.Parser parser, WatcherClientProxy client) {
+                          ExecutionService executionService, Watch.Parser parser, InternalClient client) {
         super(settings);
         this.triggerService = triggerService;
         this.triggeredWatchStore = triggeredWatchStore;
         this.executionService = executionService;
         this.scrollTimeout = settings.getAsTime("xpack.watcher.watch.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.scrollSize = settings.getAsInt("xpack.watcher.watch.scroll.size", 100);
+        this.defaultSearchTimeout = settings.getAsTime("xpack.watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
         this.parser = parser;
         this.client = client;
     }
@@ -194,7 +199,8 @@ public class WatcherService extends AbstractComponent {
             return Collections.emptyList();
         }
 
-        RefreshResponse refreshResponse = client.refresh(new RefreshRequest(INDEX));
+        RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(INDEX))
+                .actionGet(TimeValue.timeValueSeconds(5));
         if (refreshResponse.getSuccessfulShards() < indexMetaData.getNumberOfShards()) {
             throw illegalState("not all required shards have been refreshed");
         }
@@ -220,7 +226,7 @@ public class WatcherService extends AbstractComponent {
                         .size(scrollSize)
                         .sort(SortBuilders.fieldSort("_doc"))
                         .version(true));
-        SearchResponse response = client.search(searchRequest);
+        SearchResponse response = client.search(searchRequest).actionGet(defaultSearchTimeout);
         try {
             if (response.getTotalShards() != response.getSuccessfulShards()) {
                 throw new ElasticsearchException("Partial response while loading watches");
@@ -269,10 +275,14 @@ public class WatcherService extends AbstractComponent {
                         logger.error((Supplier<?>) () -> new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
                     }
                 }
-                response = client.searchScroll(response.getScrollId(), scrollTimeout);
+                SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
+                request.scroll(scrollTimeout);
+                response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
         } finally {
-            client.clearScroll(response.getScrollId());
+            ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+            clearScrollRequest.addScrollId(response.getScrollId());
+            client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
         }
 
         logger.debug("Loaded [{}] watches for execution", watches.size());

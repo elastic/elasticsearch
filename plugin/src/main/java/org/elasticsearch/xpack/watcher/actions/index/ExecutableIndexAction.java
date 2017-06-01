@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.ArrayObjectIterator;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTime;
@@ -31,6 +31,7 @@ import org.joda.time.DateTime;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -38,15 +39,18 @@ import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 
 public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
-    public static final String ID_FIELD = "_id";
+    private static final String ID_FIELD = "_id";
 
-    private final WatcherClientProxy client;
-    private final TimeValue timeout;
+    private final Client client;
+    private final TimeValue indexDefaultTimeout;
+    private final TimeValue bulkDefaultTimeout;
 
-    public ExecutableIndexAction(IndexAction action, Logger logger, WatcherClientProxy client, @Nullable TimeValue defaultTimeout) {
+    public ExecutableIndexAction(IndexAction action, Logger logger, Client client,
+                                 TimeValue indexDefaultTimeout, TimeValue bulkDefaultTimeout) {
         super(action, logger);
         this.client = client;
-        this.timeout = action.timeout != null ? action.timeout : defaultTimeout;
+        this.indexDefaultTimeout = action.timeout != null ? action.timeout : indexDefaultTimeout;
+        this.bulkDefaultTimeout = action.timeout != null ? action.timeout : bulkDefaultTimeout;
     }
 
     @Override
@@ -99,7 +103,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                     XContentType.JSON));
         }
 
-        response = client.index(indexRequest, timeout);
+        response = client.index(indexRequest).get(indexDefaultTimeout.millis(), TimeUnit.MILLISECONDS);
         try (XContentBuilder builder = jsonBuilder()) {
             indexResponseToXContent(builder, response);
             bytesReference = builder.bytes();
@@ -132,7 +136,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             }
             bulkRequest.add(indexRequest);
         }
-        BulkResponse bulkResponse = client.bulk(bulkRequest, action.timeout);
+        BulkResponse bulkResponse = client.bulk(bulkRequest).get(bulkDefaultTimeout.millis(), TimeUnit.MILLISECONDS);
         try (XContentBuilder jsonBuilder = jsonBuilder().startArray()) {
             for (BulkItemResponse item : bulkResponse) {
                 itemResponseToXContent(jsonBuilder, item);

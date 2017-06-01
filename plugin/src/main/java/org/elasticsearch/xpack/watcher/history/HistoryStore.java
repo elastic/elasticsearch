@@ -8,17 +8,16 @@ package org.elasticsearch.xpack.watcher.history;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 import org.joda.time.DateTime;
@@ -27,6 +26,9 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -42,14 +44,14 @@ public class HistoryStore extends AbstractComponent {
 
     static final DateTimeFormatter indexTimeFormat = DateTimeFormat.forPattern("YYYY.MM.dd");
 
-    private final WatcherClientProxy client;
+    private final Client client;
 
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final Lock putUpdateLock = readWriteLock.readLock();
     private final Lock stopLock = readWriteLock.writeLock();
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    public HistoryStore(Settings settings, WatcherClientProxy client) {
+    public HistoryStore(Settings settings, Client client) {
         super(settings);
         this.client = client;
     }
@@ -83,7 +85,7 @@ public class HistoryStore extends AbstractComponent {
             IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
                     .source(builder)
                     .opType(IndexRequest.OpType.CREATE);
-            client.index(request, (TimeValue) null);
+            client.index(request).actionGet(30, TimeUnit.SECONDS);
             logger.debug("indexed watch history record [{}]", watchRecord.id().value());
         } catch (IOException ioe) {
             throw ioException("failed to persist watch record [{}]", ioe, watchRecord);
@@ -109,7 +111,7 @@ public class HistoryStore extends AbstractComponent {
                 IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
                         .source(builder)
                         .opType(IndexRequest.OpType.CREATE);
-                client.index(request, (TimeValue) null);
+                client.index(request).get(30, TimeUnit.SECONDS);
                 logger.debug("indexed watch history record [{}]", watchRecord.id().value());
             } catch (VersionConflictEngineException vcee) {
                 watchRecord = new WatchRecord.MessageWatchRecord(watchRecord, ExecutionState.EXECUTED_MULTIPLE_TIMES,
@@ -117,11 +119,11 @@ public class HistoryStore extends AbstractComponent {
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
                     IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
                             .source(xContentBuilder.value(watchRecord));
-                    client.index(request, (TimeValue) null);
+                    client.index(request).get(30, TimeUnit.SECONDS);
                 }
                 logger.debug("overwrote watch history record [{}]", watchRecord.id().value());
             }
-        } catch (IOException ioe) {
+        } catch (InterruptedException | ExecutionException | TimeoutException | IOException ioe) {
             final WatchRecord wr = watchRecord;
             logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to persist watch record [{}]", wr), ioe);
         } finally {

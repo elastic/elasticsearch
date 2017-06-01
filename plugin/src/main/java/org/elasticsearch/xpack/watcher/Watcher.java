@@ -112,7 +112,6 @@ import org.elasticsearch.xpack.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
@@ -267,10 +266,9 @@ public class Watcher implements ActionPlugin {
         final InputRegistry inputRegistry = new InputRegistry(settings, inputFactories);
         inputFactories.put(ChainInput.TYPE, new ChainInputFactory(settings, inputRegistry));
 
-        final WatcherClientProxy watcherClientProxy = new WatcherClientProxy(settings, internalClient);
         final WatcherClient watcherClient = new WatcherClient(internalClient);
 
-        final HistoryStore historyStore = new HistoryStore(settings, watcherClientProxy);
+        final HistoryStore historyStore = new HistoryStore(settings, internalClient);
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
         scheduleParsers.add(new CronSchedule.Parser());
         scheduleParsers.add(new DailySchedule.Parser());
@@ -290,7 +288,7 @@ public class Watcher implements ActionPlugin {
         final TriggerService triggerService = new TriggerService(settings, triggerEngines);
 
         final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(settings, triggerService);
-        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, watcherClientProxy, triggeredWatchParser);
+        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, internalClient, triggeredWatchParser);
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
                 new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
@@ -298,7 +296,7 @@ public class Watcher implements ActionPlugin {
         final Watch.Parser watchParser = new Watch.Parser(settings, triggerService, registry, inputRegistry, cryptoService, clock);
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                clock, threadPool, watchParser, clusterService, watcherClientProxy);
+                clock, threadPool, watchParser, clusterService, internalClient);
 
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
@@ -307,7 +305,7 @@ public class Watcher implements ActionPlugin {
                 clusterService.getClusterSettings(), clusterService, threadPool, internalClient);
 
         WatcherService watcherService = new WatcherService(settings, triggerService, triggeredWatchStore, executionService,
-                watchParser, watcherClientProxy);
+                watchParser, internalClient);
 
         final WatcherLifeCycleService watcherLifeCycleService =
                 new WatcherLifeCycleService(settings, threadPool, clusterService, watcherService);
@@ -317,8 +315,7 @@ public class Watcher implements ActionPlugin {
 
         return Arrays.asList(registry, watcherClient, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
-                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, watcherClientProxy,
-                watcherIndexTemplateRegistry);
+                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, watcherIndexTemplateRegistry);
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
@@ -376,6 +373,7 @@ public class Watcher implements ActionPlugin {
         settings.add(Setting.simpleString("xpack.watcher.internal.ops.bulk.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.internal.ops.index.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.actions.index.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.actions.bulk.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.index.rest.direct_access", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.input.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));

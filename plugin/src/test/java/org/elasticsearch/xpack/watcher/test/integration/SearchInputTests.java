@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.watcher.input.search.SearchInput;
 import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
@@ -79,7 +78,7 @@ public class SearchInputTests extends ESIntegTestCase {
 
         WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder);
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
-                WatcherClientProxy.of(client()), watcherSearchTemplateService(), null);
+                client(), watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -95,6 +94,7 @@ public class SearchInputTests extends ESIntegTestCase {
                 timeValueSeconds(5));
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
+        assertThat(result.status(), is(Input.Result.Status.SUCCESS));
         assertThat(XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
         assertNotNull(result.executedRequest());
         assertThat(result.status(), is(Input.Result.Status.SUCCESS));
@@ -111,7 +111,7 @@ public class SearchInputTests extends ESIntegTestCase {
         WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder, searchType);
 
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
-                WatcherClientProxy.of(client()), watcherSearchTemplateService(), null);
+                client(), watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -127,6 +127,7 @@ public class SearchInputTests extends ESIntegTestCase {
                 timeValueSeconds(5));
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
+        assertThat(result.status(), is(Input.Result.Status.SUCCESS));
         assertThat(XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
         assertNotNull(result.executedRequest());
         assertThat(result.status(), is(Input.Result.Status.SUCCESS));
@@ -146,8 +147,7 @@ public class SearchInputTests extends ESIntegTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
-                                                            xContentRegistry(), scriptService());
+        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, client(), xContentRegistry(), scriptService());
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());

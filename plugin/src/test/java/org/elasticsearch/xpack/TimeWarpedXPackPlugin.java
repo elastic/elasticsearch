@@ -13,10 +13,6 @@ import org.elasticsearch.xpack.watcher.test.TimeWarpedWatcher;
 import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
 import java.time.Clock;
 
 public class TimeWarpedXPackPlugin extends XPackPlugin {

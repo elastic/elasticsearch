@@ -5,34 +5,29 @@
  */
 package org.elasticsearch.xpack.watcher.transform.search;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
 
 import java.io.IOException;
 
 public class SearchTransformFactory extends TransformFactory<SearchTransform, SearchTransform.Result, ExecutableSearchTransform> {
-    protected final WatcherClientProxy client;
+
+    protected final Client client;
     private final TimeValue defaultTimeout;
     private final WatcherSearchTemplateService searchTemplateService;
 
-    public SearchTransformFactory(Settings settings, InternalClient client, NamedXContentRegistry xContentRegistry,
-            ScriptService scriptService) {
-        this(settings, new WatcherClientProxy(settings, client), xContentRegistry, scriptService);
-    }
-
-    public SearchTransformFactory(Settings settings, WatcherClientProxy client, NamedXContentRegistry xContentRegistry,
+    public SearchTransformFactory(Settings settings, Client client, NamedXContentRegistry xContentRegistry,
             ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
         this.client = client;
-        this.defaultTimeout = settings.getAsTime("xpack.watcher.transform.search.default_timeout", null);
+        this.defaultTimeout = settings.getAsTime("xpack.watcher.transform.search.default_timeout", TimeValue.timeValueMinutes(1));
         this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
     }
 

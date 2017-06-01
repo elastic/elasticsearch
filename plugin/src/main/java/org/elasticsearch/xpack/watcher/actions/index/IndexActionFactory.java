@@ -5,33 +5,31 @@
  */
 package org.elasticsearch.xpack.watcher.actions.index;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 
 import java.io.IOException;
 
 public class IndexActionFactory extends ActionFactory {
 
-    private final WatcherClientProxy client;
-    private final TimeValue defaultTimeout;
+    private final Client client;
+    private final TimeValue indexDefaultTimeout;
+    private final TimeValue bulkDefaultTimeout;
 
-    public IndexActionFactory(Settings settings, InternalClient client) {
-        this(settings, new WatcherClientProxy(settings, client));
-    }
-
-    public IndexActionFactory(Settings settings, WatcherClientProxy client ) {
+    public IndexActionFactory(Settings settings, Client client) {
         super(Loggers.getLogger(IndexActionFactory.class, settings));
         this.client = client;
-        this.defaultTimeout = settings.getAsTime("xpack.watcher.actions.index.default_timeout", null);
+        this.indexDefaultTimeout = settings.getAsTime("xpack.watcher.actions.index.default_timeout", TimeValue.timeValueSeconds(30));
+        this.bulkDefaultTimeout = settings.getAsTime("xpack.watcher.actions.bulk.default_timeout", TimeValue.timeValueMinutes(1));
     }
 
     @Override
     public ExecutableIndexAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
-        return new ExecutableIndexAction(IndexAction.parse(watchId, actionId, parser), actionLogger, client, defaultTimeout);
+        return new ExecutableIndexAction(IndexAction.parse(watchId, actionId, parser), actionLogger, client,
+                indexDefaultTimeout, bulkDefaultTimeout);
     }
 }

@@ -5,11 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -26,7 +24,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -57,7 +54,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             new TemplateConfig(WATCHES_TEMPLATE_NAME, "watches", WATCHES_TEMPLATE_SETTING)
     };
 
-    private final WatcherClientProxy client;
+    private final InternalClient client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TemplateConfig[] indexTemplates;
@@ -67,7 +64,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
     public WatcherIndexTemplateRegistry(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
                                         ThreadPool threadPool, InternalClient client) {
         super(settings);
-        this.client = new WatcherClientProxy(settings, client);
+        this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indexTemplates = TEMPLATE_CONFIGS;
@@ -168,7 +165,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
                         .build();
                 request.settings(updatedSettings);
             }
-            client.putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
+            client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
                 @Override
                 public void onResponse(PutIndexTemplateResponse response) {
                     if (response.isAcknowledged() == false) {

@@ -137,7 +137,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                 }
 
                 List<String> previousAllocationIds = event.previousState().getRoutingNodes().node(localNode.getId())
-                        .shardsWithState(Watch.INDEX, RELOCATING, STARTED).stream()
+                        .shardsWithState(watchIndex, RELOCATING, STARTED).stream()
                         .map(ShardRouting::allocationId)
                         .map(AllocationId::getId)
                         .collect(Collectors.toList());

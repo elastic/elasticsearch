@@ -22,7 +22,7 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
-import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -33,9 +33,9 @@ import java.util.Collection;
  */
 public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerAware {
 
-    private final LeafSearchScript script;
+    private final SearchScript script;
 
-    public ScriptBytesValues(LeafSearchScript script) {
+    public ScriptBytesValues(SearchScript script) {
         super();
         this.script = script;
     }

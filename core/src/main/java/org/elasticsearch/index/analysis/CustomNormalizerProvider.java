@@ -50,8 +50,8 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
             throw new IllegalArgumentException("Custom normalizer [" + name() + "] cannot configure a tokenizer");
         }
 
-        List<CharFilterFactory> charFiltersList = new ArrayList<>();
         String[] charFilterNames = analyzerSettings.getAsArray("char_filter");
+        List<CharFilterFactory> charFiltersList = new ArrayList<>(charFilterNames.length);
         for (String charFilterName : charFilterNames) {
             CharFilterFactory charFilter = charFilters.get(charFilterName);
             if (charFilter == null) {
@@ -66,8 +66,8 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
             charFiltersList.add(charFilter);
         }
 
-        List<TokenFilterFactory> tokenFilterList = new ArrayList<>();
         String[] tokenFilterNames = analyzerSettings.getAsArray("filter");
+        List<TokenFilterFactory> tokenFilterList = new ArrayList<>(tokenFilterNames.length);
         for (String tokenFilterName : tokenFilterNames) {
             TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
             if (tokenFilter == null) {
@@ -82,6 +82,7 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
         }
 
         this.customAnalyzer = new CustomAnalyzer(
+                "keyword",
                 PreBuiltTokenizers.KEYWORD.getTokenizerFactory(indexSettings.getIndexVersionCreated()),
                 charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                 tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])

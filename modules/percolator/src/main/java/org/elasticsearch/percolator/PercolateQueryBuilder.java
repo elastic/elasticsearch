@@ -184,7 +184,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         document = in.readOptionalBytesReference();
         if (document != null) {
-            if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
                 documentXContentType = XContentType.readFrom(in);
             } else {
                 documentXContentType = XContentFactory.xContentType(document);
@@ -210,7 +210,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             out.writeBoolean(false);
         }
         out.writeOptionalBytesReference(document);
-        if (document != null && out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (document != null && out.getVersion().onOrAfter(Version.V_5_3_0)) {
             documentXContentType.writeTo(out);
         }
     }

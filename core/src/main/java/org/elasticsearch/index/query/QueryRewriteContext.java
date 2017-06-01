@@ -20,12 +20,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -69,14 +67,14 @@ public class QueryRewriteContext {
      * Returns the index settings for this context. This might return null if the
      * context has not index scope.
      */
-    public final IndexSettings getIndexSettings() {
+    public IndexSettings getIndexSettings() {
         return indexSettings;
     }
 
     /**
      * Return the MapperService.
      */
-    public final MapperService getMapperService() {
+    public MapperService getMapperService() {
         return mapperService;
     }
 
@@ -105,8 +103,8 @@ public class QueryRewriteContext {
         return nowInMillis.getAsLong();
     }
 
-    public BytesReference getTemplateBytes(Script template) {
-        CompiledTemplate compiledTemplate = scriptService.compileTemplate(template, ScriptContext.Standard.SEARCH);
+    public String getTemplateBytes(Script template) {
+        CompiledTemplate compiledTemplate = scriptService.compileTemplate(template, ExecutableScript.CONTEXT);
         return compiledTemplate.run(template.getParams());
     }
 }

@@ -62,7 +62,7 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(shardResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        SearchProfileShardResults parsed = null;
+        SearchProfileShardResults parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);
             ensureFieldName(parser, parser.nextToken(), SearchProfileShardResults.PROFILE_FIELD);

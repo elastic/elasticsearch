@@ -350,6 +350,15 @@ GET /_snapshot/my_backup/_all
 The command fails if some of the snapshots are unavailable. The boolean parameter `ignore_unavailable` can be used to
 return all snapshots that are currently available.
 
+Getting all snapshots in the repository can be costly on cloud-based repositories,
+both from a cost and performance perspective.  If the only information required is
+the snapshot names/uuids in the repository and the indices in each snapshot, then
+the optional boolean parameter `verbose` can be set to `false` to execute a more
+performant and cost-effective retrieval of the snapshots in the repository.  Note
+that setting `verbose` to `false` will omit all other information about the snapshot
+such as status information, the number of snapshotted shards, etc.  The default
+value of the `verbose` parameter is `true`.
+
 A currently running snapshot can be retrieved using the following command:
 
 [source,sh]

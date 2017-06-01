@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -40,9 +40,9 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
         for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
             /* Because this is called once per document we end up creating new ScriptDocValues for every document which is important because
              * the values inside ScriptDocValues might be reused for different documents (Dates do this). */
-            LeafSearchScript leafScript;
+            SearchScript leafScript;
             try {
-                leafScript = scriptField.script().getLeafSearchScript(hitContext.readerContext());
+                leafScript = scriptField.script().newInstance(hitContext.readerContext());
             } catch (IOException e1) {
                 throw new IllegalStateException("Failed to load script", e1);
             }

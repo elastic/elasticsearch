@@ -55,8 +55,8 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find tokenizer under name [" + tokenizerName + "]");
         }
 
-        List<CharFilterFactory> charFiltersList = new ArrayList<>();
         String[] charFilterNames = analyzerSettings.getAsArray("char_filter");
+        List<CharFilterFactory> charFiltersList = new ArrayList<>(charFilterNames.length);
         for (String charFilterName : charFilterNames) {
             CharFilterFactory charFilter = charFilters.get(charFilterName);
             if (charFilter == null) {
@@ -65,8 +65,8 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             charFiltersList.add(charFilter);
         }
 
-        List<TokenFilterFactory> tokenFilterList = new ArrayList<>();
         String[] tokenFilterNames = analyzerSettings.getAsArray("filter");
+        List<TokenFilterFactory> tokenFilterList = new ArrayList<>(tokenFilterNames.length);
         for (String tokenFilterName : tokenFilterNames) {
             TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
             if (tokenFilter == null) {
@@ -80,7 +80,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
 
         int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);;
-        this.customAnalyzer = new CustomAnalyzer(tokenizer,
+        this.customAnalyzer = new CustomAnalyzer(tokenizerName, tokenizer,
                 charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                 tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()]),
                 positionIncrementGap,

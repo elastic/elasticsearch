@@ -111,10 +111,7 @@ class NodeInfo {
         homeDir = homeDir(baseDir, config.distribution, nodeVersion)
         confDir = confDir(baseDir, config.distribution, nodeVersion)
         if (config.dataDir != null) {
-            if (config.numNodes != 1) {
-                throw new IllegalArgumentException("Cannot set data dir for integ test with more than one node")
-            }
-            dataDir = config.dataDir
+            dataDir = "${config.dataDir(nodeNum)}"
         } else {
             dataDir = new File(homeDir, "data")
         }
@@ -161,7 +158,10 @@ class NodeInfo {
             }
         }
         env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
-        args.addAll("-E", "path.conf=${confDir}", "-E", "path.data=${-> dataDir.toString()}")
+        args.addAll("-E", "path.conf=${confDir}")
+        if (!System.properties.containsKey("tests.es.path.data")) {
+            args.addAll("-E", "path.data=${-> dataDir.toString()}")
+        }
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }

@@ -114,7 +114,7 @@ public class GetIndexResponse extends ActionResponse {
         for (int i = 0; i < aliasesSize; i++) {
             String key = in.readString();
             int valueSize = in.readVInt();
-            List<AliasMetaData> aliasEntryBuilder = new ArrayList<>();
+            List<AliasMetaData> aliasEntryBuilder = new ArrayList<>(valueSize);
             for (int j = 0; j < valueSize; j++) {
                 aliasEntryBuilder.add(new AliasMetaData(in));
             }

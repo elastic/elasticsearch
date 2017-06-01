@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -31,8 +30,8 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -150,8 +149,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static BulkItemResultHolder executeDeleteRequest(final DeleteRequest deleteRequest,
                                                              final BulkItemRequest bulkItemRequest,
-                                                             final IndexShard primary) throws IOException {
-        Engine.DeleteResult deleteResult = executeDeleteRequestOnPrimary(deleteRequest, primary);
+                                                             final IndexShard primary,
+                                                             final MappingUpdatePerformer mappingUpdater) throws Exception {
+        Engine.DeleteResult deleteResult = executeDeleteRequestOnPrimary(deleteRequest, primary, mappingUpdater);
         if (deleteResult.hasFailure()) {
             return new BulkItemResultHolder(null, deleteResult, bulkItemRequest);
         } else {
@@ -241,7 +241,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         requestIndex, updateHelper, nowInMillisSupplier, mappingUpdater);
                 break;
             case DELETE:
-                responseHolder = executeDeleteRequest((DeleteRequest) itemRequest, request.items()[requestIndex], primary);
+                responseHolder = executeDeleteRequest((DeleteRequest) itemRequest, request.items()[requestIndex], primary, mappingUpdater);
                 break;
             default: throw new IllegalStateException("unexpected opType [" + itemRequest.opType() + "] found");
         }
@@ -303,7 +303,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     break;
                 case DELETED:
                     DeleteRequest deleteRequest = translate.action();
-                    result = executeDeleteRequestOnPrimary(deleteRequest, primary);
+                    result = executeDeleteRequestOnPrimary(deleteRequest, primary, mappingUpdater);
                     break;
                 case NOOP:
                     primary.noopUpdate(updateRequest.type());
@@ -412,13 +412,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         FAILURE
     }
 
-    static {
-        assert Version.CURRENT.minimumCompatibilityVersion().after(Version.V_5_0_0) == false:
-                "Remove logic handling NoOp result from primary response; see TODO in replicaItemExecutionMode" +
-                        " as the current minimum compatible version [" +
-                        Version.CURRENT.minimumCompatibilityVersion() + "] is after 5.0";
-    }
-
     /**
      * Determines whether a bulk item request should be executed on the replica.
      * @return {@link ReplicaItemExecutionMode#NORMAL} upon normal primary execution with no failures
@@ -434,10 +427,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     ? ReplicaItemExecutionMode.FAILURE // we have a seq no generated with the failure, replicate as no-op
                     : ReplicaItemExecutionMode.NOOP; // no seq no generated, ignore replication
         } else {
-            // NOTE: write requests originating from pre-6.0 nodes can send a no-op operation to
-            // the replica; we ignore replication
-            // TODO: remove noOp result check from primary response, when pre-6.0 nodes are not supported
-            // we should return ReplicationItemExecutionMode.NORMAL instead
+            // TODO: once we know for sure that every operation that has been processed on the primary is assigned a seq#
+            // (i.e., all nodes on the cluster are on v6.0.0 or higher) we can use the existence of a seq# to indicate whether
+            // an operation should be processed or be treated as a noop. This means we could remove this method and the
+            // ReplicaItemExecutionMode enum and have a simple boolean check for seq != UNASSIGNED_SEQ_NO which will work for
+            // both failures and indexing operations.
             return primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP
                     ? ReplicaItemExecutionMode.NORMAL // execution successful on primary
                     : ReplicaItemExecutionMode.NOOP; // ignore replication
@@ -452,6 +446,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
+        final long primaryTerm = request.primaryTerm();
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
             final Engine.Result operationResult;
@@ -463,10 +458,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         switch (docWriteRequest.opType()) {
                             case CREATE:
                             case INDEX:
-                                operationResult = executeIndexRequestOnReplica(primaryResponse, (IndexRequest) docWriteRequest, replica);
+                                operationResult =
+                                    executeIndexRequestOnReplica(primaryResponse, (IndexRequest) docWriteRequest, primaryTerm, replica);
                                 break;
                             case DELETE:
-                                operationResult = executeDeleteRequestOnReplica(primaryResponse, (DeleteRequest) docWriteRequest, replica);
+                                operationResult =
+                                    executeDeleteRequestOnReplica(primaryResponse, (DeleteRequest) docWriteRequest, primaryTerm, replica);
                                 break;
                             default:
                                 throw new IllegalStateException("Unexpected request operation type on replica: "
@@ -534,14 +531,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * Execute the given {@link IndexRequest} on a replica shard, throwing a
      * {@link RetryOnReplicaException} if the operation needs to be re-tried.
      */
-    private static Engine.IndexResult executeIndexRequestOnReplica(
-            DocWriteResponse primaryResponse,
-            IndexRequest request,
-            IndexShard replica) throws IOException {
+    private static Engine.IndexResult executeIndexRequestOnReplica(DocWriteResponse primaryResponse, IndexRequest request,
+                                                                   long primaryTerm, IndexShard replica) throws IOException {
 
         final Engine.Index operation;
         try {
-            operation = prepareIndexOperationOnReplica(primaryResponse, request, replica);
+            operation = prepareIndexOperationOnReplica(primaryResponse, request, primaryTerm, replica);
         } catch (MapperParsingException e) {
             return new Engine.IndexResult(e, primaryResponse.getVersion(), primaryResponse.getSeqNo());
         }
@@ -559,6 +554,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     static Engine.Index prepareIndexOperationOnReplica(
             DocWriteResponse primaryResponse,
             IndexRequest request,
+            long primaryTerm,
             IndexShard replica) {
 
         final ShardId shardId = replica.shardId();
@@ -571,7 +567,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final VersionType versionType = request.versionType().versionTypeForReplicationAndRecovery();
         assert versionType.validateVersionForWrites(version);
 
-        return replica.prepareIndexOnReplica(sourceToParse, seqNo, version, versionType,
+        return replica.prepareIndexOnReplica(sourceToParse, seqNo, primaryTerm, version, versionType,
                 request.getAutoGeneratedTimestamp(), request.isRetry());
     }
 
@@ -609,7 +605,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (mappingUpdateNeeded) {
             try {
                 operation = prepareIndexOperationOnPrimary(request, primary);
-                mappingUpdater.verifyMappings(operation, primary.shardId());
+                mappingUpdater.verifyMappings(operation.parsedDoc().dynamicMappingsUpdate(), primary.shardId());
             } catch (MapperParsingException | IllegalStateException e) {
                 // there was an error in parsing the document that was not because
                 // of pending mapping updates, so return a failure for the result
@@ -623,17 +619,57 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return primary.index(operation);
     }
 
-    private static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary) throws IOException {
+    private static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary,
+            final MappingUpdatePerformer mappingUpdater) throws Exception {
+        boolean mappingUpdateNeeded = false;
+        if (primary.indexSettings().isSingleType()) {
+            // When there is a single type, the unique identifier is only composed of the _id,
+            // so there is no way to differenciate foo#1 from bar#1. This is especially an issue
+            // if a user first deletes foo#1 and then indexes bar#1: since we do not encode the
+            // _type in the uid it might look like we are reindexing the same document, which
+            // would fail if bar#1 is indexed with a lower version than foo#1 was deleted with.
+            // In order to work around this issue, we make deletions create types. This way, we
+            // fail if index and delete operations do not use the same type.
+            try {
+                Mapping update = primary.mapperService().documentMapperWithAutoCreate(request.type()).getMapping();
+                if (update != null) {
+                    mappingUpdateNeeded = true;
+                    mappingUpdater.updateMappings(update, primary.shardId(), request.type());
+                }
+            } catch (MapperParsingException | IllegalArgumentException e) {
+                return new Engine.DeleteResult(e, request.version(), SequenceNumbersService.UNASSIGNED_SEQ_NO, false);
+            }
+        }
+        if (mappingUpdateNeeded) {
+            Mapping update = primary.mapperService().documentMapperWithAutoCreate(request.type()).getMapping();
+            mappingUpdater.verifyMappings(update, primary.shardId());
+        }
         final Engine.Delete delete = primary.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
         return primary.delete(delete);
     }
 
-    private static Engine.DeleteResult executeDeleteRequestOnReplica(DocWriteResponse primaryResponse, DeleteRequest request, IndexShard replica) throws IOException {
+    private static Engine.DeleteResult executeDeleteRequestOnReplica(DocWriteResponse primaryResponse, DeleteRequest request,
+            final long primaryTerm, IndexShard replica) throws Exception {
+        if (replica.indexSettings().isSingleType()) {
+            // We need to wait for the replica to have the mappings
+            Mapping update;
+            try {
+                update = replica.mapperService().documentMapperWithAutoCreate(request.type()).getMapping();
+            } catch (MapperParsingException | IllegalArgumentException e) {
+                return new Engine.DeleteResult(e, request.version(), primaryResponse.getSeqNo(), false);
+            }
+            if (update != null) {
+                final ShardId shardId = replica.shardId();
+                throw new RetryOnReplicaException(shardId,
+                        "Mappings are not available on the replica yet, triggered update: " + update);
+            }
+        }
+
         final VersionType versionType = request.versionType().versionTypeForReplicationAndRecovery();
         final long version = primaryResponse.getVersion();
         assert versionType.validateVersionForWrites(version);
         final Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(),
-                primaryResponse.getSeqNo(), request.primaryTerm(), version, versionType);
+                primaryResponse.getSeqNo(), primaryTerm, version, versionType);
         return replica.delete(delete);
     }
 
@@ -654,9 +690,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
         }
 
-        public void verifyMappings(final Engine.Index operation,
+        public void verifyMappings(Mapping update,
                                    final ShardId shardId) throws Exception {
-            if (operation.parsedDoc().dynamicMappingsUpdate() != null) {
+            if (update != null) {
                 throw new ReplicationOperation.RetryOnPrimaryException(shardId,
                         "Dynamic mappings are not available on the node that holds the primary yet");
             }

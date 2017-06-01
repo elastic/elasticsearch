@@ -116,6 +116,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         this.nodeConnectionsService = nodeConnectionsService;
     }
 
+    @Override
     public void setInitialState(ClusterState initialState) {
         if (lifecycle.started()) {
             throw new IllegalStateException("can't set initial state when started");

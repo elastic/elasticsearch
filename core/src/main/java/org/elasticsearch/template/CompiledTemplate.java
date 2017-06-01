@@ -21,15 +21,11 @@ package org.elasticsearch.template;
 
 import java.util.Map;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ScriptType;
-
 /**
  * A template that may be executed.
  */
 public interface CompiledTemplate {
 
     /** Run a template and return the resulting string, encoded in utf8 bytes. */
-    BytesReference run(Map<String, Object> params);
+    String run(Map<String, Object> params);
 }

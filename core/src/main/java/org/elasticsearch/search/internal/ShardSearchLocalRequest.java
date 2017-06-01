@@ -169,6 +169,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         return profile;
     }
 
+    void setSearchType(SearchType type) {
+        this.searchType = type;
+    }
+
     protected void innerReadFrom(StreamInput in) throws IOException {
         shardId = ShardId.readShardId(in);
         searchType = SearchType.fromId(in.readByte());
@@ -177,7 +181,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         types = in.readStringArray();
         aliasFilter = new AliasFilter(in);
-        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
             indexBoost = in.readFloat();
         } else {
             // Nodes < 5.2.0 doesn't send index boost. Read it from source.
@@ -205,7 +209,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         out.writeOptionalWriteable(source);
         out.writeStringArray(types);
         aliasFilter.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
             out.writeFloat(indexBoost);
         }
         if (!asKey) {

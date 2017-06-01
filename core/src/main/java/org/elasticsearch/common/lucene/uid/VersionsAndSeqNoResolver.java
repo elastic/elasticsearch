@@ -25,10 +25,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.common.lucene.uid.Versions.NOT_FOUND;
@@ -47,7 +47,7 @@ public final class VersionsAndSeqNoResolver {
         }
     };
 
-    private static PerThreadIDVersionAndSeqNoLookup getLookupState(LeafReader reader) throws IOException {
+    private static PerThreadIDVersionAndSeqNoLookup getLookupState(LeafReader reader, String uidField) throws IOException {
         IndexReader.CacheHelper cacheHelper = reader.getCoreCacheHelper();
         CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup> ctl = lookupStates.get(cacheHelper.getKey());
         if (ctl == null) {
@@ -65,8 +65,11 @@ public final class VersionsAndSeqNoResolver {
 
         PerThreadIDVersionAndSeqNoLookup lookupState = ctl.get();
         if (lookupState == null) {
-            lookupState = new PerThreadIDVersionAndSeqNoLookup(reader);
+            lookupState = new PerThreadIDVersionAndSeqNoLookup(reader, uidField);
             ctl.set(lookupState);
+        } else if (Objects.equals(lookupState.uidField, uidField) == false) {
+            throw new AssertionError("Index does not consistently use the same uid field: ["
+                    + uidField + "] != [" + lookupState.uidField + "]");
         }
 
         return lookupState;
@@ -109,7 +112,6 @@ public final class VersionsAndSeqNoResolver {
      * </ul>
      */
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term) throws IOException {
-        assert term.field().equals(UidFieldMapper.NAME) : "unexpected term field " + term.field();
         List<LeafReaderContext> leaves = reader.leaves();
         if (leaves.isEmpty()) {
             return null;
@@ -119,7 +121,7 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             LeafReaderContext context = leaves.get(i);
             LeafReader leaf = context.reader();
-            PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf);
+            PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf, term.field());
             DocIdAndVersion result = lookup.lookupVersion(term.bytes(), leaf.getLiveDocs(), context);
             if (result != null) {
                 return result;
@@ -135,7 +137,6 @@ public final class VersionsAndSeqNoResolver {
      * </ul>
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term term) throws IOException {
-        assert term.field().equals(UidFieldMapper.NAME) : "unexpected term field " + term.field();
         List<LeafReaderContext> leaves = reader.leaves();
         if (leaves.isEmpty()) {
             return null;
@@ -145,7 +146,7 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             LeafReaderContext context = leaves.get(i);
             LeafReader leaf = context.reader();
-            PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf);
+            PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf, term.field());
             DocIdAndSeqNo result = lookup.lookupSeqNo(term.bytes(), leaf.getLiveDocs(), context);
             if (result != null) {
                 return result;
@@ -157,9 +158,9 @@ public final class VersionsAndSeqNoResolver {
     /**
      * Load the primaryTerm associated with the given {@link DocIdAndSeqNo}
      */
-    public static long loadPrimaryTerm(DocIdAndSeqNo docIdAndSeqNo) throws IOException {
+    public static long loadPrimaryTerm(DocIdAndSeqNo docIdAndSeqNo, String uidField) throws IOException {
         LeafReader leaf = docIdAndSeqNo.context.reader();
-        PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf);
+        PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf, uidField);
         long result = lookup.lookUpPrimaryTerm(docIdAndSeqNo.docId, leaf);
         assert result > 0 : "should always resolve a primary term for a resolved sequence number. primary_term [" + result + "]"
             + " docId [" + docIdAndSeqNo.docId + "] seqNo [" + docIdAndSeqNo.seqNo + "]";

@@ -25,14 +25,18 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.antlr.Walker;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -43,11 +47,11 @@ import static org.hamcrest.Matchers.hasSize;
  * Typically just asserts the output of {@code exec()}
  */
 public abstract class ScriptTestCase extends ESTestCase {
-    protected PainlessScriptEngineService scriptEngine;
+    protected PainlessScriptEngine scriptEngine;
 
     @Before
     public void setup() {
-        scriptEngine = new PainlessScriptEngineService(scriptEngineSettings());
+        scriptEngine = new PainlessScriptEngine(scriptEngineSettings(), scriptContexts());
     }
 
     /**
@@ -55,6 +59,17 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     protected Settings scriptEngineSettings() {
         return Settings.EMPTY;
+    }
+
+    /**
+     * Script contexts used to build the script engine. Override to customize which script contexts are available.
+     */
+    protected Collection<ScriptContext<?>> scriptContexts() {
+        Collection<ScriptContext<?>> contexts = new ArrayList<>();
+        contexts.add(SearchScript.CONTEXT);
+        contexts.add(ExecutableScript.CONTEXT);
+
+        return contexts;
     }
 
     /** Compiles and returns the result of {@code script} */
@@ -87,9 +102,8 @@ public abstract class ScriptTestCase extends ESTestCase {
                     definition, null);
         }
         // test actual script execution
-        Object object = scriptEngine.compile(null, script, compileParams);
-        CompiledScript compiled = new CompiledScript(ScriptType.INLINE, getTestName(), "painless", object);
-        ExecutableScript executableScript = scriptEngine.executable(compiled, vars);
+        ExecutableScript.Factory factory = scriptEngine.compile(null, script, ExecutableScript.CONTEXT, compileParams);
+        ExecutableScript executableScript = factory.newInstance(vars);
         if (scorer != null) {
             ((ScorerAware)executableScript).setScorer(scorer);
         }
@@ -128,12 +142,13 @@ public abstract class ScriptTestCase extends ESTestCase {
             if (e instanceof ScriptException) {
                 boolean hasEmptyScriptStack = ((ScriptException) e).getScriptStack().isEmpty();
                 if (shouldHaveScriptStack && hasEmptyScriptStack) {
-                    if (0 != e.getCause().getStackTrace().length) {
-                        // Without -XX:-OmitStackTraceInFastThrow the jvm can eat the stack trace which causes us to ignore script_stack
-                        AssertionFailedError assertion = new AssertionFailedError("ScriptException should have a scriptStack");
-                        assertion.initCause(e);
-                        throw assertion;
-                    }
+                    /* If this fails you *might* be missing -XX:-OmitStackTraceInFastThrow in the test jvm
+                     * In Eclipse you can add this by default by going to Preference->Java->Installed JREs,
+                     * clicking on the default JRE, clicking edit, and adding the flag to the
+                     * "Default VM Arguments". */
+                    AssertionFailedError assertion = new AssertionFailedError("ScriptException should have a scriptStack");
+                    assertion.initCause(e);
+                    throw assertion;
                 } else if (false == shouldHaveScriptStack && false == hasEmptyScriptStack) {
                     AssertionFailedError assertion = new AssertionFailedError("ScriptException shouldn't have a scriptStack");
                     assertion.initCause(e);

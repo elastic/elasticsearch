@@ -26,6 +26,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
@@ -41,7 +42,8 @@ import java.util.concurrent.TimeUnit;
  * {@link Netty4Plugin},
  * {@link ReindexPlugin},
  * {@link PercolatorPlugin},
- * and {@link MustachePlugin}
+ * {@link MustachePlugin},
+ * {@link ParentJoinPlugin}
  * plugins for the client. These plugins are all the required modules for Elasticsearch.
  */
 @SuppressWarnings({"unchecked","varargs"})
@@ -53,27 +55,29 @@ public class PreBuiltTransportClient extends TransportClient {
     }
 
     /**
-     * Netty wants to do some unsafe things like use unsafe and replace a private field. This method disables these things by default, but
-     * can be overridden by setting the corresponding system properties.
+     * Netty wants to do some unwelcome things like use unsafe and replace a private field, or use a poorly considered buffer recycler. This
+     * method disables these things by default, but can be overridden by setting the corresponding system properties.
      */
-    @SuppressForbidden(reason = "set system properties to configure Netty")
     private static void initializeNetty() {
-        final String noUnsafeKey = "io.netty.noUnsafe";
-        final String noUnsafe = System.getProperty(noUnsafeKey);
-        if (noUnsafe == null) {
-            // disable Netty from using unsafe
-            // while permissions are needed to set this, if a security exception is thrown the permission needed can either be granted or
-            // the system property can be set directly before starting the JVM; therefore, we do not catch a security exception here
-            System.setProperty(noUnsafeKey, Boolean.toString(true));
-        }
+        /*
+         * We disable three pieces of Netty functionality here:
+         *  - we disable Netty from being unsafe
+         *  - we disable Netty from replacing the selector key set
+         *  - we disable Netty from using the recycler
+         *
+         * While permissions are needed to read and set these, the permissions needed here are innocuous and thus should simply be granted
+         * rather than us handling a security exception here.
+         */
+        setSystemPropertyIfUnset("io.netty.noUnsafe", Boolean.toString(true));
+        setSystemPropertyIfUnset("io.netty.noKeySetOptimization", Boolean.toString(true));
+        setSystemPropertyIfUnset("io.netty.recycler.maxCapacityPerThread", Integer.toString(0));
+    }
 
-        final String noKeySetOptimizationKey = "io.netty.noKeySetOptimization";
-        final String noKeySetOptimization = System.getProperty(noKeySetOptimizationKey);
-        if (noKeySetOptimization == null) {
-            // disable Netty from replacing the selector key set
-            // while permissions are needed to set this, if a security exception is thrown the permission needed can either be granted or
-            // the system property can be set directly before starting the JVM; therefore, we do not catch a security exception here
-            System.setProperty(noKeySetOptimizationKey, Boolean.toString(true));
+    @SuppressForbidden(reason = "set system properties to configure Netty")
+    private static void setSystemPropertyIfUnset(final String key, final String value) {
+        final String currentValue = System.getProperty(key);
+        if (currentValue == null) {
+            System.setProperty(key, value);
         }
     }
 
@@ -83,7 +87,8 @@ public class PreBuiltTransportClient extends TransportClient {
                 Netty4Plugin.class,
                 ReindexPlugin.class,
                 PercolatorPlugin.class,
-                MustachePlugin.class));
+                MustachePlugin.class,
+                ParentJoinPlugin.class));
 
     /**
      * Creates a new transport client with pre-installed plugins.

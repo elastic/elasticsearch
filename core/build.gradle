@@ -124,8 +124,8 @@ forbiddenPatterns {
 task generateModulesList {
   List<String> modules = project(':modules').subprojects.collect { it.name }
   File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
-  processResources.from(modulesFile) 
-  inputs.property('modules', modules) 
+  processResources.from(modulesFile)
+  inputs.property('modules', modules)
   outputs.file(modulesFile)
   doLast {
     modulesFile.parentFile.mkdirs()
@@ -138,8 +138,8 @@ task generatePluginsList {
     .findAll { it.name.contains('example') == false }
     .collect { it.name }
   File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
-  processResources.from(pluginsFile) 
-  inputs.property('plugins', plugins) 
+  processResources.from(pluginsFile)
+  inputs.property('plugins', plugins)
   outputs.file(pluginsFile)
   doLast {
     pluginsFile.parentFile.mkdirs()
@@ -256,7 +256,7 @@ thirdPartyAudit.excludes = [
   'org.zeromq.ZMQ',
 
   // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
-  'org.noggit.JSONParser', 
+  'org.noggit.JSONParser',
 ]
 
 dependencyLicenses {

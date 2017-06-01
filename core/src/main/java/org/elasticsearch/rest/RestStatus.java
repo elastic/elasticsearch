@@ -479,7 +479,7 @@ public enum RestStatus {
      * is considered to be temporary. If the request that received this status code was the result of a user action,
      * the request MUST NOT be repeated until it is requested by a separate user action.
      */
-    INSUFFICIENT_STORAGE(506);
+    INSUFFICIENT_STORAGE(507);
 
     private static final Map<Integer, RestStatus> CODE_TO_STATUS;
     static {

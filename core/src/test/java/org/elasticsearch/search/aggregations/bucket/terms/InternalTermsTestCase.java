@@ -19,18 +19,45 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.junit.Before;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public abstract class InternalTermsTestCase extends InternalAggregationTestCase<InternalTerms<?,?>> {
+public abstract class InternalTermsTestCase extends InternalMultiBucketAggregationTestCase<InternalTerms<?, ?>> {
+
+    private boolean showDocCount;
+    private long docCountError;
+
+    @Before
+    public void init() {
+        showDocCount = randomBoolean();
+        docCountError = showDocCount ? randomInt(1000) : -1;
+    }
+
+    @Override
+    protected InternalTerms<?, ?> createTestInstance(String name,
+                                                     List<PipelineAggregator> pipelineAggregators,
+                                                     Map<String, Object> metaData,
+                                                     InternalAggregations aggregations) {
+        return createTestInstance(name, pipelineAggregators, metaData, aggregations, showDocCount, docCountError);
+    }
+
+    protected abstract InternalTerms<?, ?> createTestInstance(String name,
+                                                              List<PipelineAggregator> pipelineAggregators,
+                                                              Map<String, Object> metaData,
+                                                              InternalAggregations aggregations,
+                                                              boolean showTermDocCountError,
+                                                              long docCountError);
 
     @Override
     protected InternalTerms<?, ?> createUnmappedInstance(

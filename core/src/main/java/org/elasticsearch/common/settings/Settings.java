@@ -344,7 +344,7 @@ public final class Settings implements ToXContent {
         final String setting,
         final Boolean defaultValue,
         final DeprecationLogger deprecationLogger) {
-        if (indexVersion.before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (indexVersion.before(Version.V_6_0_0_alpha1)) {
             //Only emit a warning if the setting's value is not a proper boolean
             final String value = get(setting, "false");
             if (Booleans.isBoolean(value) == false) {

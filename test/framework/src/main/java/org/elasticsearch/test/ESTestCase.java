@@ -72,6 +72,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
@@ -90,8 +91,11 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -139,8 +143,11 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -173,7 +180,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     static {
         System.setProperty("log4j.shutdownHookEnabled", "false");
         System.setProperty("log4j2.disable.jmx", "true");
-        System.setProperty("log4j.skipJansi", "true"); // jython has this crazy shaded Jansi version that log4j2 tries to load
 
         // shutdown hook so that when the test JVM exits, logging is shutdown too
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -335,7 +341,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             final Set<String> actualWarningValues =
                     actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
             for (String msg : expectedWarnings) {
-                assertTrue(msg, actualWarningValues.contains(DeprecationLogger.escape(msg)));
+                assertThat(actualWarningValues, hasItem(DeprecationLogger.escape(msg)));
             }
             assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
                     + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
@@ -629,10 +635,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         return generateRandomStringArray(maxArraySize, maxStringSize, allowNull, true);
     }
 
-    private static String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};
+    private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m", "micros", "nanos"};
 
-    private static String randomTimeValue(int lower, int upper) {
-        return randomIntBetween(lower, upper) + randomFrom(TIME_SUFFIXES);
+    public static String randomTimeValue(int lower, int upper, String[] suffixes) {
+        return randomIntBetween(lower, upper) + randomFrom(suffixes);
+    }
+
+    public static String randomTimeValue(int lower, int upper) {
+        return randomTimeValue(lower, upper, TIME_SUFFIXES);
     }
 
     public static String randomTimeValue() {
@@ -920,16 +930,37 @@ public abstract class ESTestCase extends LuceneTestCase {
      * recursive shuffling behavior can be made by passing in the names of fields which
      * internally should stay untouched.
      */
-    protected static XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames)
-            throws IOException {
-        //we need a sorted map for reproducibility, as we are going to shuffle its keys and write XContent back
-        Map<String, Object> shuffledMap = shuffleMap((LinkedHashMap<String, Object>)parser.mapOrdered(),
-                new HashSet<>(Arrays.asList(exceptFieldNames)));
+    public XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames) throws IOException {
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
         if (prettyPrint) {
             xContentBuilder.prettyPrint();
         }
+        Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
+        if (token == Token.START_ARRAY) {
+            List<Object> shuffledList = shuffleList(parser.listOrderedMap(), new HashSet<>(Arrays.asList(exceptFieldNames)));
+            return xContentBuilder.value(shuffledList);
+        }
+        //we need a sorted map for reproducibility, as we are going to shuffle its keys and write XContent back
+        Map<String, Object> shuffledMap = shuffleMap((LinkedHashMap<String, Object>)parser.mapOrdered(),
+            new HashSet<>(Arrays.asList(exceptFieldNames)));
         return xContentBuilder.map(shuffledMap);
+    }
+
+    // shuffle fields of objects in the list, but not the list itself
+    private static List<Object> shuffleList(List<Object> list, Set<String> exceptFields) {
+        List<Object> targetList = new ArrayList<>();
+        for(Object value : list) {
+            if (value instanceof Map) {
+                @SuppressWarnings("unchecked")
+                LinkedHashMap<String, Object> valueMap = (LinkedHashMap<String, Object>) value;
+                targetList.add(shuffleMap(valueMap, exceptFields));
+            } else if(value instanceof List) {
+                targetList.add(shuffleList((List) value, exceptFields));
+            }  else {
+                targetList.add(value);
+            }
+        }
+        return targetList;
     }
 
     public static LinkedHashMap<String, Object> shuffleMap(LinkedHashMap<String, Object> map, Set<String> exceptFields) {
@@ -942,6 +973,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                 @SuppressWarnings("unchecked")
                 LinkedHashMap<String, Object> valueMap = (LinkedHashMap<String, Object>) value;
                 targetMap.put(key, shuffleMap(valueMap, exceptFields));
+            } else if(value instanceof List && exceptFields.contains(key) == false) {
+                targetMap.put(key, shuffleList((List) value, exceptFields));
             } else {
                 targetMap.put(key, value);
             }
@@ -963,15 +996,6 @@ public abstract class ESTestCase extends LuceneTestCase {
                 return reader.read(in);
             }
         }
-    }
-
-    /**
-     * Returns true iff assertions for elasticsearch packages are enabled
-     */
-    public static boolean assertionsEnabled() {
-        boolean enabled = false;
-        assert (enabled = true);
-        return enabled;
     }
 
     public void assertAllIndicesRemovedAndDeletionCompleted(Iterable<IndicesService> indicesServices) throws Exception {
@@ -1170,14 +1194,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static ScriptModule newTestScriptModule() {
-        Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                // no file watching, so we don't need a ResourceWatcherService
-                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
-                .build();
-        Environment environment = new Environment(settings);
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
-        return new ScriptModule(settings, environment, null, singletonList(scriptEngine), emptyList());
+        return new ScriptModule(Settings.EMPTY, singletonList(new ScriptPlugin() {
+            @Override
+            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+                return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
+            }
+        }));
     }
 
     /** Creates an IndicesModule for testing with the given mappers and metadata mappers. */

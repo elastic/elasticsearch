@@ -161,6 +161,14 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         SnapshotInfo snapshotInfo = getSnapshotsResponse.getSnapshots().get(0);
         assertThat(snapshotInfo.version().toString(), equalTo(version));
 
+        logger.info("--> get less verbose snapshot info");
+        getSnapshotsResponse = client().admin().cluster().prepareGetSnapshots(repo)
+            .setSnapshots(snapshot).setVerbose(false).get();
+        assertEquals(1, getSnapshotsResponse.getSnapshots().size());
+        snapshotInfo = getSnapshotsResponse.getSnapshots().get(0);
+        assertEquals(snapshot, snapshotInfo.snapshotId().getName());
+        assertNull(snapshotInfo.version()); // in verbose=false mode, version doesn't exist
+
         logger.info("--> restoring snapshot");
         RestoreSnapshotResponse response = client().admin().cluster().prepareRestoreSnapshot(repo, snapshot).setRestoreGlobalState(true).setWaitForCompletion(true).get();
         assertThat(response.status(), equalTo(RestStatus.OK));

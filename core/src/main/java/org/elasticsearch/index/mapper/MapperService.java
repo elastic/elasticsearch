@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -99,12 +100,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final Setting<Boolean> INDEX_MAPPING_SINGLE_TYPE_SETTING;
     static {
         Function<Settings, String> defValue = settings -> {
-            // TODO: uncomment this
-            /*boolean singleType = true;
+            boolean singleType = true;
             if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null) {
-                singleType = Version.indexCreated(settings).onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED);
-            }*/
-            boolean singleType = false;
+                singleType = Version.indexCreated(settings).onOrAfter(Version.V_6_0_0_alpha1);
+            }
             return Boolean.valueOf(singleType).toString();
         };
         INDEX_MAPPING_SINGLE_TYPE_SETTING = Setting.boolSetting("index.mapping.single_type", defValue, Property.IndexScope, Property.Final);
@@ -472,7 +471,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
 
-        if (indexSettings.getValue(INDEX_MAPPING_SINGLE_TYPE_SETTING)) {
+        if (indexSettings.isSingleType()) {
             Set<String> actualTypes = new HashSet<>(mappers.keySet());
             actualTypes.remove(DEFAULT_MAPPING);
             if (actualTypes.size() > 1) {
@@ -741,8 +740,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             // There is no need to synchronize writes here. In the case of concurrent access, we could just
             // compute some mappers several times, which is not a big deal
-            Map<String, MappedFieldType> newUnmappedFieldTypes = new HashMap<>();
-            newUnmappedFieldTypes.putAll(unmappedFieldTypes);
+            Map<String, MappedFieldType> newUnmappedFieldTypes = new HashMap<>(unmappedFieldTypes);
             newUnmappedFieldTypes.put(type, fieldType);
             unmappedFieldTypes = unmodifiableMap(newUnmappedFieldTypes);
         }
@@ -806,4 +804,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
+    /** Return a term that uniquely identifies the document, or {@code null} if the type is not allowed. */
+    public Term createUidTerm(String type, String id) {
+        if (hasMapping(type) == false) {
+            return null;
+        }
+        if (indexSettings.isSingleType()) {
+            return new Term(IdFieldMapper.NAME, id);
+        } else {
+            return new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id));
+        }
+    }
 }

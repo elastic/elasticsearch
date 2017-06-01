@@ -34,6 +34,7 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -67,7 +68,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     protected final SearchPhaseController searchPhaseController;
     protected final SearchScrollRequest request;
     private final long startTime;
-    private volatile AtomicArray<ShardSearchFailure> shardFailures; // we initialize this on-demand
+    private final List<ShardSearchFailure> shardFailures = new ArrayList<>();
     private final AtomicInteger successfulOps;
 
     protected SearchScrollAsyncAction(ParsedScrollId scrollId, Logger logger, DiscoveryNodes nodes,
@@ -150,21 +151,17 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         }
     }
 
-    private ShardSearchFailure[] buildShardFailures() {
-        if (shardFailures == null) {
+    synchronized ShardSearchFailure[] buildShardFailures() { // pkg private for testing
+        if (shardFailures.isEmpty()) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
-        List<ShardSearchFailure> failures = shardFailures.asList();
-        return failures.toArray(new ShardSearchFailure[failures.size()]);
+        return shardFailures.toArray(new ShardSearchFailure[shardFailures.size()]);
     }
 
     // we do our best to return the shard failures, but its ok if its not fully concurrently safe
     // we simply try and return as much as possible
-    private void addShardFailure(final int shardIndex, ShardSearchFailure failure) {
-        if (shardFailures == null) {
-            shardFailures = new AtomicArray<>(scrollId.getContext().length);
-        }
-        shardFailures.set(shardIndex, failure);
+    private synchronized void addShardFailure(ShardSearchFailure failure) {
+        shardFailures.add(failure);
     }
 
     protected abstract void executeInitialPhase(DiscoveryNode node, InternalScrollSearchRequest internalRequest,
@@ -208,7 +205,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         if (logger.isDebugEnabled()) {
             logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] Failed to execute {} phase", searchId, phaseName), failure);
         }
-        addShardFailure(shardIndex, new ShardSearchFailure(failure, searchShardTarget));
+        addShardFailure(new ShardSearchFailure(failure, searchShardTarget));
         int successfulOperations = successfulOps.decrementAndGet();
         assert successfulOperations >= 0 : "successfulOperations must be >= 0 but was: " + successfulOperations;
         if (counter.countDown()) {

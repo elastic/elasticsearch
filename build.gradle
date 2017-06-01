@@ -151,9 +151,10 @@ task('verifyVersions') {
 
     // Finally, compare!
     if (!knownVersions.equals(actualVersions)) {
-      throw new GradleException("out-of-date versions\nActual  :" +
+      throw new GradleException("out-of-date released versions\nActual  :" +
         actualVersions + "\nExpected:" + knownVersions +
-        "; update Version.java")
+        "\nUpdate Version.java. Note that Version.CURRENT doesn't count " +
+        "because it is not released.")
     }
   }
 }

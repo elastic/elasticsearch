@@ -56,7 +56,6 @@ public final class WriterConstants {
 
     public static final String CTOR_METHOD_NAME = "<init>";
 
-    public static final Method CONSTRUCTOR = getAsmMethod(void.class, CTOR_METHOD_NAME);
     public static final Method CLINIT      = getAsmMethod(void.class, "<clinit>");
 
     public static final String GET_NAME_NAME = "getName";

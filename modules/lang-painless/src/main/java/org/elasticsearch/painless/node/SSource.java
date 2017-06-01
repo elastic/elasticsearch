@@ -40,6 +40,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.util.Printer;
 import org.objectweb.asm.util.TraceClassVisitor;
 
+import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
@@ -58,7 +59,6 @@ import static org.elasticsearch.painless.WriterConstants.BITSET_TYPE;
 import static org.elasticsearch.painless.WriterConstants.BOOTSTRAP_METHOD_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.COLLECTIONS_TYPE;
-import static org.elasticsearch.painless.WriterConstants.CONSTRUCTOR;
 import static org.elasticsearch.painless.WriterConstants.CONVERT_TO_SCRIPT_EXCEPTION_METHOD;
 import static org.elasticsearch.painless.WriterConstants.DEFINITION_TYPE;
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_DELEGATE_METHOD;
@@ -69,7 +69,6 @@ import static org.elasticsearch.painless.WriterConstants.EXCEPTION_TYPE;
 import static org.elasticsearch.painless.WriterConstants.GET_NAME_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_SOURCE_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_STATEMENTS_METHOD;
-import static org.elasticsearch.painless.WriterConstants.OBJECT_TYPE;
 import static org.elasticsearch.painless.WriterConstants.OUT_OF_MEMORY_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD;
@@ -186,6 +185,20 @@ public final class SSource extends AStatement {
 
         mainMethod = Locals.newMainMethodScope(scriptInterface, program, reserved.getMaxLoopCounter());
 
+        for (int get = 0; get < scriptInterface.getGetMethods().size();) {
+            String name = scriptInterface.getGetMethods().get(get).getName().substring(3);
+            name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+            Definition.Type rtn = scriptInterface.getGetReturns().get(get);
+
+            if (reserved.getUsedVariables().contains(name)) {
+                mainMethod.addVariable(new Location("getter [" + name + "]", 0), rtn, name, true);
+                ++get;
+            } else {
+                scriptInterface.getGetMethods().remove(get);
+                scriptInterface.getGetReturns().remove(get);
+            }
+        }
+
         AStatement last = statements.get(statements.size() - 1);
 
         for (AStatement statement : statements) {
@@ -211,7 +224,7 @@ public final class SSource extends AStatement {
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String interfaceBase = BASE_INTERFACE_TYPE.getInternalName();
         String className = CLASS_TYPE.getInternalName();
-        String classInterfaces[] = new String[] { interfaceBase, Type.getType(scriptInterface.getInterface()).getInternalName() };
+        String classInterfaces[] = new String[] { interfaceBase };
 
         ClassWriter writer = new ClassWriter(classFrames);
         ClassVisitor visitor = writer;
@@ -224,7 +237,8 @@ public final class SSource extends AStatement {
         if (debugStream != null) {
             visitor = new TraceClassVisitor(visitor, debugStream, null);
         }
-        visitor.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
+        visitor.visit(WriterConstants.CLASS_VERSION, classAccess, className, null,
+            Type.getType(scriptInterface.getAClass()).getInternalName(), classInterfaces);
         visitor.visitSource(Location.computeSourceName(name, source), null);
 
         // Write the a method to bootstrap def calls
@@ -245,12 +259,21 @@ public final class SSource extends AStatement {
         // Write the static variable used by the method to bootstrap def calls
         visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$DEFINITION", DEFINITION_TYPE.getDescriptor(), null, null).visitEnd();
 
+        org.objectweb.asm.commons.Method init;
+
+        if (scriptInterface.getAClass().getConstructors().length == 0) {
+            init = new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
+        } else {
+            init = new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class,
+                scriptInterface.getAClass().getConstructors()[0].getParameterTypes()).toMethodDescriptorString());
+        }
+
         // Write the constructor:
-        MethodWriter constructor = new MethodWriter(Opcodes.ACC_PUBLIC, CONSTRUCTOR, visitor, globals.getStatements(), settings);
+        MethodWriter constructor = new MethodWriter(Opcodes.ACC_PUBLIC, init, visitor, globals.getStatements(), settings);
         constructor.visitCode();
         constructor.loadThis();
         constructor.loadArgs();
-        constructor.invokeConstructor(OBJECT_TYPE, CONSTRUCTOR);
+        constructor.invokeConstructor(Type.getType(scriptInterface.getAClass()), init);
         constructor.returnValue();
         constructor.endMethod();
 
@@ -356,6 +379,16 @@ public final class SSource extends AStatement {
 
             writer.push(reserved.getMaxLoopCounter());
             writer.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
+        }
+
+        for (org.objectweb.asm.commons.Method method : scriptInterface.getGetMethods()) {
+            String name = method.getName().substring(3);
+            name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+            Variable variable = mainMethod.getVariable(null, name);
+
+            writer.loadThis();
+            writer.invokeVirtual(Type.getType(scriptInterface.getAClass()), method);
+            writer.visitVarInsn(method.getReturnType().getOpcode(Opcodes.ISTORE), variable.getSlot());
         }
 
         for (AStatement statement : statements) {

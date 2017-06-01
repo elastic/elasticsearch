@@ -186,7 +186,7 @@ public final class Locals {
 
     ///// private impl
 
-    /** Whitelist against which thhis script is being compiled. */
+    /** Whitelist against which this script is being compiled. */
     private final Definition definition;
     // parent scope
     private final Locals parent;
@@ -275,6 +275,7 @@ public final class Locals {
         public final Type type;
         public final boolean readonly;
         private final int slot;
+        private boolean used;
 
         public Variable(Location location, String name, Type type, int slot, boolean readonly) {
             this.location = location;

@@ -133,7 +133,7 @@ final class Compiler {
      * @param settings The CompilerSettings to be used during the compilation.
      * @return An executable script that implements both a specified interface and is a subclass of {@link PainlessScript}
      */
-    Constructor<? extends PainlessScript> compile(Loader loader, String name, String source, CompilerSettings settings) {
+    Constructor<?> compile(Loader loader, String name, String source, CompilerSettings settings) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
@@ -153,7 +153,7 @@ final class Compiler {
             clazz.getField("$STATEMENTS").set(null, root.getStatements());
             clazz.getField("$DEFINITION").set(null, definition);
 
-            return clazz.getConstructor();
+            return clazz.getConstructors()[0];
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }

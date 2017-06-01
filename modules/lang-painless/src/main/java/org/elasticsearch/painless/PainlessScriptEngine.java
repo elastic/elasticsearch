@@ -136,7 +136,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         throw new IllegalArgumentException("painless does not know how to handle context [" + context.name + "]");
     }
 
-    PainlessScript compile(Compiler compiler, String scriptName, final String scriptSource, final Map<String, String> params) {
+    Object compile(Compiler compiler, String scriptName, String source, Map<String, String> params, Object... args) {
         final CompilerSettings compilerSettings;
 
         if (params.isEmpty()) {
@@ -189,14 +189,14 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
         try {
             // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<PainlessScript>() {
+            return AccessController.doPrivileged(new PrivilegedAction<Object>() {
                 @Override
-                public PainlessScript run() {
+                public Object run() {
                     String name = scriptName == null ? INLINE_NAME : scriptName;
-                    Constructor<? extends PainlessScript> constructor = compiler.compile(loader, name, scriptSource, compilerSettings);
+                    Constructor<?> constructor = compiler.compile(loader, name, source, compilerSettings);
 
                     try {
-                        return constructor.newInstance();
+                        return constructor.newInstance(args);
                     } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
                         throw new IllegalStateException(
                             "An internal error occurred attempting to define the script [" + name + "].", exception);
@@ -205,7 +205,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
             }, COMPILATION_CONTEXT);
         // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
-            throw convertToScriptException(scriptName == null ? scriptSource : scriptName, scriptSource, e);
+            throw convertToScriptException(scriptName == null ? source : scriptName, source, e);
         }
     }
 

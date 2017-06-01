@@ -501,7 +501,7 @@ public class TranslogTests extends ESTestCase {
         assertFalse("translog [" + id + "] still exists", Files.exists(translog.location().resolve(Translog.getFilename(id))));
     }
 
-    private void assertFilePresence(Translog translog) {
+    private void assertFilesPresence(Translog translog) {
         for (long gen = translog.getMinFileGeneration(); gen < translog.currentFileGeneration(); gen++) {
             assertFileIsPresent(translog, gen);
         }
@@ -1793,10 +1793,10 @@ public class TranslogTests extends ESTestCase {
             // we don't know when things broke exactly
             assertThat(translog.getMinFileGeneration(), greaterThanOrEqualTo(1L));
             assertThat(translog.getMinFileGeneration(), lessThanOrEqualTo(comittedGeneration));
-            assertFilePresence(translog);
+            assertFilesPresence(translog);
             translog.trimUnreferencedReaders();
             assertThat(translog.getMinFileGeneration(), equalTo(comittedGeneration));
-            assertFilePresence(translog);
+            assertFilesPresence(translog);
         }
     }
 

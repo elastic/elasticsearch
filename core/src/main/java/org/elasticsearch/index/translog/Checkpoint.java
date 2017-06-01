@@ -44,6 +44,7 @@ final class Checkpoint {
     final long minSeqNo;
     final long maxSeqNo;
     final long globalCheckpoint;
+    final long minTranslogGeneration;
 
     private static final int INITIAL_VERSION = 1; // start with 1, just to recognize there was some magic serialization logic before
     private static final int CURRENT_VERSION = 2; // introduction of global checkpoints
@@ -58,6 +59,7 @@ final class Checkpoint {
         + Long.BYTES // minimum sequence number, introduced in 6.0.0
         + Long.BYTES // maximum sequence number, introduced in 6.0.0
         + Long.BYTES // global checkpoint, introduced in 6.0.0
+        + Long.BYTES // minimum translog generation in the translog - introduced in 6.0.0
         + CodecUtil.footerLength();
 
     // size of 5.0.0 checkpoint
@@ -76,15 +78,19 @@ final class Checkpoint {
      * @param minSeqNo         the current minimum sequence number of all operations in the translog
      * @param maxSeqNo         the current maximum sequence number of all operations in the translog
      * @param globalCheckpoint the last-known global checkpoint
+     * @param minTranslogGeneration the minimum generation referenced by the translog at this moment.
      */
-    Checkpoint(long offset, int numOps, long generation, long minSeqNo, long maxSeqNo, long globalCheckpoint) {
-        assert minSeqNo <= maxSeqNo;
+    Checkpoint(long offset, int numOps, long generation, long minSeqNo, long maxSeqNo, long globalCheckpoint, long minTranslogGeneration) {
+        assert minSeqNo <= maxSeqNo : "minSeqNo [" + minSeqNo + "] is higher than maxSeqNo [" + maxSeqNo + "]";
+        assert minTranslogGeneration <= generation :
+            "minTranslogGen [" + minTranslogGeneration + "] is higher than generation [" + generation + "]";
         this.offset = offset;
         this.numOps = numOps;
         this.generation = generation;
         this.minSeqNo = minSeqNo;
         this.maxSeqNo = maxSeqNo;
         this.globalCheckpoint = globalCheckpoint;
+        this.minTranslogGeneration = minTranslogGeneration;
     }
 
     private void write(DataOutput out) throws IOException {
@@ -94,16 +100,18 @@ final class Checkpoint {
         out.writeLong(minSeqNo);
         out.writeLong(maxSeqNo);
         out.writeLong(globalCheckpoint);
+        out.writeLong(minTranslogGeneration);
     }
 
-    static Checkpoint emptyTranslogCheckpoint(final long offset, final long generation, final long globalCheckpoint) {
+    static Checkpoint emptyTranslogCheckpoint(final long offset, final long generation, final long globalCheckpoint,
+                                              long minTranslogGeneration) {
         final long minSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
         final long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
-        return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint);
+        return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration);
     }
 
     static Checkpoint readCheckpointV6_0_0(final DataInput in) throws IOException {
-        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), in.readLong(), in.readLong(), in.readLong());
+        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), in.readLong(), in.readLong(), in.readLong(), in.readLong());
     }
 
     // reads a checksummed checkpoint introduced in ES 5.0.0
@@ -111,7 +119,8 @@ final class Checkpoint {
         final long minSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
         final long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
         final long globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), minSeqNo, maxSeqNo, globalCheckpoint);
+        final long minTranslogGeneration = -1L;
+        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration);
     }
 
     @Override
@@ -123,6 +132,7 @@ final class Checkpoint {
             ", minSeqNo=" + minSeqNo +
             ", maxSeqNo=" + maxSeqNo +
             ", globalCheckpoint=" + globalCheckpoint +
+            ", minTranslogGeneration=" + minTranslogGeneration +
             '}';
     }
 

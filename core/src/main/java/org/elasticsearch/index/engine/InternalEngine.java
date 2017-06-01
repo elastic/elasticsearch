@@ -305,7 +305,8 @@ public class InternalEngine extends Engine {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
         try {
-            Translog.Snapshot snapshot = translog.newSnapshot();
+            final long translogGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+            Translog.Snapshot snapshot = translog.newSnapshot(translogGen);
             opsRecovered = handler.recoveryFromSnapshot(this, snapshot);
         } catch (Exception e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
@@ -321,6 +322,8 @@ public class InternalEngine extends Engine {
         } else if (translog.isCurrent(translogGeneration) == false) {
             commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
         }
+        // clean up what's not needed
+        translog.trimUnreferencedReaders();
     }
 
     private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
@@ -1804,7 +1807,7 @@ public class InternalEngine extends Engine {
                 return commitData.entrySet().iterator();
             });
 
-            writer.commit();
+            callCommitOnWriter(writer);
         } catch (final Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);
@@ -1829,6 +1832,11 @@ public class InternalEngine extends Engine {
                 throw e;
             }
         }
+    }
+
+    // commit hook for testing
+    void callCommitOnWriter(IndexWriter writer) throws IOException {
+        writer.commit();
     }
 
     private void ensureCanFlush() {

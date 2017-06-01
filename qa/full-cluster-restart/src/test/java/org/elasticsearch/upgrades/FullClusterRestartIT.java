@@ -19,12 +19,12 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.ParseException;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,9 +32,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.charset.UnsupportedCharsetException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -60,7 +60,13 @@ public class FullClusterRestartIT extends ESRestTestCase {
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
     private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1);
-    private final String index = getTestName().toLowerCase(Locale.ROOT);
+
+    private String index;
+
+    @Before
+    public void setIndex() {
+        index = getTestName().toLowerCase(Locale.ROOT);
+    }
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -73,6 +79,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     public void testSearch() throws Exception {
+        int count;
         if (runningAgainstOldCluster) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
@@ -104,8 +111,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
                 new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
 
-            int numDocs = randomIntBetween(2000, 3000);
-            indexRandomDocuments(numDocs, true, i -> {
+            count = randomIntBetween(2000, 3000);
+            indexRandomDocuments(count, true, true, i -> {
                 return JsonXContent.contentBuilder().startObject()
                 .field("string", randomAlphaOfLength(10))
                 .field("int", randomInt(100))
@@ -116,41 +123,43 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 // TODO a binary field
                 .endObject();
             });
-            logger.info("Refreshing [{}]", index);
-            client().performRequest("POST", "/" + index + "/_refresh");
+            refresh();
+        } else {
+            count = countOfIndexedRandomDocuments();
         }
-        assertBasicSearchWorks();
+        assertBasicSearchWorks(count);
     }
 
-    void assertBasicSearchWorks() throws IOException {
+    void assertBasicSearchWorks(int count) throws IOException {
         logger.info("--> testing basic search");
         Map<String, Object> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
         assertNoFailures(response);
-        int numDocs1 = (int) XContentMapValues.extractValue("hits.total", response);
-        logger.info("Found {} in old index", numDocs1);
+        int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        logger.info("Found {} in old index", numDocs);
+        assertEquals(count, numDocs);
 
         logger.info("--> testing basic search with sort");
         String searchRequestBody = "{ \"sort\": [{ \"int\" : \"asc\" }]}";
         response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
             new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
         assertNoFailures(response);
-        int numDocs2 = (int) XContentMapValues.extractValue("hits.total", response);
-        assertEquals(numDocs1, numDocs2);
+        numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(count, numDocs);
 
         logger.info("--> testing exists filter");
         searchRequestBody = "{ \"query\": { \"exists\" : {\"field\": \"string\"} }}";
         response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
             new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
         assertNoFailures(response);
-        numDocs2 = (int) XContentMapValues.extractValue("hits.total", response);
-        assertEquals(numDocs1, numDocs2);
+        numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(count, numDocs);
 
         searchRequestBody = "{ \"query\": { \"exists\" : {\"field\": \"field.with.dots\"} }}";
         response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
             new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
         assertNoFailures(response);
-        numDocs2 = (int) XContentMapValues.extractValue("hits.total", response);
-        assertEquals(numDocs1, numDocs2);
+        numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(count, numDocs);
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {
@@ -191,12 +200,12 @@ public class FullClusterRestartIT extends ESRestTestCase {
              * or not we have one. */
             shouldHaveTranslog = randomBoolean();
 
-            indexRandomDocuments(count, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
             // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
             client().performRequest("POST", "/_flush");
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
-                indexRandomDocuments(count / 10, false /* Flushing here would invalidate the whole thing....*/,
+                indexRandomDocuments(count / 10, false /* Flushing here would invalidate the whole thing....*/, false,
                     i -> jsonBuilder().startObject().field("field", "value").endObject());
             }
             saveInfoDocument("should_have_translog", Boolean.toString(shouldHaveTranslog));
@@ -272,7 +281,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         int count;
         if (runningAgainstOldCluster) {
             count = between(200, 300);
-            indexRandomDocuments(count, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
 
             // Create the repo and the snapshot
             XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject(); {
@@ -323,7 +332,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
 
-    private void indexRandomDocuments(int count, boolean flushAllowed,
+    private void indexRandomDocuments(int count, boolean flushAllowed, boolean saveInfo,
                                       CheckedFunction<Integer, XContentBuilder, IOException> docSupplier) throws IOException {
         logger.info("Indexing {} random documents", count);
         for (int i = 0; i < count; i++) {
@@ -331,15 +340,16 @@ public class FullClusterRestartIT extends ESRestTestCase {
             client().performRequest("POST", "/" + index + "/doc/" + i, emptyMap(),
                     new StringEntity(docSupplier.apply(i).string(), ContentType.APPLICATION_JSON));
             if (rarely()) {
-                logger.debug("Refreshing [{}]", index);
-                client().performRequest("POST", "/" + index + "/_refresh");
+                refresh();
             }
             if (flushAllowed && rarely()) {
                 logger.debug("Flushing [{}]", index);
                 client().performRequest("POST", "/" + index + "/_flush");
             }
         }
-        saveInfoDocument("count", Integer.toString(count));
+        if (saveInfo) {
+            saveInfoDocument("count", Integer.toString(count));
+        }
     }
 
     private int countOfIndexedRandomDocuments() throws IOException {
@@ -359,12 +369,17 @@ public class FullClusterRestartIT extends ESRestTestCase {
     private String loadInfoDocument(String type) throws IOException {
         String doc = EntityUtils.toString(
                 client().performRequest("GET", "/info/doc/" + index + "_" + type, singletonMap("filter_path", "_source")).getEntity());
-        Matcher m = Pattern.compile("\"" + type + "\":\".+\"").matcher(doc);
+        Matcher m = Pattern.compile("\"value\":\"(.+)\"").matcher(doc);
         assertTrue(doc, m.find());
         return m.group(1);
     }
 
     private Object randomLenientBoolean() {
         return randomFrom(new Object[] {"off", "no", "0", 0, "false", false, "on", "yes", "1", 1, "true", true});
+    }
+
+    private void refresh() throws IOException {
+        logger.info("Refreshing [{}]", index);
+        client().performRequest("POST", "/" + index + "/_refresh");
     }
 }

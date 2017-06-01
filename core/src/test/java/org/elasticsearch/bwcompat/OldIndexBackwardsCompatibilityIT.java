@@ -24,7 +24,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.VersionTests;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -53,7 +52,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.OldIndexUtils;
@@ -229,7 +227,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         // node startup
         upgradeIndexFolder();
         importIndex(indexName);
-        assertBasicSearchWorks(indexName);
         assertAllSearchWorks(indexName);
         assertBasicAggregationWorks(indexName);
         assertRealtimeGetWorks(indexName);
@@ -239,31 +236,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertAliasWithBadName(indexName, version);
         assertStoredBinaryFields(indexName, version);
         unloadIndex(indexName);
-    }
-
-    void assertBasicSearchWorks(String indexName) {
-        logger.info("--> testing basic search");
-        SearchRequestBuilder searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery());
-        SearchResponse searchRsp = searchReq.get();
-        ElasticsearchAssertions.assertNoFailures(searchRsp);
-        long numDocs = searchRsp.getHits().getTotalHits();
-        logger.info("Found {} in old index", numDocs);
-
-        logger.info("--> testing basic search with sort");
-        searchReq.addSort("long_sort", SortOrder.ASC);
-        ElasticsearchAssertions.assertNoFailures(searchReq.get());
-
-        logger.info("--> testing exists filter");
-        searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.existsQuery("string"));
-        searchRsp = searchReq.get();
-        ElasticsearchAssertions.assertNoFailures(searchRsp);
-        assertEquals(numDocs, searchRsp.getHits().getTotalHits());
-        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(indexName).get();
-        searchReq = client().prepareSearch(indexName)
-                .setQuery(QueryBuilders.existsQuery("field.with.dots"));
-        searchRsp = searchReq.get();
-        ElasticsearchAssertions.assertNoFailures(searchRsp);
-        assertEquals(numDocs, searchRsp.getHits().getTotalHits());
     }
 
     boolean findPayloadBoostInExplanation(Explanation expl) {

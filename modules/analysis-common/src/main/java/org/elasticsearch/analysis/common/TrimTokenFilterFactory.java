@@ -16,31 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.analysis;
+
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.snowball.SnowballFilter;
-import org.elasticsearch.common.Strings;
+import org.apache.lucene.analysis.miscellaneous.TrimFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
-/**
- * Real work actually done here by Sebastian on the Elasticsearch mailing list
- * http://elasticsearch-users.115913.n3.nabble.com/Using-the-Snowball-stemmers-tp2126106p2127111.html
- */
-public class SnowballTokenFilterFactory extends AbstractTokenFilterFactory {
+public class TrimTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private String language;
+    private static final String UPDATE_OFFSETS_KEY = "update_offsets";
 
-    public SnowballTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    TrimTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.language = Strings.capitalize(settings.get("language", settings.get("name", "English")));
+        if (settings.get(UPDATE_OFFSETS_KEY) != null) {
+            throw new IllegalArgumentException(UPDATE_OFFSETS_KEY +  " is not supported anymore. Please fix your analysis chain");
+        }
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new SnowballFilter(tokenStream, language);
+        return new TrimFilter(tokenStream);
     }
-
 }

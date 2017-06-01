@@ -12,12 +12,9 @@ setup:
         type: "reserved-user"
         id: "kibana"
         refresh: true
-        body: >
-          {
-            "doc": {
-              "enabled": true
-            }
-          }
+        body:
+          doc: { enabled: true, password: "" }
+          doc_as_upsert : true
   - do:
       xpack.security.clear_cached_realms:
         realms: "_all"
@@ -40,9 +37,6 @@ teardown:
         realms: "_all"
 ---
 "Verify kibana user role works in mixed cluster":
-  - skip:
-      version: "5.0.0 - "
-      reason: https://github.com/elastic/x-pack-elasticsearch/issues/1527
   - do:
       headers:
         Authorization: "Basic a2liYW5hOmNoYW5nZW1l"

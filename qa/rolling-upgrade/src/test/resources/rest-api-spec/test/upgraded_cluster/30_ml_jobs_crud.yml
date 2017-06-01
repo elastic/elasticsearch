@@ -1,4 +1,3 @@
----
 setup:
  - do:
      cluster.health:
@@ -10,11 +9,6 @@ setup:
 "Test open old jobs":
 
   - do:
-      xpack.ml.get_jobs:
-        job_id: "_all"
-  - match: { count: 2 }
-
-  - do:
       xpack.ml.open_job:
         job_id: old-cluster-job
 
@@ -58,8 +52,6 @@ setup:
         job_id: mixed-cluster-job
   - match: { count: 1 }
 
----
-teardown:
   - do:
       xpack.ml.delete_job:
         job_id: old-cluster-job

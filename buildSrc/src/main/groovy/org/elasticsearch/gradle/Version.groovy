@@ -19,9 +19,12 @@
 
 package org.elasticsearch.gradle
 
+import groovy.transform.Sortable
+
 /**
  * Encapsulates comparison and printing logic for an x.y.z version.
  */
+@Sortable
 public class Version {
 
     final int major

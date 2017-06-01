@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -32,15 +35,19 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -64,6 +71,7 @@ public class DatafeedManager extends AbstractComponent {
     // Use allocationId as key instead of datafeed id
     private final ConcurrentMap<Long, Holder> runningDatafeedsOnThisNode = new ConcurrentHashMap<>();
     private volatile boolean isolated;
+    private final TaskRunner taskRunner = new TaskRunner();
 
     public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, JobProvider jobProvider,
                            Supplier<Long> currentTimeSupplier, Auditor auditor, PersistentTasksService persistentTasksService) {
@@ -75,6 +83,7 @@ public class DatafeedManager extends AbstractComponent {
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
         this.auditor = Objects.requireNonNull(auditor);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
+        clusterService.addListener(taskRunner);
     }
 
     public void run(StartDatafeedAction.DatafeedTask task, Consumer<Exception> handler) {
@@ -99,7 +108,7 @@ public class DatafeedManager extends AbstractComponent {
             task.updatePersistentStatus(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
                 @Override
                 public void onResponse(PersistentTask<?> persistentTask) {
-                    innerRun(holder, task.getDatafeedStartTime(), task.getEndTime());
+                    taskRunner.runWhenJobIsOpened(task);
                 }
 
                 @Override
@@ -266,6 +275,14 @@ public class DatafeedManager extends AbstractComponent {
         return DataExtractorFactory.create(client, datafeed, job);
     }
 
+    private String getJobId(StartDatafeedAction.DatafeedTask task) {
+        return runningDatafeedsOnThisNode.get(task.getAllocationId()).getJobId();
+    }
+
+    private JobState getJobState(PersistentTasksCustomMetaData tasks, StartDatafeedAction.DatafeedTask datafeedTask) {
+        return MlMetadata.getJobState(getJobId(datafeedTask), tasks);
+    }
+
     private static DataDescription buildDataDescription(Job job) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
@@ -333,6 +350,10 @@ public class DatafeedManager extends AbstractComponent {
             this.autoCloseJob = autoCloseJob;
             this.problemTracker = problemTracker;
             this.handler = handler;
+        }
+
+        String getJobId() {
+            return datafeed.getJobId();
         }
 
         boolean isRunning() {
@@ -406,6 +427,14 @@ public class DatafeedManager extends AbstractComponent {
         }
 
         private void closeJob() {
+            ClusterState clusterState = clusterService.state();
+            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            JobState jobState = MlMetadata.getJobState(getJobId(), tasks);
+            if (jobState != JobState.OPENED) {
+                logger.debug("[{}] No need to auto-close job as job state is [{}]", getJobId(), jobState);
+                return;
+            }
+
             persistentTasksService.waitForPersistentTaskStatus(taskId, Objects::isNull, TimeValue.timeValueSeconds(20),
                             new WaitForPersistentTaskStatusListener<StartDatafeedAction.DatafeedParams>() {
                 @Override
@@ -446,6 +475,57 @@ public class DatafeedManager extends AbstractComponent {
                     logger.error("Cannot auto close job [" + datafeed.getJobId() + "]", e);
                 }
             });
+        }
+    }
+
+    private class TaskRunner implements ClusterStateListener {
+
+        private final List<StartDatafeedAction.DatafeedTask> tasksToRun = new CopyOnWriteArrayList<>();
+
+        private void runWhenJobIsOpened(StartDatafeedAction.DatafeedTask datafeedTask) {
+            ClusterState clusterState = clusterService.state();
+            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            if (getJobState(tasks, datafeedTask) == JobState.OPENED) {
+                runTask(datafeedTask);
+            } else {
+                logger.info("Datafeed [{}] is waiting for job [{}] to be opened",
+                        datafeedTask.getDatafeedId(), getJobId(datafeedTask));
+                tasksToRun.add(datafeedTask);
+            }
+        }
+
+        private void runTask(StartDatafeedAction.DatafeedTask task) {
+            innerRun(runningDatafeedsOnThisNode.get(task.getAllocationId()), task.getDatafeedStartTime(), task.getEndTime());
+        }
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            if (tasksToRun.isEmpty() || event.metaDataChanged() == false) {
+                return;
+            }
+            PersistentTasksCustomMetaData previousTasks = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetaData currentTasks = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            if (Objects.equals(previousTasks, currentTasks)) {
+                return;
+            }
+
+            List<StartDatafeedAction.DatafeedTask> remainingTasks = new ArrayList<>();
+            for (StartDatafeedAction.DatafeedTask datafeedTask : tasksToRun) {
+                if (runningDatafeedsOnThisNode.containsKey(datafeedTask.getAllocationId()) == false) {
+                    continue;
+                }
+                JobState jobState = getJobState(currentTasks, datafeedTask);
+                if (jobState == JobState.OPENED) {
+                    runTask(datafeedTask);
+                } else if (jobState == JobState.OPENING) {
+                    remainingTasks.add(datafeedTask);
+                } else {
+                    logger.warn("Datafeed [{}] is stopping because job [{}] state is [{}]",
+                            datafeedTask.getDatafeedId(), getJobId(datafeedTask), jobState);
+                    datafeedTask.stop("job_never_opened", TimeValue.timeValueSeconds(20));
+                }
+            }
+            tasksToRun.retainAll(remainingTasks);
         }
     }
 }

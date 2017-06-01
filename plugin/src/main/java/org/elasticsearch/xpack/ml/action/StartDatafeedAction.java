@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -16,7 +15,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -25,7 +23,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -52,10 +49,10 @@ import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.AllocatedPersistentTask;
@@ -68,7 +65,6 @@ import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -452,8 +448,9 @@ public class StartDatafeedAction
                     @Override
                     public void onFailure(Exception e) {
                         if (e instanceof ResourceAlreadyExistsException) {
+                            logger.debug(e);
                             e = new ElasticsearchStatusException("cannot start datafeed [" + params.getDatafeedId() +
-                                    "] because it has already been started", RestStatus.CONFLICT, e);
+                                    "] because it has already been started", RestStatus.CONFLICT);
                         }
                         listener.onFailure(e);
                     }
@@ -513,7 +510,7 @@ public class StartDatafeedAction
 
         @Override
         public Assignment getAssignment(DatafeedParams params, ClusterState clusterState) {
-            return selectNode(logger, params.getDatafeedId(), clusterState, resolver);
+            return new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId()).selectNode();
         }
 
         @Override
@@ -521,12 +518,7 @@ public class StartDatafeedAction
             MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             StartDatafeedAction.validate(params.getDatafeedId(), mlMetadata, tasks);
-            Assignment assignment = selectNode(logger, params.getDatafeedId(), clusterState, resolver);
-            if (assignment.getExecutorNode() == null) {
-                String msg = "No node found to start datafeed [" + params.getDatafeedId()
-                        + "], allocation explanation [" + assignment.getExplanation() + "]";
-                throw new ElasticsearchException(msg);
-            }
+            new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId()).checkDatafeedTaskCanBeCreated();
         }
 
         @Override
@@ -561,75 +553,9 @@ public class StartDatafeedAction
         }
         DatafeedJobValidator.validate(datafeed, job);
         JobState jobState = MlMetadata.getJobState(datafeed.getJobId(), tasks);
-        if (jobState != JobState.OPENED) {
+        if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
             throw ExceptionsHelper.conflictStatusException("cannot start datafeed [" + datafeedId + "] because job [" + job.getId() +
-                    "] is not open");
+                    "] is " + jobState);
         }
     }
-
-    static Assignment selectNode(Logger logger, String datafeedId, ClusterState clusterState,
-                                 IndexNameExpressionResolver resolver) {
-        MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-        PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
-
-        PersistentTask<?> jobTask = MlMetadata.getJobTask(datafeed.getJobId(), tasks);
-        if (jobTask == null) {
-            String reason = "cannot start datafeed [" + datafeed.getId() + "], job task doesn't yet exist";
-            logger.debug(reason);
-            return new Assignment(null, reason);
-        }
-        JobTaskStatus taskStatus = (JobTaskStatus) jobTask.getStatus();
-        if (taskStatus == null || taskStatus.getState() != JobState.OPENED) {
-            // lets try again later when the job has been opened:
-            String taskStatusAsString = taskStatus == null ? "null" : taskStatus.getState().toString();
-            String reason = "cannot start datafeed [" + datafeed.getId() + "], because job's [" + datafeed.getJobId() +
-                    "] state is [" + taskStatusAsString +  "] while state [" + JobState.OPENED + "] is required";
-            logger.debug(reason);
-            return new Assignment(null, reason);
-        }
-        if (taskStatus.isStatusStale(jobTask)) {
-            String reason = "cannot start datafeed [" + datafeed.getId() + "], job [" + datafeed.getJobId() + "] status is stale";
-            logger.debug(reason);
-            return new Assignment(null, reason);
-        }
-        String reason = verifyIndicesActive(logger, datafeed, clusterState, resolver);
-        if (reason != null) {
-            return new Assignment(null, reason);
-        }
-        return new Assignment(jobTask.getExecutorNode(), "");
-    }
-
-    private static String verifyIndicesActive(Logger logger, DatafeedConfig datafeed, ClusterState clusterState,
-                                              IndexNameExpressionResolver resolver) {
-        List<String> indices = datafeed.getIndices();
-        for (String index : indices) {
-            String[] concreteIndices;
-            String reason = "cannot start datafeed [" + datafeed.getId() + "] because index ["
-                    + index + "] does not exist, is closed, or is still initializing.";
-
-            try {
-                concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), index);
-                if (concreteIndices.length == 0) {
-                    logger.debug(reason);
-                    return reason;
-                }
-            } catch (Exception e) {
-                logger.debug(reason);
-                return reason;
-            }
-
-            for (String concreteIndex : concreteIndices) {
-                IndexRoutingTable routingTable = clusterState.getRoutingTable().index(concreteIndex);
-                if (routingTable == null || !routingTable.allPrimaryShardsActive()) {
-                    reason = "cannot start datafeed [" + datafeed.getId() + "] because index ["
-                            + concreteIndex + "] does not have all primary shards active yet.";
-                    logger.debug(reason);
-                    return reason;
-                }
-            }
-        }
-        return null;
-    }
-
 }

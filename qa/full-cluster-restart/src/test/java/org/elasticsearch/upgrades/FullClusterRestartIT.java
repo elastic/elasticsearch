@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
@@ -43,6 +42,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -161,7 +161,11 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
+        return toMap(EntityUtils.toString(response.getEntity()));
+    }
+
+    static Map<String, Object> toMap(String response) throws IOException {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
 
     static void assertNoFailures(Map<String, Object> response) {
@@ -294,7 +298,15 @@ public class FullClusterRestartIT extends ESRestTestCase {
             client().performRequest("PUT", "/_snapshot/repo", emptyMap(),
                     new StringEntity(repoConfig.string(), ContentType.APPLICATION_JSON));
 
-            client().performRequest("PUT", "/_snapshot/repo/snap", singletonMap("wait_for_completion", "true"));
+            XContentBuilder snapshotConfig = JsonXContent.contentBuilder().startObject(); {
+                snapshotConfig.field("indices", index);
+            }
+            snapshotConfig.endObject();
+            client().performRequest("PUT", "/_snapshot/repo/snap", singletonMap("wait_for_completion", "true"),
+                    new StringEntity(snapshotConfig.string(), ContentType.APPLICATION_JSON));
+
+            // Refresh the index so the count doesn't fail
+            refresh();
         } else {
             count = countOfIndexedRandomDocuments();
         }
@@ -312,11 +324,16 @@ public class FullClusterRestartIT extends ESRestTestCase {
             client().performRequest("DELETE", "/restored_*");
         }
 
-        Map<String, Object> response = toMap(client().performRequest("GET", "/_snapshot/repo/*", singletonMap("verbose", "true")));
-        fail (response.toString());
+        // Check the metadata, especially the version
+        String response = EntityUtils.toString(
+                client().performRequest("GET", "/_snapshot/repo/_all", singletonMap("verbose", "true")).getEntity());
+        Map<String, Object> map = toMap(response);
+        assertEquals(response, singletonList("snap"), XContentMapValues.extractValue("snapshots.snapshot", map));
+        assertEquals(response, singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", map));
+        assertEquals(response, singletonList(oldClusterVersion.toString()), XContentMapValues.extractValue("snapshots.version", map));
 
         XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
-        restoreCommand.field("include_global_state", false);
+        restoreCommand.field("include_global_state", randomBoolean());
         restoreCommand.field("indices", index);
         restoreCommand.field("rename_pattern", index);
         restoreCommand.field("rename_replacement", "restored_" + index);
@@ -327,6 +344,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         countResponse = EntityUtils.toString(
                 client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")).getEntity());
         assertThat(countResponse, containsString("\"total\":" + count));
+        
     }
 
     // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.

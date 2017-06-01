@@ -380,7 +380,7 @@ public class QueryPhaseTests extends ESTestCase {
         };
         QueryPhase.execute(context, contextSearcher, sort);
         assertTrue(collected.get());
-        assertNull(context.queryResult().terminatedEarly());
+        assertTrue(context.queryResult().terminatedEarly());
         assertThat(context.queryResult().topDocs().totalHits, equalTo(numDocs));
         assertThat(context.queryResult().topDocs().scoreDocs.length, equalTo(1));
         assertThat(context.queryResult().topDocs().scoreDocs[0], instanceOf(FieldDoc.class));
@@ -393,7 +393,7 @@ public class QueryPhaseTests extends ESTestCase {
             context.parsedPostFilter(new ParsedQuery(new MinDocQuery(1)));
             QueryPhase.execute(context, contextSearcher, sort);
             assertTrue(collected.get());
-            assertNull(context.queryResult().terminatedEarly());
+            assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().totalHits, equalTo(numDocs - 1));
             assertThat(context.queryResult().topDocs().scoreDocs.length, equalTo(1));
             assertThat(context.queryResult().topDocs().scoreDocs[0], instanceOf(FieldDoc.class));
@@ -405,7 +405,7 @@ public class QueryPhaseTests extends ESTestCase {
             collected.set(false);
             QueryPhase.execute(context, contextSearcher, sort);
             assertTrue(collected.get());
-            assertNull(context.queryResult().terminatedEarly());
+            assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().totalHits, equalTo(numDocs));
             assertThat(context.queryResult().topDocs().scoreDocs.length, equalTo(1));
             assertThat(context.queryResult().topDocs().scoreDocs[0], instanceOf(FieldDoc.class));

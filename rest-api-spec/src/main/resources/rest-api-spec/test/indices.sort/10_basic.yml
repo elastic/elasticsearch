@@ -98,7 +98,7 @@
           sort: ["rank"]
           size: 1
 
-  - is_false: terminated_early
+  - is_true: terminated_early
   - match: {hits.total: 8 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._id: "2" }
@@ -114,6 +114,7 @@
           size: 1
 
   - match: {terminated_early: true}
+  - match: {hits.total: -1 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._id: "2" }
 
@@ -125,7 +126,7 @@
           sort: ["rank"]
           size: 3
 
-  - is_false: terminated_early
+  - is_true: terminated_early
   - match: {hits.total: 8 }
   - length: {hits.hits: 3 }
   - match: {hits.hits.0._id: "2" }
@@ -143,6 +144,7 @@
           size: 3
 
   - match: {terminated_early: true }
+  - match: {hits.total: -1 }
   - length: {hits.hits: 3 }
   - match: {hits.hits.0._id: "2" }
   - match: {hits.hits.1._id: "4" }
@@ -187,8 +189,21 @@
           size: 3
 
   - match: {terminated_early: true }
+  - match: {hits.total: -1 }
   - length: {hits.hits: 3 }
   - match: {hits.hits.0._id: "2" }
   - match: {hits.hits.1._id: "4" }
   - match: {hits.hits.2._id: "3" }
+
+  - do:
+      catch:      /disabling \`track_total_hits\` is not allowed in a scroll context/
+      search:
+        index: test
+        type: test
+        scroll: 1m
+        body:
+          sort: ["rank"]
+          query: {"range": { "rank": { "from": 0 } } }
+          track_total_hits: false
+          size: 3
 

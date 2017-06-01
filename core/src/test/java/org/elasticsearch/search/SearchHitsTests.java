@@ -42,7 +42,7 @@ public class SearchHitsTests extends ESTestCase {
         for (int i = 0; i < searchHits; i++) {
             hits[i] = SearchHitTests.createTestItem(false); // creating random innerHits could create loops
         }
-        long totalHits = randomLong();
+        long totalHits = frequently() ? Math.abs(randomLong()) : -1;
         float maxScore = frequently() ? randomFloat() : Float.NaN;
         return new SearchHits(hits, totalHits, maxScore);
     }

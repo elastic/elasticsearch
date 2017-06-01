@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -320,10 +321,9 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .addDocValueField("rank")
                 .setTrackTotalHits(false)
                 .addSort("rank", SortOrder.ASC)
-                .setQuery(QueryBuilders.rangeQuery("rank").from("0"))
                 .setSize(i).execute().actionGet();
-            assertThat(searchResponse.getHits().getTotalHits(), lessThanOrEqualTo((long) max));
-            if (searchResponse.getHits().getTotalHits() < max) {
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(-1L));
+            if (searchResponse.isTerminatedEarly() != null) {
                 assertTrue(searchResponse.isTerminatedEarly());
                 hasEarlyTerminated = true;
             }

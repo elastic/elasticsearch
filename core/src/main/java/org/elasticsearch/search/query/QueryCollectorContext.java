@@ -261,12 +261,13 @@ abstract class QueryCollectorContext {
 
             @Override
             void postProcess(QuerySearchResult result, boolean hasCollected) throws IOException {
+                if (terminatedEarlySupplier.getAsBoolean()) {
+                    result.terminatedEarly(true);
+                }
                 if (countSupplier != null) {
                     final TopDocs topDocs = result.topDocs();
                     topDocs.totalHits = countSupplier.getAsInt();
                     result.topDocs(topDocs, result.sortValueFormats());
-                } else if (terminatedEarlySupplier.getAsBoolean()) {
-                    result.terminatedEarly(true);
                 }
             }
         };

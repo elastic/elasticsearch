@@ -76,7 +76,7 @@ for (String line : versionLines) {
     int minor = Integer.parseInt(match.group(2))
     int bugfix = Integer.parseInt(match.group(3))
     boolean unreleased = match.group(4) != null
-    Version foundVersion = new Version(major, minor, bugfix, unreleased, unreleased)
+    Version foundVersion = new Version(major, minor, bugfix, false, unreleased)
     if (currentVersion != foundVersion) {
       versions.add(foundVersion)
     }

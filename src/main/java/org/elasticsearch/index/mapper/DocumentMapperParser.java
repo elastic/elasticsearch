@@ -67,6 +67,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     private final DocValuesFormatService docValuesFormatService;
     private final SimilarityLookupService similarityLookupService;
     private final ScriptService scriptService;
+    private final MapperService mapperService;
 
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
@@ -76,7 +77,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     private volatile ImmutableMap<String, Mapper.TypeParser> typeParsers;
     private volatile ImmutableMap<String, Mapper.TypeParser> rootTypeParsers;
 
-    public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
+    public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, MapperService mapperService, AnalysisService analysisService,
                                 PostingsFormatService postingsFormatService, DocValuesFormatService docValuesFormatService,
                                 SimilarityLookupService similarityLookupService, ScriptService scriptService) {
         super(index, indexSettings);
@@ -85,6 +86,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         this.docValuesFormatService = docValuesFormatService;
         this.similarityLookupService = similarityLookupService;
         this.scriptService = scriptService;
+        this.mapperService = mapperService;
         MapBuilder<String, Mapper.TypeParser> typeParsersBuilder = new MapBuilder<String, Mapper.TypeParser>()
                 .put(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser())
                 .put(ShortFieldMapper.CONTENT_TYPE, new ShortFieldMapper.TypeParser())
@@ -208,7 +210,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
         Mapper.TypeParser.ParserContext parserContext = parserContext();
         // parse RootObjectMapper
-        DocumentMapper.Builder docBuilder = doc(index.name(), indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
+        DocumentMapper.Builder docBuilder = doc(index.name(), indexSettings, mapperService, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {

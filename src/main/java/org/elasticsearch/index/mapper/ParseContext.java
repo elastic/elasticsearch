@@ -500,6 +500,14 @@ public abstract class ParseContext {
             return this.indexSettings;
         }
 
+        public int subfieldsLimit() {
+            return this.docMapper.mapperService().subfieldsLimit();
+        }
+
+        public String subfieldsDynamicAtLimit() {
+            return this.docMapper.mapperService().subfieldsDynamicAtLimit();
+        }
+
         public String type() {
             return sourceToParse.type();
         }
@@ -708,6 +716,14 @@ public abstract class ParseContext {
 
     @Nullable
     public abstract Settings indexSettings();
+
+    public int subfieldsLimit() {
+        return 0;
+    }
+
+    public String subfieldsDynamicAtLimit() {
+        return "strict";
+    }
 
     public abstract String type();
 

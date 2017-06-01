@@ -31,6 +31,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.gateway.local.LocalGatewayAllocator;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.LogDocMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
@@ -124,6 +125,8 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings.addDynamicSetting(IndicesWarmer.INDEX_WARMER_ENABLED);
         indexDynamicSettings.addDynamicSetting(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, Validator.BOOLEAN);
         indexDynamicSettings.addDynamicSetting(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, Validator.TIME);
+        indexDynamicSettings.addDynamicSetting(MapperService.SETTING_SUBFIELDS_LIMIT, Validator.NON_NEGATIVE_INTEGER);
+        indexDynamicSettings.addDynamicSetting(MapperService.SETTING_SUBFIELDS_DYNAMIC_AT_LIMIT);
     }
 
     public void addDynamicSettings(String... settings) {

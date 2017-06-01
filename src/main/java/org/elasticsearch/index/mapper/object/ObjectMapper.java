@@ -48,6 +48,7 @@ import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 
@@ -563,6 +564,19 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 // we sync here just so we won't add it twice. Its not the end of the world
                 // to sync here since next operations will get it before
                 synchronized (mutex) {
+                    int maxNumberOfFields = context.subfieldsLimit();
+                    if (maxNumberOfFields > 0 && mappers.size() >= maxNumberOfFields) {
+                        String dynamicAtLimit = context.subfieldsDynamicAtLimit();
+                        if (dynamicAtLimit.equalsIgnoreCase("strict")) {
+                            throw new StrictDynamicMappingException(fullPath, currentFieldName);
+                        } else {
+                            context.docMapper().mapperService().logger().warn("[" + currentFieldName +
+                                    "] exceeds the max number of fields configured for [" + fullPath + "]");
+                            if (!nodeBooleanValue(dynamicAtLimit)) {
+                                return;
+                            }
+                        }
+                    }
                     objectMapper = mappers.get(currentFieldName);
                     if (objectMapper == null) {
                         // remove the current field name from path, since template search and the object builder add it as well...
@@ -604,7 +618,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 serializeNonDynamicArray(context, lastFieldName, arrayFieldName);
             }
         } else {
-
             Dynamic dynamic = this.dynamic;
             if (dynamic == null) {
                 dynamic = context.root().dynamic();
@@ -615,6 +628,19 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 // we sync here just so we won't add it twice. Its not the end of the world
                 // to sync here since next operations will get it before
                 synchronized (mutex) {
+                    int maxNumberOfFields = context.subfieldsLimit();
+                    if (maxNumberOfFields > 0 && mappers.size() >= maxNumberOfFields) {
+                        String dynamicAtLimit = context.subfieldsDynamicAtLimit();
+                        if (dynamicAtLimit.equalsIgnoreCase("strict")) {
+                            throw new StrictDynamicMappingException(fullPath, arrayFieldName);
+                        } else {
+                            context.docMapper().mapperService().logger().warn("[" + arrayFieldName +
+                                    "] exceeds the max number of fields configured for [" + fullPath + "]");
+                            if (!nodeBooleanValue(dynamicAtLimit)) {
+                                return;
+                            }
+                        }
+                    }
                     mapper = mappers.get(arrayFieldName);
                     if (mapper == null) {
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, arrayFieldName, "object");
@@ -724,6 +750,19 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // its not the end of the world, since we add it to the mappers once we create it
         // so next time we won't even get here for this field
         synchronized (mutex) {
+            int maxNumberOfFields = context.subfieldsLimit();
+            if (maxNumberOfFields > 0 && mappers.size() >= maxNumberOfFields) {
+                String dynamicAtLimit = context.subfieldsDynamicAtLimit();
+                if (dynamicAtLimit.equalsIgnoreCase("strict")) {
+                    throw new StrictDynamicMappingException(fullPath, currentFieldName);
+                } else {
+                    context.docMapper().mapperService().logger().warn("[" + currentFieldName +
+                            "] exceeds the max number of fields configured for [" + fullPath + "]");
+                    if (!nodeBooleanValue(dynamicAtLimit)) {
+                        return;
+                    }
+                }
+            }
             Mapper mapper = mappers.get(currentFieldName);
             if (mapper == null) {
                 BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());

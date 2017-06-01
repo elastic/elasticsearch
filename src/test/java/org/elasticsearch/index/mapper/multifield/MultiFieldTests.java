@@ -141,7 +141,7 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         Settings settings = indexService.settingsService().getSettings();
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
 
-        DocumentMapper builderDocMapper = doc("test", settings, rootObject("person").add(
+        DocumentMapper builderDocMapper = doc("test", settings, indexService.mapperService(), rootObject("person").add(
                 stringField("name").store(true)
                         .addMultiField(stringField("indexed").index(true).tokenized(true))
                         .addMultiField(stringField("not_indexed").index(false).store(true))

@@ -40,6 +40,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
@@ -58,6 +59,7 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
@@ -119,15 +121,37 @@ public class MapperService extends AbstractIndexComponent  {
 
     private volatile ImmutableMap<String, FieldMapper<?>> unmappedFieldMappers = ImmutableMap.of();
 
+    public static final String SETTING_SUBFIELDS_LIMIT = "index.subfields.limit";
+    public static final String SETTING_SUBFIELDS_DYNAMIC_AT_LIMIT = "index.subfields.dynamic_at_limit";
+
+    private final IndexSettingsService indexSettingsService;
+
+    private final ApplySettings applySettings = new ApplySettings();
+
+    private int subfieldsLimit;
+    private String subfieldsDynamicAtLimit;
+
+    class ApplySettings implements IndexSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            subfieldsLimit = settings.getAsInt(SETTING_SUBFIELDS_LIMIT, 0);
+            subfieldsDynamicAtLimit = settings.get(SETTING_SUBFIELDS_DYNAMIC_AT_LIMIT, "strict");
+        }
+    }
+
     @Inject
-    public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService, IndexFieldDataService fieldDataService,
+    public MapperService(Index index, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, Environment environment, AnalysisService analysisService, IndexFieldDataService fieldDataService,
                          PostingsFormatService postingsFormatService, DocValuesFormatService docValuesFormatService, SimilarityLookupService similarityLookupService,
                          ScriptService scriptService) {
         super(index, indexSettings);
+        this.indexSettingsService = indexSettingsService;
+        subfieldsLimit = indexSettings.getAsInt(SETTING_SUBFIELDS_LIMIT, 0);
+        subfieldsDynamicAtLimit = indexSettings.get(SETTING_SUBFIELDS_DYNAMIC_AT_LIMIT, "strict");
+        this.indexSettingsService.addListener(applySettings);
         this.analysisService = analysisService;
         this.fieldDataService = fieldDataService;
         this.fieldMappers = new FieldMappersLookup();
-        this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, postingsFormatService, docValuesFormatService, similarityLookupService, scriptService);
+        this.documentParser = new DocumentMapperParser(index, indexSettings, this, analysisService, postingsFormatService, docValuesFormatService, similarityLookupService, scriptService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
 
@@ -242,6 +266,18 @@ public class MapperService extends AbstractIndexComponent  {
 
     public boolean hasNested() {
         return this.hasNested;
+    }
+
+    public int subfieldsLimit() {
+        return this.subfieldsLimit;
+    }
+
+    public String subfieldsDynamicAtLimit() {
+        return this.subfieldsDynamicAtLimit;
+    }
+
+    public ESLogger logger() {
+        return logger;
     }
 
     /**

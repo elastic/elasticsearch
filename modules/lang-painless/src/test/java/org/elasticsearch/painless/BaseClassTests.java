@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.script.ScriptContext;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,10 +35,53 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Tests for Painless implementing different interfaces.
  */
-public class ImplementInterfacesTests extends ScriptTestCase {
-    public interface NoArgs {
-        String[] ARGUMENTS = new String[] {};
-        Object execute();
+public class BaseClassTests extends ScriptTestCase {
+
+    public abstract static class Gets {
+
+        private final String testString;
+        private final int testInt;
+        private final Map<String, Object> testMap;
+
+        public Gets(String testString, int testInt, Map<String, Object> testMap) {
+            this.testString = testString;
+            this.testInt = testInt;
+            this.testMap = testMap;
+        }
+
+        public static final String[] PARAMETERS = new String[] {};
+        public abstract Object execute();
+
+        public String getTestString() {
+            return testString;
+        }
+
+        public int getTestInt() {
+            return Math.abs(testInt);
+        }
+
+        public Map<String, Object> getTestMap() {
+            return testMap == null ? new HashMap<>() : testMap;
+        }
+    }
+
+    public void testGets() {
+        Compiler compiler = new Compiler(Gets.class, Definition.BUILTINS);
+        Map<String, Object> map = new HashMap<>();
+        map.put("s", 1);
+
+        assertEquals(1, ((Gets)scriptEngine.compile(compiler, null, "testInt", emptyMap(), "s", -1, null)).execute());
+        assertEquals(Collections.emptyMap(), ((Gets)scriptEngine.compile(compiler, null, "testMap", emptyMap(), "s", -1, null)).execute());
+        assertEquals(Collections.singletonMap("1", "1"),
+            ((Gets)scriptEngine.compile(compiler, null, "testMap", emptyMap(), "s", -1, Collections.singletonMap("1", "1"))).execute());
+        assertEquals("s", ((Gets)scriptEngine.compile(compiler, null, "testString", emptyMap(), "s", -1, null)).execute());
+        assertEquals(map,
+            ((Gets)scriptEngine.compile(compiler, null, "testMap.put(testString, testInt); testMap", emptyMap(), "s", -1, null)).execute());
+    }
+
+    public abstract static class NoArgs {
+        public static final String[] PARAMETERS = new String[] {};
+        public abstract Object execute();
     }
     public void testNoArgs() {
         Compiler compiler = new Compiler(NoArgs.class, Definition.BUILTINS);
@@ -59,9 +103,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertThat(debug, containsString("ARETURN"));
     }
 
-    public interface OneArg {
-        String[] ARGUMENTS = new String[] {"arg"};
-        Object execute(Object arg);
+    public abstract static class OneArg {
+        public static final String[] PARAMETERS = new String[] {"arg"};
+        public abstract Object execute(Object arg);
     }
     public void testOneArg() {
         Compiler compiler = new Compiler(OneArg.class, Definition.BUILTINS);
@@ -80,9 +124,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals("Variable [_score] is not defined.", e.getMessage());
     }
 
-    public interface ArrayArg {
-        String[] ARGUMENTS = new String[] {"arg"};
-        Object execute(String[] arg);
+    public abstract static class ArrayArg {
+        public static final String[] PARAMETERS = new String[] {"arg"};
+        public abstract Object execute(String[] arg);
     }
     public void testArrayArg() {
         Compiler compiler = new Compiler(ArrayArg.class, Definition.BUILTINS);
@@ -90,9 +134,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(rando, ((ArrayArg)scriptEngine.compile(compiler, null, "arg[0]", emptyMap())).execute(new String[] {rando, "foo"}));
     }
 
-    public interface PrimitiveArrayArg {
-        String[] ARGUMENTS = new String[] {"arg"};
-        Object execute(int[] arg);
+    public abstract static class PrimitiveArrayArg {
+        public static final String[] PARAMETERS = new String[] {"arg"};
+        public abstract Object execute(int[] arg);
     }
     public void testPrimitiveArrayArg() {
         Compiler compiler = new Compiler(PrimitiveArrayArg.class, Definition.BUILTINS);
@@ -100,9 +144,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(rando, ((PrimitiveArrayArg)scriptEngine.compile(compiler, null, "arg[0]", emptyMap())).execute(new int[] {rando, 10}));
     }
 
-    public interface DefArrayArg {
-        String[] ARGUMENTS = new String[] {"arg"};
-        Object execute(Object[] arg);
+    public abstract static class DefArrayArg {
+        public static final String[] PARAMETERS = new String[] {"arg"};
+        public abstract Object execute(Object[] arg);
     }
     public void testDefArrayArg() {
         Compiler compiler = new Compiler(DefArrayArg.class, Definition.BUILTINS);
@@ -114,13 +158,13 @@ public class ImplementInterfacesTests extends ScriptTestCase {
             ((DefArrayArg)scriptEngine.compile(compiler, null, "arg[0].length()", emptyMap())).execute(new Object[] {rando, 10}));
     }
 
-    public interface ManyArgs {
-        String[] ARGUMENTS = new String[] {"a", "b", "c", "d"};
-        Object execute(int a, int b, int c, int d);
-        boolean uses$a();
-        boolean uses$b();
-        boolean uses$c();
-        boolean uses$d();
+    public abstract static class ManyArgs {
+        public static final String[] PARAMETERS = new String[] {"a", "b", "c", "d"};
+        public abstract Object execute(int a, int b, int c, int d);
+        public abstract boolean uses$a();
+        public abstract boolean uses$b();
+        public abstract boolean uses$c();
+        public abstract boolean uses$d();
     }
     public void testManyArgs() {
         Compiler compiler = new Compiler(ManyArgs.class, Definition.BUILTINS);
@@ -146,9 +190,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertTrue(script.uses$d());
     }
 
-    public interface VarargTest {
-        String[] ARGUMENTS = new String[] {"arg"};
-        Object execute(String... arg);
+    public abstract static class VarargTest {
+        public static final String[] PARAMETERS = new String[] {"arg"};
+        public abstract Object execute(String... arg);
     }
     public void testVararg() {
         Compiler compiler = new Compiler(VarargTest.class, Definition.BUILTINS);
@@ -156,13 +200,13 @@ public class ImplementInterfacesTests extends ScriptTestCase {
                     .execute("foo", "bar", "baz"));
     }
 
-    public interface DefaultMethods {
-        String[] ARGUMENTS = new String[] {"a", "b", "c", "d"};
-        Object execute(int a, int b, int c, int d);
-        default Object executeWithOne() {
+    public abstract static class DefaultMethods {
+        public static final String[] PARAMETERS = new String[] {"a", "b", "c", "d"};
+        public abstract Object execute(int a, int b, int c, int d);
+        public Object executeWithOne() {
             return execute(1, 1, 1, 1);
         }
-        default Object executeWithASingleOne(int a, int b, int c) {
+        public Object executeWithASingleOne(int a, int b, int c) {
             return execute(a, b, c, 1);
         }
     }
@@ -176,9 +220,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(7, ((DefaultMethods)scriptEngine.compile(compiler, null, "a + b + c + d", emptyMap())).executeWithASingleOne(1, 2, 3));
     }
 
-    public interface ReturnsVoid {
-        String[] ARGUMENTS = new String[] {"map"};
-        void execute(Map<String, Object> map);
+    public abstract static class ReturnsVoid {
+        public static final String[] PARAMETERS = new String[] {"map"};
+        public abstract void execute(Map<String, Object> map);
     }
     public void testReturnsVoid() {
         Compiler compiler = new Compiler(ReturnsVoid.class, Definition.BUILTINS);
@@ -195,9 +239,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertThat(debug, not(containsString("ACONST_NULL")));
     }
 
-    public interface ReturnsPrimitiveBoolean {
-        String[] ARGUMENTS = new String[] {};
-        boolean execute();
+    public abstract static class ReturnsPrimitiveBoolean {
+        public static final String[] PARAMETERS = new String[] {};
+        public abstract boolean execute();
     }
     public void testReturnsPrimitiveBoolean() {
         Compiler compiler = new Compiler(ReturnsPrimitiveBoolean.class, Definition.BUILTINS);
@@ -237,9 +281,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(false, ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "int i = 0", emptyMap())).execute());
     }
 
-    public interface ReturnsPrimitiveInt {
-        String[] ARGUMENTS = new String[] {};
-        int execute();
+    public abstract static class ReturnsPrimitiveInt {
+        public static final String[] PARAMETERS = new String[] {};
+        public abstract int execute();
     }
     public void testReturnsPrimitiveInt() {
         Compiler compiler = new Compiler(ReturnsPrimitiveInt.class, Definition.BUILTINS);
@@ -279,9 +323,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(0, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "int i = 0", emptyMap())).execute());
     }
 
-    public interface ReturnsPrimitiveFloat {
-        String[] ARGUMENTS = new String[] {};
-        float execute();
+    public abstract static class ReturnsPrimitiveFloat {
+        public static final String[] PARAMETERS = new String[] {};
+        public abstract float execute();
     }
     public void testReturnsPrimitiveFloat() {
         Compiler compiler = new Compiler(ReturnsPrimitiveFloat.class, Definition.BUILTINS);
@@ -310,9 +354,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(0.0f, ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "int i = 0", emptyMap())).execute(), 0);
     }
 
-    public interface ReturnsPrimitiveDouble {
-        String[] ARGUMENTS = new String[] {};
-        double execute();
+    public abstract static class ReturnsPrimitiveDouble {
+        public static final String[] PARAMETERS = new String[] {};
+        public abstract double execute();
     }
     public void testReturnsPrimitiveDouble() {
         Compiler compiler = new Compiler(ReturnsPrimitiveDouble.class, Definition.BUILTINS);
@@ -345,32 +389,34 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(0.0, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "int i = 0", emptyMap())).execute(), 0);
     }
 
-    public interface NoArgumentsConstant {
-        Object execute(String foo);
+    public abstract static class NoArgumentsConstant {
+        public abstract Object execute(String foo);
     }
     public void testNoArgumentsConstant() {
         Compiler compiler = new Compiler(NoArgumentsConstant.class, Definition.BUILTINS);
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(compiler, null, "1", emptyMap()));
-        assertThat(e.getMessage(), startsWith("Painless needs a constant [String[] ARGUMENTS] on all interfaces it implements with the "
+        assertThat(e.getMessage(), startsWith(
+                "Painless needs a constant [String[] PARAMETERS] on all interfaces it implements with the "
                 + "names of the method arguments but [" + NoArgumentsConstant.class.getName() + "] doesn't have one."));
     }
 
-    public interface WrongArgumentsConstant {
-        boolean[] ARGUMENTS = new boolean[] {false};
-        Object execute(String foo);
+    public abstract static class WrongArgumentsConstant {
+        boolean[] PARAMETERS = new boolean[] {false};
+        public abstract Object execute(String foo);
     }
     public void testWrongArgumentsConstant() {
         Compiler compiler = new Compiler(WrongArgumentsConstant.class, Definition.BUILTINS);
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(compiler, null, "1", emptyMap()));
-        assertThat(e.getMessage(), startsWith("Painless needs a constant [String[] ARGUMENTS] on all interfaces it implements with the "
+        assertThat(e.getMessage(), startsWith(
+                "Painless needs a constant [String[] PARAMETERS] on all interfaces it implements with the "
                 + "names of the method arguments but [" + WrongArgumentsConstant.class.getName() + "] doesn't have one."));
     }
 
-    public interface WrongLengthOfArgumentConstant {
-        String[] ARGUMENTS = new String[] {"foo", "bar"};
-        Object execute(String foo);
+    public abstract static class WrongLengthOfArgumentConstant {
+        public static final String[] PARAMETERS = new String[] {"foo", "bar"};
+        public abstract Object execute(String foo);
     }
     public void testWrongLengthOfArgumentConstant() {
         Compiler compiler = new Compiler(WrongLengthOfArgumentConstant.class, Definition.BUILTINS);
@@ -380,9 +426,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
                 + WrongLengthOfArgumentConstant.class.getName() + "#execute] takes [1] argument."));
     }
 
-    public interface UnknownArgType {
-        String[] ARGUMENTS = new String[] {"foo"};
-        Object execute(UnknownArgType foo);
+    public abstract static class UnknownArgType {
+        public static final String[] PARAMETERS = new String[] {"foo"};
+        public abstract Object execute(UnknownArgType foo);
     }
     public void testUnknownArgType() {
         Compiler compiler = new Compiler(UnknownArgType.class, Definition.BUILTINS);
@@ -392,9 +438,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
                 + "that are of whitelisted types.", e.getMessage());
     }
 
-    public interface UnknownReturnType {
-        String[] ARGUMENTS = new String[] {"foo"};
-        UnknownReturnType execute(String foo);
+    public abstract static class UnknownReturnType {
+        public static final String[] PARAMETERS = new String[] {"foo"};
+        public abstract UnknownReturnType execute(String foo);
     }
     public void testUnknownReturnType() {
         Compiler compiler = new Compiler(UnknownReturnType.class, Definition.BUILTINS);
@@ -404,9 +450,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
                 + "#execute] returns [" + UnknownReturnType.class.getName() + "] which isn't whitelisted.", e.getMessage());
     }
 
-    public interface UnknownArgTypeInArray {
-        String[] ARGUMENTS = new String[] {"foo"};
-        Object execute(UnknownArgTypeInArray[] foo);
+    public abstract static class UnknownArgTypeInArray {
+        public static final String[] PARAMETERS = new String[] {"foo"};
+        public abstract Object execute(UnknownArgTypeInArray[] foo);
     }
     public void testUnknownArgTypeInArray() {
         Compiler compiler = new Compiler(UnknownArgTypeInArray.class, Definition.BUILTINS);
@@ -416,9 +462,9 @@ public class ImplementInterfacesTests extends ScriptTestCase {
                 + "arguments that are of whitelisted types.", e.getMessage());
     }
 
-    public interface TwoExecuteMethods {
-        Object execute();
-        Object execute(boolean foo);
+    public abstract static class TwoExecuteMethods {
+        public abstract Object execute();
+        public abstract Object execute(boolean foo);
     }
     public void testTwoExecuteMethods() {
         Compiler compiler = new Compiler(TwoExecuteMethods.class, Definition.BUILTINS);
@@ -428,21 +474,10 @@ public class ImplementInterfacesTests extends ScriptTestCase {
                 + TwoExecuteMethods.class.getName() + "] has more than one.", e.getMessage());
     }
 
-    public interface BadMethod {
-        Object something();
-    }
-    public void testBadMethod() {
-        Compiler compiler = new Compiler(BadMethod.class, Definition.BUILTINS);
-        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
-            scriptEngine.compile(compiler, null, "null", emptyMap()));
-        assertEquals("Painless can only implement methods named [execute] and [uses$argName] but [" + BadMethod.class.getName()
-                + "] contains a method named [something]", e.getMessage());
-    }
-
-    public interface BadUsesReturn {
-        String[] ARGUMENTS = new String[] {"foo"};
-        Object execute(String foo);
-        Object uses$foo();
+    public abstract static class BadUsesReturn {
+        public static final String[] PARAMETERS = new String[] {"foo"};
+        public abstract Object execute(String foo);
+        public abstract Object uses$foo();
     }
     public void testBadUsesReturn() {
         Compiler compiler = new Compiler(BadUsesReturn.class, Definition.BUILTINS);
@@ -452,10 +487,10 @@ public class ImplementInterfacesTests extends ScriptTestCase {
                 + "#uses$foo] returns [java.lang.Object].", e.getMessage());
     }
 
-    public interface BadUsesParameter {
-        String[] ARGUMENTS = new String[] {"foo", "bar"};
-        Object execute(String foo, String bar);
-        boolean uses$bar(boolean foo);
+    public abstract static class BadUsesParameter {
+        public static final String[] PARAMETERS = new String[] {"foo", "bar"};
+        public abstract Object execute(String foo, String bar);
+        public abstract boolean uses$bar(boolean foo);
     }
     public void testBadUsesParameter() {
         Compiler compiler = new Compiler(BadUsesParameter.class, Definition.BUILTINS);
@@ -465,10 +500,10 @@ public class ImplementInterfacesTests extends ScriptTestCase {
                 + "#uses$bar] does.", e.getMessage());
     }
 
-    public interface BadUsesName {
-        String[] ARGUMENTS = new String[] {"foo", "bar"};
-        Object execute(String foo, String bar);
-        boolean uses$baz();
+    public abstract static class BadUsesName {
+        public static final String[] PARAMETERS = new String[] {"foo", "bar"};
+        public abstract Object execute(String foo, String bar);
+        public abstract boolean uses$baz();
     }
     public void testBadUsesName() {
         Compiler compiler = new Compiler(BadUsesName.class, Definition.BUILTINS);

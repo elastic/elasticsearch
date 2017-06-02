@@ -79,7 +79,13 @@ setup:
 ---
 "Get index infos should work for wildcards":
 
+  - skip:
+      features:
+        - warnings
+
   - do:
+      warnings:
+        - 'Requesting comma-separated features is deprecated and will be removed in 6.0+, retrieve all features instead.'
       indices.get:
         index: test_*
         feature: _mapping,_settings

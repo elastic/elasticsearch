@@ -463,7 +463,10 @@ public class RecoverySourceHandler {
                 cancellableThreads.execute(() -> recoveryTarget.ensureClusterStateVersion(currentClusterStateVersion));
 
                 logger.trace("performing relocation hand-off");
-                cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode()));
+                cancellableThreads.execute(
+                        () -> shard.relocated(
+                                "to " + request.targetNode(),
+                                () -> recoveryTarget.handoffPrimaryContext(shard.primaryContext())));
             }
             /*
              * if the recovery process fails after setting the shard state to RELOCATED, both relocation source and

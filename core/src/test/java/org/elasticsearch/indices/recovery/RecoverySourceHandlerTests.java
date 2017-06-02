@@ -448,7 +448,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             relocated.set(true);
             assertTrue(recoveriesDelayed.get());
             return null;
-        }).when(shard).relocated(any(String.class));
+        }).when(shard).relocated(any(String.class), any(Runnable.class));
         when(shard.acquireIndexCommit(anyBoolean())).thenReturn(mock(Engine.IndexCommitRef.class));
 
         final Supplier<Long> currentClusterStateVersionSupplier = () -> {

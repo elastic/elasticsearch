@@ -27,6 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -246,6 +247,25 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         }
 
         updateGlobalCheckpointOnPrimary();
+    }
+
+    /**
+     * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
+     *
+     * @param seqNoPrimaryContext the sequence number context
+     */
+    synchronized void updateAllocationIdsFromPrimaryContext(final SeqNoPrimaryContext seqNoPrimaryContext) {
+        final Set<String> inSyncAllocationIds =
+                new HashSet<>(Arrays.asList(seqNoPrimaryContext.inSyncLocalCheckpoints().keys().toArray(String.class)));
+        final Set<String> trackingAllocationIds =
+                new HashSet<>(Arrays.asList(seqNoPrimaryContext.trackingLocalCheckpoints().keys().toArray(String.class)));
+        updateAllocationIdsFromMaster(inSyncAllocationIds, trackingAllocationIds);
+        for (final ObjectLongCursor<String> cursor : seqNoPrimaryContext.inSyncLocalCheckpoints()) {
+            updateLocalCheckpoint(cursor.key, cursor.value);
+        }
+        for (final ObjectLongCursor<String> cursor : seqNoPrimaryContext.trackingLocalCheckpoints()) {
+            updateLocalCheckpoint(cursor.key, cursor.value);
+        }
     }
 
     /**

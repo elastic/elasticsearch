@@ -95,6 +95,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.seqno.SeqNoPrimaryContext;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -478,7 +479,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public void relocated(String reason) throws IllegalIndexShardStateException, InterruptedException {
+    public void relocated(final String reason, final Runnable onBlocked) throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
@@ -498,6 +499,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
                             ": shard is no longer relocating " + shardRouting);
                     }
+                    onBlocked.run();
                     changeState(IndexShardState.RELOCATED, reason);
                 }
             });
@@ -510,6 +512,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Obtain the primary context for the shard. The shard must be serving as the relocation source for a primary shard.
+     *
+     * @return the primary for the shard
+     */
+    public PrimaryContext primaryContext() {
+        verifyPrimary();
+        assert shardRouting.relocating();
+        assert !shardRouting.isRelocationTarget();
+        return new PrimaryContext(getEngine().seqNoService().seqNoPrimaryContext());
+    }
 
     public IndexShardState state() {
         return state;
@@ -1248,7 +1261,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void verifyPrimary() {
         if (shardRouting.primary() == false) {
-            throw new IllegalStateException("shard is not a primary " + shardRouting);
+            throw new IllegalStateException("shard " + shardRouting + " is not a primary");
         }
     }
 
@@ -1256,8 +1269,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexShardState state = state();
         if (shardRouting.primary() && shardRouting.active() && state != IndexShardState.RELOCATED) {
             // must use exception that is not ignored by replication logic. See TransportActions.isShardNotAvailableException
-            throw new IllegalStateException("active primary shard cannot be a replication target before " +
-                " relocation hand off " + shardRouting + ", state is [" + state + "]");
+            throw new IllegalStateException("active primary shard " + shardRouting + " cannot be a replication target before " +
+                "relocation hand off, state is [" + state + "]");
         }
     }
 
@@ -1595,6 +1608,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // if the engine is not yet started, we are not ready yet and can just ignore this
         if (engine != null) {
             engine.seqNoService().updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
+        }
+    }
+
+    /**
+     * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
+     *
+     * @param seqNoPrimaryContext the sequence number context
+     */
+    public void updateAllocationIdsFromPrimaryContext(final SeqNoPrimaryContext seqNoPrimaryContext) {
+        verifyPrimary();
+        assert shardRouting.isRelocationTarget();
+        final Engine engine = getEngineOrNull();
+        if (engine != null) {
+            engine.seqNoService().updateAllocationIdsFromPrimaryContext(seqNoPrimaryContext);
         }
     }
 

@@ -129,7 +129,7 @@ public final class SSource extends AStatement {
     private final List<AStatement> statements;
 
     private Locals mainMethod;
-    private List<org.objectweb.asm.commons.Method> getMethods;
+    private final List<org.objectweb.asm.commons.Method> getMethods;
     private byte[] bytes;
 
     public SSource(ScriptClassInfo scriptClassInfo, CompilerSettings settings, String name, String source, Printer debugStream,
@@ -148,6 +148,8 @@ public final class SSource extends AStatement {
         this.functions = Collections.unmodifiableList(functions);
         this.statements = Collections.unmodifiableList(statements);
         this.globals = globals;
+
+        this.getMethods = new ArrayList<>();
     }
 
     @Override
@@ -186,23 +188,15 @@ public final class SSource extends AStatement {
 
         mainMethod = Locals.newMainMethodScope(scriptClassInfo, program, reserved.getMaxLoopCounter());
 
-        // process get methods to add variables to the main method locally
-        getMethods = new ArrayList<>(scriptClassInfo.getGetMethods());
-        List<Definition.Type> getReturns = new ArrayList<>(scriptClassInfo.getGetReturns());
-
-        for (int get = 0; get < getMethods.size();) {
-            String name = getMethods.get(get).getName().substring(3);
+        for (int get = 0; get < scriptClassInfo.getGetMethods().size(); ++get) {
+            org.objectweb.asm.commons.Method method = scriptClassInfo.getGetMethods().get(get);
+            String name = method.getName().substring(3);
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-            Definition.Type rtn = getReturns.get(get);
 
             if (reserved.getUsedVariables().contains(name)) {
-                // found use of the get variable so we add it to the variable list
+                Definition.Type rtn = scriptClassInfo.getGetReturns().get(get);
                 mainMethod.addVariable(new Location("getter [" + name + "]", 0), rtn, name, true);
-                ++get;
-            } else {
-                // the get variable is not used in this script so remove it from the list
-                getMethods.remove(get);
-                getReturns.remove(get);
+                getMethods.add(method);
             }
         }
 

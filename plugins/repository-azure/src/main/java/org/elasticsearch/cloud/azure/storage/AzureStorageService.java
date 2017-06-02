@@ -32,7 +32,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.Proxy;
 import java.net.URISyntaxException;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -51,6 +53,16 @@ public interface AzureStorageService {
 
         public static final Setting<TimeValue> TIMEOUT_SETTING =
             Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(-1), Property.NodeScope);
+
+        /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
+        public static final Setting<Proxy.Type> PROXY_TYPE_SETTING = new Setting<>("cloud.azure.storage.proxy.type", "direct",
+            s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Setting.Property.NodeScope);
+        /** The host name of a proxy to connect to azure through. */
+        public static final Setting<String> PROXY_HOST_SETTING =
+            Setting.simpleString("cloud.azure.storage.proxy.host", Setting.Property.NodeScope);
+        /** The port of a proxy to connect to azure through. */
+        public static final Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("cloud.azure.storage.proxy.port", 0, 0, 65535,
+            Setting.Property.NodeScope);
     }
 
     boolean doesContainerExist(String account, LocationMode mode, String container);

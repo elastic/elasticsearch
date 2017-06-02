@@ -40,6 +40,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.InputStream;
@@ -49,6 +50,7 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -70,6 +72,8 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
         logger.debug("starting azure storage client instance");
 
+        registerProxy();
+
         // We register the primary client if any
         if (primaryStorageSettings != null) {
             logger.debug("registering primary client for account [{}]", primaryStorageSettings.getAccount());
@@ -80,6 +84,32 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : secondariesStorageSettings.entrySet()) {
             logger.debug("registering secondary client for account [{}]", azureStorageSettingsEntry.getKey());
             createClient(azureStorageSettingsEntry.getValue());
+        }
+    }
+
+    private void registerProxy() {
+        // Register the proxy if we have any
+        Proxy.Type proxyType = Storage.PROXY_TYPE_SETTING.get(settings);
+        String proxyHost = Storage.PROXY_HOST_SETTING.get(settings);
+        Integer proxyPort = Storage.PROXY_PORT_SETTING.get(settings);
+
+        // Validate proxy settings
+        if (proxyType.equals(Proxy.Type.DIRECT) && (proxyPort != 0 || Strings.hasText(proxyHost))) {
+            throw new SettingsException("Azure Proxy port or host have been set but proxy type is not defined.");
+        }
+        if (proxyType.equals(Proxy.Type.DIRECT) == false && (proxyPort == 0 || Strings.isEmpty(proxyHost))) {
+            throw new SettingsException("Azure Proxy type has been set but proxy host or port is not defined.");
+        }
+
+        if (proxyType.equals(Proxy.Type.DIRECT)) {
+            OperationContext.setDefaultProxy(null);
+        } else {
+            logger.debug("Using azure proxy [{}] with [{}:{}].", proxyType, proxyHost, proxyPort);
+            try {
+                OperationContext.setDefaultProxy(new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort)));
+            } catch (UnknownHostException e) {
+                throw new SettingsException("Azure proxy host is unknown.", e);
+            }
         }
     }
 
@@ -98,15 +128,6 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
             // Create the blob client.
             CloudBlobClient client = storageAccount.createCloudBlobClient();
-
-            // Register the proxy if we have any
-            if (azureStorageSettings.getProxyType().equals(Proxy.Type.DIRECT) == false) {
-                // Sadly this is setting globally the proxy whatever the client instance is
-                // TODO can we fix that?
-                OperationContext.setDefaultProxy(
-                    new Proxy(azureStorageSettings.getProxyType(), new InetSocketAddress(
-                        InetAddress.getByName(azureStorageSettings.getProxyHost()), azureStorageSettings.getProxyPort())));
-            }
 
             // Register the client
             this.clients.put(azureStorageSettings.getAccount(), client);

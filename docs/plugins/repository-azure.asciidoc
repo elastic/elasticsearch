@@ -71,23 +71,20 @@ cloud:
 In this example, timeout will be `10s` per try for `my_account1` with `7` retries before failing
 and `30s` per try for `my_account2` with `3` retries.
 
-You can define a proxy using the following settings:
+You can define a global proxy applicable to each azure client using the following settings:
 
 [source,yaml]
 ----
 cloud:
     azure:
         storage:
-            my_account:
-                account: your_azure_storage_account
-                key: your_azure_storage_key
-                proxy:
-                    host: proxy.host
-                    port: 8888
-                    type: http
+            proxy:
+                host: proxy.host
+                port: 8888
+                type: http
 ----
 
-Supported values for `proxy.type` are `http` or `socks`. When set `proxy.host` and `proxy.port` must
+Supported values for `proxy.type` are `http` or `socks`. When `proxy.type` is set, `proxy.host` and `proxy.port` must
 be provided.
 
 

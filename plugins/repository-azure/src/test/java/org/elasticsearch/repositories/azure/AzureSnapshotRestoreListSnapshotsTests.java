@@ -62,7 +62,7 @@ public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThi
     private final AzureStorageService azureStorageService = new AzureStorageServiceImpl(readSettingsFromFile());
     private final String containerName = getContainerName();
 
-    public AzureSnapshotRestoreListSnapshotsTests() throws UnknownHostException {
+    public AzureSnapshotRestoreListSnapshotsTests() {
     }
 
     public void testList() throws Exception {

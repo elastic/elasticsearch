@@ -21,9 +21,9 @@ package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicy;
-import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobProperties;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
@@ -44,9 +44,11 @@ import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -57,7 +59,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
     final Map<String, CloudBlobClient> clients;
 
-    public AzureStorageServiceImpl(Settings settings) throws UnknownHostException {
+    public AzureStorageServiceImpl(Settings settings) {
         super(settings);
 
         Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> storageSettings = AzureStorageSettings.parse(settings);
@@ -98,8 +100,12 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             CloudBlobClient client = storageAccount.createCloudBlobClient();
 
             // Register the proxy if we have any
-            if (azureStorageSettings.getProxy() != null) {
-                OperationContext.setDefaultProxy(azureStorageSettings.getProxy());
+            if (azureStorageSettings.getProxyType().equals(Proxy.Type.DIRECT) == false) {
+                // Sadly this is setting globally the proxy whatever the client instance is
+                // TODO can we fix that?
+                OperationContext.setDefaultProxy(
+                    new Proxy(azureStorageSettings.getProxyType(), new InetSocketAddress(
+                        InetAddress.getByName(azureStorageSettings.getProxyHost()), azureStorageSettings.getProxyPort())));
             }
 
             // Register the client

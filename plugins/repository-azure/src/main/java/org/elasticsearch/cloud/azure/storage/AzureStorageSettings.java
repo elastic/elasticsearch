@@ -21,17 +21,14 @@ package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.RetryPolicy;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,7 +50,7 @@ public final class AzureStorageSettings {
         Setting.affixKeySetting(Storage.PREFIX, "proxy.host", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
     /** The port of a proxy to connect to azure through. */
     private static final Setting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "proxy.port",
-        key -> Setting.intSetting(key, 80, 0, 65535, Setting.Property.NodeScope));
+        key -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope));
     /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
     private static final Setting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(Storage.PREFIX, "proxy.type",
             key -> new Setting<>(key, "direct", s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Setting.Property.NodeScope));
@@ -74,24 +71,15 @@ public final class AzureStorageSettings {
     private final String proxyHost;
     private final Integer proxyPort;
     private final Proxy.Type proxyType;
-    private final Proxy proxy;
 
     public AzureStorageSettings(String name, String account, String key, TimeValue timeout, boolean activeByDefault, int maxRetries,
-                                String proxyHost, Integer proxyPort, Proxy.Type proxyType) throws UnknownHostException {
+                                String proxyHost, Integer proxyPort, Proxy.Type proxyType) {
         this.name = name;
         this.account = account;
         this.key = key;
         this.timeout = timeout;
         this.activeByDefault = activeByDefault;
         this.maxRetries = maxRetries;
-        if (proxyType.equals(Proxy.Type.DIRECT)) {
-            proxy = null;
-        } else {
-            if (proxyHost == null || proxyPort == null) {
-                throw new IllegalArgumentException("When azure proxy is set to http or socks, you must provide proxy host and port");
-            }
-            proxy = new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort));
-        }
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
         this.proxyType = proxyType;
@@ -121,8 +109,16 @@ public final class AzureStorageSettings {
         return maxRetries;
     }
 
-    public Proxy getProxy() {
-        return proxy;
+    public Proxy.Type getProxyType() {
+        return proxyType;
+    }
+
+    public String getProxyHost() {
+        return proxyHost;
+    }
+
+    public Integer getProxyPort() {
+        return proxyPort;
     }
 
     @Override
@@ -143,30 +139,42 @@ public final class AzureStorageSettings {
      * @param settings settings to parse
      * @return A tuple with v1 = primary storage and v2 = secondary storage
      */
-    public static Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> parse(Settings settings) throws UnknownHostException {
+    public static Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> parse(Settings settings) {
         List<AzureStorageSettings> storageSettings = createStorageSettings(settings);
         return Tuple.tuple(getPrimary(storageSettings), getSecondaries(storageSettings));
     }
 
-    private static List<AzureStorageSettings> createStorageSettings(Settings settings) throws UnknownHostException {
+    private static List<AzureStorageSettings> createStorageSettings(Settings settings) {
         // ignore global timeout which has the same prefix but does not belong to any group
         Settings groups = Storage.STORAGE_ACCOUNTS.get(settings.filter((k) -> k.equals(Storage.TIMEOUT_SETTING.getKey()) == false));
         List<AzureStorageSettings> storageSettings = new ArrayList<>();
         for (String groupName : groups.getAsGroups().keySet()) {
-            storageSettings.add(
-                new AzureStorageSettings(
-                    groupName,
-                    getValue(settings, groupName, ACCOUNT_SETTING),
-                    getValue(settings, groupName, KEY_SETTING),
-                    getValue(settings, groupName, TIMEOUT_SETTING),
-                    getValue(settings, groupName, DEFAULT_SETTING),
-                    getValue(settings, groupName, MAX_RETRIES_SETTING),
-                    getValue(settings, groupName, PROXY_HOST_SETTING),
-                    getValue(settings, groupName, PROXY_PORT_SETTING),
-                    getValue(settings, groupName, PROXY_TYPE_SETTING))
-            );
+            AzureStorageSettings azureStorageSettings = new AzureStorageSettings(
+                groupName,
+                getValue(settings, groupName, ACCOUNT_SETTING),
+                getValue(settings, groupName, KEY_SETTING),
+                getValue(settings, groupName, TIMEOUT_SETTING),
+                getValue(settings, groupName, DEFAULT_SETTING),
+                getValue(settings, groupName, MAX_RETRIES_SETTING),
+                getValue(settings, groupName, PROXY_HOST_SETTING),
+                getValue(settings, groupName, PROXY_PORT_SETTING),
+                getValue(settings, groupName, PROXY_TYPE_SETTING));
+            azureStorageSettings.validate();
+            storageSettings.add(azureStorageSettings);
         }
         return storageSettings;
+    }
+
+    /**
+     * This method makes sure that settings are correct
+     */
+    private void validate() {
+        if (proxyType.equals(Proxy.Type.DIRECT) && (proxyPort != 0 || Strings.hasText(proxyHost))) {
+            throw new SettingsException("Azure Proxy port or host have been set but proxy type is not defined.");
+        }
+        if (proxyType.equals(Proxy.Type.DIRECT) == false && (proxyPort == 0 || Strings.isEmpty(proxyHost))) {
+            throw new SettingsException("Azure Proxy type has been set but proxy host or port is not defined.");
+        }
     }
 
     private static <T> T getValue(Settings settings, String groupName, Setting<T> setting) {
@@ -175,7 +183,7 @@ public final class AzureStorageSettings {
         return setting.getConcreteSetting(fullKey).get(settings);
     }
 
-    private static AzureStorageSettings getPrimary(List<AzureStorageSettings> settings) throws UnknownHostException {
+    private static AzureStorageSettings getPrimary(List<AzureStorageSettings> settings) {
         if (settings.isEmpty()) {
             return null;
         } else if (settings.size() == 1) {

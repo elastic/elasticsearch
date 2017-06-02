@@ -25,9 +25,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 
-import java.net.UnknownHostException;
 import java.util.Map;
 
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AzureSettingsParserTests extends LuceneTestCase {
 
-    public void testParseTwoSettingsExplicitDefault() throws UnknownHostException {
+    public void testParseTwoSettingsExplicitDefault() {
         Settings settings = Settings.builder()
                 .put("cloud.azure.storage.azure1.account", "myaccount1")
                 .put("cloud.azure.storage.azure1.key", "mykey1")
@@ -54,7 +54,7 @@ public class AzureSettingsParserTests extends LuceneTestCase {
         assertThat(tuple.v2().get("azure2").getKey(), is("mykey2"));
     }
 
-    public void testParseUniqueSettings() throws UnknownHostException {
+    public void testParseUniqueSettings() {
         Settings settings = Settings.builder()
                 .put("cloud.azure.storage.azure1.account", "myaccount1")
                 .put("cloud.azure.storage.azure1.key", "mykey1")
@@ -67,7 +67,7 @@ public class AzureSettingsParserTests extends LuceneTestCase {
         assertThat(tuple.v2().keySet(), hasSize(0));
     }
 
-    public void testParseTwoSettingsNoDefault() throws UnknownHostException {
+    public void testParseTwoSettingsNoDefault() {
         Settings settings = Settings.builder()
                 .put("cloud.azure.storage.azure1.account", "myaccount1")
                 .put("cloud.azure.storage.azure1.key", "mykey1")
@@ -83,7 +83,7 @@ public class AzureSettingsParserTests extends LuceneTestCase {
         }
     }
 
-    public void testParseTwoSettingsTooManyDefaultSet() throws UnknownHostException {
+    public void testParseTwoSettingsTooManyDefaultSet() {
         Settings settings = Settings.builder()
                 .put("cloud.azure.storage.azure1.account", "myaccount1")
                 .put("cloud.azure.storage.azure1.key", "mykey1")
@@ -102,9 +102,67 @@ public class AzureSettingsParserTests extends LuceneTestCase {
 
     }
 
-    public void testParseEmptySettings() throws UnknownHostException {
+    public void testParseEmptySettings() {
         Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> tuple = AzureStorageSettings.parse(Settings.EMPTY);
         assertThat(tuple.v1(), nullValue());
         assertThat(tuple.v2().keySet(), hasSize(0));
+    }
+
+    public void testProxyHttp() {
+        Settings settings = Settings.builder()
+            .put("cloud.azure.storage.azure.account", "myaccount")
+            .put("cloud.azure.storage.azure.key", "mykey")
+            .put("cloud.azure.storage.azure.proxy.host", "127.0.0.1")
+            .put("cloud.azure.storage.azure.proxy.port", 8080)
+            .put("cloud.azure.storage.azure.proxy.type", "http")
+            .build();
+        AzureStorageSettings.parse(settings);
+    }
+
+    public void testProxySocks() {
+        Settings settings = Settings.builder()
+            .put("cloud.azure.storage.azure.account", "myaccount")
+            .put("cloud.azure.storage.azure.key", "mykey")
+            .put("cloud.azure.storage.azure.proxy.host", "127.0.0.1")
+            .put("cloud.azure.storage.azure.proxy.port", 8080)
+            .put("cloud.azure.storage.azure.proxy.type", "socks")
+            .build();
+        AzureStorageSettings.parse(settings);
+    }
+
+    public void testProxyNoHost() {
+        Settings settings = Settings.builder()
+            .put("cloud.azure.storage.azure.account", "myaccount")
+            .put("cloud.azure.storage.azure.key", "mykey")
+            .put("cloud.azure.storage.azure.proxy.port", 8080)
+            .put("cloud.azure.storage.azure.proxy.type", randomFrom("socks", "http"))
+            .build();
+
+        SettingsException e = expectThrows(SettingsException.class, () -> AzureStorageSettings.parse(settings));
+        assertEquals("Azure Proxy type has been set but proxy host or port is not defined.", e.getMessage());
+    }
+
+    public void testProxyNoPort() {
+        Settings settings = Settings.builder()
+            .put("cloud.azure.storage.azure.account", "myaccount")
+            .put("cloud.azure.storage.azure.key", "mykey")
+            .put("cloud.azure.storage.azure.proxy.host", "127.0.0.1")
+            .put("cloud.azure.storage.azure.proxy.type", randomFrom("socks", "http"))
+            .build();
+
+        SettingsException e = expectThrows(SettingsException.class, () -> AzureStorageSettings.parse(settings));
+        assertEquals("Azure Proxy type has been set but proxy host or port is not defined.", e.getMessage());
+    }
+
+    public void testProxyNoType() {
+        Settings settings = Settings.builder()
+            .put("cloud.azure.storage.azure.account", "myaccount")
+            .put("cloud.azure.storage.azure.key", "mykey")
+            .put("cloud.azure.storage.azure.proxy.host", "127.0.0.1")
+            .put("cloud.azure.storage.azure.proxy.port", 8080)
+            .build();
+
+        SettingsException e = expectThrows(SettingsException.class, () -> AzureStorageSettings.parse(settings));
+        assertEquals("Azure Proxy port or host have been set but proxy type is not defined.", e.getMessage());
     }
 }

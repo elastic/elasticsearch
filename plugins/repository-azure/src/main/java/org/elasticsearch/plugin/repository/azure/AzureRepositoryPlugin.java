@@ -30,7 +30,6 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.azure.AzureRepository;
 
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -42,7 +41,7 @@ import java.util.Map;
 public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
     // overridable for tests
-    protected AzureStorageService createStorageService(Settings settings) throws UnknownHostException {
+    protected AzureStorageService createStorageService(Settings settings) {
         return new AzureStorageServiceImpl(settings);
     }
 

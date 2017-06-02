@@ -28,16 +28,24 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregationTestCase<InternalAdjacencyMatrix> {
 
     private List<String> keys;
 
     @Override
+    protected int maxNumberOfBuckets() {
+        return 10;
+    }
+
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         keys = new ArrayList<>();
+        // InternalAdjacencyMatrix represents the upper triangular matrix:
+        // 2 filters (matrix of 2x2) generates 3 buckets
+        // 3 filters generates 6 buckets
+        // 4 filters generates 10 buckets
         int numFilters = randomIntBetween(2, 4);
         String[] filters = new String[numFilters];
         for (int i = 0; i < numFilters; i++) {

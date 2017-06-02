@@ -40,7 +40,7 @@ import java.util.List;
  * This class is also used to quickly retrieve the parent-join field defined in a mapping without
  * specifying the name of the field.
  */
-class MetaJoinFieldMapper extends FieldMapper {
+public class MetaJoinFieldMapper extends FieldMapper {
     static final String NAME = "_parent_join";
     static final String CONTENT_TYPE = "parent_join";
 
@@ -68,8 +68,9 @@ class MetaJoinFieldMapper extends FieldMapper {
         }
     }
 
-    static final class MetaJoinFieldType extends StringFieldType {
-        ParentJoinFieldMapper mapper;
+    public static class MetaJoinFieldType extends StringFieldType {
+
+        private ParentJoinFieldMapper mapper;
 
         MetaJoinFieldType() {}
 
@@ -99,6 +100,10 @@ class MetaJoinFieldMapper extends FieldMapper {
             }
             BytesRef binaryValue = (BytesRef) value;
             return binaryValue.utf8ToString();
+        }
+
+        public ParentJoinFieldMapper getMapper() {
+            return mapper;
         }
     }
 

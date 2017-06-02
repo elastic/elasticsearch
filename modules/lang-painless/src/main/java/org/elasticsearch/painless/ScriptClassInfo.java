@@ -34,9 +34,9 @@ import static org.elasticsearch.painless.WriterConstants.USES_PARAMETER_METHOD_T
 /**
  * Information about the interface being implemented by the painless script.
  */
-public class ScriptInterface {
+public class ScriptClassInfo {
 
-    private final Class<?> aclass;
+    private final Class<?> baseClass;
     private final org.objectweb.asm.commons.Method executeMethod;
     private final Definition.Type executeMethodReturnType;
     private final List<MethodArgument> executeArguments;
@@ -44,15 +44,15 @@ public class ScriptInterface {
     private final List<org.objectweb.asm.commons.Method> getMethods;
     private final List<Definition.Type> getReturns;
 
-    public ScriptInterface(Definition definition, Class<?> aclass) {
-        this.aclass = aclass;
+    public ScriptClassInfo(Definition definition, Class<?> baseClass) {
+        this.baseClass = baseClass;
 
         // Find the main method and the uses$argName methods
         java.lang.reflect.Method executeMethod = null;
         List<org.objectweb.asm.commons.Method> usesMethods = new ArrayList<>();
-        getMethods = new ArrayList<>();
-        getReturns = new ArrayList<>();
-        for (java.lang.reflect.Method m : aclass.getMethods()) {
+        List<org.objectweb.asm.commons.Method> getMethods = new ArrayList<>();
+        List<Definition.Type> getReturns = new ArrayList<>();
+        for (java.lang.reflect.Method m : baseClass.getMethods()) {
             if (m.isDefault()) {
                 continue;
             }
@@ -61,18 +61,18 @@ public class ScriptInterface {
                     executeMethod = m;
                 } else {
                     throw new IllegalArgumentException(
-                            "Painless can only implement interfaces that have a single method named [execute] but [" + aclass.getName()
+                            "Painless can only implement interfaces that have a single method named [execute] but [" + baseClass.getName()
                                     + "] has more than one.");
                 }
             }
             if (m.getName().startsWith("uses$")) {
                 if (false == m.getReturnType().equals(boolean.class)) {
                     throw new IllegalArgumentException("Painless can only implement uses$ methods that return boolean but ["
-                            + aclass.getName() + "#" + m.getName() + "] returns [" + m.getReturnType().getName() + "].");
+                            + baseClass.getName() + "#" + m.getName() + "] returns [" + m.getReturnType().getName() + "].");
                 }
                 if (m.getParameterTypes().length > 0) {
                     throw new IllegalArgumentException("Painless can only implement uses$ methods that do not take parameters but ["
-                            + aclass.getName() + "#" + m.getName() + "] does.");
+                            + baseClass.getName() + "#" + m.getName() + "] does.");
                 }
                 usesMethods.add(new org.objectweb.asm.commons.Method(m.getName(), USES_PARAMETER_METHOD_TYPE.toMethodDescriptorString()));
             }
@@ -89,17 +89,17 @@ public class ScriptInterface {
         MethodType methodType = MethodType.methodType(executeMethod.getReturnType(), executeMethod.getParameterTypes());
         this.executeMethod = new org.objectweb.asm.commons.Method(executeMethod.getName(), methodType.toMethodDescriptorString());
         executeMethodReturnType = definitionTypeForClass(definition, executeMethod.getReturnType(),
-                componentType -> "Painless can only implement execute methods returning a whitelisted type but [" + aclass.getName()
+                componentType -> "Painless can only implement execute methods returning a whitelisted type but [" + baseClass.getName()
                         + "#execute] returns [" + componentType.getName() + "] which isn't whitelisted.");
 
         // Look up the argument names
         Set<String> argumentNames = new LinkedHashSet<>();
         List<MethodArgument> arguments = new ArrayList<>();
-        String[] argumentNamesConstant = readArgumentNamesConstant(aclass);
+        String[] argumentNamesConstant = readArgumentNamesConstant(baseClass);
         Class<?>[] types = executeMethod.getParameterTypes();
         if (argumentNamesConstant.length != types.length) {
-            throw new IllegalArgumentException("[" + aclass.getName() + "#ARGUMENTS] has length [2] but ["
-                    + aclass.getName() + "#execute] takes [1] argument.");
+            throw new IllegalArgumentException("[" + baseClass.getName() + "#ARGUMENTS] has length [2] but ["
+                    + baseClass.getName() + "#execute] takes [1] argument.");
         }
         for (int arg = 0; arg < types.length; arg++) {
             arguments.add(methodArgument(definition, types[arg], argumentNamesConstant[arg]));
@@ -111,17 +111,19 @@ public class ScriptInterface {
         for (org.objectweb.asm.commons.Method usesMethod : usesMethods) {
             if (false == argumentNames.contains(usesMethod.getName().substring("uses$".length()))) {
                 throw new IllegalArgumentException("Painless can only implement uses$ methods that match a parameter name but ["
-                        + aclass.getName() + "#" + usesMethod.getName() + "] doesn't match any of " + argumentNames + ".");
+                        + baseClass.getName() + "#" + usesMethod.getName() + "] doesn't match any of " + argumentNames + ".");
             }
         }
         this.usesMethods = unmodifiableList(usesMethods);
+        this.getMethods = unmodifiableList(getMethods);
+        this.getReturns = unmodifiableList(getReturns);
     }
 
     /**
      * The interface that the Painless script should implement.
      */
-    public Class<?> getAClass() {
-        return aclass;
+    public Class<?> getBaseClass() {
+        return baseClass;
     }
 
     /**
@@ -221,11 +223,11 @@ public class ScriptInterface {
         try {
             argumentNamesField = iface.getField("PARAMETERS");
         } catch (NoSuchFieldException e) {
-            throw new IllegalArgumentException("Painless needs a constant [String[] ARGUMENTS] on all interfaces it implements with the "
+            throw new IllegalArgumentException("Painless needs a constant [String[] PARAMETERS] on all interfaces it implements with the "
                     + "names of the method arguments but [" + iface.getName() + "] doesn't have one.", e);
         }
         if (false == argumentNamesField.getType().equals(String[].class)) {
-            throw new IllegalArgumentException("Painless needs a constant [String[] ARGUMENTS] on all interfaces it implements with the "
+            throw new IllegalArgumentException("Painless needs a constant [String[] PARAMETERS] on all interfaces it implements with the "
                     + "names of the method arguments but [" + iface.getName() + "] doesn't have one.");
         }
         try {

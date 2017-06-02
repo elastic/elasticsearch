@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Tests for Painless implementing different interfaces.
  */
-public class ImplementInterfacesTests extends ScriptTestCase {
+public class BaseClassTests extends ScriptTestCase {
 
     public abstract static class Gets {
 
@@ -397,7 +397,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(compiler, null, "1", emptyMap()));
         assertThat(e.getMessage(), startsWith(
-                "Painless needs a constant [String[] ARGUMENTS] on all interfaces it implements with the "
+                "Painless needs a constant [String[] PARAMETERS] on all interfaces it implements with the "
                 + "names of the method arguments but [" + NoArgumentsConstant.class.getName() + "] doesn't have one."));
     }
 
@@ -410,7 +410,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
             scriptEngine.compile(compiler, null, "1", emptyMap()));
         assertThat(e.getMessage(), startsWith(
-                "Painless needs a constant [String[] ARGUMENTS] on all interfaces it implements with the "
+                "Painless needs a constant [String[] PARAMETERS] on all interfaces it implements with the "
                 + "names of the method arguments but [" + WrongArgumentsConstant.class.getName() + "] doesn't have one."));
     }
 

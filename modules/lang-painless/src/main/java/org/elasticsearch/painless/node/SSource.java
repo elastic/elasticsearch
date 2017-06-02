@@ -29,7 +29,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptInterface;
+import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.SimpleChecksAdapter;
 import org.elasticsearch.painless.WriterConstants;
 import org.objectweb.asm.ClassVisitor;
@@ -118,7 +118,7 @@ public final class SSource extends AStatement {
         }
     }
 
-    private final ScriptInterface scriptInterface;
+    private final ScriptClassInfo scriptClassInfo;
     private final CompilerSettings settings;
     private final String name;
     private final String source;
@@ -129,13 +129,14 @@ public final class SSource extends AStatement {
     private final List<AStatement> statements;
 
     private Locals mainMethod;
+    private List<org.objectweb.asm.commons.Method> getMethods;
     private byte[] bytes;
 
-    public SSource(ScriptInterface scriptInterface, CompilerSettings settings, String name, String source, Printer debugStream,
+    public SSource(ScriptClassInfo scriptClassInfo, CompilerSettings settings, String name, String source, Printer debugStream,
                    MainMethodReserved reserved, Location location,
                    List<SFunction> functions, Globals globals, List<AStatement> statements) {
         super(location);
-        this.scriptInterface = Objects.requireNonNull(scriptInterface);
+        this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
         this.settings = Objects.requireNonNull(settings);
         this.name = Objects.requireNonNull(name);
         this.source = Objects.requireNonNull(source);
@@ -183,19 +184,25 @@ public final class SSource extends AStatement {
             throw createError(new IllegalArgumentException("Cannot generate an empty script."));
         }
 
-        mainMethod = Locals.newMainMethodScope(scriptInterface, program, reserved.getMaxLoopCounter());
+        mainMethod = Locals.newMainMethodScope(scriptClassInfo, program, reserved.getMaxLoopCounter());
 
-        for (int get = 0; get < scriptInterface.getGetMethods().size();) {
-            String name = scriptInterface.getGetMethods().get(get).getName().substring(3);
+        // process get methods to add variables to the main method locally
+        getMethods = new ArrayList<>(scriptClassInfo.getGetMethods());
+        List<Definition.Type> getReturns = new ArrayList<>(scriptClassInfo.getGetReturns());
+
+        for (int get = 0; get < getMethods.size();) {
+            String name = getMethods.get(get).getName().substring(3);
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-            Definition.Type rtn = scriptInterface.getGetReturns().get(get);
+            Definition.Type rtn = getReturns.get(get);
 
             if (reserved.getUsedVariables().contains(name)) {
+                // found use of the get variable so we add it to the variable list
                 mainMethod.addVariable(new Location("getter [" + name + "]", 0), rtn, name, true);
                 ++get;
             } else {
-                scriptInterface.getGetMethods().remove(get);
-                scriptInterface.getGetReturns().remove(get);
+                // the get variable is not used in this script so remove it from the list
+                getMethods.remove(get);
+                getReturns.remove(get);
             }
         }
 
@@ -238,7 +245,7 @@ public final class SSource extends AStatement {
             visitor = new TraceClassVisitor(visitor, debugStream, null);
         }
         visitor.visit(WriterConstants.CLASS_VERSION, classAccess, className, null,
-            Type.getType(scriptInterface.getAClass()).getInternalName(), classInterfaces);
+            Type.getType(scriptClassInfo.getBaseClass()).getInternalName(), classInterfaces);
         visitor.visitSource(Location.computeSourceName(name, source), null);
 
         // Write the a method to bootstrap def calls
@@ -261,11 +268,11 @@ public final class SSource extends AStatement {
 
         org.objectweb.asm.commons.Method init;
 
-        if (scriptInterface.getAClass().getConstructors().length == 0) {
+        if (scriptClassInfo.getBaseClass().getConstructors().length == 0) {
             init = new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
         } else {
             init = new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class,
-                scriptInterface.getAClass().getConstructors()[0].getParameterTypes()).toMethodDescriptorString());
+                scriptClassInfo.getBaseClass().getConstructors()[0].getParameterTypes()).toMethodDescriptorString());
         }
 
         // Write the constructor:
@@ -273,7 +280,7 @@ public final class SSource extends AStatement {
         constructor.visitCode();
         constructor.loadThis();
         constructor.loadArgs();
-        constructor.invokeConstructor(Type.getType(scriptInterface.getAClass()), init);
+        constructor.invokeConstructor(Type.getType(scriptClassInfo.getBaseClass()), init);
         constructor.returnValue();
         constructor.endMethod();
 
@@ -300,7 +307,7 @@ public final class SSource extends AStatement {
         statementsMethod.endMethod();
 
         // Write the method defined in the interface:
-        MethodWriter executeMethod = new MethodWriter(Opcodes.ACC_PUBLIC, scriptInterface.getExecuteMethod(), visitor,
+        MethodWriter executeMethod = new MethodWriter(Opcodes.ACC_PUBLIC, scriptClassInfo.getExecuteMethod(), visitor,
                 globals.getStatements(), settings);
         executeMethod.visitCode();
         write(executeMethod, globals);
@@ -347,7 +354,7 @@ public final class SSource extends AStatement {
         }
 
         // Write any uses$varName methods for used variables
-        for (org.objectweb.asm.commons.Method usesMethod : scriptInterface.getUsesMethods()) {
+        for (org.objectweb.asm.commons.Method usesMethod : scriptClassInfo.getUsesMethods()) {
             MethodWriter ifaceMethod = new MethodWriter(Opcodes.ACC_PUBLIC, usesMethod, visitor, globals.getStatements(), settings);
             ifaceMethod.visitCode();
             ifaceMethod.push(reserved.getUsedVariables().contains(usesMethod.getName().substring("uses$".length())));
@@ -381,13 +388,13 @@ public final class SSource extends AStatement {
             writer.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
-        for (org.objectweb.asm.commons.Method method : scriptInterface.getGetMethods()) {
+        for (org.objectweb.asm.commons.Method method : getMethods) {
             String name = method.getName().substring(3);
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
             Variable variable = mainMethod.getVariable(null, name);
 
             writer.loadThis();
-            writer.invokeVirtual(Type.getType(scriptInterface.getAClass()), method);
+            writer.invokeVirtual(Type.getType(scriptClassInfo.getBaseClass()), method);
             writer.visitVarInsn(method.getReturnType().getOpcode(Opcodes.ISTORE), variable.getSlot());
         }
 
@@ -396,7 +403,7 @@ public final class SSource extends AStatement {
         }
 
         if (!methodEscape) {
-            switch (scriptInterface.getExecuteMethod().getReturnType().getSort()) {
+            switch (scriptClassInfo.getExecuteMethod().getReturnType().getSort()) {
             case org.objectweb.asm.Type.VOID:    break;
             case org.objectweb.asm.Type.BOOLEAN: writer.push(false); break;
             case org.objectweb.asm.Type.BYTE:    writer.push(0); break;

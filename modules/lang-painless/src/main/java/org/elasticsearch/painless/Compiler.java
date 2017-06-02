@@ -140,8 +140,8 @@ final class Compiler {
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        ScriptInterface scriptInterface = new ScriptInterface(definition, base);
-        SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, definition,
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(definition, base);
+        SSource root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, definition,
                 null);
         root.analyze(definition);
         root.write();
@@ -172,8 +172,8 @@ final class Compiler {
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        ScriptInterface scriptInterface = new ScriptInterface(definition, base);
-        SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, definition,
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(definition, base);
+        SSource root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, definition,
                 debugStream);
         root.analyze(definition);
         root.write();

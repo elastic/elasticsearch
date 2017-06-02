@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -386,11 +385,6 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                     }
                 });
             }, listener::onFailure));
-        }
-
-        @Override
-        protected boolean accumulateExceptions() {
-            return true;
         }
 
         @Override

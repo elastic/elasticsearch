@@ -87,9 +87,4 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
         }
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
-    }
-
 }

@@ -402,11 +402,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         }
 
         @Override
-        protected boolean accumulateExceptions() {
-            return true;
-        }
-
-        @Override
         protected void taskOperation(Request request, OpenJobAction.JobTask task,
                                      ActionListener<QueryPage<Response.JobStats>> listener) {
             String jobId = task.getJobId();

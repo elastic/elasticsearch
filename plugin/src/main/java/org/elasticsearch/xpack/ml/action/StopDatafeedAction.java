@@ -461,10 +461,6 @@ public class StopDatafeedAction
             return new Response(in);
         }
 
-        @Override
-        protected boolean accumulateExceptions() {
-            return true;
-        }
     }
 
     /**

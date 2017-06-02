@@ -80,9 +80,4 @@ public class TransportWatcherStatsAction extends TransportNodesAction<WatcherSta
         return statsResponse;
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
-    }
-
 }

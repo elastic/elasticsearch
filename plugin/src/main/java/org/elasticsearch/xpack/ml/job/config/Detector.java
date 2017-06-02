@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -382,7 +383,9 @@ public class Detector extends ToXContentToBytes implements Writeable {
         }
         builder.field(DETECTOR_RULES_FIELD.getPreferredName(), detectorRules);
         // negative means "unknown", which should only happen for a 5.4 job
-        if (detectorIndex >= 0) {
+        if (detectorIndex >= 0
+                // no point writing this to cluster state, as the indexes will get reassigned on reload anyway
+                && params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == false) {
             builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         }
         builder.endObject();

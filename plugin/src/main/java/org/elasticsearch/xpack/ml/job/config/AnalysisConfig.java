@@ -353,7 +353,11 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         if (summaryCountFieldName != null) {
             builder.field(SUMMARY_COUNT_FIELD_NAME.getPreferredName(), summaryCountFieldName);
         }
-        builder.field(DETECTORS.getPreferredName(), detectors);
+        builder.startArray(DETECTORS.getPreferredName());
+        for (Detector detector: detectors) {
+            detector.toXContent(builder, params);
+        }
+        builder.endArray();
         builder.field(INFLUENCERS.getPreferredName(), influencers);
         if (overlappingBuckets != null) {
             builder.field(OVERLAPPING_BUCKETS.getPreferredName(), overlappingBuckets);

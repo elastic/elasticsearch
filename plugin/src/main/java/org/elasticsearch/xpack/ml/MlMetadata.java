@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
@@ -139,8 +140,10 @@ public class MlMetadata implements MetaData.Custom {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        mapValuesToXContent(JOBS_FIELD, jobs, builder, params);
-        mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, params);
+        DelegatingMapParams extendedParams =
+                new DelegatingMapParams(Collections.singletonMap(ToXContentParams.FOR_CLUSTER_STATE, "true"), params);
+        mapValuesToXContent(JOBS_FIELD, jobs, builder, extendedParams);
+        mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, extendedParams);
         return builder;
     }
 

@@ -32,7 +32,7 @@ import static org.elasticsearch.common.util.BigArrays.LONG_PAGE_SIZE;
  */
 final class BigLongArray extends AbstractBigArray implements LongArray {
 
-    private static final BigLongArray ESTIMATOR = new BigLongArray(0, null, false);
+    private static final BigLongArray ESTIMATOR = new BigLongArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     private long[][] pages;
 

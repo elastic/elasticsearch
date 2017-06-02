@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.Nullable;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -29,12 +28,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 abstract class AbstractArray implements BigArray {
 
-    @Nullable
     private final BigArrays bigArrays;
     public final boolean clearOnResize;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    AbstractArray(@Nullable BigArrays bigArrays, boolean clearOnResize) {
+    AbstractArray(BigArrays bigArrays, boolean clearOnResize) {
         this.bigArrays = bigArrays;
         this.clearOnResize = clearOnResize;
     }
@@ -43,9 +41,7 @@ abstract class AbstractArray implements BigArray {
     public final void close() {
         if (closed.compareAndSet(false, true)) {
             try {
-                if (bigArrays != null) {
-                    bigArrays.adjustBreaker(-ramBytesUsed(), true);
-                }
+                bigArrays.adjustBreaker(-ramBytesUsed(), true);
             } finally {
                 doClose();
             }

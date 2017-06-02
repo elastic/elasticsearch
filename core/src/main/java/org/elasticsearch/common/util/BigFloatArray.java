@@ -32,7 +32,7 @@ import static org.elasticsearch.common.util.BigArrays.INT_PAGE_SIZE;
  */
 final class BigFloatArray extends AbstractBigArray implements FloatArray {
 
-    private static final BigFloatArray ESTIMATOR = new BigFloatArray(0, null, false);
+    private static final BigFloatArray ESTIMATOR = new BigFloatArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     private int[][] pages;
 

@@ -440,6 +440,8 @@ public class BigArrays implements Releasable {
 
     private <T extends AbstractBigArray> T resizeInPlace(T array, long newSize) {
         final long oldMemSize = array.ramBytesUsed();
+        assert oldMemSize == array.ramBytesEstimated(array.size) :
+            "ram bytes used should equal that which was previously estimated";
         final long estimatedIncreaseInBytes = array.ramBytesEstimated(newSize) - oldMemSize;
         adjustBreaker(estimatedIncreaseInBytes, false);
         array.resize(newSize);

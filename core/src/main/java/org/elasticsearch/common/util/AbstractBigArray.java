@@ -21,7 +21,6 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
 
@@ -38,9 +37,9 @@ abstract class AbstractBigArray extends AbstractArray {
     private final int pageMask;
     protected long size;
 
-    protected AbstractBigArray(int pageSize, @Nullable BigArrays bigArrays, boolean clearOnResize) {
+    protected AbstractBigArray(int pageSize, BigArrays bigArrays, boolean clearOnResize) {
         super(bigArrays, clearOnResize);
-        this.recycler = bigArrays != null ? bigArrays.recycler : null;
+        this.recycler = bigArrays.recycler;
         if (pageSize < 128) {
             throw new IllegalArgumentException("pageSize must be >= 128");
         }

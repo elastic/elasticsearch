@@ -33,7 +33,7 @@ import static org.elasticsearch.common.util.BigArrays.BYTE_PAGE_SIZE;
  */
 final class BigByteArray extends AbstractBigArray implements ByteArray {
 
-    private static final BigByteArray ESTIMATOR = new BigByteArray(0, null, false);
+    private static final BigByteArray ESTIMATOR = new BigByteArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     private byte[][] pages;
 

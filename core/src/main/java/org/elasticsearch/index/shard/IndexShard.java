@@ -474,10 +474,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public void relocated(String reason) throws IllegalIndexShardStateException, InterruptedException {
+    public void relocated(final String reason, final Runnable onBlocked) throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+                onBlocked.run();
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
                     "in-flight operations in progress while moving shard state to relocated";
@@ -506,6 +507,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Obtain the primary context for the shard. The shard must be serving as a primary shard.
+     *
+     * @param clusterStateVersion the cluster state version
+     * @return the primary for the shard
+     */
+    public PrimaryContext primaryContext(final long clusterStateVersion) {
+        verifyPrimary();
+        assert shardRouting.relocating();
+        return new PrimaryContext(clusterStateVersion);
+    }
 
     public IndexShardState state() {
         return state;

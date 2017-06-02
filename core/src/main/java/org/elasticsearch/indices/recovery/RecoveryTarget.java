@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
@@ -372,6 +373,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     @Override
     public void ensureClusterStateVersion(long clusterStateVersion) {
         ensureClusterStateVersionCallback.handle(clusterStateVersion);
+    }
+
+    @Override
+    public void handoffPrimaryContext(final PrimaryContext primaryContext) {
+        ensureClusterStateVersion(primaryContext.clusterStateVersion());
     }
 
     @Override

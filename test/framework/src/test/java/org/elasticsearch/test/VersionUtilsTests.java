@@ -210,12 +210,9 @@ public class VersionUtilsTests extends ESTestCase {
         private final List<String> released = new ArrayList<>();
         private final List<String> unreleased = new ArrayList<>();
 
-        public VersionsFromProperty(String property) {
+        private VersionsFromProperty(String property) {
             String versions = System.getProperty(property);
             assertNotNull("Couldn't find [" + property + "]. Gradle should set these before running the tests.", versions);
-            assertThat(versions, startsWith("["));
-            assertThat(versions, endsWith("]"));
-            versions = versions.substring(1, versions.length() - 1);
             logger.info("Looked up versions [{}={}]", property, versions);
 
             for (String version : versions.split(", ")) {

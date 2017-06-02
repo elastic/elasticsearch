@@ -19,16 +19,19 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.Rectangle;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -63,6 +66,37 @@ public class GeoDistanceTests extends ESTestCase {
                 GeoDistance.readFromStream(in);
             } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown GeoDistance ordinal ["));
+            }
+        }
+    }
+
+    public void testReadFromSerializationBWC() throws Exception {
+        int ordinal = randomInt(3);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(ordinal);
+            try (StreamInput in = out.bytes().streamInput()) {
+                // set client version (should this be done in .streamInput()?)
+                in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_3_2));
+                GeoDistance copy = GeoDistance.readFromStream(in);
+                assertThat(copy, isOneOf(GeoDistance.PLANE, GeoDistance.ARC));
+                if (ordinal == 1) {
+                    assertWarnings("[factor] is deprecated. Using [plane] instead.");
+                } else if (ordinal == 3) {
+                    assertWarnings("[sloppy_arc] is deprecated. Using [arc] instead.");
+                }
+            }
+        }
+    }
+
+    public void testWriteToSerializationBWC() throws Exception {
+        GeoDistance geoDistance = randomFrom(GeoDistance.PLANE, GeoDistance.ARC);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_3_2));
+            geoDistance.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(out.getVersion());
+                GeoDistance copy = GeoDistance.readFromStream(in);
+                assertThat(copy, isOneOf(GeoDistance.PLANE, GeoDistance.ARC));
             }
         }
     }

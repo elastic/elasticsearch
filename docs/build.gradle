@@ -152,6 +152,14 @@ buildRestTests.setups['host'] = '''
   - set: {nodes.$master.http.publish_address: host}
 '''
 
+buildRestTests.setups['node'] = '''
+  # Fetch the node name. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - is_true: master_node
+  - set: { master_node: node_name }
+'''
+
 // Used by scripted metric docs
 buildRestTests.setups['ledger'] = '''
   - do:

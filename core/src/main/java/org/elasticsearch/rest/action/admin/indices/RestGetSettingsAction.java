@@ -58,6 +58,11 @@ public class RestGetSettingsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "get_settings_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);

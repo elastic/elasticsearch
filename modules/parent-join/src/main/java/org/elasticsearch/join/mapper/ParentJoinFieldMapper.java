@@ -81,7 +81,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     public static ParentJoinFieldMapper getMapper(MapperService service) {
         MetaJoinFieldMapper.MetaJoinFieldType fieldType =
             (MetaJoinFieldMapper.MetaJoinFieldType) service.fullName(MetaJoinFieldMapper.NAME);
-        return fieldType == null ? null : fieldType.mapper;
+        return fieldType == null ? null : fieldType.getMapper();
     }
 
     private static String getParentIdFieldName(String joinFieldName, String parentName) {
@@ -121,11 +121,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    static class Builder extends FieldMapper.Builder<Builder, ParentJoinFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, ParentJoinFieldMapper> {
         final List<ParentIdFieldMapper.Builder> parentIdFieldBuilders = new ArrayList<>();
         boolean eagerGlobalOrdinals = true;
 
-        Builder(String name) {
+        public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
         }
@@ -431,4 +431,5 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             }
         }
     }
+
 }

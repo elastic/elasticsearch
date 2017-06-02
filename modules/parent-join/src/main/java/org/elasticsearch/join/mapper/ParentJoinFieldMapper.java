@@ -24,7 +24,6 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +38,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 
@@ -90,12 +88,18 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         return joinFieldName + "#" + parentName;
     }
 
-    private static void checkPreConditions(Version indexCreatedVersion, ContentPath path, String name) {
-        if (indexCreatedVersion.before(Version.V_6_0_0_alpha2)) {
-            throw new IllegalStateException("unable to create join field [" + name +
-                "] for index created before " + Version.V_6_0_0_alpha2);
+    private static void checkIndexCompatibility(IndexSettings settings, String name) {
+        if (settings.getIndexMetaData().isRoutingPartitionedIndex()) {
+            throw new IllegalStateException("cannot create join field [" + name + "] " +
+                "for the partitioned index " + "[" + settings.getIndex().getName() + "]");
         }
+        if (settings.isSingleType() == false) {
+            throw new IllegalStateException("cannot create join field [" + name + "] " +
+                "on multi-types index [" + settings.getIndex().getName() + "]");
+        }
+    }
 
+    private static void checkObjectOrNested(ContentPath path, String name) {
         if (path.pathAsText(name).contains(".")) {
             throw new IllegalArgumentException("join field [" + path.pathAsText(name) + "] " +
                 "cannot be added inside an object or in a multi-field");
@@ -144,7 +148,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
         @Override
         public ParentJoinFieldMapper build(BuilderContext context) {
-            checkPreConditions(context.indexCreatedVersion(), context.path(), name);
+            checkObjectOrNested(context.path(), name);
             fieldType.setName(name);
             final List<ParentIdFieldMapper> parentIdFields = new ArrayList<>();
             parentIdFieldBuilders.stream()
@@ -166,10 +170,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             final IndexSettings indexSettings = parserContext.mapperService().getIndexSettings();
-            if (indexSettings.getIndexMetaData().isRoutingPartitionedIndex()) {
-                throw new IllegalStateException("cannot set join field [" + name + "] for the partitioned index " +
-                    "[" + indexSettings.getIndex().getName() + "]");
-            }
+            checkIndexCompatibility(indexSettings, name);
 
             Builder builder = new Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {

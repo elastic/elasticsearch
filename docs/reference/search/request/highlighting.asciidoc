@@ -1,7 +1,8 @@
 [[search-request-highlighting]]
 === Highlighting
 
-Allows to highlight search results on one or more fields.
+Highlighters allow you to produce highlighted snippets from one or more fields
+in your search results.
 The following is an example of the search request body:
 
 [source,js]
@@ -46,8 +47,8 @@ highlight on a field anyway, you have to provide the field name explicitly.
 [[unified-highlighter]]
 ==== Unified Highlighter
 
-The default choice of highlighter is of type `unified` and uses the Lucene Unified highlighter.
-
+The unified highlighter (which is used by default if no highlighter type is specified)
+uses the Lucene Unified Highlighter.
 This highlighter breaks the text into sentences and scores individual sentences as
 if they were documents in this corpus, using the BM25 algorithm.
 It also supports accurate phrase and multi-term (fuzzy, prefix, regex) highlighting.
@@ -55,9 +56,14 @@ It also supports accurate phrase and multi-term (fuzzy, prefix, regex) highlight
 [float]
 ===== Offsets Strategy
 
-The `unified` highlighter adapts its strategy to extract the matching offsets in the text to highlight
-depending on the index options set on the field and the type of the query.
-In this highlighter, offsets can be extracted from either postings , term vectors, or via re-analyzing text.
+In order to create meaningful search snippets from the terms being queried,
+a highlighter needs to know the start and end character offsets of each word
+in the original text.
+These offsets can be obtained from:
+
+* The postings list (fields mapped as "index_options": "offsets").
+* Term vectors (fields mapped as "term_vectors": "with_positions_offsets").
+* The original field, by reanalysing the text on-the-fly.
 
 [float]
 ====== Plain highlighting
@@ -74,7 +80,7 @@ If `index_options` is set to `offsets` in the mapping the `unified` highlighter
 will use this information to highlight documents without re-analyzing the text.
 It re-runs the original query directly on the postings and extracts the matching offsets
 directly from the index limiting the collection to the highlighted documents.
-This mode is faster since it doesn't require to reanalyze the text to be highlighted
+This mode is faster on large fields since it doesn't require to reanalyze the text to be highlighted
 and requires less disk space than term_vectors, needed for the fast vector
 highlighting.
 
@@ -698,7 +704,7 @@ You can set `fragment_size` to 0 to never split any sentence.
 [[matched-fields]]
 ==== Matched Fields
 
-WARNING: This option works with the `fvh` highlighter only
+WARNING: This is only supported by the `fvh` highlighter
 
 The Fast Vector Highlighter can combine matches on multiple fields to
 highlight a single field using `matched_fields`.  This is most
@@ -834,7 +840,8 @@ to
 [[phrase-limit]]
 ==== Phrase Limit
 
-WARNING:
+WARNING: this is only supported by the `fvh` highlighter
+
 The fast vector highlighter has a `phrase_limit` parameter that prevents
 it from analyzing too many phrases and eating tons of memory.  It defaults
 to 256 so only the first 256 matching phrases in the document scored

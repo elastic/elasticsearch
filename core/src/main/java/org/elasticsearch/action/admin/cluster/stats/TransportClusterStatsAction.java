@@ -115,11 +115,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
-    }
-
     public static class ClusterStatsNodeRequest extends BaseNodeRequest {
 
         ClusterStatsRequest request;

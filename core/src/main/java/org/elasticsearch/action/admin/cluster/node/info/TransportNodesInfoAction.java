@@ -79,11 +79,6 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
                 request.transport(), request.http(), request.plugins(), request.ingest(), request.indices());
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
-    }
-
     public static class NodeInfoRequest extends BaseNodeRequest {
 
         NodesInfoRequest request;

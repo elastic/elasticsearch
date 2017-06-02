@@ -163,10 +163,6 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         @Override
         protected abstract NodeResponse nodeOperation(NodeRequest request);
 
-        @Override
-        protected boolean accumulateExceptions() {
-            return true;
-        }
     }
 
     public static class TestNode implements Releasable {

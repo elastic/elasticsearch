@@ -235,6 +235,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), null);
         this.parentIdFields = parentIdFields;
         this.uniqueFieldMapper = uniqueFieldMapper;
+        this.uniqueFieldMapper.setFieldMapper(this);
     }
 
     @Override
@@ -256,7 +257,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     public Iterator<Mapper> iterator() {
         List<Mapper> mappers = new ArrayList<> (parentIdFields);
         mappers.add(uniqueFieldMapper);
-        return mappers.iterator();//parentIdFields.stream().map((field) -> (Mapper) field).iterator();
+        return mappers.iterator();
     }
 
     /**

@@ -347,11 +347,14 @@ public final class SSource extends AStatement {
             clinit.endMethod();
         }
 
-        // Write any uses$varName methods for used variables
-        for (org.objectweb.asm.commons.Method usesMethod : scriptClassInfo.getUsesMethods()) {
-            MethodWriter ifaceMethod = new MethodWriter(Opcodes.ACC_PUBLIC, usesMethod, visitor, globals.getStatements(), settings);
+        // Write any needsVarName methods for used variables
+        for (org.objectweb.asm.commons.Method needsMethod : scriptClassInfo.getNeedsMethods()) {
+            String name = needsMethod.getName();
+            name = name.substring(5);
+            name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+            MethodWriter ifaceMethod = new MethodWriter(Opcodes.ACC_PUBLIC, needsMethod, visitor, globals.getStatements(), settings);
             ifaceMethod.visitCode();
-            ifaceMethod.push(reserved.getUsedVariables().contains(usesMethod.getName().substring("uses$".length())));
+            ifaceMethod.push(reserved.getUsedVariables().contains(name));
             ifaceMethod.returnValue();
             ifaceMethod.endMethod();
         }

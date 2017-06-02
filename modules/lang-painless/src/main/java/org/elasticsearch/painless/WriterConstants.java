@@ -84,7 +84,7 @@ public final class WriterConstants {
     public static final Type COLLECTIONS_TYPE = Type.getType(Collections.class);
     public static final Method EMPTY_MAP_METHOD = getAsmMethod(Map.class, "emptyMap");
 
-    public static final MethodType USES_PARAMETER_METHOD_TYPE = MethodType.methodType(boolean.class);
+    public static final MethodType NEEDS_PARAMETER_METHOD_TYPE = MethodType.methodType(boolean.class);
 
     public static final Type MAP_TYPE  = Type.getType(Map.class);
     public static final Method MAP_GET = getAsmMethod(Object.class, "get", Object.class);

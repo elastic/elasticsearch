@@ -29,6 +29,11 @@ public class RestUpdateModelSnapshotAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_update_model_snapshot_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         XContentParser parser = restRequest.contentParser();
         UpdateModelSnapshotAction.Request updateModelSnapshot = UpdateModelSnapshotAction.Request.parseRequest(

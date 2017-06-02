@@ -26,6 +26,11 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_preview_datafeed_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeedId);

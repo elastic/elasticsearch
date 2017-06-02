@@ -25,6 +25,11 @@ public class RestValidateJobConfigAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_validate_job_config_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         XContentParser parser = restRequest.contentOrSourceParamParser();
         ValidateJobConfigAction.Request validateConfigRequest = ValidateJobConfigAction.Request.parseRequest(parser);

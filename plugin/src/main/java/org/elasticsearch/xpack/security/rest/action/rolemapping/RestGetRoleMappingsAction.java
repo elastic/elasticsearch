@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
-import java.io.IOException;
-
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -22,6 +20,8 @@ import org.elasticsearch.xpack.security.authc.support.mapper.ExpressionRoleMappi
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -33,6 +33,11 @@ public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
         super(settings, licenseState);
         controller.registerHandler(GET, "/_xpack/security/role_mapping/", this);
         controller.registerHandler(GET, "/_xpack/security/role_mapping/{name}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "xpack_security_get_role_mappings_action";
     }
 
     @Override

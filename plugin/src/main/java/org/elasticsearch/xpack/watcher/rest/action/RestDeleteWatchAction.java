@@ -33,6 +33,11 @@ public class RestDeleteWatchAction extends WatcherRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_watcher_delete_watch_action";
+    }
+
+    @Override
     protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) throws IOException {
         DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest(request.param("id"));
         deleteWatchRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteWatchRequest.masterNodeTimeout()));

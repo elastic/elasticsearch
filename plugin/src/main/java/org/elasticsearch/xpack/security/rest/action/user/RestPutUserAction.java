@@ -51,6 +51,11 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
     }
 
     @Override
+    public String getName() {
+        return "xpack_security_put_user_action";
+    }
+
+    @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutUserRequestBuilder requestBuilder = new SecurityClient(client)
                 .preparePutUser(request.param("username"), request.content(), request.getXContentType())

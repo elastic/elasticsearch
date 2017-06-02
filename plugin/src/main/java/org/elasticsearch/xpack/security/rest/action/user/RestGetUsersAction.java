@@ -47,6 +47,11 @@ public class RestGetUsersAction extends SecurityBaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_security_get_users_action";
+    }
+
+    @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] usernames = request.paramAsStringArray("username", Strings.EMPTY_ARRAY);
 

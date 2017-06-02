@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
-import java.io.IOException;
-
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -21,6 +19,8 @@ import org.elasticsearch.xpack.security.action.rolemapping.DeleteRoleMappingResp
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
@@ -31,6 +31,11 @@ public class RestDeleteRoleMappingAction extends SecurityBaseRestHandler {
     public RestDeleteRoleMappingAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(DELETE, "/_xpack/security/role_mapping/{name}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "xpack_security_delete_role_mapping_action";
     }
 
     @Override

@@ -25,6 +25,11 @@ public class RestValidateDetectorAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_validate_detector_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         XContentParser parser = restRequest.contentOrSourceParamParser();
         ValidateDetectorAction.Request validateDetectorRequest = ValidateDetectorAction.Request.parseRequest(parser);

@@ -32,6 +32,11 @@ public class RestXPackInfoAction extends XPackRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_info_action";
+    }
+
+    @Override
     public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
 
         // we piggyback verbosity on "human" output

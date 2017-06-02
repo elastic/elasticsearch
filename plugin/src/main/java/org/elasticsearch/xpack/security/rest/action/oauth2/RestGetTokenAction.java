@@ -59,6 +59,11 @@ public final class RestGetTokenAction extends SecurityBaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_security_get_token_action";
+    }
+
+    @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client)throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final CreateTokenRequest tokenRequest = PARSER.parse(parser, null);

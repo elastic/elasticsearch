@@ -40,6 +40,11 @@ public class RestDeleteUserAction extends SecurityBaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_security_delete_user_action";
+    }
+
+    @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String username = request.param("username");
         final String refresh = request.param("refresh");

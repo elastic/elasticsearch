@@ -37,6 +37,11 @@ public final class RestClearRealmCacheAction extends SecurityBaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_security_clear_realm_cache_action";
+    }
+
+    @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] realms = request.paramAsStringArrayOrEmptyIfAll("realms");
         String[] usernames = request.paramAsStringArrayOrEmptyIfAll("usernames");

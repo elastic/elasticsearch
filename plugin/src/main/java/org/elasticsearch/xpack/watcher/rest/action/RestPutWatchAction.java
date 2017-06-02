@@ -42,6 +42,11 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
     }
 
     @Override
+    public String getName() {
+        return "xpack_watcher_put_watch_action";
+    }
+
+    @Override
     protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) throws IOException {
         PutWatchRequest putWatchRequest =
                 new PutWatchRequest(request.param("id"), request.content(), request.getXContentType());

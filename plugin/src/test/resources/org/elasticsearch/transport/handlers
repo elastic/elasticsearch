@@ -7,6 +7,7 @@ cluster:monitor/nodes/hot_threads[n]
 cluster:monitor/nodes/info[n]
 cluster:monitor/nodes/liveness
 cluster:monitor/nodes/stats[n]
+cluster:monitor/nodes/usage[n]
 cluster:monitor/stats[n]
 cluster:monitor/tasks/lists[n]
 cluster:admin/xpack/security/realm/cache/clear

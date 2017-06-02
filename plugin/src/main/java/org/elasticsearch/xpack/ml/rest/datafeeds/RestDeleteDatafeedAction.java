@@ -26,6 +26,11 @@ public class RestDeleteDatafeedAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_delete_datafeed_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
         DeleteDatafeedAction.Request deleteDatafeedRequest = new DeleteDatafeedAction.Request(datafeedId);

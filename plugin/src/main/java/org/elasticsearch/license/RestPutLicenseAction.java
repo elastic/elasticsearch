@@ -43,6 +43,11 @@ public class RestPutLicenseAction extends XPackRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_put_license_action";
+    }
+
+    @Override
     public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
         putLicenseRequest.license(request.content(), request.getXContentType());

@@ -44,6 +44,11 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_security_authenticate_action";
+    }
+
+    @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final User user = securityContext.getUser();
         if (user == null) {

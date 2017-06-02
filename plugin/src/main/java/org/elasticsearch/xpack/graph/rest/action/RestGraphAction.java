@@ -70,6 +70,11 @@ public class RestGraphAction extends XPackRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_graph_action";
+    }
+
+    @Override
     public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
         GraphExploreRequest graphRequest = new GraphExploreRequest(Strings.splitStringByCommaToArray(request.param("index")));
         graphRequest.indicesOptions(IndicesOptions.fromRequest(request, graphRequest.indicesOptions()));

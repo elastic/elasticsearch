@@ -41,6 +41,11 @@ public class RestGetLicenseAction extends XPackRestHandler {
                                                deprecationLogger);
     }
 
+    @Override
+    public String getName() {
+        return "xpack_get_license_action";
+    }
+
     /**
      * There will be only one license displayed per feature, the selected license will have the latest expiry_date
      * out of all other licenses for the feature.

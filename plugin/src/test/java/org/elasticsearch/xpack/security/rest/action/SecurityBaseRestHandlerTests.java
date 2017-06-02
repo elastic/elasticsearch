@@ -29,6 +29,12 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(securityEnabled);
         SecurityBaseRestHandler handler = new SecurityBaseRestHandler(Settings.EMPTY, licenseState) {
+
+            @Override
+            public String getName() {
+                return "test_xpack_security_base_action";
+            }
+
             @Override
             protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
                 return channel -> {

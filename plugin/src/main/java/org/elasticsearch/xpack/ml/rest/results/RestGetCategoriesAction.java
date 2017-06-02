@@ -38,6 +38,11 @@ public class RestGetCategoriesAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_get_catagories_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request;
         String jobId = restRequest.param(Job.ID.getPreferredName());

@@ -38,6 +38,11 @@ public class RestGetBucketsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_get_buckets_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         final GetBucketsAction.Request request;

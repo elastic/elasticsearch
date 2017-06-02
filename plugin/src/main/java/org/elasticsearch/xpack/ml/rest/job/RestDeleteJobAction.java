@@ -26,6 +26,11 @@ public class RestDeleteJobAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_delete_job_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteJobAction.Request deleteJobRequest = new DeleteJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
         return channel -> client.execute(DeleteJobAction.INSTANCE, deleteJobRequest, new AcknowledgedRestListener<>(channel));

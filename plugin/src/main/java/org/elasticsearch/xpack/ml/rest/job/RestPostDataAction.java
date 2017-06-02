@@ -29,6 +29,11 @@ public class RestPostDataAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_post_data_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         PostDataAction.Request request = new PostDataAction.Request(restRequest.param(Job.ID.getPreferredName()));
         request.setResetStart(restRequest.param(PostDataAction.Request.RESET_START.getPreferredName(), DEFAULT_RESET_START));

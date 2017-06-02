@@ -32,6 +32,11 @@ public class RestXPackUsageAction extends XPackRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_usage_action";
+    }
+
+    @Override
     public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
         final TimeValue masterTimeout = request.paramAsTime("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT);
         return channel -> new XPackUsageRequestBuilder(client.es())

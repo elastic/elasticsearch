@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MockNodeTests extends ESTestCase {
-
     /**
      * Test that we add the appropriate mock services when their plugins are added. This is a very heavy test for a testing component but
      * we've broken it in the past so it is important.

@@ -219,7 +219,6 @@ public class TribeService extends AbstractLifecycleComponent {
     public TribeService(Settings settings, ClusterService clusterService, final String tribeNodeId,
                         NamedWriteableRegistry namedWriteableRegistry, Function<Settings, Node> clientNodeBuilder) {
         super(settings);
-
         this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
@@ -233,6 +232,16 @@ public class TribeService extends AbstractLifecycleComponent {
         this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
         this.blockIndicesRead = BLOCKS_READ_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
         this.blockIndicesWrite = BLOCKS_WRITE_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+        if (!nodes.isEmpty()) {
+            if (BLOCKS_WRITE_SETTING.get(settings)) {
+                clusterService.addInitialStateBlock(TRIBE_WRITE_BLOCK);
+            }
+            if (BLOCKS_METADATA_SETTING.get(settings)) {
+                clusterService.addInitialStateBlock(TRIBE_METADATA_BLOCK);
+            }
+            new DeprecationLogger(Loggers.getLogger(TribeService.class))
+                .deprecated("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
+        }
         this.onConflict = ON_CONFLICT_SETTING.get(settings);
     }
 
@@ -285,8 +294,6 @@ public class TribeService extends AbstractLifecycleComponent {
             // master elected in this single tribe  node local "cluster"
             clusterService.removeInitialStateBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             clusterService.removeInitialStateBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
-            new DeprecationLogger(Loggers.getLogger(TribeService.class))
-                .deprecated("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
         }
     }
 

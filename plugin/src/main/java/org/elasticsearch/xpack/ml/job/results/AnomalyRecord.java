@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
@@ -43,7 +44,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     /**
      * Result fields (all detector types)
      */
-    public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
     public static final ParseField SEQUENCE_NUM = new ParseField("sequence_num");
     public static final ParseField PROBABILITY = new ParseField("probability");
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
@@ -99,7 +99,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         PARSER.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
         PARSER.declareDouble(AnomalyRecord::setRecordScore, RECORD_SCORE);
         PARSER.declareDouble(AnomalyRecord::setInitialRecordScore, INITIAL_RECORD_SCORE);
-        PARSER.declareInt(AnomalyRecord::setDetectorIndex, DETECTOR_INDEX);
+        PARSER.declareInt(AnomalyRecord::setDetectorIndex, Detector.DETECTOR_INDEX);
         PARSER.declareBoolean(AnomalyRecord::setInterim, Result.IS_INTERIM);
         PARSER.declareString(AnomalyRecord::setByFieldName, BY_FIELD_NAME);
         PARSER.declareString(AnomalyRecord::setByFieldValue, BY_FIELD_VALUE);
@@ -253,7 +253,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         builder.field(RECORD_SCORE.getPreferredName(), recordScore);
         builder.field(INITIAL_RECORD_SCORE.getPreferredName(), initialRecordScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
-        builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
+        builder.field(Detector.DETECTOR_INDEX.getPreferredName(), detectorIndex);
         builder.field(Result.IS_INTERIM.getPreferredName(), isInterim);
         builder.dateField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         if (byFieldName != null) {

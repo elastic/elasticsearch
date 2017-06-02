@@ -55,7 +55,7 @@ if the job is open when you make the update, you must stop the data feed, close
 the job, then restart the data feed and open the job for the changes to take
 effect.
 
-//|`analysis_config`: `detectors`: `index` | A unique identifier of the
+//|`analysis_config`: `detectors`: `detector_index` | A unique identifier of the
 //detector. Matches the order of detectors returned by
 //<<ml-get-job,GET job>>, starting from 0. | No
 //|`analysis_config`: `detectors`: `detector_description` |A description of the
@@ -126,7 +126,8 @@ information, including the updated property values. For example:
         "detector_description": "Unusual message counts",
         "function": "count",
         "by_field_name": "mlcategory",
-        "detector_rules": []
+        "detector_rules": [],
+        "detector_index": 0
       }
     ],
     "influencers": []

@@ -93,7 +93,8 @@ When the job is created, you receive the following results:
         "detector_description": "low_sum(events_per_min)",
         "function": "low_sum",
         "field_name": "events_per_min",
-        "detector_rules": []
+        "detector_rules": [],
+        "detector_index": 0
       }
     ],
     "influencers": []

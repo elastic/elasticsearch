@@ -207,6 +207,10 @@ LEAVE UNDOCUMENTED
   (array) TBD
 ////
 
+`detector_index`::
+  (integer) Unique ID for the detector, used when updating it.
+  Based on the order of detectors within the `analysis_config`, starting at zero.
+
 [float]
 [[ml-datadescription]]
 ===== Data Description Objects

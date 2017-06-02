@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
@@ -306,7 +307,7 @@ public class ElasticsearchMappings {
      * @throws IOException On write error
      */
     private static void addAnomalyRecordFieldsToMapping(XContentBuilder builder) throws IOException {
-        builder.startObject(AnomalyRecord.DETECTOR_INDEX.getPreferredName())
+        builder.startObject(Detector.DETECTOR_INDEX.getPreferredName())
             .field(TYPE, INTEGER)
         .endObject()
         .startObject(AnomalyRecord.ACTUAL.getPreferredName())

@@ -161,7 +161,7 @@ public class AutodetectCommunicator implements Closeable {
             if (updates != null) {
                 for (JobUpdate.DetectorUpdate update : updates) {
                     if (update.getRules() != null) {
-                        autodetectProcess.writeUpdateDetectorRulesMessage(update.getIndex(), update.getRules());
+                        autodetectProcess.writeUpdateDetectorRulesMessage(update.getDetectorIndex(), update.getRules());
                     }
                 }
             }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -78,6 +79,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
     public static final ParseField USE_NULL_FIELD = new ParseField("use_null");
     public static final ParseField EXCLUDE_FREQUENT_FIELD = new ParseField("exclude_frequent");
     public static final ParseField DETECTOR_RULES_FIELD = new ParseField("detector_rules");
+    public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("detector", Builder::new);
 
@@ -97,6 +99,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
         }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareObjectArray(Builder::setDetectorRules,
                 (parser, parseFieldMatcher) -> DetectionRule.PARSER.apply(parser, parseFieldMatcher).build(), DETECTOR_RULES_FIELD);
+        PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
     }
 
     public static final String COUNT = "count";
@@ -313,6 +316,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
     private final boolean useNull;
     private final ExcludeFrequent excludeFrequent;
     private final List<DetectionRule> detectorRules;
+    private final int detectorIndex;
 
     public Detector(StreamInput in) throws IOException {
         detectorDescription = in.readString();
@@ -324,6 +328,12 @@ public class Detector extends ToXContentToBytes implements Writeable {
         useNull = in.readBoolean();
         excludeFrequent = in.readBoolean() ? ExcludeFrequent.readFromStream(in) : null;
         detectorRules = in.readList(DetectionRule::new);
+        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
+            detectorIndex = in.readInt();
+        } else {
+            // negative means unknown, and is expected for 5.4 jobs
+            detectorIndex = -1;
+        }
     }
 
     @Override
@@ -342,6 +352,9 @@ public class Detector extends ToXContentToBytes implements Writeable {
             out.writeBoolean(false);
         }
         out.writeList(detectorRules);
+        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
+            out.writeInt(detectorIndex);
+        }
     }
 
     @Override
@@ -368,12 +381,17 @@ public class Detector extends ToXContentToBytes implements Writeable {
             builder.field(EXCLUDE_FREQUENT_FIELD.getPreferredName(), excludeFrequent);
         }
         builder.field(DETECTOR_RULES_FIELD.getPreferredName(), detectorRules);
+        // negative means "unknown", which should only happen for a 5.4 job
+        if (detectorIndex >= 0) {
+            builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
+        }
         builder.endObject();
         return builder;
     }
 
     private Detector(String detectorDescription, String function, String fieldName, String byFieldName, String overFieldName,
-            String partitionFieldName, boolean useNull, ExcludeFrequent excludeFrequent, List<DetectionRule> detectorRules) {
+                     String partitionFieldName, boolean useNull, ExcludeFrequent excludeFrequent, List<DetectionRule> detectorRules,
+                     int detectorIndex) {
         this.function = function;
         this.fieldName = fieldName;
         this.byFieldName = byFieldName;
@@ -381,10 +399,9 @@ public class Detector extends ToXContentToBytes implements Writeable {
         this.partitionFieldName = partitionFieldName;
         this.useNull = useNull;
         this.excludeFrequent = excludeFrequent;
-        // REMOVE THIS LINE WHEN REMOVING JACKSON_DATABIND:
-        detectorRules = detectorRules != null ? detectorRules : Collections.emptyList();
         this.detectorRules = Collections.unmodifiableList(detectorRules);
         this.detectorDescription = detectorDescription != null ? detectorDescription : DefaultDetectorDescription.of(this);
+        this.detectorIndex = detectorIndex;
     }
 
     public String getDetectorDescription() {
@@ -463,6 +480,13 @@ public class Detector extends ToXContentToBytes implements Writeable {
     }
 
     /**
+     * @return the detector index or a negative number if unknown
+     */
+    public int getDetectorIndex() {
+        return detectorIndex;
+    }
+
+    /**
      * Returns a list with the byFieldName, overFieldName and partitionFieldName that are not null
      *
      * @return a list with the byFieldName, overFieldName and partitionFieldName that are not null
@@ -516,14 +540,15 @@ public class Detector extends ToXContentToBytes implements Writeable {
                 Objects.equals(this.partitionFieldName, that.partitionFieldName) &&
                 Objects.equals(this.useNull, that.useNull) &&
                 Objects.equals(this.excludeFrequent, that.excludeFrequent) &&
-                Objects.equals(this.detectorRules, that.detectorRules);
+                Objects.equals(this.detectorRules, that.detectorRules) &&
+                this.detectorIndex == that.detectorIndex;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(detectorDescription, function, fieldName, byFieldName,
                 overFieldName, partitionFieldName, useNull, excludeFrequent,
-                detectorRules);
+                detectorRules, detectorIndex);
     }
 
     public static class Builder {
@@ -547,6 +572,8 @@ public class Detector extends ToXContentToBytes implements Writeable {
         private boolean useNull = false;
         private ExcludeFrequent excludeFrequent;
         private List<DetectionRule> detectorRules = Collections.emptyList();
+        // negative means unknown, and is expected for v5.4 jobs
+        private int detectorIndex = -1;
 
         public Builder() {
         }
@@ -562,6 +589,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
             excludeFrequent = detector.excludeFrequent;
             detectorRules = new ArrayList<>(detector.detectorRules.size());
             detectorRules.addAll(detector.getDetectorRules());
+            detectorIndex = detector.detectorIndex;
         }
 
         public Builder(String function, String fieldName) {
@@ -605,15 +633,11 @@ public class Detector extends ToXContentToBytes implements Writeable {
             this.detectorRules = detectorRules;
         }
 
-        public List<DetectionRule> getDetectorRules() {
-            return detectorRules;
+        public void setDetectorIndex(int detectorIndex) {
+            this.detectorIndex = detectorIndex;
         }
 
         public Detector build() {
-            return build(false);
-        }
-
-        public Detector build(boolean isSummarised) {
             boolean emptyField = Strings.isEmpty(fieldName);
             boolean emptyByField = Strings.isEmpty(byFieldName);
             boolean emptyOverField = Strings.isEmpty(overFieldName);
@@ -626,11 +650,6 @@ public class Detector extends ToXContentToBytes implements Writeable {
                 if (!Detector.COUNT_WITHOUT_FIELD_FUNCTIONS.contains(function)) {
                     throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_NO_ANALYSIS_FIELD_NOT_COUNT));
                 }
-            }
-
-            if (isSummarised && Detector.METRIC.equals(function)) {
-                throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED, Detector.METRIC));
             }
 
             // check functions have required fields
@@ -729,7 +748,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
             }
 
             return new Detector(detectorDescription, function, fieldName, byFieldName, overFieldName, partitionFieldName,
-                    useNull, excludeFrequent, detectorRules);
+                    useNull, excludeFrequent, detectorRules, detectorIndex);
         }
 
         public List<String> extractAnalysisFields() {

@@ -71,9 +71,8 @@ public class ScoresUpdaterTests extends ESTestCase {
 
         Job.Builder jobBuilder = new Job.Builder(JOB_ID);
         jobBuilder.setRenormalizationWindowDays(1L);
-        List<Detector> detectors = new ArrayList<>();
-        detectors.add(mock(Detector.class));
-        AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(detectors);
+        Detector.Builder d = new Detector.Builder("mean", "responsetime");
+        AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
         configBuilder.setBucketSpan(TimeValue.timeValueSeconds(DEFAULT_BUCKET_SPAN));
         jobBuilder.setAnalysisConfig(configBuilder);
         jobBuilder.setDataDescription(new DataDescription.Builder());

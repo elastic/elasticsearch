@@ -91,7 +91,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
     public void testFieldConfiguration_singleDetector_notPreSummarised() {
         // Single detector, not pre-summarised
-        Detector.Builder det = new Detector.Builder("metric", "responsetime");
+        Detector.Builder det = new Detector.Builder("max", "responsetime");
         det.setByFieldName("airline");
         det.setPartitionFieldName("sourcetype");
         AnalysisConfig ac = createConfigWithDetectors(Collections.singletonList(det.build()));
@@ -144,6 +144,8 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         }
 
         assertEquals("summaryCount", ac.getSummaryCountFieldName());
+        assertEquals(1, ac.getDetectors().size());
+        assertEquals(0, ac.getDetectors().get(0).getDetectorIndex());
     }
 
     public void testFieldConfiguration_multipleDetectors_NotPreSummarised() {
@@ -168,7 +170,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(detectors);
         builder.setInfluencers(Collections.singletonList("Influencer_Field"));
         AnalysisConfig ac = builder.build();
-
 
         Set<String> termFields = new TreeSet<>(Arrays.asList(
                 "by_one", "by_two", "over_field",
@@ -212,9 +213,15 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertTrue(ac.partitionFields().contains("partition_two"));
 
         assertNull(ac.getSummaryCountFieldName());
+
+        assertEquals(3, ac.getDetectors().size());
+        int expectedDetectorIndex = 0;
+        for (Detector detector : ac.getDetectors()) {
+            assertEquals(expectedDetectorIndex++, detector.getDetectorIndex());
+        }
     }
 
-    public void testFieldConfiguration_multipleDetectors_PreSummarised() {
+    public void testFieldConfiguration_singleDetector_PreSummarised() {
         // Multiple detectors, pre-summarised
         AnalysisConfig.Builder builder = createConfigBuilder();
         builder.setSummaryCountFieldName("summaryCount");
@@ -231,6 +238,9 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(5000)));
         assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(10000)));
         assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(24000)));
+
+        assertEquals(1, ac.getDetectors().size());
+        assertEquals(0, ac.getDetectors().get(0).getDetectorIndex());
     }
 
     public void testBuild_GivenMlCategoryUsedAsByFieldButNoCategorizationFieldName() {
@@ -544,7 +554,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_NO_DETECTORS), e.getMessage());
     }
 
-
     public void testVerify_GivenValidConfig() {
         AnalysisConfig.Builder analysisConfig = createValidConfig();
         analysisConfig.build();
@@ -643,6 +652,14 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         analysisConfig.setDetectors(detectors);
         AnalysisConfig ac = analysisConfig.build();
         assertFalse(ac.getOverlappingBuckets());
+    }
+
+    public void testVerify_GivenMetricAndSummaryCountField() {
+        Detector d = new Detector.Builder("metric", "my_metric").build();
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d));
+        ac.setSummaryCountFieldName("my_summary_count");
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, ac::build);
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED, Detector.METRIC), e.getMessage());
     }
 
     public void testMultipleBucketsConfig() {

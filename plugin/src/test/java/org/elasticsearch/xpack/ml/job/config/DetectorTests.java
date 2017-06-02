@@ -207,12 +207,12 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             String character = (String) args[0];
             boolean valid = (boolean) args[1];
             Detector.Builder detector = createDetectorWithValidFieldNames();
-            verifyFieldNameGivenPresummarised(detector, character, valid);
+            verifyFieldName(detector, character, valid);
             detector = createDetectorWithValidFieldNames();
-            verifyByFieldNameGivenPresummarised(new Detector.Builder(detector.build()), character, valid);
-            verifyOverFieldNameGivenPresummarised(new Detector.Builder(detector.build()), character, valid);
-            verifyByFieldNameGivenPresummarised(new Detector.Builder(detector.build()), character, valid);
-            verifyPartitionFieldNameGivenPresummarised(new Detector.Builder(detector.build()), character, valid);
+            verifyByFieldName(new Detector.Builder(detector.build()), character, valid);
+            verifyOverFieldName(new Detector.Builder(detector.build()), character, valid);
+            verifyByFieldName(new Detector.Builder(detector.build()), character, valid);
+            verifyPartitionFieldName(new Detector.Builder(detector.build()), character, valid);
         }
     }
 
@@ -242,26 +242,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         if (valid == false) {
             expectThrows(ElasticsearchException.class , detector::build);
         }
-    }
-
-    private static void verifyFieldNameGivenPresummarised(Detector.Builder detector, String character, boolean valid) {
-        Detector.Builder updated = createDetectorWithSpecificFieldName(detector.build().getFieldName() + character);
-        expectThrows(ElasticsearchException.class , () -> updated.build(true));
-    }
-
-    private static void verifyByFieldNameGivenPresummarised(Detector.Builder detector, String character, boolean valid) {
-        detector.setByFieldName(detector.build().getByFieldName() + character);
-        expectThrows(ElasticsearchException.class , () -> detector.build(true));
-    }
-
-    private static void verifyOverFieldNameGivenPresummarised(Detector.Builder detector, String character, boolean valid) {
-        detector.setOverFieldName(detector.build().getOverFieldName() + character);
-        expectThrows(ElasticsearchException.class , () -> detector.build(true));
-    }
-
-    private static void verifyPartitionFieldNameGivenPresummarised(Detector.Builder detector, String character, boolean valid) {
-        detector.setPartitionFieldName(detector.build().getPartitionFieldName() + character);
-        expectThrows(ElasticsearchException.class , () -> detector.build(true));
     }
 
     private static Detector.Builder createDetectorWithValidFieldNames() {
@@ -302,7 +282,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         // if nothing else is set the count functions (excluding distinct count)
         // are the only allowable functions
         new Detector.Builder(Detector.COUNT, null).build();
-        new Detector.Builder(Detector.COUNT, null).build(true);
 
         Set<String> difference = new HashSet<String>(Detector.ANALYSIS_FUNCTIONS);
         difference.remove(Detector.COUNT);
@@ -322,11 +301,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
                 Assert.fail("ElasticsearchException not thrown when expected");
             } catch (ElasticsearchException e) {
             }
-            try {
-                new Detector.Builder(f, null).build(true);
-                Assert.fail("ElasticsearchException not thrown when expected");
-            } catch (ElasticsearchException e) {
-            }
         }
 
         // certain fields aren't allowed with certain functions
@@ -338,11 +312,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             builder.setOverFieldName("over_field");
             try {
                 builder.build();
-                Assert.fail("ElasticsearchException not thrown when expected");
-            } catch (ElasticsearchException e) {
-            }
-            try {
-                builder.build(true);
                 Assert.fail("ElasticsearchException not thrown when expected");
             } catch (ElasticsearchException e) {
             }
@@ -363,11 +332,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
                 Assert.fail("ElasticsearchException not thrown when expected");
             } catch (ElasticsearchException e) {
             }
-            try {
-                builder.build(true);
-                Assert.fail("ElasticsearchException not thrown when expected");
-            } catch (ElasticsearchException e) {
-            }
         }
 
         // these functions can have just an over field
@@ -376,7 +340,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             Detector.Builder builder = new Detector.Builder(f, null);
             builder.setOverFieldName("over_field");
             builder.build();
-            builder.build(true);
         }
 
         for (String f : new String[]{Detector.RARE, Detector.FREQ_RARE}) {
@@ -384,9 +347,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             builder.setOverFieldName("over_field");
             builder.setByFieldName("by_field");
             builder.build();
-            builder.build(true);
         }
-
 
         // some functions require a fieldname
         for (String f : new String[]{Detector.DISTINCT_COUNT, Detector.DC,
@@ -400,13 +361,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             Detector.Builder builder = new Detector.Builder(f, "f");
             builder.setOverFieldName("over_field");
             builder.build();
-            try {
-                builder.build(true);
-                Assert.assertFalse(Detector.METRIC.equals(f));
-            } catch (ElasticsearchException e) {
-                // "metric" is not allowed as the function for pre-summarised input
-                Assert.assertEquals(Detector.METRIC, f);
-            }
         }
 
         // these functions cannot have a field name
@@ -450,11 +404,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
                 Assert.fail("ElasticsearchException not thrown when expected");
             } catch (ElasticsearchException e) {
             }
-            try {
-                builder.build(true);
-                Assert.fail("ElasticsearchException not thrown when expected");
-            } catch (ElasticsearchException e) {
-            }
         }
 
         // these can have a by field
@@ -464,14 +413,12 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             Detector.Builder builder = new Detector.Builder(f, null);
             builder.setByFieldName("b");
             builder.build();
-            builder.build(true);
         }
 
         Detector.Builder builder = new Detector.Builder(Detector.FREQ_RARE, null);
         builder.setOverFieldName("over_field");
         builder.setByFieldName("b");
         builder.build();
-        builder.build(true);
         builder = new Detector.Builder(Detector.FREQ_RARE, null);
         builder.setOverFieldName("over_field");
         builder.setByFieldName("b");
@@ -484,13 +431,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             builder = new Detector.Builder(f, "f");
             builder.setByFieldName("b");
             builder.build();
-            try {
-                builder.build(true);
-                Assert.assertFalse(Detector.METRIC.equals(f));
-            } catch (ElasticsearchException e) {
-                // "metric" is not allowed as the function for pre-summarised input
-                Assert.assertEquals(Detector.METRIC, f);
-            }
         }
         Assert.assertEquals(Detector.FIELD_NAME_FUNCTIONS.size(), testedFunctionsCount);
 
@@ -505,13 +445,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
                 Assert.fail("ElasticsearchException not thrown when expected");
             } catch (ElasticsearchException e) {
             }
-            try {
-                builder = new Detector.Builder(f, "field");
-                builder.setByFieldName("b");
-                builder.build(true);
-                Assert.fail("ElasticsearchException not thrown when expected");
-            } catch (ElasticsearchException e) {
-            }
         }
         Assert.assertEquals(Detector.COUNT_WITHOUT_FIELD_FUNCTIONS.size(), testedFunctionsCount);
 
@@ -523,19 +456,12 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             Assert.fail("ElasticsearchException not thrown when expected");
         } catch (ElasticsearchException e) {
         }
-        try {
-            builder.build(true);
-            Assert.fail("ElasticsearchException not thrown when expected");
-        } catch (ElasticsearchException e) {
-        }
-
 
         for (String f : new String[]{Detector.HIGH_COUNT,
                 Detector.LOW_COUNT, Detector.NON_ZERO_COUNT, Detector.NZC}) {
             builder = new Detector.Builder(f, null);
             builder.setByFieldName("by_field");
             builder.build();
-            builder.build(true);
         }
 
         for (String f : new String[]{Detector.COUNT, Detector.HIGH_COUNT,
@@ -543,7 +469,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             builder = new Detector.Builder(f, null);
             builder.setOverFieldName("over_field");
             builder.build();
-            builder.build(true);
         }
 
         for (String f : new String[]{Detector.HIGH_COUNT,
@@ -552,7 +477,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             builder.setByFieldName("by_field");
             builder.setOverFieldName("over_field");
             builder.build();
-            builder.build(true);
         }
 
         for (String f : new String[]{Detector.NON_ZERO_COUNT, Detector.NZC}) {
@@ -561,14 +485,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
                 builder.setByFieldName("by_field");
                 builder.setOverFieldName("over_field");
                 builder.build();
-                Assert.fail("ElasticsearchException not thrown when expected");
-            } catch (ElasticsearchException e) {
-            }
-            try {
-                builder = new Detector.Builder(f, "field");
-                builder.setByFieldName("by_field");
-                builder.setOverFieldName("over_field");
-                builder.build(true);
                 Assert.fail("ElasticsearchException not thrown when expected");
             } catch (ElasticsearchException e) {
             }

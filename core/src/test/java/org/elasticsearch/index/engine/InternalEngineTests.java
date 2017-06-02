@@ -431,7 +431,7 @@ public class InternalEngineTests extends ESTestCase {
             }
         };
         TranslogHandler handler = new TranslogHandler(xContentRegistry(), IndexSettingsModule.newIndexSettings(shardId.getIndexName(),
-            indexSettings.getSettings()), logger);
+            indexSettings.getSettings()));
         EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store,
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
@@ -2679,8 +2679,8 @@ public class InternalEngineTests extends ESTestCase {
         private final Map<String, Mapping> recoveredTypes = new HashMap<>();
         private final AtomicLong appliedOperations = new AtomicLong();
 
-        public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings, Logger logger) {
-            super(new ShardId("test", "_na_", 0), null, logger);
+        public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings) {
+            super(new ShardId("test", "_na_", 0), null);
             NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
             IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultAnalyzer, defaultAnalyzer, Collections.emptyMap(), Collections.emptyMap());
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());

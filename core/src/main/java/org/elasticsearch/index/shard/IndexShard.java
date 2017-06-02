@@ -258,7 +258,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
-        this.translogOpToEngineOpConverter = new TranslogOpToEngineOpConverter(shardId, mapperService, logger);
+        this.translogOpToEngineOpConverter = new TranslogOpToEngineOpConverter(shardId, mapperService);
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
         if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {

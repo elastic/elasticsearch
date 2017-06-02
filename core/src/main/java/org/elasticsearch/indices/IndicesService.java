@@ -22,6 +22,7 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
@@ -314,7 +315,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     } else {
                         statsByShard.get(indexService.index()).add(indexShardStats);
                     }
-                } catch (IllegalIndexShardStateException e) {
+                } catch (IllegalIndexShardStateException | AlreadyClosedException e) {
                     // we can safely ignore illegal state on ones that are closing for example
                     logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} ignoring shard stats", indexShard.shardId()), e);
                 }

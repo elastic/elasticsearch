@@ -54,6 +54,11 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "cluster_get_settings_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .routingTable(false)

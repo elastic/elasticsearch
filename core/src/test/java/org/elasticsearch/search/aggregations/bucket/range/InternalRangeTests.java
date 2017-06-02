@@ -23,8 +23,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,32 +38,47 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
     private List<Tuple<Double, Double>> ranges;
 
     @Override
-    @Before
     public void setUp() throws Exception {
         super.setUp();
         format = randomNumericDocValueFormat();
 
-        final int interval = randomFrom(1, 5, 10, 25, 50, 100);
-        final int numRanges = 1;//randomIntBetween(1, 10);
+        List<Tuple<Double, Double>> listOfRanges = new ArrayList<>();
+        if (rarely()) {
+            listOfRanges.add(Tuple.tuple(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY));
+        }
+        if (rarely()) {
+            listOfRanges.add(Tuple.tuple(Double.NEGATIVE_INFINITY, randomDouble()));
+        }
+        if (rarely()) {
+            listOfRanges.add(Tuple.tuple(randomDouble(), Double.POSITIVE_INFINITY));
+        }
 
-        List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
-        for (int i = 0; i < numRanges; i++) {
+        final int interval = randomFrom(1, 5, 10, 25, 50, 100);
+        final int numRanges = Math.max(0, randomNumberOfBuckets() - listOfRanges.size());
+        final double max = (double) numRanges * interval;
+
+        for (int i = 0; numRanges - listOfRanges.size() > 0; i++) {
             double from = i * interval;
             double to = from + interval;
-            listOfRanges.add(Tuple.tuple(from, to));
+
+            Tuple<Double, Double> range;
+            if (randomBoolean()) {
+                range = Tuple.tuple(from, to);
+            } else {
+                // Add some overlapping range
+                range = Tuple.tuple(randomFrom(0.0, max / 3), randomFrom(max, max / 2, max / 3 * 2));
+            }
+            listOfRanges.add(range);
         }
-        if (randomBoolean()) {
-            // Add some overlapping ranges
-            double max = (double) numRanges * interval;
-            listOfRanges.add(Tuple.tuple(0.0, max));
-            listOfRanges.add(Tuple.tuple(0.0, max / 2));
-            listOfRanges.add(Tuple.tuple(max / 3, max / 3 * 2));
-        }
+        Collections.shuffle(listOfRanges, random());
         ranges = Collections.unmodifiableList(listOfRanges);
     }
 
     @Override
-    protected InternalRange createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+    protected InternalRange createTestInstance(String name,
+                                               List<PipelineAggregator> pipelineAggregators,
+                                               Map<String, Object> metaData,
+                                               InternalAggregations aggregations,
                                                boolean keyed) {
         final List<InternalRange.Bucket> buckets = new ArrayList<>();
         for (int i = 0; i < ranges.size(); ++i) {
@@ -70,13 +86,28 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
             int docCount = randomIntBetween(0, 1000);
             double from = range.v1();
             double to = range.v2();
-            buckets.add( new InternalRange.Bucket("range_" + i, from, to, docCount, InternalAggregations.EMPTY, keyed, format));
+            buckets.add(new InternalRange.Bucket("range_" + i, from, to, docCount, aggregations, keyed, format));
         }
-        return new InternalRange<>(name, buckets, format, keyed, pipelineAggregators, Collections.emptyMap());
+        return new InternalRange<>(name, buckets, format, keyed, pipelineAggregators, metaData);
     }
 
     @Override
     protected Writeable.Reader<InternalRange> instanceReader() {
         return InternalRange::new;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedRange.class;
+    }
+
+    @Override
+    protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
+        return InternalRange.Bucket.class;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
+        return ParsedRange.ParsedBucket.class;
     }
 }

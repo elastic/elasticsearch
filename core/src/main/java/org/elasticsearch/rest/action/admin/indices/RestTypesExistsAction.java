@@ -50,6 +50,11 @@ public class RestTypesExistsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "types_exists_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TypesExistsRequest typesExistsRequest = new TypesExistsRequest(
                 Strings.splitStringByCommaToArray(request.param("index")), Strings.splitStringByCommaToArray(request.param("type"))

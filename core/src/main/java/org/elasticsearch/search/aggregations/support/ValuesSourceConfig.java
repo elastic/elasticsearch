@@ -26,7 +26,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
@@ -117,11 +116,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return config;
     }
 
-    private static SearchScript createScript(Script script, QueryShardContext context) {
+    private static SearchScript.LeafFactory createScript(Script script, QueryShardContext context) {
         if (script == null) {
             return null;
         } else {
-            return context.getSearchScript(script, ScriptContext.Standard.AGGS);
+            return context.getSearchScript(script, SearchScript.AGGS_CONTEXT);
         }
     }
 
@@ -138,7 +137,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
     private final ValuesSourceType valueSourceType;
     private FieldContext fieldContext;
-    private SearchScript script;
+    private SearchScript.LeafFactory script;
     private ValueType scriptValueType;
     private boolean unmapped = false;
     private DocValueFormat format = DocValueFormat.RAW;
@@ -157,7 +156,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return fieldContext;
     }
 
-    public SearchScript script() {
+    public SearchScript.LeafFactory script() {
         return script;
     }
 
@@ -174,7 +173,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this;
     }
 
-    public ValuesSourceConfig<VS> script(SearchScript script) {
+    public ValuesSourceConfig<VS> script(SearchScript.LeafFactory script) {
         this.script = script;
         return this;
     }
@@ -317,9 +316,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     private ValuesSource bytesField() throws IOException {
         final IndexFieldData<?> indexFieldData = fieldContext().indexFieldData();
         ValuesSource dataSource;
-        if (indexFieldData instanceof ParentChildIndexFieldData) {
-            dataSource = new ValuesSource.Bytes.WithOrdinals.ParentChild((ParentChildIndexFieldData) indexFieldData);
-        } else if (indexFieldData instanceof IndexOrdinalsFieldData) {
+        if (indexFieldData instanceof IndexOrdinalsFieldData) {
             dataSource = new ValuesSource.Bytes.WithOrdinals.FieldData((IndexOrdinalsFieldData) indexFieldData);
         } else {
             dataSource = new ValuesSource.Bytes.FieldData(indexFieldData);

@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
@@ -110,5 +111,12 @@ public class PatternAnalyzerTests extends ESTokenStreamTestCase {
   public void testRandomStrings() throws Exception {
     Analyzer a = new PatternAnalyzer(Pattern.compile(","), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
     checkRandomData(random(), a, 10000*RANDOM_MULTIPLIER);
+  }
+
+  public void testNormalize() {
+      PatternAnalyzer a = new PatternAnalyzer(Pattern.compile("\\s+"), false, null);
+      assertEquals(new BytesRef("FooBar"), a.normalize("dummy", "FooBar"));
+      a = new PatternAnalyzer(Pattern.compile("\\s+"), true, null);
+      assertEquals(new BytesRef("foobar"), a.normalize("dummy", "FooBar"));
   }
 }

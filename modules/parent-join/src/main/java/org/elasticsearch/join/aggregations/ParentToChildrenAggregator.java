@@ -20,7 +20,7 @@ package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
@@ -52,10 +52,9 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     static final ParseField TYPE_FIELD = new ParseField("type");
 
-    private final String parentType;
     private final Weight childFilter;
     private final Weight parentFilter;
-    private final ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource;
+    private final ValuesSource.Bytes.WithOrdinals valuesSource;
 
     // Maybe use PagedGrowableWriter? This will be less wasteful than LongArray,
     // but then we don't have the reuse feature of BigArrays.
@@ -72,12 +71,11 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     private boolean multipleBucketsPerParentOrd = false;
 
     public ParentToChildrenAggregator(String name, AggregatorFactories factories,
-            SearchContext context, Aggregator parent, String parentType, Query childFilter,
-            Query parentFilter, ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
+            SearchContext context, Aggregator parent, Query childFilter,
+            Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
             long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
-        this.parentType = parentType;
         // these two filters are cached in the parser
         this.childFilter = context.searcher().createNormalizedWeight(childFilter, false);
         this.parentFilter = context.searcher().createNormalizedWeight(parentFilter, false);
@@ -105,9 +103,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-
-        final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType, ctx);
-        assert globalOrdinals != null;
+        final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
         Scorer parentScorer = parentFilter.scorer(ctx);
         final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), parentScorer);
         return new LeafBucketCollector() {
@@ -115,7 +111,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
             @Override
             public void collect(int docId, long bucket) throws IOException {
                 if (parentDocs.get(docId) && globalOrdinals.advanceExact(docId)) {
-                    long globalOrdinal = globalOrdinals.ordValue();
+                    long globalOrdinal = globalOrdinals.nextOrd();
+                    assert globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
                     if (globalOrdinal != -1) {
                         if (parentOrdToBuckets.get(globalOrdinal) == -1) {
                             parentOrdToBuckets.set(globalOrdinal, bucket);
@@ -147,9 +144,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
             DocIdSetIterator childDocsIter = childDocsScorer.iterator();
 
             final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
-            final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType,
-                    ctx);
 
+            final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
             // Set the scorer, since we now replay only the child docIds
             sub.setScorer(new ConstantScoreScorer(null, 1f, childDocsIter));
 
@@ -161,7 +157,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
                     continue;
                 }
                 if (globalOrdinals.advanceExact(docId)) {
-                    long globalOrdinal = globalOrdinals.ordValue();
+                    long globalOrdinal = globalOrdinals.nextOrd();
+                    assert globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
                     long bucketOrd = parentOrdToBuckets.get(globalOrdinal);
                     if (bucketOrd != -1) {
                         collectBucket(sub, docId, bucketOrd);

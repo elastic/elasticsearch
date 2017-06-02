@@ -46,6 +46,11 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "update_settings_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));

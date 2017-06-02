@@ -282,7 +282,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         );
         verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
-        queryBuilder = queryBuilder.rewrite(queryShardContext);
+        queryBuilder = QueryBuilder.rewriteQuery(queryBuilder, queryShardContext);
 
         try (XContentBuilder builder = XContentFactory.contentBuilder(QUERY_BUILDER_CONTENT_TYPE)) {
             queryBuilder.toXContent(builder, new MapParams(Collections.emptyMap()));

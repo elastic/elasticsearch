@@ -43,6 +43,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -72,6 +73,7 @@ public class RestControllerTests extends ESTestCase {
     private CircuitBreaker inFlightRequestsBreaker;
     private RestController restController;
     private HierarchyCircuitBreakerService circuitBreakerService;
+    private UsageService usageService;
 
     @Before
     public void setup() {
@@ -81,11 +83,12 @@ public class RestControllerTests extends ESTestCase {
                 .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), BREAKER_LIMIT)
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        usageService = new UsageService(settings);
         // we can do this here only because we know that we don't adjust breaker settings dynamically in the test
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
-        restController = new RestController(settings, Collections.emptySet(), null, null, circuitBreakerService);
+        restController = new RestController(settings, Collections.emptySet(), null, null, circuitBreakerService, usageService);
         restController.registerHandler(RestRequest.Method.GET, "/",
             (request, channel, client) -> channel.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
@@ -100,7 +103,7 @@ public class RestControllerTests extends ESTestCase {
     public void testApplyRelevantHeaders() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Set<String> headers = new HashSet<>(Arrays.asList("header.1", "header.2"));
-        final RestController restController = new RestController(Settings.EMPTY, headers, null, null, circuitBreakerService);
+        final RestController restController = new RestController(Settings.EMPTY, headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
         restHeaders.put("header.2", Collections.singletonList("true"));
@@ -123,7 +126,8 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testCanTripCircuitBreaker() throws Exception {
-        RestController controller = new RestController(Settings.EMPTY, Collections.emptySet(), null, null, circuitBreakerService);
+        RestController controller = new RestController(Settings.EMPTY, Collections.emptySet(), null, null, circuitBreakerService,
+                usageService);
         // trip circuit breaker by default
         controller.registerHandler(RestRequest.Method.GET, "/trip", new FakeRestHandler(true));
         controller.registerHandler(RestRequest.Method.GET, "/do-not-trip", new FakeRestHandler(false));
@@ -187,7 +191,7 @@ public class RestControllerTests extends ESTestCase {
             return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
         };
         final RestController restController = new RestController(Settings.EMPTY, Collections.emptySet(), wrapper, null,
-            circuitBreakerService);
+                circuitBreakerService, usageService);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null, null,
                 threadContext, handler, PathTrie.TrieMatchingMode.EXPLICIT_NODES_ONLY);
@@ -271,7 +275,7 @@ public class RestControllerTests extends ESTestCase {
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.NOT_ACCEPTABLE);
         restController = new RestController(
             Settings.builder().put(HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED.getKey(), true).build(),
-            Collections.emptySet(), null, null, circuitBreakerService);
+                Collections.emptySet(), null, null, circuitBreakerService, usageService);
         restController.registerHandler(RestRequest.Method.GET, "/",
             (r, c, client) -> c.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));

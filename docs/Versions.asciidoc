@@ -13,6 +13,7 @@ release-state can be: released | prerelease | unreleased
 
 :ref:             https://www.elastic.co/guide/en/elasticsearch/reference/{branch}
 :defguide:        https://www.elastic.co/guide/en/elasticsearch/guide/master
+:painless:        https://www.elastic.co/guide/en/elasticsearch/painless/master
 :plugins:         https://www.elastic.co/guide/en/elasticsearch/plugins/{branch}
 :javaclient:      https://www.elastic.co/guide/en/elasticsearch/client/java-api/{branch}
 :xpack:           https://www.elastic.co/guide/en/x-pack/5.4

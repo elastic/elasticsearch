@@ -22,6 +22,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -49,6 +50,11 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
         this.minFrequency = minFrequency;
         this.maxFrequency = maxFrequency;
         this.minSegmentSize = minSegmentSize;
+    }
+
+    @Override
+    public MultiDocValues.OrdinalMap getOrdinalMap() {
+        return null;
     }
 
     @Override

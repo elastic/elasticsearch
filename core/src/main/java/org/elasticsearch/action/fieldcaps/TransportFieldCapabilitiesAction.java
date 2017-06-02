@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -72,7 +73,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(),
             request.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
+        final String[] concreteIndices;
+        if (remoteClusterIndices.isEmpty() == false && localIndices.indices().length == 0) {
+            // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote
+            // indices
+            concreteIndices = Strings.EMPTY_ARRAY;
+        } else {
+            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
+        }
         final int totalNumRequest = concreteIndices.length + remoteClusterIndices.size();
         final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
@@ -110,38 +118,45 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
-                Transport.Connection connection = remoteClusterService.getConnection(remoteIndices.getKey());
-                FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
-                remoteRequest.setMergeResults(false); // we need to merge on this node
-                remoteRequest.indicesOptions(originalIndices.indicesOptions());
-                remoteRequest.indices(originalIndices.indices());
-                remoteRequest.fields(request.fields());
-                transportService.sendRequest(connection, FieldCapabilitiesAction.NAME, remoteRequest, TransportRequestOptions.EMPTY,
-                    new TransportResponseHandler<FieldCapabilitiesResponse>() {
-                    @Override
-                    public FieldCapabilitiesResponse newInstance() {
-                        return new FieldCapabilitiesResponse();
-                    }
+                // if we are connected this is basically a no-op, if we are not we try to connect in parallel in a non-blocking fashion
+                remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(v -> {
+                    Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
+                    FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
+                    remoteRequest.setMergeResults(false); // we need to merge on this node
+                    remoteRequest.indicesOptions(originalIndices.indicesOptions());
+                    remoteRequest.indices(originalIndices.indices());
+                    remoteRequest.fields(request.fields());
+                    transportService.sendRequest(connection, FieldCapabilitiesAction.NAME, remoteRequest, TransportRequestOptions.EMPTY,
+                        new TransportResponseHandler<FieldCapabilitiesResponse>() {
 
-                    @Override
-                    public void handleResponse(FieldCapabilitiesResponse response) {
-                        for (FieldCapabilitiesIndexResponse res : response.getIndexResponses()) {
-                            indexResponses.add(new FieldCapabilitiesIndexResponse(RemoteClusterAware.buildRemoteIndexName(clusterAlias,
-                                res.getIndexName()), res.get()));
-                        }
-                        onResponse.run();
-                    }
+                            @Override
+                            public FieldCapabilitiesResponse newInstance() {
+                                return new FieldCapabilitiesResponse();
+                            }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        onResponse.run();
-                    }
+                            @Override
+                            public void handleResponse(FieldCapabilitiesResponse response) {
+                                try {
+                                    for (FieldCapabilitiesIndexResponse res : response.getIndexResponses()) {
+                                        indexResponses.add(new FieldCapabilitiesIndexResponse(RemoteClusterAware.
+                                            buildRemoteIndexName(clusterAlias, res.getIndexName()), res.get()));
+                                    }
+                                } finally {
+                                    onResponse.run();
+                                }
+                            }
 
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-                });
+                            @Override
+                            public void handleException(TransportException exp) {
+                                onResponse.run();
+                            }
+
+                            @Override
+                            public String executor() {
+                                return ThreadPool.Names.SAME;
+                            }
+                        });
+                }, e -> onResponse.run()));
             }
 
         }

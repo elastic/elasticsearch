@@ -99,16 +99,12 @@ public class Netty4Transport extends TcpTransport<Channel> {
     public static final Setting<Integer> WORKER_COUNT =
         new Setting<>("transport.netty.worker_count",
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
-            (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope, Property.Shared);
+            (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope);
 
     public static final Setting<ByteSizeValue> NETTY_MAX_CUMULATION_BUFFER_CAPACITY =
-        Setting.byteSizeSetting(
-                "transport.netty.max_cumulation_buffer_capacity",
-                new ByteSizeValue(-1),
-                Property.NodeScope,
-                Property.Shared);
+        Setting.byteSizeSetting("transport.netty.max_cumulation_buffer_capacity", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<Integer> NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
-        Setting.intSetting("transport.netty.max_composite_buffer_components", -1, -1, Property.NodeScope, Property.Shared);
+        Setting.intSetting("transport.netty.max_composite_buffer_components", -1, -1, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
             "transport.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
@@ -117,7 +113,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX =
         byteSizeSetting("transport.netty.receive_predictor_max", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
     public static final Setting<Integer> NETTY_BOSS_COUNT =
-        intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope, Property.Shared);
+        intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
 
 
     protected final ByteSizeValue maxCumulationBufferCapacity;

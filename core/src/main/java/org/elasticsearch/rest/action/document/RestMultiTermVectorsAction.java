@@ -47,6 +47,11 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "document_multi_term_vectors_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         TermVectorsRequest template = new TermVectorsRequest();

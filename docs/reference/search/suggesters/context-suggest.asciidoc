@@ -28,8 +28,7 @@ PUT place
                     "contexts": [
                         { <1>
                             "name": "place_type",
-                            "type": "category",
-                            "path": "cat"
+                            "type": "category"
                         },
                         { <2>
                             "name": "location",

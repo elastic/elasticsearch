@@ -29,6 +29,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -84,7 +85,10 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         CircuitBreakerService circuitBreakerService = new HierarchyCircuitBreakerService(Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
 
-        RestController restController = new RestController(Settings.EMPTY, Collections.emptySet(), null, null, circuitBreakerService);
+        final Settings settings = Settings.EMPTY;
+        UsageService usageService = new UsageService(settings);
+        RestController restController = new RestController(settings, Collections.emptySet(),
+                null, null, circuitBreakerService, usageService);
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = new RestHandler() {

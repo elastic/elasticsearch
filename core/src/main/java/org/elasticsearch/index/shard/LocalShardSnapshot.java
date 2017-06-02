@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -28,6 +27,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.store.Store;
 
 import java.io.Closeable;
@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class LocalShardSnapshot implements Closeable {
     private final IndexShard shard;
     private final Store store;
-    private final IndexCommit indexCommit;
+    private final Engine.IndexCommitRef indexCommit;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     LocalShardSnapshot(IndexShard shard) {
@@ -66,7 +66,7 @@ final class LocalShardSnapshot implements Closeable {
         return new FilterDirectory(store.directory()) {
             @Override
             public String[] listAll() throws IOException {
-                Collection<String> fileNames = indexCommit.getFileNames();
+                Collection<String> fileNames = indexCommit.getIndexCommit().getFileNames();
                 final String[] fileNameArray = fileNames.toArray(new String[fileNames.size()]);
                 return fileNameArray;
             }
@@ -115,7 +115,7 @@ final class LocalShardSnapshot implements Closeable {
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
             try {
-                shard.releaseIndexCommit(indexCommit);
+                indexCommit.close();
             } finally {
                 store.decRef();
             }

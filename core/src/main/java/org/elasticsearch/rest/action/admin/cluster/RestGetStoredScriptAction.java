@@ -54,6 +54,11 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "get_stored_scripts_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
         String id;
         String lang;

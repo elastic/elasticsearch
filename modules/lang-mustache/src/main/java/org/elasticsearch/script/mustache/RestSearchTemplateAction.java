@@ -54,10 +54,6 @@ public class RestSearchTemplateAction extends BaseRestHandler {
                         request.setScriptParams(parser.map())
                 , new ParseField("params"), ObjectParser.ValueType.OBJECT);
         PARSER.declareString((request, s) -> {
-            request.setScriptType(ScriptType.FILE);
-            request.setScript(s);
-        }, new ParseField("file"));
-        PARSER.declareString((request, s) -> {
             request.setScriptType(ScriptType.STORED);
             request.setScript(s);
         }, new ParseField("id"));
@@ -87,6 +83,11 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_search/template", this);
         controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
         controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
+    }
+
+    @Override
+    public String getName() {
+        return "search_template_action";
     }
 
     @Override

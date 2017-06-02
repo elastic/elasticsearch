@@ -29,10 +29,6 @@ Field values can be accessed from a script using
 <<modules-scripting-doc-vals,doc-values>>, or
 <<modules-scripting-stored,stored fields or `_source` field>>, which are explained below.
 
-Scripts may also have access to the document's relevance
-<<scripting-score,`_score`>> and, via the experimental `_index` variable,
-to term statistics for <<modules-advanced-scripting,advanced text scoring>>.
-
 [[scripting-score]]
 [float]
 === Accessing the score of a document within a script

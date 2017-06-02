@@ -106,6 +106,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -463,21 +464,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                          final int totalShards,
                                          final List<SnapshotShardFailure> shardFailures,
                                          final long repositoryStateId) {
+
+        SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
+            indices.stream().map(IndexId::getName).collect(Collectors.toList()),
+            startTime, failure, System.currentTimeMillis(), totalShards, shardFailures);
         try {
-            SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
-                                                              indices.stream().map(IndexId::getName).collect(Collectors.toList()),
-                                                              startTime,
-                                                              failure,
-                                                              System.currentTimeMillis(),
-                                                              totalShards,
-                                                              shardFailures);
             snapshotFormat.write(blobStoreSnapshot, snapshotsBlobContainer, snapshotId.getUUID());
             final RepositoryData repositoryData = getRepositoryData();
             writeIndexGen(repositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), indices), repositoryStateId);
-            return blobStoreSnapshot;
+        } catch (FileAlreadyExistsException ex) {
+            // if another master was elected and took over finalizing the snapshot, it is possible
+            // that both nodes try to finalize the snapshot and write to the same blobs, so we just
+            // log a warning here and carry on
+            throw new RepositoryException(metadata.name(), "Blob already exists while " +
+                "finalizing snapshot, assume the snapshot has already been saved", ex);
         } catch (IOException ex) {
             throw new RepositoryException(metadata.name(), "failed to update snapshot in repository", ex);
         }
+        return blobStoreSnapshot;
     }
 
     @Override

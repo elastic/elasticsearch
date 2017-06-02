@@ -25,17 +25,15 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
 import org.elasticsearch.search.suggest.phrase.Laplace;
 import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
@@ -694,107 +692,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
     }
 
-    public void testPhraseBoundaryCases() throws IOException, URISyntaxException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
-                .put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1) // to get reliable statistics we should put this all into one shard
-                .put("index.analysis.analyzer.body.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.body.filter", "lowercase")
-                .put("index.analysis.analyzer.bigram.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase")
-                .put("index.analysis.analyzer.ngram.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.ngram.filter", "my_shingle2", "lowercase")
-                .put("index.analysis.analyzer.myDefAnalyzer.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.myDefAnalyzer.filter", "shingle", "lowercase")
-                .put("index.analysis.filter.my_shingle.type", "shingle")
-                .put("index.analysis.filter.my_shingle.output_unigrams", false)
-                .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
-                .put("index.analysis.filter.my_shingle.max_shingle_size", 2)
-                .put("index.analysis.filter.my_shingle2.type", "shingle")
-                .put("index.analysis.filter.my_shingle2.output_unigrams", true)
-                .put("index.analysis.filter.my_shingle2.min_shingle_size", 2)
-                .put("index.analysis.filter.my_shingle2.max_shingle_size", 2));
-
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-                    .startObject().startObject("type1")
-                .startObject("properties")
-                .startObject("body").field("type", "text").field("analyzer", "body").endObject()
-                .startObject("bigram").field("type", "text").field("analyzer", "bigram").endObject()
-                .startObject("ngram").field("type", "text").field("analyzer", "ngram").endObject()
-                .endObject()
-                .endObject().endObject();
-        assertAcked(builder.addMapping("type1", mapping));
-        ensureGreen();
-
-        String[] strings = new String[]{
-            "Xorr the God-Jewel",
-            "Grog the God-Crusher",
-            "Xorn",
-            "Walter Newell",
-            "Wanda Maximoff",
-            "Captain America",
-            "American Ace",
-            "Wundarr the Aquarian",
-            "Will o' the Wisp",
-            "Xemnu the Titan"
-        };
-        for (String line : strings) {
-            index("test", "type1", line, "body", line, "bigram", line, "ngram", line);
-        }
-        refresh();
-
-        NumShards numShards = getNumShards("test");
-
-        // Lets make sure some things throw exceptions
-        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("bigram")
-                .analyzer("body")
-                .addCandidateGenerator(candidateGenerator("does_not_exist").minWordLength(1).suggestMode("always"))
-                .realWordErrorLikelihood(0.95f)
-                .maxErrors(0.5f)
-                .size(1);
-        phraseSuggestion.clearCandidateGenerators().analyzer(null);
-        try {
-            searchSuggest("xor the got-jewel", numShards.numPrimaries, Collections.singletonMap("simple_phrase", phraseSuggestion));
-            fail("analyzer does only produce ngrams");
-        } catch (SearchPhaseExecutionException e) {
-        }
-
-        phraseSuggestion.analyzer("bigram");
-        try {
-            searchSuggest("xor the got-jewel", numShards.numPrimaries, Collections.singletonMap("simple_phrase", phraseSuggestion));
-            fail("analyzer does only produce ngrams");
-        } catch (SearchPhaseExecutionException e) {
-        }
-
-        // Now we'll make sure some things don't
-        phraseSuggestion.forceUnigrams(false);
-        searchSuggest( "xor the got-jewel", 0, Collections.singletonMap("simple_phrase", phraseSuggestion));
-
-        // Field doesn't produce unigrams but the analyzer does
-        phraseSuggestion.forceUnigrams(true).analyzer("ngram");
-        searchSuggest( "xor the got-jewel", 0, Collections.singletonMap("simple_phrase", phraseSuggestion));
-
-        phraseSuggestion = phraseSuggestion("ngram")
-                .analyzer("myDefAnalyzer")
-                .forceUnigrams(true)
-                .realWordErrorLikelihood(0.95f)
-                .maxErrors(0.5f)
-                .size(1)
-                .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"));
-        Suggest suggest = searchSuggest( "xor the got-jewel", 0, Collections.singletonMap("simple_phrase", phraseSuggestion));
-
-        // "xorr the god jewel" and and "xorn the god jewel" have identical scores (we are only using unigrams to score), so we tie break by
-        // earlier term (xorn):
-        assertSuggestion(suggest, 0, "simple_phrase", "xorn the god jewel");
-
-        phraseSuggestion.analyzer(null);
-        suggest = searchSuggest( "xor the got-jewel", 0, Collections.singletonMap("simple_phrase", phraseSuggestion));
-
-        // In this case xorr has a better score than xorn because we set the field back to the default (my_shingle2) analyzer, so the
-        // probability that the term is not in the dictionary but is NOT a misspelling is relatively high in this case compared to the
-        // others that have no n-gram with the other terms in the phrase :) you can set this realWorldErrorLikelyhood
-        assertSuggestion(suggest, 0, "simple_phrase", "xorr the god jewel");
-    }
-
     public void testDifferentShardSize() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -1111,7 +1008,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     public static class DummyTemplatePlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
             return new DummyTemplateScriptEngine();
         }
     }
@@ -1123,52 +1020,24 @@ public class SuggestSearchIT extends ESIntegTestCase {
         public static final String NAME = "mustache";
 
         @Override
-        public void close() throws IOException {
-        }
-
-        @Override
         public String getType() {
             return NAME;
         }
 
         @Override
-        public String getExtension() {
-            return NAME;
-        }
-
-        @Override
-        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-            return scriptSource;
-        }
-
-        @Override
-        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
-            String script = (String) compiledScript.compiled();
-            for (Entry<String, Object> entry : params.entrySet()) {
-                script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
+        public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+            if (context.instanceClazz != TemplateScript.class) {
+                throw new UnsupportedOperationException();
             }
-            String result = script;
-            return new ExecutableScript() {
-                @Override
-                public void setNextVar(String name, Object value) {
-                    throw new UnsupportedOperationException("setNextVar not supported");
+            TemplateScript.Factory factory = p -> {
+                String script = scriptSource;
+                for (Entry<String, Object> entry : p.entrySet()) {
+                    script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
                 }
-
-                @Override
-                public Object run() {
-                    return result;
-                }
+                String result = script;
+                return () -> result;
             };
-        }
-
-        @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
-            throw new UnsupportedOperationException("search script not supported");
-        }
-
-        @Override
-        public boolean isInlineScriptEnabled() {
-            return true;
+            return context.factoryClazz.cast(factory);
         }
     }
 

@@ -79,6 +79,8 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
          */
         List<RestRequest.Method> invalidHttpMethodArray = new ArrayList<RestRequest.Method>(Arrays.asList(RestRequest.Method.values()));
         invalidHttpMethodArray.removeAll(validHttpMethodArray);
+        // Remove OPTIONS, or else we'll get a 200 instead of 405
+        invalidHttpMethodArray.remove(RestRequest.Method.OPTIONS);
         assert(invalidHttpMethodArray.size() > 0);
 
         // Initialize test candidate RestController

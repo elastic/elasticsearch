@@ -392,15 +392,6 @@ public class BigArrays implements Releasable {
     /**
      * Adjust the circuit breaker with the given delta, if the delta is
      * negative, or checkBreaker is false, the breaker will be adjusted
-     * without tripping.
-     */
-    void adjustBreaker(final long delta) {
-        adjustBreaker(delta, true);
-    }
-
-    /**
-     * Adjust the circuit breaker with the given delta, if the delta is
-     * negative, or checkBreaker is false, the breaker will be adjusted
      * without tripping.  If the data was already created before calling
      * this method, and the breaker trips, we add the delta without breaking
      * to account for the created data.  If the data has not been created yet,
@@ -458,7 +449,7 @@ public class BigArrays implements Releasable {
     private <T extends BigArray> T validate(T array) {
         boolean success = false;
         try {
-            adjustBreaker(array.ramBytesUsed());
+            adjustBreaker(array.ramBytesUsed(), true);
             success = true;
         } finally {
             if (!success) {

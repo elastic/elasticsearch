@@ -44,7 +44,7 @@ abstract class AbstractArray implements BigArray {
         if (closed.compareAndSet(false, true)) {
             try {
                 if (bigArrays != null) {
-                    bigArrays.adjustBreaker(-ramBytesUsed());
+                    bigArrays.adjustBreaker(-ramBytesUsed(), true);
                 }
             } finally {
                 doClose();

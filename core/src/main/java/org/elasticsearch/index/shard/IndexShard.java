@@ -373,7 +373,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             try {
                                 getEngine().fillSeqNoGaps(newPrimaryTerm);
                             } catch (final AlreadyClosedException e) {
-                                // okay, the index was deleted or this shard was never activated after a relocation.
+                                // okay, the index was deleted
                             }
                         },
                         e -> failShard("exception during primary term transition", e));

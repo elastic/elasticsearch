@@ -48,6 +48,7 @@ Response:
     "aggregations" : {
         "significantCrimeTypes" : {
             "doc_count": 47347,
+            "bg_count": 5064554,
             "buckets" : [
                 {
                     "key": "Bicycle theft",
@@ -111,6 +112,7 @@ Response:
                 "doc_count": 894038,
                 "significantCrimeTypes": {
                     "doc_count": 894038,
+                    "bg_count": 5064554,
                     "buckets": [
                         {
                             "key": "Robbery",
@@ -127,6 +129,7 @@ Response:
                 "doc_count": 47347,
                 "significantCrimeTypes": {
                     "doc_count": 47347,
+                    "bg_count": 5064554,
                     "buckets": [
                         {
                             "key": "Bicycle theft",

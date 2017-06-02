@@ -87,8 +87,4 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
-    }
 }

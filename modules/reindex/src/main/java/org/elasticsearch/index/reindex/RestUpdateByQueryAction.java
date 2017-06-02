@@ -46,6 +46,11 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     }
 
     @Override
+    public String getName() {
+        return "update_by_query_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         return doPrepareRequest(request, client, false, true);
     }

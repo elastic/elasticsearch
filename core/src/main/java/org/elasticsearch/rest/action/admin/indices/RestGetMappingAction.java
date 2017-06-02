@@ -54,6 +54,11 @@ public class RestGetMappingAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "get_mapping_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");

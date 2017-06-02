@@ -370,7 +370,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         TimeUnit.MINUTES,
                         () -> {
                             latch.await();
-                            getEngine().fillSeqNoGaps(newPrimaryTerm);
+                            try {
+                                getEngine().fillSeqNoGaps(newPrimaryTerm);
+                            } catch (final AlreadyClosedException e) {
+                                // okay, the index was deleted
+                            }
                         },
                         e -> failShard("exception during primary term transition", e));
                 primaryTerm = newPrimaryTerm;

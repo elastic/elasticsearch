@@ -73,7 +73,8 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request, longs.iterator()::next);
 
         assertThat(response, notNullValue());
-        assertThat(response.getTookInMillis(), equalTo(TimeUnit.NANOSECONDS.toMillis(longs.get(1) - longs.get(0))));
+        assertThat(response.getTook().getMillis(),
+                equalTo(TimeUnit.NANOSECONDS.toMillis(longs.get(1) - longs.get(0))));
     }
 
     public void testDocFreqs() throws IOException {

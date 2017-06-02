@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class SearchIT extends ESRestHighLevelClientTestCase {
@@ -386,7 +387,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     private static void assertSearchHeader(SearchResponse searchResponse) {
-        assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
+        assertThat(searchResponse.getTook().nanos(), greaterThanOrEqualTo(0L));
         assertEquals(0, searchResponse.getFailedShards());
         assertThat(searchResponse.getTotalShards(), greaterThan(0));
         assertEquals(searchResponse.getTotalShards(), searchResponse.getSuccessfulShards());

@@ -136,13 +136,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     /**
-     * How long the search took in milliseconds.
-     */
-    public long getTookInMillis() {
-        return tookInMillis;
-    }
-
-    /**
      * The total number of shards the search was executed on.
      */
     public int getTotalShards() {

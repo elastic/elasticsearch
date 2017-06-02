@@ -61,6 +61,11 @@ public class RestFieldStatsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "field_stats_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request,
                                               final NodeClient client) throws IOException {
         if (request.hasContentOrSourceParam() && request.hasParam("fields")) {

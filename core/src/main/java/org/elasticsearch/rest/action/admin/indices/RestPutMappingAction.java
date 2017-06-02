@@ -61,6 +61,11 @@ public class RestPutMappingAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "put_mapping_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.type(request.param("type"));

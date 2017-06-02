@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -58,6 +59,11 @@ public class RestGetAliasesAction extends BaseRestHandler {
         controller.registerHandler(HEAD, "/_alias/{name}", this);
         controller.registerHandler(GET, "/{index}/_alias/{name}", this);
         controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "get_aliases_action";
     }
 
     @Override

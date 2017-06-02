@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -123,5 +124,10 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         InternalOrder.Streams.writeOrder(this, out);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

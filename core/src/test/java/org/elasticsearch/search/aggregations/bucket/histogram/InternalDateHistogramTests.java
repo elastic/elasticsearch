@@ -55,7 +55,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
                                                        List<PipelineAggregator> pipelineAggregators,
                                                        Map<String, Object> metaData,
                                                        InternalAggregations aggregations) {
-        int nbBuckets = randomInt(10);
+        int nbBuckets = randomNumberOfBuckets();
         List<InternalDateHistogram.Bucket> buckets = new ArrayList<>(nbBuckets);
         long startingDate = System.currentTimeMillis();
 

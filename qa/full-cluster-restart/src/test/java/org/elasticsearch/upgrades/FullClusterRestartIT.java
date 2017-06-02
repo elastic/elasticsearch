@@ -24,12 +24,17 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -38,6 +43,7 @@ import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -62,6 +68,97 @@ public class FullClusterRestartIT extends ESRestTestCase {
     @Override
     protected boolean preserveReposUponCompletion() {
         return true;
+    }
+
+    public void testSearch() throws Exception {
+        String index = getTestName().toLowerCase(Locale.ROOT);
+        if (runningAgainstOldCluster) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("number_of_shards", 1);
+                mappingsAndSettings.field("number_of_replicas", 0);
+                mappingsAndSettings.endObject();
+            }
+            {
+                mappingsAndSettings.startObject("mappings");
+                mappingsAndSettings.startObject("doc");
+                mappingsAndSettings.startObject("properties");
+                {
+                    mappingsAndSettings.startObject("string");
+                    mappingsAndSettings.field("type", "text");
+                    mappingsAndSettings.endObject();
+                }
+                {
+                    mappingsAndSettings.startObject("dots_in_field_names");
+                    mappingsAndSettings.field("type", "text");
+                    mappingsAndSettings.endObject();
+                }
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
+                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+
+            int numDocs = randomIntBetween(2000, 3000);
+            indexRandomDocuments(index, numDocs, true, i -> {
+                return JsonXContent.contentBuilder().startObject()
+                .field("string", randomAlphaOfLength(10))
+                .field("int", randomInt(100))
+                .field("float", randomFloat())
+                // be sure to create a "proper" boolean (True, False) for the first document so that automapping is correct
+                .field("bool", i > 0 && supportsLenientBooleans ? randomLenientBoolean() : randomBoolean())
+                .field("field.with.dots", randomAlphaOfLength(10))
+                // TODO a binary field
+                .endObject();
+            });
+            logger.info("Refreshing [{}]", index);
+            client().performRequest("POST", "/" + index + "/_refresh");
+        }
+        assertBasicSearchWorks(index);
+    }
+
+    void assertBasicSearchWorks(String index) throws IOException {
+        logger.info("--> testing basic search");
+        Map<String, Object> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
+        assertNoFailures(response);
+        int numDocs1 = (int) XContentMapValues.extractValue("hits.total", response);
+        logger.info("Found {} in old index", numDocs1);
+
+        logger.info("--> testing basic search with sort");
+        String searchRequestBody = "{ \"sort\": [{ \"int\" : \"asc\" }]}";
+        response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
+            new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
+        assertNoFailures(response);
+        int numDocs2 = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(numDocs1, numDocs2);
+
+        logger.info("--> testing exists filter");
+        searchRequestBody = "{ \"query\": { \"exists\" : {\"field\": \"string\"} }}";
+        response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
+            new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
+        assertNoFailures(response);
+        numDocs2 = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(numDocs1, numDocs2);
+
+        searchRequestBody = "{ \"query\": { \"exists\" : {\"field\": \"field.with.dots\"} }}";
+        response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
+            new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
+        assertNoFailures(response);
+        numDocs2 = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(numDocs1, numDocs2);
+    }
+
+    static Map<String, Object> toMap(Response response) throws IOException {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
+    }
+
+    static void assertNoFailures(Map<String, Object> response) {
+        int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
+        assertEquals(0, failed);
     }
 
     /**
@@ -93,13 +190,14 @@ public class FullClusterRestartIT extends ESRestTestCase {
              * or not we have one. */
             shouldHaveTranslog = randomBoolean();
             logger.info("Creating {} documents", count);
-            indexRandomDocuments(index, count, true);
+            indexRandomDocuments(index, count, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
             createSnapshot();
             // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
             client().performRequest("POST", "/_flush");
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
-                indexRandomDocuments(index, count / 10, false /* Flushing here would invalidate the whole thing....*/);
+                indexRandomDocuments(index, count / 10, false /* Flushing here would invalidate the whole thing....*/,
+                    i -> jsonBuilder().startObject().field("field", "value").endObject());
             }
 
             // Record how many documents we built so we can compare later
@@ -137,25 +235,19 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
 
-    private void indexRandomDocuments(String index, int count, boolean flushAllowed) throws IOException {
+    private void indexRandomDocuments(String index, int count, boolean flushAllowed,
+                                      CheckedFunction<Integer, XContentBuilder, IOException> docSupplier) throws IOException {
         for (int i = 0; i < count; i++) {
-            XContentBuilder doc = JsonXContent.contentBuilder().startObject(); {
-                doc.field("string", randomAlphaOfLength(10));
-                doc.field("int", randomInt(100));
-                doc.field("float", randomFloat());
-                // be sure to create a "proper" boolean (True, False) for the first document so that automapping is correct
-                doc.field("bool", i > 0 && supportsLenientBooleans ? randomLenientBoolean() : randomBoolean());
-                doc.field("field.with.dots", randomAlphaOfLength(10));
-                // TODO a binary field
-            }
-            doc.endObject();
+            logger.debug("Indexing document [{}]", i);
             client().performRequest("POST", "/" + index + "/doc/" + i, emptyMap(),
-                    new StringEntity(doc.string(), ContentType.APPLICATION_JSON));
+                    new StringEntity(docSupplier.apply(i).string(), ContentType.APPLICATION_JSON));
             if (rarely()) {
-                client().performRequest("POST", "/_refresh");
+                logger.info("Refreshing [{}]", index);
+                client().performRequest("POST", "/" + index + "/_refresh");
             }
             if (flushAllowed && rarely()) {
-                client().performRequest("POST", "/_flush");
+                logger.info("Flushing [{}]", index);
+                client().performRequest("POST", "/" + index + "/_flush");
             }
         }
     }
@@ -224,7 +316,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 } else if (bwcLuceneVersion.equals(version)) {
                     numBwcVersion++;
                 } else {
-                    fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was" + line);
+                    fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
                 }
             }
             assertNotEquals("expected at least 1 current segment after translog recovery", 0, numCurrentVersion);

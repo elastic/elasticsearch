@@ -123,42 +123,39 @@ allprojects {
   }
 }
 
-task('verifyVersions') {
-  description 'Verifies that all released versions that are indexed compatible are listed in Version.java.'
-  group 'Verification'
-  enabled = false == gradle.startParameter.isOffline()
+task verifyVersions {
   doLast {
+    if (gradle.startParameter.isOffline()) {
+      throw new GradleException("Must run in online mode to verify versions")
+    }
     // Read the list from maven central
     Node xml
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
         xml = new XmlParser().parse(s)
     }
-    Set<String> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ })
+    Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ }.collect { Version.fromString(it) })
 
-    // Limit the known versions to those that should be index compatible
-    knownVersions = knownVersions.findAll { Integer.parseInt(it.split('\\.')[0]) >= prevMajor }
+    // Limit the known versions to those that should be index compatible, and are not future versions
+    knownVersions = knownVersions.findAll { it.major >= prevMajor && it.before(VersionProperties.elasticsearch) }
 
     /* Limit the listed versions to those that have been marked as released.
      * Versions not marked as released don't get the same testing and we want
      * to make sure that we flip all unreleased versions to released as soon
      * as possible after release. */
-    Set<String> actualVersions = new TreeSet<>(
-      indexCompatVersions
-        .findAll { false == it.snapshot }
-        .collect { it.toString() })
-
-    // TODO this is almost certainly going to fail on 5.4 when we release 5.5.0
+    Set<Version> actualVersions = new TreeSet<>(indexCompatVersions.findAll { false == it.snapshot })
 
     // Finally, compare!
-    if (!knownVersions.equals(actualVersions)) {
-      throw new GradleException("out-of-date versions\nActual  :" +
-        actualVersions + "\nExpected:" + knownVersions +
-        "; update Version.java")
+    if (knownVersions.equals(actualVersions) == false) {
+      throw new GradleException("out-of-date released versions\nActual  :" + actualVersions + "\nExpected:" + knownVersions +
+        "\nUpdate Version.java. Note that Version.CURRENT doesn't count because it is not released.")
     }
   }
 }
-task('precommit') {
-  dependsOn(verifyVersions)
+
+task branchConsistency {
+  description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
+  group 'Verification'
+  dependsOn verifyVersions
 }
 
 subprojects {
@@ -218,12 +215,22 @@ subprojects {
     "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
   ]
-  if (wireCompatVersions[-1].snapshot) {
-    // if the most previous version is a snapshot, we need to connect that version to the
-    // bwc project which will checkout and build that snapshot version
-    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${wireCompatVersions[-1]}"] = ':distribution:bwc'
-    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${wireCompatVersions[-1]}"] = ':distribution:bwc'
-    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${wireCompatVersions[-1]}"] = ':distribution:bwc'
+  if (indexCompatVersions[-1].snapshot) {
+    /* The last and second to last versions can be snapshots. Rather than use
+     * snapshots built by CI we connect these versions to projects that build
+     * those those versions from the HEAD of the appropriate branch. */
+    if (indexCompatVersions[-1].bugfix == 0) {
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+    } else {
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
+    }
   }
   project.afterEvaluate {
     configurations.all {

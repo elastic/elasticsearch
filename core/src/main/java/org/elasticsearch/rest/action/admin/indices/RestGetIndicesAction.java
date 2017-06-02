@@ -72,6 +72,11 @@ public class RestGetIndicesAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "get_indices_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] featureParams = request.paramAsStringArray("type", null);

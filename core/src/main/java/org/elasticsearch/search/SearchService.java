@@ -85,6 +85,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -251,6 +252,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final SearchContext context = createAndPutContext(request);
         final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         context.incRef();
+        boolean queryPhaseSuccess = false;
         try {
             context.setTask(task);
             operationListener.onPreQueryPhase(context);
@@ -265,6 +267,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 contextProcessedSuccessfully(context);
             }
             final long afterQueryTime = System.nanoTime();
+            queryPhaseSuccess = true;
             operationListener.onQueryPhase(context, afterQueryTime - time);
             if (request.numberOfShards() == 1) {
                 return executeFetchPhase(context, operationListener, afterQueryTime);
@@ -276,7 +279,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 e = (e.getCause() == null || e.getCause() instanceof Exception) ?
                     (Exception) e.getCause() : new ElasticsearchException(e.getCause());
             }
-            operationListener.onFailedQueryPhase(context);
+            if (!queryPhaseSuccess) {
+                operationListener.onFailedQueryPhase(context);
+            }
             logger.trace("Query phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -305,7 +310,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
+        final SearchContext context = findContext(request.id(), request);
         SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         context.incRef();
         try {
@@ -329,7 +334,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public QuerySearchResult executeQueryPhase(QuerySearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
+        final SearchContext context = findContext(request.id(), request);
         context.setTask(task);
         IndexShard indexShard = context.indexShard();
         SearchOperationListener operationListener = indexShard.getSearchOperationListener();
@@ -370,7 +375,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public ScrollQueryFetchSearchResult executeFetchPhase(InternalScrollSearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
+        final SearchContext context = findContext(request.id(), request);
         context.incRef();
         try {
             context.setTask(task);
@@ -401,7 +406,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public FetchSearchResult executeFetchPhase(ShardFetchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
+        final SearchContext context = findContext(request.id(), request);
         final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         context.incRef();
         try {
@@ -431,7 +436,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private SearchContext findContext(long id) throws SearchContextMissingException {
+    private SearchContext findContext(long id, TransportRequest request) throws SearchContextMissingException {
         SearchContext context = activeContexts.get(id);
         if (context == null) {
             throw new SearchContextMissingException(id);
@@ -439,7 +444,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         try {
-            operationListener.validateSearchContext(context);
+            operationListener.validateSearchContext(context, request);
             return context;
         } catch (Exception e) {
             processFailure(context, e);
@@ -685,7 +690,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
                 SearchScript.Factory factory = scriptService.compile(field.script(), SearchScript.CONTEXT);
-                SearchScript searchScript = factory.newInstance(field.script().getParams(), context.lookup());
+                SearchScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), context.lookup());
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

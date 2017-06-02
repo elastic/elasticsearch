@@ -47,6 +47,11 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "indices_segments_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(
                 Strings.splitStringByCommaToArray(request.param("index")));

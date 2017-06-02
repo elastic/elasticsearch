@@ -15,7 +15,8 @@ List projects = [
   'client:benchmark',
   'benchmarks',
   'distribution:integ-test-zip',
-  'distribution:bwc',
+  'distribution:bwc-release-snapshot',
+  'distribution:bwc-stable-snapshot',
   'distribution:zip',
   'distribution:tar',
   'distribution:deb',
@@ -77,6 +78,7 @@ List projects = [
   'qa:smoke-test-reindex-with-all-modules',
   'qa:smoke-test-tribe-node',
   'qa:vagrant',
+  'qa:verify-version-constants',
   'qa:wildfly'
 ]
 
@@ -104,6 +106,13 @@ project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugi
 for (String example : examplePlugins) {
   project(":example-plugins:${example}").projectDir = new File(rootProject.projectDir, "plugins/examples/${example}")
 }
+
+/* bwc and bwc-unreleased share the same build directory and build file, but
+ * apply to different backwards compatibility branches. */
+project(':distribution:bwc-release-snapshot').projectDir =
+    new File(rootProject.projectDir, 'distribution/bwc')
+project(':distribution:bwc-stable-snapshot').projectDir =
+    new File(rootProject.projectDir, 'distribution/bwc')
 
 if (isEclipse) {
   project(":core").projectDir = new File(rootProject.projectDir, 'core/src/main')

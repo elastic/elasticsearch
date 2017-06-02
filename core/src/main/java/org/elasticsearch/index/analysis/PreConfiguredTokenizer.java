@@ -97,11 +97,6 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
         if (multiTermComponent != null) {
             return new MultiTermAwareTokenizerFactory() {
                 @Override
-                public String name() {
-                    return getName();
-                }
-
-                @Override
                 public Tokenizer create() {
                     return create.apply(version);
                 }
@@ -112,17 +107,7 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
                 }
             };
         } else {
-            return new TokenizerFactory() {
-                @Override
-                public String name() {
-                    return getName();
-                }
-
-                @Override
-                public Tokenizer create() {
-                    return create.apply(version);
-                }
-            };
+            return () -> create.apply(version);
         }
     }
 }

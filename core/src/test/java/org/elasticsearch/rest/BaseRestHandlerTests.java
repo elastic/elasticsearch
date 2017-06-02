@@ -47,6 +47,11 @@ public class BaseRestHandlerTests extends ESTestCase {
                 request.param("consumed");
                 return channel -> executed.set(true);
             }
+
+            @Override
+            public String getName() {
+                return "test_one_unconsumed_response_action";
+            }
         };
 
         final HashMap<String, String> params = new HashMap<>();
@@ -67,6 +72,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
                 return channel -> executed.set(true);
+            }
+
+            @Override
+            public String getName() {
+                return "test_multiple_unconsumed_response_action";
             }
         };
 
@@ -98,6 +108,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             @Override
             protected Set<String> responseParams() {
                 return Collections.singleton("response_param");
+            }
+
+            @Override
+            public String getName() {
+                return "test_unconsumed_did_you_mean_response_action";
             }
         };
 
@@ -137,6 +152,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             protected Set<String> responseParams() {
                 return Collections.singleton("response_param");
             }
+
+            @Override
+            public String getName() {
+                return "test_unconsumed_response_action";
+            }
         };
 
         final HashMap<String, String> params = new HashMap<>();
@@ -154,6 +174,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 return channel -> executed.set(true);
+            }
+
+            @Override
+            public String getName() {
+                return "test_default_response_action";
             }
         };
 
@@ -184,6 +209,11 @@ public class BaseRestHandlerTests extends ESTestCase {
             @Override
             protected Table getTableWithHeader(RestRequest request) {
                 return null;
+            }
+
+            @Override
+            public String getName() {
+                return "test_cat_response_action";
             }
         };
 

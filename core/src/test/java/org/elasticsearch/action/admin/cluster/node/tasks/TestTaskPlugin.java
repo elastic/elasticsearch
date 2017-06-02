@@ -313,10 +313,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
             throw new UnsupportedOperationException("the task parameter is required");
         }
 
-        @Override
-        protected boolean accumulateExceptions() {
-            return true;
-        }
     }
 
     public static class TestTaskAction extends Action<NodesRequest, NodesResponse, NodesRequestBuilder> {
@@ -453,10 +449,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
             listener.onResponse(new UnblockTestTaskResponse());
         }
 
-        @Override
-        protected boolean accumulateExceptions() {
-            return true;
-        }
     }
 
     public static class UnblockTestTasksAction extends Action<UnblockTestTasksRequest, UnblockTestTasksResponse,

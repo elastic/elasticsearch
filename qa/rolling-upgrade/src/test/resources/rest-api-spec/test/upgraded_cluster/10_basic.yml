@@ -12,6 +12,12 @@
  - match: { hits.total: 10 } # no new indexed data, so expect the original 10 documents from the old and mixed clusters
 
  - do:
+     search:
+       index: index_with_replicas
+
+ - match: { hits.total: 5 } # just check we recovered fine
+
+ - do:
      bulk:
         refresh: true
         body:

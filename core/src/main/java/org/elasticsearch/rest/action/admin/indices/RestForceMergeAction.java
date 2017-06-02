@@ -47,6 +47,11 @@ public class RestForceMergeAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "force_merge_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ForceMergeRequest mergeRequest = new ForceMergeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         mergeRequest.indicesOptions(IndicesOptions.fromRequest(request, mergeRequest.indicesOptions()));

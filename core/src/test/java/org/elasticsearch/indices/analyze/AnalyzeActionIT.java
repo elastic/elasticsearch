@@ -275,38 +275,17 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens().length, equalTo(1));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[0].getTerm(), equalTo("\nthis is a test\n"));
 
-
         //check other attributes
         analyzeResponse = client().admin().indices().prepareAnalyze("This is troubled")
-            .setExplain(true).setTokenizer("standard").addTokenFilter("snowball").get();
+            .setExplain(true).setTokenizer("standard").addTokenFilter("lowercase").get();
 
         assertThat(analyzeResponse.detail().tokenfilters().length, equalTo(1));
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getName(), equalTo("snowball"));
+        assertThat(analyzeResponse.detail().tokenfilters()[0].getName(), equalTo("lowercase"));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens().length, equalTo(3));
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getTerm(), equalTo("troubl"));
+        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getTerm(), equalTo("troubled"));
         String[] expectedAttributesKey = {
             "bytes",
-            "positionLength",
-            "keyword"};
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().size(), equalTo(expectedAttributesKey.length));
-        Object extendedAttribute;
-
-        for (String key : expectedAttributesKey) {
-            extendedAttribute = analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().get(key);
-            assertThat(extendedAttribute, notNullValue());
-        }
-    }
-
-    public void testDetailAnalyzeSpecifyAttributes() throws Exception {
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("This is troubled")
-            .setExplain(true).setTokenizer("standard").addTokenFilter("snowball").setAttributes("keyword").get();
-
-        assertThat(analyzeResponse.detail().tokenfilters().length, equalTo(1));
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getName(), equalTo("snowball"));
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens().length, equalTo(3));
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getTerm(), equalTo("troubl"));
-        String[] expectedAttributesKey = {
-            "keyword"};
+            "positionLength"};
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().size(), equalTo(expectedAttributesKey.length));
         Object extendedAttribute;
 

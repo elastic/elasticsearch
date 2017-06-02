@@ -19,9 +19,12 @@
 
 package org.elasticsearch.gradle
 
+import groovy.transform.Sortable
+
 /**
  * Encapsulates comparison and printing logic for an x.y.z version.
  */
+@Sortable(includes=['id'])
 public class Version {
 
     final int major
@@ -55,10 +58,6 @@ public class Version {
     public String toString() {
         String snapshotStr = snapshot ? '-SNAPSHOT' : ''
         return "${major}.${minor}.${bugfix}${snapshotStr}"
-    }
-
-    public boolean equals(Version compareTo) {
-        return id == compareTo.id
     }
 
     public boolean before(String compareTo) {

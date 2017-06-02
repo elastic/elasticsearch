@@ -310,3 +310,19 @@ setting.
 WARNING: Loading data into the filesystem cache eagerly on too many indices or
 too many files will make search _slower_ if the filesystem cache is not large
 enough to hold all the data. Use with caution.
+
+[float]
+=== Map identifiers as `keyword`
+
+When you have numeric identifiers in your documents, it is tempting to map them
+as numbers, which is consistent with their json type. However, the way that
+Elasticsearch indexes numbers optimizes for `range` queries while `keyword`
+fields are better at `term` queries. Since identifiers are never used in `range`
+queries, they should be mapped as a `keyword`.
+
+[float]
+=== Use index sorting to speed up conjunctions
+
+<<index-modules-index-sorting,Index sorting>> can be useful in order to make
+conjunctions faster at the cost of slightly slower indexing. Read more about it
+in the <<index-modules-index-sorting-conjunctions,index sorting documentation>>.

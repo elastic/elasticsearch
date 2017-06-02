@@ -22,9 +22,7 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Sort;
@@ -133,6 +131,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -161,7 +160,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final String checkIndexOnStartup;
     private final CodecService codecService;
     private final Engine.Warmer warmer;
-    private final SnapshotDeletionPolicy deletionPolicy;
     private final SimilarityService similarityService;
     private final TranslogConfig translogConfig;
     private final IndexEventListener indexEventListener;
@@ -231,7 +229,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Settings settings = indexSettings.getSettings();
         this.codecService = new CodecService(mapperService, logger);
         this.warmer = warmer;
-        this.deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
         this.engineFactory = engineFactory == null ? new InternalEngineFactory() : engineFactory;
@@ -260,8 +257,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings,
-            bigArrays);
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
         this.translogOpToEngineOpConverter = new TranslogOpToEngineOpConverter(shardId, mapperService, logger);
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -338,12 +334,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * notifies the shard of an increase in the primary term
+     * Notifies the shard of an increase in the primary term.
+     *
+     * @param newPrimaryTerm the new primary term
      */
-    public void updatePrimaryTerm(final long newTerm) {
+    public void updatePrimaryTerm(final long newPrimaryTerm) {
         assert shardRouting.primary() : "primary term can only be explicitly updated on a primary shard";
         synchronized (mutex) {
-            if (newTerm != primaryTerm) {
+            if (newPrimaryTerm != primaryTerm) {
                 // Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
                 // in one state causing it's term to be incremented. Note that if both current shard state and new
                 // shard state are initializing, we could replace the current shard and reinitialize it. It is however
@@ -360,10 +358,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         "a started primary shard should never update its term; "
                                 + "shard " + shardRouting + ", "
                                 + "current term [" + primaryTerm + "], "
-                                + "new term [" + newTerm + "]";
-                assert newTerm > primaryTerm :
-                        "primary terms can only go up; current term [" + primaryTerm + "], new term [" + newTerm + "]";
-                primaryTerm = newTerm;
+                                + "new term [" + newPrimaryTerm + "]";
+                assert newPrimaryTerm > primaryTerm :
+                        "primary terms can only go up; current term [" + primaryTerm + "], new term [" + newPrimaryTerm + "]";
+                /*
+                 * Before this call returns, we are guaranteed that all future operations are delayed and so this happens before we
+                 * increment the primary term. The latch is needed to ensure that we do not unblock operations before the primary term is
+                 * incremented.
+                 */
+                final CountDownLatch latch = new CountDownLatch(1);
+                indexShardOperationPermits.asyncBlockOperations(
+                        30,
+                        TimeUnit.MINUTES,
+                        () -> {
+                            latch.await();
+                            getEngine().fillSeqNoGaps(newPrimaryTerm);
+                        },
+                        e -> failShard("exception during primary term transition", e));
+                primaryTerm = newPrimaryTerm;
+                latch.countDown();
             }
         }
     }
@@ -908,11 +921,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Creates a new {@link IndexCommit} snapshot form the currently running engine. All resources referenced by this
-     * commit won't be freed until the commit / snapshot is released via {@link #releaseIndexCommit(IndexCommit)}.
+     * commit won't be freed until the commit / snapshot is closed.
      *
      * @param flushFirst <code>true</code> if the index should first be flushed to disk / a low level lucene commit should be executed
      */
-    public IndexCommit acquireIndexCommit(boolean flushFirst) throws EngineException {
+    public Engine.IndexCommitRef acquireIndexCommit(boolean flushFirst) throws EngineException {
         IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
@@ -922,14 +935,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-
-    /**
-     * Releases a snapshot taken from {@link #acquireIndexCommit(boolean)} this must be called to release the resources
-     * referenced by the given snapshot {@link IndexCommit}.
-     */
-    public void releaseIndexCommit(IndexCommit snapshot) throws IOException {
-        deletionPolicy.release(snapshot);
-    }
 
     /**
      * gets a {@link Store.MetadataSnapshot} for the current directory. This method is safe to call in all lifecycle of the index shard,
@@ -945,25 +950,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws java.nio.file.NoSuchFileException                  if one or more files referenced by a commit are not present.
      */
     public Store.MetadataSnapshot snapshotStoreMetadata() throws IOException {
-        IndexCommit indexCommit = null;
+        Engine.IndexCommitRef indexCommit = null;
         store.incRef();
         try {
+            Engine engine;
             synchronized (mutex) {
                 // if the engine is not running, we can access the store directly, but we need to make sure no one starts
                 // the engine on us. If the engine is running, we can get a snapshot via the deletion policy which is initialized.
                 // That can be done out of mutex, since the engine can be closed half way.
-                Engine engine = getEngineOrNull();
+                engine = getEngineOrNull();
                 if (engine == null) {
                     return store.getMetadata(null, true);
                 }
             }
-            indexCommit = deletionPolicy.snapshot();
-            return store.getMetadata(indexCommit);
+            indexCommit = engine.acquireIndexCommit(false);
+            return store.getMetadata(indexCommit.getIndexCommit());
         } finally {
             store.decRef();
-            if (indexCommit != null) {
-                deletionPolicy.release(indexCommit);
-            }
+            IOUtils.close(indexCommit);
         }
     }
 
@@ -1133,7 +1137,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0_UNRELEASED) &&
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0) &&
             // TODO: LOCAL_SHARDS need to transfer this information
             recoveryState().getRecoverySource().getType() != RecoverySource.Type.LOCAL_SHARDS) {
             // as of 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.
@@ -1878,7 +1882,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
         Sort indexSort = indexSortSupplier.get();
         return new EngineConfig(openMode, shardId,
-            threadPool, indexSettings, warmer, store, deletionPolicy, indexSettings.getMergePolicy(),
+            threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, indexCache.query(), cachingPolicy, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()), refreshListeners, indexSort,
             this::runTranslogRecovery);

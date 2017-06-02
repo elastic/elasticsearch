@@ -49,6 +49,10 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     protected Map<String, Class<?>> getTokenFilters() {
         Map<String, Class<?>> filters = new TreeMap<>(super.getTokenFilters());
         filters.put("asciifolding",          ASCIIFoldingTokenFilterFactory.class);
+        filters.put("keywordmarker",         KeywordMarkerTokenFilterFactory.class);
+        filters.put("porterstem",            PorterStemTokenFilterFactory.class);
+        filters.put("snowballporter",        SnowballTokenFilterFactory.class);
+        filters.put("trim",                  TrimTokenFilterFactory.class);
         filters.put("worddelimiter",         WordDelimiterTokenFilterFactory.class);
         filters.put("worddelimitergraph",    WordDelimiterGraphTokenFilterFactory.class);
         return filters;
@@ -120,7 +124,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getPreConfiguredTokenizers() {
         Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenFilters());
-        
+
         return filters;
     }
 

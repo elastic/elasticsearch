@@ -89,6 +89,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         Map<String, AnalysisProvider<TokenFilterFactory>> filters = new TreeMap<>();
         filters.put("asciifolding", ASCIIFoldingTokenFilterFactory::new);
+        filters.put("keyword_marker", requriesAnalysisSettings(KeywordMarkerTokenFilterFactory::new));
+        filters.put("porter_stem", PorterStemTokenFilterFactory::new);
+        filters.put("snowball", SnowballTokenFilterFactory::new);
+        filters.put("trim", TrimTokenFilterFactory::new);
         filters.put("word_delimiter", WordDelimiterTokenFilterFactory::new);
         filters.put("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
         return filters;

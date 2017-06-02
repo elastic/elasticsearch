@@ -21,10 +21,6 @@ package org.elasticsearch.template;
 
 import java.util.Map;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ScriptType;
-
 /**
  * A template that may be executed.
  */

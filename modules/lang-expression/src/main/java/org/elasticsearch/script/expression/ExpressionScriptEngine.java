@@ -37,8 +37,8 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ClassPermission;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
@@ -70,11 +70,11 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
     }
 
     @Override
-    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         SpecialPermission.check();
-        return AccessController.doPrivileged(new PrivilegedAction<Expression>() {
+        Expression expr = AccessController.doPrivileged(new PrivilegedAction<Expression>() {
             @Override
             public Expression run() {
                 try {
@@ -101,11 +101,17 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                 }
             }
         });
+        if (context.instanceClazz.equals(SearchScript.class)) {
+            SearchScript.Factory factory = (p, lookup) -> newSearchScript(expr, lookup, p);
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
+            ExecutableScript.Factory factory = (p) -> new ExpressionExecutableScript(expr, p);
+            return context.factoryClazz.cast(factory);
+        }
+        throw new IllegalArgumentException("painless does not know how to handle context [" + context.name + "]");
     }
 
-    @Override
-    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        Expression expr = (Expression)compiledScript.compiled();
+    private SearchScript.LeafFactory newSearchScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         MapperService mapper = lookup.doc().mapperService();
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
@@ -227,7 +233,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                 throw convertToScriptException("link error", expr.sourceText, variable, e);
             }
         }
-        return new ExpressionSearchScript(compiledScript, bindings, specialValue, needsScores);
+        return new ExpressionSearchScript(expr, bindings, specialValue, needsScores);
     }
 
     /**
@@ -247,12 +253,4 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         stack.add(pointer.toString());
         throw new ScriptException(message, cause, stack, source, NAME);
     }
-
-    @Override
-    public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
-        return new ExpressionExecutableScript(compiledScript, vars);
-    }
-
-    @Override
-    public void close() {}
 }

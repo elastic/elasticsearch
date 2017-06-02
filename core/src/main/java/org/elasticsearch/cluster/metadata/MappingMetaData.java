@@ -196,7 +196,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         source().writeTo(out);
         // routing
         out.writeBoolean(routing().required());
-        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             // timestamp
             out.writeBoolean(false); // enabled
             out.writeString(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format());
@@ -233,7 +233,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         source = CompressedXContent.readCompressedString(in);
         // routing
         routing = new Routing(in.readBoolean());
-        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             // timestamp
             boolean enabled = in.readBoolean();
             if (enabled) {

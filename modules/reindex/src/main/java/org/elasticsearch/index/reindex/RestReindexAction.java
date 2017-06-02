@@ -101,6 +101,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     @Override
+    public String getName() {
+        return "reindex_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         return doPrepareRequest(request, client, true, true);
     }

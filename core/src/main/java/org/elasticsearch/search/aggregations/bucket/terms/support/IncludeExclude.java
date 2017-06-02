@@ -233,16 +233,14 @@ public class IncludeExclude implements Writeable, ToXContent {
     }
 
     public abstract static class OrdinalsFilter {
-        public abstract LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals)
-                throws IOException;
+        public abstract LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException;
 
     }
 
     class PartitionedOrdinalsFilter extends OrdinalsFilter {
 
         @Override
-        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals)
-                throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException {
             final long numOrds = globalOrdinals.getValueCount();
             final LongBitSet acceptedGlobalOrdinals = new LongBitSet(numOrds);
             final TermsEnum termEnum = globalOrdinals.termsEnum();
@@ -271,8 +269,7 @@ public class IncludeExclude implements Writeable, ToXContent {
          *
          */
         @Override
-        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals)
-                throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
             TermsEnum globalTermsEnum;
             Terms globalTerms = new DocValuesTerms(globalOrdinals);
@@ -297,8 +294,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         }
 
         @Override
-        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals)
-                throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
             if (includeValues != null) {
                 for (BytesRef term : includeValues) {

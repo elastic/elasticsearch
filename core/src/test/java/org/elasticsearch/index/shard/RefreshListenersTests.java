@@ -23,8 +23,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
@@ -109,7 +107,7 @@ public class RefreshListenersTests extends ESTestCase {
         store = new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, createTempDir("translog"), indexSettings,
-                BigArrays.NON_RECYCLING_INSTANCE);
+            BigArrays.NON_RECYCLING_INSTANCE);
         Engine.EventListener eventListener = new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Exception e) {
@@ -117,7 +115,7 @@ public class RefreshListenersTests extends ESTestCase {
             }
         };
         EngineConfig config = new EngineConfig(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, shardId, threadPool, indexSettings, null,
-                store, new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), newMergePolicy(), iwc.getAnalyzer(),
+                store, newMergePolicy(), iwc.getAnalyzer(),
                 iwc.getSimilarity(), new CodecService(null, logger), eventListener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
                 TimeValue.timeValueMinutes(5), listeners, null, null);

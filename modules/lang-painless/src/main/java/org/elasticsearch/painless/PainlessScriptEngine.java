@@ -24,22 +24,21 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,17 +71,32 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
     /**
      * Default compiler settings to be used. Note that {@link CompilerSettings} is mutable but this instance shouldn't be mutated outside
-     * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings)}.
+     * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings, Collection)}.
      */
     private final CompilerSettings defaultCompilerSettings = new CompilerSettings();
+
+    private final Map<ScriptContext<?>, Compiler> contextsToCompilers;
 
     /**
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
-    public PainlessScriptEngine(final Settings settings) {
+    public PainlessScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         super(settings);
+
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
+
+        Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
+
+        for (ScriptContext<?> context : contexts) {
+            if (context.instanceClazz.equals(SearchScript.class) || context.instanceClazz.equals(ExecutableScript.class)) {
+                contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, Definition.BUILTINS));
+            } else {
+                contextsToCompilers.put(context, new Compiler(context.instanceClazz, Definition.BUILTINS));
+            }
+        }
+
+        this.contextsToCompilers = Collections.unmodifiableMap(contextsToCompilers);
     }
 
     /**
@@ -100,11 +114,29 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
     static final String INLINE_NAME = "<inline>";
 
     @Override
-    public Object compile(String scriptName, final String scriptSource, final Map<String, String> params) {
-        return compile(GenericElasticsearchScript.class, scriptName, scriptSource, params);
+    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+        GenericElasticsearchScript painlessScript =
+            (GenericElasticsearchScript)compile(contextsToCompilers.get(context), scriptName, scriptSource, params);
+        if (context.instanceClazz.equals(SearchScript.class)) {
+            SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
+                @Override
+                public SearchScript newInstance(final LeafReaderContext context) {
+                    return new ScriptImpl(painlessScript, p, lookup, context);
+                }
+                @Override
+                public boolean needsScores() {
+                    return painlessScript.uses$_score();
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
+            ExecutableScript.Factory factory = (p) -> new ScriptImpl(painlessScript, p, null, null);
+            return context.factoryClazz.cast(factory);
+        }
+        throw new IllegalArgumentException("painless does not know how to handle context [" + context.name + "]");
     }
 
-    <T> T compile(Class<T> iface, String scriptName, final String scriptSource, final Map<String, String> params) {
+    PainlessScript compile(Compiler compiler, String scriptName, final String scriptSource, final Map<String, String> params) {
         final CompilerSettings compilerSettings;
 
         if (params.isEmpty()) {
@@ -157,66 +189,24 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
         try {
             // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<T>() {
+            return AccessController.doPrivileged(new PrivilegedAction<PainlessScript>() {
                 @Override
-                public T run() {
+                public PainlessScript run() {
                     String name = scriptName == null ? INLINE_NAME : scriptName;
-                    return Compiler.compile(loader, iface, name, scriptSource, compilerSettings);
+                    Constructor<? extends PainlessScript> constructor = compiler.compile(loader, name, scriptSource, compilerSettings);
+
+                    try {
+                        return constructor.newInstance();
+                    } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
+                        throw new IllegalStateException(
+                            "An internal error occurred attempting to define the script [" + name + "].", exception);
+                    }
                 }
             }, COMPILATION_CONTEXT);
         // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
             throw convertToScriptException(scriptName == null ? scriptSource : scriptName, scriptSource, e);
         }
-    }
-
-    /**
-     * Retrieve an {@link ExecutableScript} for later use.
-     * @param compiledScript A previously compiled script.
-     * @param vars The variables to be used in the script.
-     * @return An {@link ExecutableScript} with the currently specified variables.
-     */
-    @Override
-    public ExecutableScript executable(final CompiledScript compiledScript, final Map<String, Object> vars) {
-        return new ScriptImpl((GenericElasticsearchScript) compiledScript.compiled(), vars, null);
-    }
-
-    /**
-     * Retrieve a {@link SearchScript} for later use.
-     * @param compiledScript A previously compiled script.
-     * @param lookup The object that ultimately allows access to search fields.
-     * @param vars The variables to be used in the script.
-     * @return An {@link SearchScript} with the currently specified variables.
-     */
-    @Override
-    public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, final Map<String, Object> vars) {
-        return new SearchScript() {
-            /**
-             * Get the search script that will have access to search field values.
-             * @param context The LeafReaderContext to be used.
-             * @return A script that will have the search fields from the current context available for use.
-             */
-            @Override
-            public LeafSearchScript getLeafSearchScript(final LeafReaderContext context) throws IOException {
-                return new ScriptImpl((GenericElasticsearchScript) compiledScript.compiled(), vars, lookup.getLeafSearchLookup(context));
-            }
-
-            /**
-             * Whether or not the score is needed.
-             */
-            @Override
-            public boolean needsScores() {
-                return ((GenericElasticsearchScript) compiledScript.compiled()).uses$_score();
-            }
-        };
-    }
-
-    /**
-     * Action taken when the engine is closed.
-     */
-    @Override
-    public void close() {
-        // Nothing to do.
     }
 
     private ScriptException convertToScriptException(String scriptName, String scriptSource, Throwable t) {

@@ -131,7 +131,9 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.VersionType.EXTERNAL;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
+import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
@@ -141,6 +143,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -278,6 +281,178 @@ public class IndexShardTests extends IndexShardTestCase {
         } catch (IndexShardClosedException e) {
             // expected
         }
+    }
+
+    public void testPrimaryPromotionDelaysOperations() throws IOException, BrokenBarrierException, InterruptedException {
+        final IndexShard indexShard = newStartedShard(false);
+
+        final int operations = scaledRandomIntBetween(1, 64);
+        final CyclicBarrier barrier = new CyclicBarrier(1 + operations);
+        final CountDownLatch latch = new CountDownLatch(operations);
+        final CountDownLatch operationLatch = new CountDownLatch(1);
+        final List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < operations; i++) {
+            final Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                indexShard.acquireReplicaOperationPermit(
+                        indexShard.getPrimaryTerm(),
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                latch.countDown();
+                                try {
+                                    operationLatch.await();
+                                } catch (final InterruptedException e) {
+                                    throw new RuntimeException(e);
+                                }
+                                releasable.close();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        },
+                        ThreadPool.Names.INDEX);
+            });
+            thread.start();
+            threads.add(thread);
+        }
+
+        barrier.await();
+        latch.await();
+
+        // promote the replica
+        final ShardRouting replicaRouting = indexShard.routingEntry();
+        final ShardRouting primaryRouting =
+                TestShardRouting.newShardRouting(
+                        replicaRouting.shardId(),
+                        replicaRouting.currentNodeId(),
+                        null,
+                        true,
+                        ShardRoutingState.STARTED,
+                        replicaRouting.allocationId());
+        indexShard.updateRoutingEntry(primaryRouting);
+        indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
+
+        final int delayedOperations = scaledRandomIntBetween(1, 64);
+        final CyclicBarrier delayedOperationsBarrier = new CyclicBarrier(1 + delayedOperations);
+        final CountDownLatch delayedOperationsLatch = new CountDownLatch(delayedOperations);
+        final AtomicLong counter = new AtomicLong();
+        final List<Thread> delayedThreads = new ArrayList<>();
+        for (int i = 0; i < delayedOperations; i++) {
+            final Thread thread = new Thread(() -> {
+                try {
+                    delayedOperationsBarrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                indexShard.acquirePrimaryOperationPermit(
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                counter.incrementAndGet();
+                                releasable.close();
+                                delayedOperationsLatch.countDown();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        },
+                        ThreadPool.Names.INDEX);
+            });
+            thread.start();
+            delayedThreads.add(thread);
+        }
+
+        delayedOperationsBarrier.await();
+
+        assertThat(counter.get(), equalTo(0L));
+
+        operationLatch.countDown();
+        for (final Thread thread : threads) {
+            thread.join();
+        }
+
+        delayedOperationsLatch.await();
+
+        assertThat(counter.get(), equalTo((long) delayedOperations));
+
+        for (final Thread thread : delayedThreads) {
+            thread.join();
+        }
+
+        closeShards(indexShard);
+    }
+
+    public void testPrimaryFillsSeqNoGapsOnPromotion() throws Exception {
+        final IndexShard indexShard = newStartedShard(false);
+
+        // most of the time this is large enough that most of the time there will be at least one gap
+        final int operations = 1024 - scaledRandomIntBetween(0, 1024);
+        int max = Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED);
+        boolean gap = false;
+        for (int i = 0; i < operations; i++) {
+            final String id = Integer.toString(i);
+            final ParsedDocument doc = testParsedDocument(id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
+            if (!rarely()) {
+                final Term uid = new Term("_id", doc.id());
+                final Engine.Index index =
+                        new Engine.Index(uid, doc, i, indexShard.getPrimaryTerm(), 1, EXTERNAL, REPLICA, System.nanoTime(), -1, false);
+                indexShard.index(index);
+                max = i;
+            } else {
+                gap = true;
+            }
+        }
+
+        final int maxSeqNo = max;
+        if (gap) {
+            assertThat(indexShard.getLocalCheckpoint(), not(equalTo(maxSeqNo)));
+        }
+
+        // promote the replica
+        final ShardRouting replicaRouting = indexShard.routingEntry();
+        final ShardRouting primaryRouting =
+                TestShardRouting.newShardRouting(
+                        replicaRouting.shardId(),
+                        replicaRouting.currentNodeId(),
+                        null,
+                        true,
+                        ShardRoutingState.STARTED,
+                        replicaRouting.allocationId());
+        indexShard.updateRoutingEntry(primaryRouting);
+        indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
+
+        /*
+         * This operation completing means that the delay operation executed as part of increasing the primary term has completed and the
+         * gaps are filled.
+         */
+        final CountDownLatch latch = new CountDownLatch(1);
+        indexShard.acquirePrimaryOperationPermit(
+                new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        releasable.close();
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                ThreadPool.Names.GENERIC);
+
+        latch.await();
+        assertThat(indexShard.getLocalCheckpoint(), equalTo((long) maxSeqNo));
+        closeShards(indexShard);
     }
 
     public void testOperationPermitsOnPrimaryShards() throws InterruptedException, ExecutionException, IOException {
@@ -562,17 +737,17 @@ public class IndexShardTests extends IndexShardTestCase {
             indexDoc(shard, "type", "id_" + i);
         }
         final boolean flushFirst = randomBoolean();
-        IndexCommit commit = shard.acquireIndexCommit(flushFirst);
+        Engine.IndexCommitRef commit = shard.acquireIndexCommit(flushFirst);
         int moreDocs = randomInt(20);
         for (int i = 0; i < moreDocs; i++) {
             indexDoc(shard, "type", "id_" + numDocs + i);
         }
         flushShard(shard);
         // check that we can still read the commit that we captured
-        try (IndexReader reader = DirectoryReader.open(commit)) {
+        try (IndexReader reader = DirectoryReader.open(commit.getIndexCommit())) {
             assertThat(reader.numDocs(), equalTo(flushFirst ? numDocs : 0));
         }
-        shard.releaseIndexCommit(commit);
+        commit.close();
         flushShard(shard, true);
 
         // check it's clean up
@@ -1064,7 +1239,7 @@ public class IndexShardTests extends IndexShardTestCase {
         test = otherShard.prepareIndexOnReplica(
             SourceToParse.source(shard.shardId().getIndexName(), test.type(), test.id(), test.source(),
                 XContentType.JSON),
-            1, 1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            1, 1, 1, EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         otherShard.index(test);
 
         final ShardRouting primaryShardRouting = shard.routingEntry();

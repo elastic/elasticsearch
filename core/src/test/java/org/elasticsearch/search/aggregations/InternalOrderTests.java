@@ -110,7 +110,7 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             BucketOrder order = createTestInstance();
             Version bwcVersion = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-                VersionUtils.getPreviousVersion(Version.V_6_0_0_alpha2_UNRELEASED));
+                VersionUtils.getPreviousVersion(Version.V_6_0_0_alpha2));
             boolean bwcOrderFlag = randomBoolean();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setVersion(bwcVersion);

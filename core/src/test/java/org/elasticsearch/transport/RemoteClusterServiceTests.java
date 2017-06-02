@@ -189,44 +189,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testEnsureConnected() throws IOException {
-        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-             MockTransportService otherSeedTransport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            DiscoveryNode otherSeedNode = otherSeedTransport.getLocalDiscoNode();
-            knownNodes.add(seedTransport.getLocalDiscoNode());
-            knownNodes.add(otherSeedTransport.getLocalDiscoNode());
-            Collections.shuffle(knownNodes, random());
-
-            try (MockTransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
-                null)) {
-                transportService.start();
-                transportService.acceptIncomingRequests();
-                Settings.Builder builder = Settings.builder();
-                builder.putArray("search.remote.cluster_1.seeds", seedNode.getAddress().toString());
-                builder.putArray("search.remote.cluster_2.seeds", otherSeedNode.getAddress().toString());
-                try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService)) {
-                    assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
-                    assertFalse(service.isCrossClusterSearchEnabled());
-                    service.updateRemoteCluster("cluster_1", Collections.singletonList(seedNode.getAddress().address()));
-                    assertTrue(service.isCrossClusterSearchEnabled());
-                    assertTrue(service.isRemoteClusterRegistered("cluster_1"));
-                    service.updateRemoteCluster("cluster_2", Collections.singletonList(otherSeedNode.getAddress().address()));
-                    assertTrue(service.isCrossClusterSearchEnabled());
-                    assertTrue(service.isRemoteClusterRegistered("cluster_1"));
-                    assertTrue(service.isRemoteClusterRegistered("cluster_2"));
-                    service.updateRemoteCluster("cluster_2", Collections.emptyList());
-                    assertFalse(service.isRemoteClusterRegistered("cluster_2"));
-                    IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                        () -> service.updateRemoteCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Collections.emptyList()));
-                    assertEquals("remote clusters must not have the empty string as its key", iae.getMessage());
-                }
-            }
-        }
-    }
-
     public void testRemoteNodeAttribute() throws IOException, InterruptedException {
         final Settings settings =
                 Settings.builder().put("search.remote.node.attr", "gateway").build();

@@ -48,7 +48,6 @@ import org.elasticsearch.index.analysis.IndicNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.KStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.KeepTypesFilterFactory;
 import org.elasticsearch.index.analysis.KeepWordFilterFactory;
-import org.elasticsearch.index.analysis.KeywordMarkerTokenFilterFactory;
 import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
 import org.elasticsearch.index.analysis.LengthTokenFilterFactory;
 import org.elasticsearch.index.analysis.LetterTokenizerFactory;
@@ -64,7 +63,6 @@ import org.elasticsearch.index.analysis.PatternCaptureGroupTokenFilterFactory;
 import org.elasticsearch.index.analysis.PatternReplaceTokenFilterFactory;
 import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
-import org.elasticsearch.index.analysis.PorterStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ReverseTokenFilterFactory;
@@ -72,7 +70,6 @@ import org.elasticsearch.index.analysis.ScandinavianFoldingFilterFactory;
 import org.elasticsearch.index.analysis.ScandinavianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.SerbianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.analysis.SnowballTokenFilterFactory;
 import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
@@ -82,7 +79,6 @@ import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.index.analysis.ThaiTokenizerFactory;
-import org.elasticsearch.index.analysis.TrimTokenFilterFactory;
 import org.elasticsearch.index.analysis.TruncateTokenFilterFactory;
 import org.elasticsearch.index.analysis.UAX29URLEmailTokenizerFactory;
 import org.elasticsearch.index.analysis.UpperCaseTokenFilterFactory;
@@ -193,7 +189,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("indonesianstem",            StemmerTokenFilterFactory.class)
         .put("italianlightstem",          StemmerTokenFilterFactory.class)
         .put("keepword",                  KeepWordFilterFactory.class)
-        .put("keywordmarker",             KeywordMarkerTokenFilterFactory.class)
+        .put("keywordmarker",             MovedToAnalysisCommon.class)
         .put("kstem",                     KStemTokenFilterFactory.class)
         .put("latvianstem",               StemmerTokenFilterFactory.class)
         .put("length",                    LengthTokenFilterFactory.class)
@@ -205,7 +201,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("patterncapturegroup",       PatternCaptureGroupTokenFilterFactory.class)
         .put("patternreplace",            PatternReplaceTokenFilterFactory.class)
         .put("persiannormalization",      PersianNormalizationFilterFactory.class)
-        .put("porterstem",                PorterStemTokenFilterFactory.class)
+        .put("porterstem",                MovedToAnalysisCommon.class)
         .put("portuguesestem",            StemmerTokenFilterFactory.class)
         .put("portugueselightstem",       StemmerTokenFilterFactory.class)
         .put("portugueseminimalstem",     StemmerTokenFilterFactory.class)
@@ -216,7 +212,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("serbiannormalization",      SerbianNormalizationFilterFactory.class)
         .put("shingle",                   ShingleTokenFilterFactory.class)
         .put("minhash",                   MinHashTokenFilterFactory.class)
-        .put("snowballporter",            SnowballTokenFilterFactory.class)
+        .put("snowballporter",            MovedToAnalysisCommon.class)
         .put("soraninormalization",       SoraniNormalizationFilterFactory.class)
         .put("soranistem",                StemmerTokenFilterFactory.class)
         .put("spanishlightstem",          StemmerTokenFilterFactory.class)
@@ -226,7 +222,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("swedishlightstem",          StemmerTokenFilterFactory.class)
         .put("synonym",                   SynonymTokenFilterFactory.class)
         .put("synonymgraph",              SynonymGraphTokenFilterFactory.class)
-        .put("trim",                      TrimTokenFilterFactory.class)
+        .put("trim",                      MovedToAnalysisCommon.class)
         .put("truncate",                  TruncateTokenFilterFactory.class)
         .put("turkishlowercase",          LowerCaseTokenFilterFactory.class)
         .put("type",                      KeepTypesFilterFactory.class)

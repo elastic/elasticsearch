@@ -17,6 +17,7 @@
  * under the License.
  */
 
+apply plugin: 'elasticsearch.vagrantsupport'
 apply plugin: 'elasticsearch.vagrant'
 
 List<String> plugins = []

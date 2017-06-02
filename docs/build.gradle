@@ -38,7 +38,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/metrics/tophits-aggregation.asciidoc',
   'reference/cluster/allocation-explain.asciidoc',
   'reference/cluster/nodes-info.asciidoc',
-  'reference/cluster/nodes-stats.asciidoc',
   'reference/cluster/pending.asciidoc',
   'reference/cluster/state.asciidoc',
   'reference/cluster/stats.asciidoc',
@@ -151,6 +150,14 @@ buildRestTests.setups['host'] = '''
         metric: [ http ]
   - is_true: nodes.$master.http.publish_address
   - set: {nodes.$master.http.publish_address: host}
+'''
+
+buildRestTests.setups['node'] = '''
+  # Fetch the node name. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - is_true: master_node
+  - set: { master_node: node_name }
 '''
 
 // Used by scripted metric docs

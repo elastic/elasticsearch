@@ -46,18 +46,27 @@ public final class WriterConstants {
 
     public static final int CLASS_VERSION = Opcodes.V1_8;
     public static final int ASM_VERSION = Opcodes.ASM5;
-    public static final String BASE_CLASS_NAME = PainlessScript.class.getName();
-    public static final Type BASE_CLASS_TYPE   = Type.getType(PainlessScript.class);
+    public static final String BASE_INTERFACE_NAME = PainlessScript.class.getName();
+    public static final Type BASE_INTERFACE_TYPE = Type.getType(PainlessScript.class);
     public static final Method CONVERT_TO_SCRIPT_EXCEPTION_METHOD = getAsmMethod(ScriptException.class, "convertToScriptException",
             Throwable.class, Map.class);
 
-    public static final String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
-    public static final Type CLASS_TYPE        = Type.getObjectType(CLASS_NAME.replace('.', '/'));
-    
+    public static final String CLASS_NAME = BASE_INTERFACE_NAME + "$Script";
+    public static final Type CLASS_TYPE   = Type.getObjectType(CLASS_NAME.replace('.', '/'));
+
     public static final String CTOR_METHOD_NAME = "<init>";
 
-    public static final Method CONSTRUCTOR = getAsmMethod(void.class, CTOR_METHOD_NAME, String.class, String.class, BitSet.class);
+    public static final Method CONSTRUCTOR = getAsmMethod(void.class, CTOR_METHOD_NAME);
     public static final Method CLINIT      = getAsmMethod(void.class, "<clinit>");
+
+    public static final String GET_NAME_NAME = "getName";
+    public static final Method GET_NAME_METHOD = getAsmMethod(String.class, GET_NAME_NAME);
+
+    public static final String GET_SOURCE_NAME = "getSource";
+    public static final Method GET_SOURCE_METHOD = getAsmMethod(String.class, GET_SOURCE_NAME);
+
+    public static final String GET_STATEMENTS_NAME = "getStatements";
+    public static final Method GET_STATEMENTS_METHOD = getAsmMethod(BitSet.class, GET_STATEMENTS_NAME);
 
     // All of these types are caught by the main method and rethrown as ScriptException
     public static final Type PAINLESS_ERROR_TYPE         = Type.getType(PainlessError.class);
@@ -67,6 +76,9 @@ public final class WriterConstants {
     public static final Type EXCEPTION_TYPE              = Type.getType(Exception.class);
     public static final Type PAINLESS_EXPLAIN_ERROR_TYPE = Type.getType(PainlessExplainError.class);
     public static final Method PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD = getAsmMethod(Map.class, "getHeaders", Definition.class);
+
+    public static final Type OBJECT_TYPE = Type.getType(Object.class);
+    public static final Type BITSET_TYPE = Type.getType(BitSet.class);
 
     public static final Type DEFINITION_TYPE = Type.getType(Definition.class);
 

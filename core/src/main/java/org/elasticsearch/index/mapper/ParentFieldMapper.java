@@ -65,6 +65,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED);
+            FIELD_TYPE.setEagerGlobalOrdinals(true);
             FIELD_TYPE.freeze();
         }
     }

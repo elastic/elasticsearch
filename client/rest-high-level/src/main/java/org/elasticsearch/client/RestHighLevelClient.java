@@ -43,12 +43,15 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
-import org.elasticsearch.join.aggregations.ParsedChildren;
+import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -90,8 +93,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.matrix.stats.ParsedMatrixStats;
+import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.ParsedAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
@@ -140,6 +142,9 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -160,23 +165,52 @@ import static java.util.stream.Collectors.toList;
  * Can be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through plugins, or to
  * add support for custom response sections, again added to Elasticsearch through plugins.
  */
+@SuppressWarnings("varargs")
 public class RestHighLevelClient {
+
+    static final Collection<Class<? extends Plugin>> PRE_INSTALLED_PLUGINS =
+            Collections.unmodifiableList(Arrays.asList(ParentJoinPlugin.class, MatrixAggregationPlugin.class));
 
     private final RestClient client;
     private final NamedXContentRegistry registry;
 
     /**
-     * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests.
+     * Creates a {@link RestHighLevelClient} with a given low level {@link RestClient} and pre installed plugins
+     *
+     * @param restClient the low level {@link RestClient} used to perform requests
+     * @param plugins an optional array of additional plugins to run with the {@link RestHighLevelClient}
      */
-    public RestHighLevelClient(RestClient restClient) {
-        this(restClient, Collections.emptyList());
+    @SafeVarargs
+    public RestHighLevelClient(RestClient restClient, Class<? extends Plugin>... plugins) {
+        this(restClient, Arrays.asList(plugins));
+    }
+
+    /**
+     * Creates a {@link RestHighLevelClient} with a given low level {@link RestClient} and pre installed plugins
+     *
+     * @param restClient the low level {@link RestClient} used to perform requests
+     * @param plugins a collection of additional plugins to run with the {@link RestHighLevelClient}
+     */
+    public RestHighLevelClient(RestClient restClient, Collection<Class<? extends Plugin>> plugins) {
+        this(restClient, Settings.EMPTY, plugins);
+    }
+
+    /**
+     * Creates a {@link RestHighLevelClient} with a given low level {@link RestClient} and pre installed plugins
+     *
+     * @param restClient the low level {@link RestClient} used to perform requests
+     * @param settings the settings passed to the {@link RestHighLevelClient}
+     * @param plugins a collection of additional plugins to run with the {@link RestHighLevelClient}
+     */
+    public RestHighLevelClient(RestClient restClient, Settings settings, Collection<Class<? extends Plugin>> plugins) {
+        this(restClient, pluginsNamedXContents(settings, PRE_INSTALLED_PLUGINS, plugins));
     }
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests and
      * a list of entries that allow to parse custom response sections added to Elasticsearch through plugins.
      */
-    protected RestHighLevelClient(RestClient restClient, List<NamedXContentRegistry.Entry> namedXContentEntries) {
+    private RestHighLevelClient(RestClient restClient, List<NamedXContentRegistry.Entry> namedXContentEntries) {
         this.client = Objects.requireNonNull(restClient);
         this.registry = new NamedXContentRegistry(Stream.of(getDefaultNamedXContents().stream(), namedXContentEntries.stream())
                 .flatMap(Function.identity()).collect(toList()));
@@ -542,8 +576,6 @@ public class RestHighLevelClient {
         map.put(SignificantLongTerms.NAME, (p, c) -> ParsedSignificantLongTerms.fromXContent(p, (String) c));
         map.put(SignificantStringTerms.NAME, (p, c) -> ParsedSignificantStringTerms.fromXContent(p, (String) c));
         map.put(ScriptedMetricAggregationBuilder.NAME, (p, c) -> ParsedScriptedMetric.fromXContent(p, (String) c));
-        map.put(ChildrenAggregationBuilder.NAME, (p, c) -> ParsedChildren.fromXContent(p, (String) c));
-        map.put(MatrixStatsAggregationBuilder.NAME, (p, c) -> ParsedMatrixStats.fromXContent(p, (String) c));
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());
@@ -553,6 +585,29 @@ public class RestHighLevelClient {
                 (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
         entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestion.NAME),
                 (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
+        return entries;
+    }
+
+    static List<NamedXContentRegistry.Entry> pluginsNamedXContents(Settings settings,
+                                                                   Collection<Class<? extends Plugin>> preInstalledPlugins,
+                                                                   Collection<Class<? extends Plugin>> plugins) {
+        List<Class<? extends Plugin>> listOfPlugins = new ArrayList<>(preInstalledPlugins);
+        for (Class<? extends Plugin> plugin : plugins) {
+            if (listOfPlugins.contains(plugin)) {
+                throw new IllegalArgumentException("plugin already exists: " + plugin);
+            }
+            listOfPlugins.add(plugin);
+        }
+
+        PluginsService pluginsService = new PluginsService(settings, null, null, listOfPlugins);
+
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
+        pluginsService.filterPlugins(Plugin.class)
+                .forEach(plugin -> entries.addAll(plugin.getNamedXContent()));
+        pluginsService.filterPlugins(SearchPlugin.class).stream()
+                .flatMap(plugin -> plugin.getAggregations().stream())
+                .flatMap(aggregationSpec -> aggregationSpec.getResultParsers().entrySet().stream())
+                .forEach(e -> entries.add(new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(e.getKey()), e.getValue())));
         return entries;
     }
 }

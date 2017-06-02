@@ -48,7 +48,7 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
         return name;
     }
 
-    protected void setName(String name) {
+    public void setName(String name) {
         this.name = name;
     }
 
@@ -71,6 +71,10 @@ public abstract class ParsedAggregation implements Aggregation, ToXContent {
     }
 
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
+
+    protected void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
 
     /**
      * Parse a token of type XContentParser.Token.VALUE_NUMBER or XContentParser.Token.STRING to a double.

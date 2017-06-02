@@ -28,6 +28,8 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -39,6 +41,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
@@ -216,7 +219,9 @@ public interface SearchPlugin {
      * Specification for an {@link Aggregation}.
      */
     class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, Aggregator.Parser> {
+
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
+        private final Map<String, ContextParser<Object, ? extends ParsedAggregation>> resultParsers = new TreeMap<>();
 
         /**
          * Specification for an {@link Aggregation}.
@@ -262,10 +267,32 @@ public interface SearchPlugin {
         }
 
         /**
-         * Get the readers that must be registered for this aggregation's results.
+         * Get the readers that can be used to parse this aggregation's results when it has been printed out as a {@link ToXContent}.
          */
         public Map<String, Writeable.Reader<? extends InternalAggregation>> getResultReaders() {
             return resultReaders;
+        }
+
+        /**
+         * Adds a {@link ContextParser} that can be used to parse this aggregation when it has been printed out as a {@link ToXContent}.
+         */
+        public AggregationSpec addResultParser(ContextParser<Object, ? extends ParsedAggregation> resultParser) {
+            return addResultParser(getName().getPreferredName(), resultParser);
+        }
+
+        /**
+         * Adds a {@link ContextParser} that can be used to parse this aggregation when it has been printed out as a {@link ToXContent}.
+         */
+        public AggregationSpec addResultParser(String typeName, ContextParser<Object, ? extends ParsedAggregation> resultParser) {
+            resultParsers.put(typeName, resultParser);
+            return this;
+        }
+
+        /**
+         * Get the parsers that can be used to parse this aggregation's results when it has been printed out as a {@link ToXContent}.
+         */
+        public Map<String, ContextParser<Object, ? extends ParsedAggregation>> getResultParsers() {
+            return resultParsers;
         }
     }
 

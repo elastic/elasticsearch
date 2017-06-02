@@ -25,6 +25,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -36,7 +37,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 /**
- * This test works against a {@link RestHighLevelClient} subclass that simulats how custom response sections returned by
+ * This test works against a {@link RestHighLevelClient} subclass that simulates how custom response sections returned by
  * Elasticsearch plugins can be parsed using the high level client.
  */
 public class RestHighLevelClientExtTests extends ESTestCase {
@@ -46,7 +47,7 @@ public class RestHighLevelClientExtTests extends ESTestCase {
     @Before
     public void initClient() throws IOException {
         RestClient restClient = mock(RestClient.class);
-        restHighLevelClient = new RestHighLevelClientExt(restClient);
+        restHighLevelClient = new RestHighLevelClient(restClient, RestHighLevelClientExtPlugin.class);
     }
 
     public void testParseEntityCustomResponseSection() throws IOException {
@@ -66,13 +67,13 @@ public class RestHighLevelClientExtTests extends ESTestCase {
         }
     }
 
-    private static class RestHighLevelClientExt extends RestHighLevelClient {
+    public static class RestHighLevelClientExtPlugin extends Plugin {
 
-        private RestHighLevelClientExt(RestClient restClient) {
-            super(restClient, getNamedXContentsExt());
+        public RestHighLevelClientExtPlugin() {
         }
 
-        private static List<NamedXContentRegistry.Entry> getNamedXContentsExt() {
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
             List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
             entries.add(new NamedXContentRegistry.Entry(BaseCustomResponseSection.class, new ParseField("custom1"),
                     CustomResponseSection1::fromXContent));

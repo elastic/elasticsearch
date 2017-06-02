@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.join.aggregations.InternalChildren;
+import org.elasticsearch.join.aggregations.ParsedChildren;
 import org.elasticsearch.join.fetch.ParentJoinFieldSubFetchPhase;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.join.query.HasChildQueryBuilder;
@@ -52,7 +53,8 @@ public class ParentJoinPlugin extends Plugin implements SearchPlugin, MapperPlug
     public List<AggregationSpec> getAggregations() {
         return Collections.singletonList(
           new AggregationSpec(ChildrenAggregationBuilder.NAME, ChildrenAggregationBuilder::new, ChildrenAggregationBuilder::parse)
-              .addResultReader(InternalChildren::new)
+                .addResultReader(InternalChildren::new)
+                .addResultParser((p, c) -> ParsedChildren.fromXContent(p, (String) c))
         );
     }
 

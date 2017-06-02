@@ -34,6 +34,7 @@ import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -48,12 +49,14 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -76,6 +79,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.client.RestClientTestUtil.randomHeaders;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Matchers.anyMapOf;
 import static org.mockito.Matchers.anyObject;
@@ -598,9 +602,9 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
     }
 
-    public void testNamedXContents() {
+    public void testDefaultNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
-        assertEquals(45, namedXContents.size());
+        assertEquals(43, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
             Integer counter = categories.putIfAbsent(namedXContent.categoryClass, 1);
@@ -609,8 +613,20 @@ public class RestHighLevelClientTests extends ESTestCase {
             }
         }
         assertEquals(2, categories.size());
-        assertEquals(Integer.valueOf(42), categories.get(Aggregation.class));
+        assertEquals(Integer.valueOf(40), categories.get(Aggregation.class));
         assertEquals(Integer.valueOf(3), categories.get(Suggest.Suggestion.class));
+    }
+
+    public void testPreInstalledPlugins() {
+        for (Class<? extends Plugin> pluginClass : RestHighLevelClient.PRE_INSTALLED_PLUGINS) {
+            LuceneTestCase.ThrowingRunnable runnable = randomFrom(
+                    () -> new RestHighLevelClient(restClient, pluginClass),
+                    () -> new RestHighLevelClient(restClient, Collections.singletonList(pluginClass)),
+                    () -> new RestHighLevelClient(restClient, Settings.EMPTY, Collections.singletonList(pluginClass)));
+
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, runnable);
+            assertThat(exception.getMessage(), containsString("plugin already exists: " + pluginClass));
+        }
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {

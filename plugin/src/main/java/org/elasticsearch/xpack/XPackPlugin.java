@@ -336,7 +336,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     @Override
     public List<ScriptContext> getContexts() {
-        return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
     }
 
     @Override

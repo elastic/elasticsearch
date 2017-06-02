@@ -173,7 +173,7 @@ public class SearchInputTests extends ESIntegTestCase {
 
         @Override
         public List<ScriptContext> getContexts() {
-            return Collections.singletonList(Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+            return Collections.singletonList(Watcher.SCRIPT_TEMPLATE_CONTEXT);
         }
     }
 }

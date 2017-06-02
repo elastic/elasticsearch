@@ -15,8 +15,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.template.CompiledTemplate;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
@@ -52,8 +52,8 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         }
         // Templates are always of lang mustache:
         Script template = new Script(source.getType(), "mustache", source.getIdOrCode(), source.getOptions(), watcherContextParams);
-        CompiledTemplate compiledTemplate = scriptService.compileTemplate(template, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
-        return compiledTemplate.run(template.getParams());
+        TemplateScript.Factory compiledTemplate = scriptService.compile(template, Watcher.SCRIPT_TEMPLATE_CONTEXT);
+        return compiledTemplate.newInstance(template.getParams()).execute();
     }
 
     public SearchRequest toSearchRequest(WatcherSearchTemplateRequest request) throws IOException {

@@ -237,6 +237,7 @@ public final class WatcherTestUtils {
                 .build();
         Map<String, ScriptContext> contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
         contexts.put(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         return new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
     }
 

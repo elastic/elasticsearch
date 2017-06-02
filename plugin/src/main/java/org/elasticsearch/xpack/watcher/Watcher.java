@@ -40,6 +40,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -185,6 +186,8 @@ public class Watcher implements ActionPlugin {
     // TODO: remove this context when each xpack script use case has their own contexts
     public static final ScriptContext<ExecutableScript.Factory> SCRIPT_EXECUTABLE_CONTEXT
         = new ScriptContext<>("xpack_executable", ExecutableScript.Factory.class);
+    public static final ScriptContext<TemplateScript.Factory> SCRIPT_TEMPLATE_CONTEXT
+        = new ScriptContext<>("xpack_template", TemplateScript.Factory.class);
 
     private static final Logger logger = Loggers.getLogger(Watcher.class);
     private WatcherIndexingListener listener;

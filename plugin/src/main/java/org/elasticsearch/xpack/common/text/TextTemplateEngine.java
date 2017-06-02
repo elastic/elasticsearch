@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.template.CompiledTemplate;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.util.HashMap;
@@ -52,8 +52,8 @@ public class TextTemplateEngine extends AbstractComponent {
             options.put(Script.CONTENT_TYPE_OPTION, mediaType);
         }
         Script script = new Script(textTemplate.getType(), "mustache", template, options, mergedModel);
-        CompiledTemplate compiledTemplate = service.compileTemplate(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
-        return compiledTemplate.run(model);
+        TemplateScript.Factory compiledTemplate = service.compile(script, Watcher.SCRIPT_TEMPLATE_CONTEXT);
+        return compiledTemplate.newInstance(model).execute();
     }
 
     private String trimContentType(TextTemplate textTemplate) {

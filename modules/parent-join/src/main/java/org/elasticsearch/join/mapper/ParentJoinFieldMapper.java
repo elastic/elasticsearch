@@ -119,7 +119,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     static class Builder extends FieldMapper.Builder<Builder, ParentJoinFieldMapper> {
         final List<ParentIdFieldMapper.Builder> parentIdFieldBuilders = new ArrayList<>();
-        boolean eagerGlobalOrdinals = false;
+        boolean eagerGlobalOrdinals = true;
 
         Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);

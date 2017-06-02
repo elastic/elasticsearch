@@ -383,15 +383,15 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
         assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(service.mapperService()));
         assertFalse(service.mapperService().fullName("join_field").eagerGlobalOrdinals());
         assertNotNull(service.mapperService().fullName("join_field#parent"));
-        assertFalse(service.mapperService().fullName("join_field#parent").eagerGlobalOrdinals());
+        assertTrue(service.mapperService().fullName("join_field#parent").eagerGlobalOrdinals());
         assertNotNull(service.mapperService().fullName("join_field#child"));
-        assertFalse(service.mapperService().fullName("join_field#child").eagerGlobalOrdinals());
+        assertTrue(service.mapperService().fullName("join_field#child").eagerGlobalOrdinals());
 
         mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
-                    .field("eager_global_ordinals", true)
+                    .field("eager_global_ordinals", false)
                     .field("parent", "child")
                     .field("child", "grand_child")
                 .endObject()
@@ -401,8 +401,8 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             MapperService.MergeReason.MAPPING_UPDATE, false);
         assertFalse(service.mapperService().fullName("join_field").eagerGlobalOrdinals());
         assertNotNull(service.mapperService().fullName("join_field#parent"));
-        assertTrue(service.mapperService().fullName("join_field#parent").eagerGlobalOrdinals());
+        assertFalse(service.mapperService().fullName("join_field#parent").eagerGlobalOrdinals());
         assertNotNull(service.mapperService().fullName("join_field#child"));
-        assertTrue(service.mapperService().fullName("join_field#child").eagerGlobalOrdinals());
+        assertFalse(service.mapperService().fullName("join_field#child").eagerGlobalOrdinals());
     }
 }

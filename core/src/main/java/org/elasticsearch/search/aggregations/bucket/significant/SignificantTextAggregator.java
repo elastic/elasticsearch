@@ -113,45 +113,39 @@ public class SignificantTextAggregator extends BucketsAggregator {
                 }
             }
             
-            private void processTokenStream(int doc, long bucket, TokenStream ts, String fieldText) throws IOException{
+            private void processTokenStream(int doc, long bucket, TokenStream ts, BytesRefHash inDocTerms, String fieldText) throws IOException{
                 if (dupSequenceSpotter != null) {
                     ts = new DeDuplicatingTokenFilter(ts, dupSequenceSpotter);
                 }
                 CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
                 ts.reset();
                 try {
-                    //Assume tokens will average 5 bytes in length to size number of tokens
-                    BytesRefHash inDocTerms = new BytesRefHash(1+(fieldText.length()/5), context.bigArrays());
-                    
-                    try{
-                        while (ts.incrementToken()) {
-                            if (dupSequenceSpotter != null) {
-                                long newTrieSize = dupSequenceSpotter.getEstimatedSizeInBytes();
-                                long growth = newTrieSize - lastTrieSize;
-                                // Only update the circuitbreaker after
-                                if (growth > MEMORY_GROWTH_REPORTING_INTERVAL_BYTES) {
-                                    addRequestCircuitBreakerBytes(growth);
-                                    lastTrieSize = newTrieSize;
-                                }
+                    while (ts.incrementToken()) {
+                        if (dupSequenceSpotter != null) {
+                            long newTrieSize = dupSequenceSpotter.getEstimatedSizeInBytes();
+                            long growth = newTrieSize - lastTrieSize;
+                            // Only update the circuitbreaker after
+                            if (growth > MEMORY_GROWTH_REPORTING_INTERVAL_BYTES) {
+                                addRequestCircuitBreakerBytes(growth);
+                                lastTrieSize = newTrieSize;
                             }
-                            previous.clear();
-                            previous.copyChars(termAtt);
-                            BytesRef bytes = previous.get();
-                            if (inDocTerms.add(bytes) >= 0) {
-                                if (includeExclude == null || includeExclude.accept(bytes)) {
-                                    long bucketOrdinal = bucketOrds.add(bytes);
-                                    if (bucketOrdinal < 0) { // already seen
-                                        bucketOrdinal = -1 - bucketOrdinal;
-                                        collectExistingBucket(sub, doc, bucketOrdinal);
-                                    } else {
-                                        collectBucket(sub, doc, bucketOrdinal);
-                                    }
+                        }
+                        previous.clear();
+                        previous.copyChars(termAtt);
+                        BytesRef bytes = previous.get();
+                        if (inDocTerms.add(bytes) >= 0) {
+                            if (includeExclude == null || includeExclude.accept(bytes)) {
+                                long bucketOrdinal = bucketOrds.add(bytes);
+                                if (bucketOrdinal < 0) { // already seen
+                                    bucketOrdinal = -1 - bucketOrdinal;
+                                    collectExistingBucket(sub, doc, bucketOrdinal);
+                                } else {
+                                    collectBucket(sub, doc, bucketOrdinal);
                                 }
                             }
                         }
-                    } finally{
-                        Releasables.close(inDocTerms);
                     }
+
                 } finally{
                     ts.close();
                 }
@@ -166,23 +160,28 @@ public class SignificantTextAggregator extends BucketsAggregator {
 
                 SourceLookup sourceLookup = context.lookup().source();
                 sourceLookup.setSegmentAndDocument(ctx, doc);
+                BytesRefHash inDocTerms = new BytesRefHash(256, context.bigArrays());
                 
-                for (String sourceField : sourceFieldNames) {
-                    List<Object> textsToHighlight = sourceLookup.extractRawValues(sourceField);    
-                    textsToHighlight = textsToHighlight.stream().map(obj -> {
-                        if (obj instanceof BytesRef) {
-                            return fieldType.valueForDisplay(obj).toString();
-                        } else {
-                            return obj;
-                        }
-                    }).collect(Collectors.toList());                
-                    
-                    Analyzer analyzer = fieldType.indexAnalyzer();                
-                    for (Object fieldValue : textsToHighlight) {
-                        String fieldText = fieldValue.toString();
-                        TokenStream ts = analyzer.tokenStream(indexedFieldName, fieldText);
-                        processTokenStream(doc, bucket, ts, fieldText);                     
-                    }                    
+                try {                
+                    for (String sourceField : sourceFieldNames) {
+                        List<Object> textsToHighlight = sourceLookup.extractRawValues(sourceField);    
+                        textsToHighlight = textsToHighlight.stream().map(obj -> {
+                            if (obj instanceof BytesRef) {
+                                return fieldType.valueForDisplay(obj).toString();
+                            } else {
+                                return obj;
+                            }
+                        }).collect(Collectors.toList());                
+                        
+                        Analyzer analyzer = fieldType.indexAnalyzer();                
+                        for (Object fieldValue : textsToHighlight) {
+                            String fieldText = fieldValue.toString();
+                            TokenStream ts = analyzer.tokenStream(indexedFieldName, fieldText);
+                            processTokenStream(doc, bucket, ts, inDocTerms, fieldText);                     
+                        }                    
+                    }
+                } finally{
+                    Releasables.close(inDocTerms);
                 }
             }
         };

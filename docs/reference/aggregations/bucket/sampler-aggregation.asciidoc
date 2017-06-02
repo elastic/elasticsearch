@@ -54,9 +54,10 @@ Response:
     ...
     "aggregations": {
         "sample": {
-            "doc_count": 1000,<1>
+            "doc_count": 200,<1>
             "keywords": {
-                "doc_count": 1000,
+                "doc_count": 200,
+                "bg_count": 650,
                 "buckets": [
                     {
                         "key": "elasticsearch",
@@ -77,9 +78,9 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
-// TESTRESPONSE[s/1000/200/]
 
-<1> 1000 documents were sampled in total because we asked for a maximum of 200 from an index with 5 shards. The cost of performing the nested significant_terms aggregation was therefore limited rather than unbounded.
+<1> 200 documents were sampled in total. The cost of performing the nested significant_terms aggregation was
+therefore limited rather than unbounded.
 
 
 Without the `sampler` aggregation the request query considers the full "long tail" of low-quality matches and therefore identifies
@@ -117,13 +118,14 @@ Response:
     ...
     "aggregations": {
         "low_quality_keywords": {
-            "doc_count": 1000,
+            "doc_count": 600,
+            "bg_count": 650,
             "buckets": [
                 {
                     "key": "angular",
                     "doc_count": 200,
                     "score": 0.02777,
-                   "bg_count": 200
+                    "bg_count": 200
                 },
                 {
                     "key": "jquery",
@@ -143,7 +145,6 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
-// TESTRESPONSE[s/1000/600/]
 // TESTRESPONSE[s/0.02777/$body.aggregations.low_quality_keywords.buckets.0.score/]
 // TESTRESPONSE[s/0.0069/$body.aggregations.low_quality_keywords.buckets.2.score/]
 

@@ -26,6 +26,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;
@@ -47,7 +48,8 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
         String id = request.param("id");
         BytesReference content = request.content();
 
-        PutStoredScriptRequest put = new PutStoredScriptRequest(id, Script.DEFAULT_TEMPLATE_LANG, content, request.getXContentType());
+        PutStoredScriptRequest put = new PutStoredScriptRequest(id, Script.DEFAULT_TEMPLATE_LANG, ExecutableScript.CONTEXT.name,
+            content, request.getXContentType());
         return channel -> client.admin().cluster().putStoredScript(put, new AcknowledgedRestListener<>(channel));
     }
 }

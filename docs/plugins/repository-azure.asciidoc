@@ -87,7 +87,8 @@ cloud:
                     type: http
 ----
 
-Supported values for `proxy.type` are `direct`, `http` or `socks`. Defaults to `direct` (no proxy).
+Supported values for `proxy.type` are `http` or `socks`. When set `proxy.host` and `proxy.port` must
+be provided.
 
 
 [[repository-azure-repository-settings]]

@@ -48,12 +48,12 @@ public final class AzureStorageSettings {
         Setting.affixKeySetting(Storage.PREFIX, "key", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
     private static final Setting<Boolean> DEFAULT_SETTING =
         Setting.affixKeySetting(Storage.PREFIX, "default", (key) -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
-    /** The host name of a proxy to connect to s3 through. */
+    /** The host name of a proxy to connect to azure through. */
     private static final Setting<String> PROXY_HOST_SETTING =
         Setting.affixKeySetting(Storage.PREFIX, "proxy.host", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
     /** The port of a proxy to connect to azure through. */
     private static final Setting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "proxy.port",
-        key -> Setting.intSetting(key, 80, 0, 1<<16, Setting.Property.NodeScope));
+        key -> Setting.intSetting(key, 80, 0, 65535, Setting.Property.NodeScope));
     /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
     private static final Setting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(Storage.PREFIX, "proxy.type",
             key -> new Setting<>(key, "direct", s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Setting.Property.NodeScope));
@@ -87,6 +87,9 @@ public final class AzureStorageSettings {
         if (proxyType.equals(Proxy.Type.DIRECT)) {
             proxy = null;
         } else {
+            if (proxyHost == null || proxyPort == null) {
+                throw new IllegalArgumentException("When azure proxy is set to http or socks, you must provide proxy host and port");
+            }
             proxy = new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort));
         }
         this.proxyHost = proxyHost;

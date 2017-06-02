@@ -34,6 +34,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cloud.azure.AzureTestUtils.readSettingsFromFile;
@@ -60,6 +61,9 @@ public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThi
 
     private final AzureStorageService azureStorageService = new AzureStorageServiceImpl(readSettingsFromFile());
     private final String containerName = getContainerName();
+
+    public AzureSnapshotRestoreListSnapshotsTests() throws UnknownHostException {
+    }
 
     public void testList() throws Exception {
         Client client = client();

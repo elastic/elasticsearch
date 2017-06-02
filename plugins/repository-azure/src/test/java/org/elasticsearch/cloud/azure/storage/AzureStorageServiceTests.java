@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 
 import static org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl.blobNameFromUri;
 import static org.hamcrest.Matchers.instanceOf;
@@ -46,7 +47,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("cloud.azure.storage.azure3.timeout", "30s")
             .build();
 
-    public void testGetSelectedClientWithNoPrimaryAndSecondary() {
+    public void testGetSelectedClientWithNoPrimaryAndSecondary() throws UnknownHostException {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(Settings.EMPTY);
         try {
             azureStorageService.getSelectedClient("whatever", LocationMode.PRIMARY_ONLY);
@@ -56,7 +57,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         }
     }
 
-    public void testGetSelectedClientWithNoSecondary() {
+    public void testGetSelectedClientWithNoSecondary() throws UnknownHostException {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(Settings.builder()
             .put("cloud.azure.storage.azure1.account", "myaccount1")
             .put("cloud.azure.storage.azure1.key", "mykey1")
@@ -65,7 +66,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
     }
 
-    public void testGetDefaultClientWithNoSecondary() {
+    public void testGetDefaultClientWithNoSecondary() throws UnknownHostException {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(Settings.builder()
             .put("cloud.azure.storage.azure1.account", "myaccount1")
             .put("cloud.azure.storage.azure1.key", "mykey1")
@@ -74,31 +75,31 @@ public class AzureStorageServiceTests extends ESTestCase {
         assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
     }
 
-    public void testGetSelectedClientPrimary() {
+    public void testGetSelectedClientPrimary() throws UnknownHostException {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(settings);
         CloudBlobClient client = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
         assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
     }
 
-    public void testGetSelectedClientSecondary1() {
+    public void testGetSelectedClientSecondary1() throws UnknownHostException {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(settings);
         CloudBlobClient client = azureStorageService.getSelectedClient("azure2", LocationMode.PRIMARY_ONLY);
         assertThat(client.getEndpoint(), is(URI.create("https://azure2")));
     }
 
-    public void testGetSelectedClientSecondary2() {
+    public void testGetSelectedClientSecondary2() throws UnknownHostException {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(settings);
         CloudBlobClient client = azureStorageService.getSelectedClient("azure3", LocationMode.PRIMARY_ONLY);
         assertThat(client.getEndpoint(), is(URI.create("https://azure3")));
     }
 
-    public void testGetDefaultClientWithPrimaryAndSecondaries() {
+    public void testGetDefaultClientWithPrimaryAndSecondaries() throws UnknownHostException {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(settings);
         CloudBlobClient client = azureStorageService.getSelectedClient(null, LocationMode.PRIMARY_ONLY);
         assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
     }
 
-    public void testGetSelectedClientNonExisting() {
+    public void testGetSelectedClientNonExisting() throws UnknownHostException {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(settings);
         try {
             azureStorageService.getSelectedClient("azure4", LocationMode.PRIMARY_ONLY);
@@ -108,13 +109,13 @@ public class AzureStorageServiceTests extends ESTestCase {
         }
     }
 
-    public void testGetSelectedClientDefault() {
+    public void testGetSelectedClientDefault() throws UnknownHostException {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(settings);
         CloudBlobClient client = azureStorageService.getSelectedClient(null, LocationMode.PRIMARY_ONLY);
         assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
     }
 
-    public void testGetSelectedClientGlobalTimeout() {
+    public void testGetSelectedClientGlobalTimeout() throws UnknownHostException {
         Settings timeoutSettings = Settings.builder()
                 .put(settings)
                 .put(AzureStorageService.Storage.TIMEOUT_SETTING.getKey(), "10s")
@@ -127,7 +128,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         assertThat(client3.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(30 * 1000));
     }
 
-    public void testGetSelectedClientDefaultTimeout() {
+    public void testGetSelectedClientDefaultTimeout() throws UnknownHostException {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(settings);
         CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
         assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), nullValue());
@@ -135,7 +136,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         assertThat(client3.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(30 * 1000));
     }
 
-    public void testGetSelectedClientNoTimeout() {
+    public void testGetSelectedClientNoTimeout() throws UnknownHostException {
         Settings timeoutSettings = Settings.builder()
             .put("cloud.azure.storage.azure.account", "myaccount")
             .put("cloud.azure.storage.azure.key", "mykey")
@@ -146,7 +147,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(nullValue()));
     }
 
-    public void testGetSelectedClientBackoffPolicy() {
+    public void testGetSelectedClientBackoffPolicy() throws UnknownHostException {
         Settings timeoutSettings = Settings.builder()
             .put("cloud.azure.storage.azure.account", "myaccount")
             .put("cloud.azure.storage.azure.key", "mykey")
@@ -158,7 +159,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), instanceOf(RetryExponentialRetry.class));
     }
 
-    public void testGetSelectedClientBackoffPolicyNbRetries() {
+    public void testGetSelectedClientBackoffPolicyNbRetries() throws UnknownHostException {
         Settings timeoutSettings = Settings.builder()
             .put("cloud.azure.storage.azure.account", "myaccount")
             .put("cloud.azure.storage.azure.key", "mykey")
@@ -175,7 +176,7 @@ public class AzureStorageServiceTests extends ESTestCase {
      * This internal class just overload createClient method which is called by AzureStorageServiceImpl.doStart()
      */
     class AzureStorageServiceMock extends AzureStorageServiceImpl {
-        AzureStorageServiceMock(Settings settings) {
+        AzureStorageServiceMock(Settings settings) throws UnknownHostException {
             super(settings);
         }
 

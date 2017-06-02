@@ -87,6 +87,11 @@ abstract class AbstractBigArray extends AbstractArray {
 
     @Override
     public final long ramBytesUsed() {
+        return ramBytesEstimated(size);
+    }
+
+    /** Given the size of the array, estimate the number of bytes it will use. */
+    public final long ramBytesEstimated(final long size) {
         // rough approximate, we only take into account the size of the values, not the overhead of the array objects
         return ((long) pageIndex(size - 1) + 1) * pageSize() * numBytesPerElement();
     }

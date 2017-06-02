@@ -79,6 +79,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
             return children;
         }
 
+        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+            fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            return builder;
+        }
+
         @Override
         public ParentIdFieldMapper build(BuilderContext context) {
             fieldType.setName(name);

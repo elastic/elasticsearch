@@ -1,9 +1,7 @@
 [[search-request-highlighting]]
 === Highlighting
 
-Allows to highlight search results on one or more fields. The
-implementation uses either the lucene `plain` highlighter, the
-fast vector highlighter (`fvh`) or `postings` highlighter.
+Allows to highlight search results on one or more fields.
 The following is an example of the search request body:
 
 [source,js]
@@ -45,35 +43,43 @@ from versions before 5.0) that match the expression to be highlighted.
 Note that all other fields will not be highlighted. If you use a custom mapper and want to
 highlight on a field anyway, you have to provide the field name explicitly.
 
-[[plain-highlighter]]
-==== Plain highlighter
+[[unified-highlighter]]
+==== Unified Highlighter
 
-The default choice of highlighter is of type `plain` and uses the Lucene highlighter.
-It tries hard to reflect the query matching logic in terms of understanding word importance and any word positioning criteria in phrase queries.
+The default choice of highlighter is of type `unified` and uses the Lucene Unified highlighter.
 
-[WARNING]
-If you want to highlight a lot of fields in a lot of documents with complex queries this highlighter will not be fast.
-In its efforts to accurately reflect query logic it creates a tiny in-memory index and re-runs the original query criteria through
+This highlighter breaks the text into sentences and scores individual sentences as
+if they were documents in this corpus, using the BM25 algorithm.
+It also supports accurate phrase and multi-term (fuzzy, prefix, regex) highlighting.
+
+[float]
+===== Offsets Strategy
+
+The `unified` highlighter adapts its strategy to extract the matching offsets in the text to highlight
+depending on the index options set on the field and the type of the query.
+In this highlighter, offsets can be extracted from either postings , term vectors, or via re-analyzing text.
+
+[float]
+====== Plain highlighting
+
+This mode is picked when there is no other alternative.
+It creates a tiny in-memory index and re-runs the original query criteria through
 Lucene's query execution planner to get access to low-level match information on the current document.
-This is repeated for every field and every document that needs highlighting. If this presents a performance issue in your system consider using an alternative highlighter.
+This is repeated for every field and every document that needs highlighting.
 
-[[postings-highlighter]]
-==== Postings highlighter
+[float]
+====== Postings
 
-If `index_options` is set to `offsets` in the mapping the postings highlighter
-will be used instead of the plain highlighter. The postings highlighter:
-
-* Is faster since it doesn't require to reanalyze the text to be highlighted:
-the larger the documents the better the performance gain should be
-* Requires less disk space than term_vectors, needed for the fast vector
-highlighter
-* Breaks the text into sentences and highlights them. Plays really well with
-natural languages, not as well with fields containing for instance html markup
-* Treats the document as the whole corpus, and scores individual sentences as
-if they were documents in this corpus, using the  BM25 algorithm
+If `index_options` is set to `offsets` in the mapping the `unified` highlighter
+will use this information to highlight documents without re-analyzing the text.
+It re-runs the original query directly on the postings and extracts the matching offsets
+directly from the index limiting the collection to the highlighted documents.
+This mode is faster since it doesn't require to reanalyze the text to be highlighted
+and requires less disk space than term_vectors, needed for the fast vector
+highlighting.
 
 Here is an example of setting the `comment` field in the index mapping to allow for
-highlighting using the postings highlighter on it:
+highlighting using the postings:
 
 [source,js]
 --------------------------------------------------
@@ -93,24 +99,56 @@ PUT /example
 --------------------------------------------------
 // CONSOLE
 
-[NOTE]
-Note that the postings highlighter is meant to perform simple query terms
-highlighting, regardless of their positions. That means that when used for
-instance in combination with a phrase query, it will highlight all the terms
-that the query is composed of, regardless of whether they are actually part of
-a query match, effectively ignoring their positions.
+[float]
+====== Term Vectors
+
+If `term_vector` information is provided by setting `term_vector` to
+`with_positions_offsets` in the mapping then the `unified` highlighter
+will automatically use the `term_vector` to highlight the field.
+The `term_vector` highlighting is faster to highlight multi-term queries like
+`prefix` or `wildcard` because it can access the dictionary of term for each document
+but it is also usually more costly than using the `postings` directly.
+
+Here is an example of setting the `comment` field to allow for
+highlighting using the `term_vectors` (this will cause the index to be bigger):
+
+[source,js]
+--------------------------------------------------
+PUT /example
+{
+  "mappings": {
+    "doc" : {
+      "properties": {
+        "comment" : {
+          "type": "text",
+          "term_vector" : "with_positions_offsets"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+[[plain-highlighter]]
+==== Plain highlighter
+
+This highlighter of type `plain` uses the standard Lucene highlighter.
+It tries hard to reflect the query matching logic in terms of understanding word importance and any word positioning criteria in phrase queries.
 
 [WARNING]
-The postings highlighter doesn't support highlighting some complex queries,
-like a `match` query with `type` set to `match_phrase_prefix`. No highlighted
-snippets will be returned in that case.
+If you want to highlight a lot of fields in a lot of documents with complex queries this highlighter will not be fast.
+In its efforts to accurately reflect query logic it creates a tiny in-memory index and re-runs the original query criteria through
+Lucene's query execution planner to get access to low-level match information on the current document.
+This is repeated for every field and every document that needs highlighting. If this presents a performance issue in your system consider using an alternative highlighter.
 
 [[fast-vector-highlighter]]
 ==== Fast vector highlighter
 
-If `term_vector` information is provided by setting `term_vector` to
-`with_positions_offsets` in the mapping then the fast vector highlighter
-will be used instead of the plain highlighter.  The fast vector highlighter:
+This highlighter of type `fvh` uses the Lucene Fast Vector highlighter.
+This highlighter can be used on fields with `term_vector` set to
+`with_positions_offsets` in the mapping.
+The fast vector highlighter:
 
 * Is faster especially for large fields (> `1MB`)
 * Can be customized with `boundary_scanner` (see <<boundary-scanners,below>>)
@@ -144,30 +182,10 @@ PUT /example
 --------------------------------------------------
 // CONSOLE
 
-==== Unified Highlighter
-
-experimental[]
-
-The `unified` highlighter can extract offsets from either postings, term vectors, or via re-analyzing text.
-Under the hood it uses Lucene UnifiedHighlighter which picks its strategy depending on the field and the query to highlight.
-Independently of the strategy this highlighter breaks the text into sentences and scores individual sentences as
-if they were documents in this corpus, using the BM25 algorithm.
-It supports accurate phrase and multi-term (fuzzy, prefix, regex) highlighting and can be used with the following options:
-
-* `force_source`
-* `encoder`
-* `highlight_query`
-* `pre_tags and `post_tags`
-* `require_field_match`
-* `boundary_scanner` (`sentence` (**default**)  or `word`)
-* `max_fragment_length` (only for `sentence` scanner)
-* `no_match_size`
-
 ==== Force highlighter type
 
-The `type` field allows to force a specific highlighter type. This is useful
-for instance when needing to use the plain highlighter on a field that has
-`term_vectors` enabled. The allowed values are: `plain`, `postings` and `fvh`.
+The `type` field allows to force a specific highlighter type.
+The allowed values are: `unified`, `plain` and `fvh`.
 The following is an example that forces the use of the plain highlighter:
 
 [source,js]
@@ -320,9 +338,6 @@ GET /_search
 // CONSOLE
 // TEST[setup:twitter]
 
-The `fragment_size` is ignored when using the postings highlighter, as it
-outputs sentences regardless of their length.
-
 On top of this it is possible to specify that highlighted fragments need
 to be sorted by score:
 
@@ -375,10 +390,7 @@ In the case where there is no matching fragment to highlight, the default is
 to not return anything. Instead, we can return a snippet of text from the
 beginning of the field by setting `no_match_size` (default `0`) to the length
 of the text that you want returned. The actual length may be shorter or longer than
-specified as it tries to break on a word boundary. When using the postings
-highlighter it is not possible to control the actual size of the snippet,
-therefore the first sentence gets returned whenever `no_match_size` is
-greater than `0`.
+specified as it tries to break on a word boundary.
 
 [source,js]
 --------------------------------------------------
@@ -403,6 +415,8 @@ GET /_search
 
 ==== Fragmenter
 
+WARNING: This option is not supported by the `unified` highlighter
+
 Fragmenter can control how text should be broken up in highlight snippets.
 However, this option is applicable only for the Plain Highlighter.
 There are two options:
@@ -421,6 +435,7 @@ GET twitter/tweet/_search
     "highlight" : {
         "fields" : {
             "message" : {
+                "type": "plain",
                 "fragment_size" : 15,
                 "number_of_fragments" : 3,
                 "fragmenter": "simple"
@@ -476,6 +491,7 @@ GET twitter/tweet/_search
     "highlight" : {
         "fields" : {
             "message" : {
+                "type": "plain",
                 "fragment_size" : 15,
                 "number_of_fragments" : 3,
                 "fragmenter": "span"
@@ -681,6 +697,9 @@ You can set `fragment_size` to 0 to never split any sentence.
 
 [[matched-fields]]
 ==== Matched Fields
+
+WARNING: This option works with the `fvh` highlighter only
+
 The Fast Vector Highlighter can combine matches on multiple fields to
 highlight a single field using `matched_fields`.  This is most
 intuitive for multifields that analyze the same string in different
@@ -814,6 +833,8 @@ to
 
 [[phrase-limit]]
 ==== Phrase Limit
+
+WARNING:
 The fast vector highlighter has a `phrase_limit` parameter that prevents
 it from analyzing too many phrases and eating tons of memory.  It defaults
 to 256 so only the first 256 matching phrases in the document scored

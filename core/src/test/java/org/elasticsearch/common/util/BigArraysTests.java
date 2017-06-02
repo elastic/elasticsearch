@@ -33,6 +33,11 @@ import org.junit.Before;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
+
+import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class BigArraysTests extends ESTestCase {
 
@@ -330,22 +335,17 @@ public class BigArraysTests extends ESTestCase {
     }
 
     public void testMaxSizeExceededOnNew() throws Exception {
-        final int size = scaledRandomIntBetween(5, 1 << 22);
-        for (String type : Arrays.asList("Byte", "Int", "Long", "Float", "Double", "Object")) {
-            HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
-                    Settings.builder()
-                            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), size - 1, ByteSizeUnit.BYTES)
-                            .build(),
-                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-            BigArrays bigArrays = new BigArrays(null, hcbs, false).withCircuitBreaking();
-            Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
+        final long size = scaledRandomIntBetween(5, 1 << 22);
+        final long maxSize = size - 1;
+        for (BigArraysHelper bigArraysHelper : bigArrayCreators(maxSize, true)) {
             try {
-                create.invoke(bigArrays, size);
-                fail("expected an exception on " + create);
-            } catch (InvocationTargetException e) {
-                assertTrue(e.getCause() instanceof CircuitBreakingException);
+                bigArraysHelper.arrayAllocator.apply(size);
+                fail("circuit breaker should trip");
+            } catch (CircuitBreakingException e) {
+                assertEquals(maxSize, e.getByteLimit());
+                assertThat(e.getBytesWanted(), greaterThanOrEqualTo(size));
             }
-            assertEquals(0, hcbs.getBreaker(CircuitBreaker.REQUEST).getUsed());
+            assertEquals(0, bigArraysHelper.bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed());
         }
     }
 
@@ -354,7 +354,7 @@ public class BigArraysTests extends ESTestCase {
             final long maxSize = randomIntBetween(1 << 10, 1 << 22);
             HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
                     Settings.builder()
-                            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
+                            .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                             .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             BigArrays bigArrays = new BigArrays(null, hcbs, false).withCircuitBreaking();
@@ -374,6 +374,65 @@ public class BigArraysTests extends ESTestCase {
             assertEquals(array.ramBytesUsed(), hcbs.getBreaker(CircuitBreaker.REQUEST).getUsed());
             array.close();
             assertEquals(0, hcbs.getBreaker(CircuitBreaker.REQUEST).getUsed());
+        }
+    }
+
+    public void testEstimatedBytesSameAsActualBytes() throws Exception {
+        final int maxSize = 1 << scaledRandomIntBetween(15, 22);
+        final long size = randomIntBetween((1 << 14) + 1, maxSize);
+        for (final BigArraysHelper bigArraysHelper : bigArrayCreators(maxSize, false)) {
+            final BigArray bigArray = bigArraysHelper.arrayAllocator.apply(size);
+            assertEquals(bigArraysHelper.ramEstimator.apply(size).longValue(), bigArray.ramBytesUsed());
+        }
+    }
+
+    private List<BigArraysHelper> bigArrayCreators(final long maxSize, final boolean withBreaking) {
+        final BigArrays byteBigArrays = newBigArraysInstance(maxSize, withBreaking);
+        BigArraysHelper byteHelper = new BigArraysHelper(byteBigArrays,
+            (Long size) -> byteBigArrays.newByteArray(size),
+            (Long size) -> BigByteArray.estimateRamBytes(size));
+        final BigArrays intBigArrays = newBigArraysInstance(maxSize, withBreaking);
+        BigArraysHelper intHelper = new BigArraysHelper(intBigArrays,
+            (Long size) -> intBigArrays.newIntArray(size),
+            (Long size) -> BigIntArray.estimateRamBytes(size));
+        final BigArrays longBigArrays = newBigArraysInstance(maxSize, withBreaking);
+        BigArraysHelper longHelper = new BigArraysHelper(longBigArrays,
+            (Long size) -> longBigArrays.newLongArray(size),
+            (Long size) -> BigLongArray.estimateRamBytes(size));
+        final BigArrays floatBigArrays = newBigArraysInstance(maxSize, withBreaking);
+        BigArraysHelper floatHelper = new BigArraysHelper(floatBigArrays,
+            (Long size) -> floatBigArrays.newFloatArray(size),
+            (Long size) -> BigFloatArray.estimateRamBytes(size));
+        final BigArrays doubleBigArrays = newBigArraysInstance(maxSize, withBreaking);
+        BigArraysHelper doubleHelper = new BigArraysHelper(doubleBigArrays,
+            (Long size) -> doubleBigArrays.newDoubleArray(size),
+            (Long size) -> BigDoubleArray.estimateRamBytes(size));
+        final BigArrays objectBigArrays = newBigArraysInstance(maxSize, withBreaking);
+        BigArraysHelper objectHelper = new BigArraysHelper(objectBigArrays,
+            (Long size) -> objectBigArrays.newObjectArray(size),
+            (Long size) -> BigObjectArray.estimateRamBytes(size));
+        return Arrays.asList(byteHelper, intHelper, longHelper, floatHelper, doubleHelper, objectHelper);
+    }
+
+    private BigArrays newBigArraysInstance(final long maxSize, final boolean withBreaking) {
+        HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
+            Settings.builder()
+                .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
+                .build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        BigArrays bigArrays = new BigArrays(null, hcbs, false);
+        return (withBreaking ? bigArrays.withCircuitBreaking() : bigArrays);
+    }
+
+    private static class BigArraysHelper {
+        final BigArrays bigArrays;
+        final Function<Long, BigArray> arrayAllocator;
+        final Function<Long, Long> ramEstimator;
+
+        BigArraysHelper(BigArrays bigArrays, Function<Long, BigArray> arrayAllocator, Function<Long, Long> ramEstimator) {
+            this.bigArrays = bigArrays;
+            this.arrayAllocator = arrayAllocator;
+            this.ramEstimator = ramEstimator;
         }
     }
 

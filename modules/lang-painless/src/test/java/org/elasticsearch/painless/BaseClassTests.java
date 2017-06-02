@@ -161,10 +161,10 @@ public class BaseClassTests extends ScriptTestCase {
     public abstract static class ManyArgs {
         public static final String[] PARAMETERS = new String[] {"a", "b", "c", "d"};
         public abstract Object execute(int a, int b, int c, int d);
-        public abstract boolean uses$a();
-        public abstract boolean uses$b();
-        public abstract boolean uses$c();
-        public abstract boolean uses$d();
+        public abstract boolean needsA();
+        public abstract boolean needsB();
+        public abstract boolean needsC();
+        public abstract boolean needsD();
     }
     public void testManyArgs() {
         Compiler compiler = new Compiler(ManyArgs.class, Definition.BUILTINS);
@@ -174,20 +174,20 @@ public class BaseClassTests extends ScriptTestCase {
 
         // While we're here we can verify that painless correctly finds used variables
         ManyArgs script = (ManyArgs)scriptEngine.compile(compiler, null, "a", emptyMap());
-        assertTrue(script.uses$a());
-        assertFalse(script.uses$b());
-        assertFalse(script.uses$c());
-        assertFalse(script.uses$d());
+        assertTrue(script.needsA());
+        assertFalse(script.needsB());
+        assertFalse(script.needsC());
+        assertFalse(script.needsD());
         script = (ManyArgs)scriptEngine.compile(compiler, null, "a + b + c", emptyMap());
-        assertTrue(script.uses$a());
-        assertTrue(script.uses$b());
-        assertTrue(script.uses$c());
-        assertFalse(script.uses$d());
+        assertTrue(script.needsA());
+        assertTrue(script.needsB());
+        assertTrue(script.needsC());
+        assertFalse(script.needsD());
         script = (ManyArgs)scriptEngine.compile(compiler, null, "a + b + c + d", emptyMap());
-        assertTrue(script.uses$a());
-        assertTrue(script.uses$b());
-        assertTrue(script.uses$c());
-        assertTrue(script.uses$d());
+        assertTrue(script.needsA());
+        assertTrue(script.needsB());
+        assertTrue(script.needsC());
+        assertTrue(script.needsD());
     }
 
     public abstract static class VarargTest {
@@ -472,44 +472,5 @@ public class BaseClassTests extends ScriptTestCase {
             scriptEngine.compile(compiler, null, "null", emptyMap()));
         assertEquals("Painless can only implement interfaces that have a single method named [execute] but ["
                 + TwoExecuteMethods.class.getName() + "] has more than one.", e.getMessage());
-    }
-
-    public abstract static class BadUsesReturn {
-        public static final String[] PARAMETERS = new String[] {"foo"};
-        public abstract Object execute(String foo);
-        public abstract Object uses$foo();
-    }
-    public void testBadUsesReturn() {
-        Compiler compiler = new Compiler(BadUsesReturn.class, Definition.BUILTINS);
-        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
-            scriptEngine.compile(compiler, null, "null", emptyMap()));
-        assertEquals("Painless can only implement uses$ methods that return boolean but [" + BadUsesReturn.class.getName()
-                + "#uses$foo] returns [java.lang.Object].", e.getMessage());
-    }
-
-    public abstract static class BadUsesParameter {
-        public static final String[] PARAMETERS = new String[] {"foo", "bar"};
-        public abstract Object execute(String foo, String bar);
-        public abstract boolean uses$bar(boolean foo);
-    }
-    public void testBadUsesParameter() {
-        Compiler compiler = new Compiler(BadUsesParameter.class, Definition.BUILTINS);
-        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
-            scriptEngine.compile(compiler, null, "null", emptyMap()));
-        assertEquals("Painless can only implement uses$ methods that do not take parameters but [" + BadUsesParameter.class.getName()
-                + "#uses$bar] does.", e.getMessage());
-    }
-
-    public abstract static class BadUsesName {
-        public static final String[] PARAMETERS = new String[] {"foo", "bar"};
-        public abstract Object execute(String foo, String bar);
-        public abstract boolean uses$baz();
-    }
-    public void testBadUsesName() {
-        Compiler compiler = new Compiler(BadUsesName.class, Definition.BUILTINS);
-        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () ->
-            scriptEngine.compile(compiler, null, "null", emptyMap()));
-        assertEquals("Painless can only implement uses$ methods that match a parameter name but [" + BadUsesName.class.getName()
-                + "#uses$baz] doesn't match any of [foo, bar].", e.getMessage());
     }
 }

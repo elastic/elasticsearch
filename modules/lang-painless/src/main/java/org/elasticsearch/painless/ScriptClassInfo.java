@@ -29,7 +29,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.painless.WriterConstants.USES_PARAMETER_METHOD_TYPE;
+import static org.elasticsearch.painless.WriterConstants.NEEDS_PARAMETER_METHOD_TYPE;
 
 /**
  * Information about the interface being implemented by the painless script.
@@ -40,7 +40,7 @@ public class ScriptClassInfo {
     private final org.objectweb.asm.commons.Method executeMethod;
     private final Definition.Type executeMethodReturnType;
     private final List<MethodArgument> executeArguments;
-    private final List<org.objectweb.asm.commons.Method> usesMethods;
+    private final List<org.objectweb.asm.commons.Method> needsMethods;
     private final List<org.objectweb.asm.commons.Method> getMethods;
     private final List<Definition.Type> getReturns;
 
@@ -49,7 +49,7 @@ public class ScriptClassInfo {
 
         // Find the main method and the uses$argName methods
         java.lang.reflect.Method executeMethod = null;
-        List<org.objectweb.asm.commons.Method> usesMethods = new ArrayList<>();
+        List<org.objectweb.asm.commons.Method> needsMethods = new ArrayList<>();
         List<org.objectweb.asm.commons.Method> getMethods = new ArrayList<>();
         List<Definition.Type> getReturns = new ArrayList<>();
         for (java.lang.reflect.Method m : baseClass.getMethods()) {
@@ -65,16 +65,8 @@ public class ScriptClassInfo {
                                     + "] has more than one.");
                 }
             }
-            if (m.getName().startsWith("uses$")) {
-                if (false == m.getReturnType().equals(boolean.class)) {
-                    throw new IllegalArgumentException("Painless can only implement uses$ methods that return boolean but ["
-                            + baseClass.getName() + "#" + m.getName() + "] returns [" + m.getReturnType().getName() + "].");
-                }
-                if (m.getParameterTypes().length > 0) {
-                    throw new IllegalArgumentException("Painless can only implement uses$ methods that do not take parameters but ["
-                            + baseClass.getName() + "#" + m.getName() + "] does.");
-                }
-                usesMethods.add(new org.objectweb.asm.commons.Method(m.getName(), USES_PARAMETER_METHOD_TYPE.toMethodDescriptorString()));
+            if (m.getName().startsWith("needs") && m.getReturnType().equals(boolean.class) && m.getParameterTypes().length == 0) {
+                needsMethods.add(new org.objectweb.asm.commons.Method(m.getName(), NEEDS_PARAMETER_METHOD_TYPE.toMethodDescriptorString()));
             }
             if (m.getName().startsWith("get") && m.getName().equals("getClass") == false && Modifier.isStatic(m.getModifiers()) == false) {
                 getReturns.add(
@@ -106,15 +98,7 @@ public class ScriptClassInfo {
             argumentNames.add(argumentNamesConstant[arg]);
         }
         this.executeArguments = unmodifiableList(arguments);
-
-        // Validate that the uses$argName methods reference argument names
-        for (org.objectweb.asm.commons.Method usesMethod : usesMethods) {
-            if (false == argumentNames.contains(usesMethod.getName().substring("uses$".length()))) {
-                throw new IllegalArgumentException("Painless can only implement uses$ methods that match a parameter name but ["
-                        + baseClass.getName() + "#" + usesMethod.getName() + "] doesn't match any of " + argumentNames + ".");
-            }
-        }
-        this.usesMethods = unmodifiableList(usesMethods);
+        this.needsMethods = unmodifiableList(needsMethods);
         this.getMethods = unmodifiableList(getMethods);
         this.getReturns = unmodifiableList(getReturns);
     }
@@ -152,8 +136,8 @@ public class ScriptClassInfo {
     /**
      * The {@code uses$varName} methods that must be implemented by Painless to complete implementing the interface.
      */
-    public List<org.objectweb.asm.commons.Method> getUsesMethods() {
-        return usesMethods;
+    public List<org.objectweb.asm.commons.Method> getNeedsMethods() {
+        return needsMethods;
     }
 
     /**

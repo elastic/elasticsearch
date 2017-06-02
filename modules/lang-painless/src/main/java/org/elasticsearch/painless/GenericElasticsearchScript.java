@@ -34,6 +34,6 @@ public abstract class GenericElasticsearchScript {
     public abstract Object execute(
         Map<String, Object> params, double _score, Map<String, ScriptDocValues<?>> doc, Object _value, Map<?, ?> ctx);
 
-    public abstract boolean uses$_score();
-    public abstract boolean uses$ctx();
+    public abstract boolean needs_score();
+    public abstract boolean needsCtx();
 }

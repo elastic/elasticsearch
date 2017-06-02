@@ -125,7 +125,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
                 }
                 @Override
                 public boolean needsScores() {
-                    return painlessScript.uses$_score();
+                    return painlessScript.needs_score();
                 }
             };
             return context.factoryClazz.cast(factory);

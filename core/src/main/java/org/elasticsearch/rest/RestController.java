@@ -42,6 +42,7 @@ import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.io.InputStream;
 import java.util.List;
@@ -333,7 +334,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         }
         // Between retrieving the correct path, we need to reset the parameters,
         // otherwise parameters are parsed out of the URI that aren't actually handled.
-        final Map<String, String> originalParams = request.params();
+        final Map<String, String> originalParams = new HashMap<>(request.params());
 
         // Request execution flag
         boolean requestHandled = false;

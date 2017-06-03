@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.structure;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -291,30 +292,33 @@ public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        ShardsIterator shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("disk:ebs",clusterState.nodes());
+        ShardsIterator shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt(new String[] {"disk:ebs"} ,clusterState.nodes());
         assertThat(shardsIterator.size(), equalTo(1));
         assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node1"));
 
-        shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("dis*:eph*",clusterState.nodes());
+        shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt(new String[] {"dis*:eph*"},clusterState.nodes());
         assertThat(shardsIterator.size(), equalTo(1));
         assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node2"));
 
-        shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("fred",clusterState.nodes());
+        shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt(new String[] {"dis*:ebs*","di*:eph*"},clusterState.nodes());
+        assertThat(shardsIterator.size(), equalTo(2));
+
+        shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt(new String[] {"fred"} ,clusterState.nodes());
         assertThat(shardsIterator.size(), equalTo(1));
         assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node1"));
 
-        shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("bar*",clusterState.nodes());
+        shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt(new String[] {"bar*"},clusterState.nodes());
         assertThat(shardsIterator.size(), equalTo(1));
         assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node2"));
 
         try {
-            shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("welma", clusterState.nodes());
+            shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt(new String[] {"welma"}, clusterState.nodes());
             fail("shouldve raised illegalArgumentException");
-        } catch (IllegalArgumentException illegal) {
+        } catch (ElasticsearchIllegalArgumentException illegal) {
             //expected exception
         }
         
-        shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("fred",clusterState.nodes());
+        shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt(new String[] {"fred"},clusterState.nodes());
         assertThat(shardsIterator.size(), equalTo(1));
         assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node1"));
     }

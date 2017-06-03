@@ -23,8 +23,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -373,22 +375,24 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      * @param nodeAttribute
      * @param discoveryNodes
      */
-    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String nodeAttribute, DiscoveryNodes discoveryNodes) {
+    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String[] nodeAttribute, DiscoveryNodes discoveryNodes) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         Set<String> selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodesIds(nodeAttribute));
 
-        for (ShardRouting shardRouting : activeShards) {
+        int seed = shuffler.nextSeed();
+        for (ShardRouting shardRouting : shuffler.shuffle(activeShards,seed)) {
             if (selectedNodes.contains(shardRouting.currentNodeId())) {
                 ordered.add(shardRouting);
             }
         }
-        for (ShardRouting shardRouting : allInitializingShards) {
+        for (ShardRouting shardRouting : shuffler.shuffle(allInitializingShards,seed)) {
             if (selectedNodes.contains(shardRouting.currentNodeId())) {
                 ordered.add(shardRouting);
             }
         }
+
         if (ordered.isEmpty()) {
-            throw new IllegalArgumentException("No data node with critera [" + nodeAttribute + "] found");
+            throw new ElasticsearchIllegalArgumentException("No data nodes with critera(s)  [" +   Strings.arrayToCommaDelimitedString(nodeAttribute) + "] found for shard:" + shardId());
         }
         return new PlainShardIterator(shardId, ordered);
     }

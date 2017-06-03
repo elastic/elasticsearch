@@ -12,7 +12,7 @@ accept a filter.
 {
     "filtered" : {
         "query" : {
-            "queryString" : {
+            "query_string" : {
                 "default_field" : "message",
                 "query" : "elasticsearch"
             }

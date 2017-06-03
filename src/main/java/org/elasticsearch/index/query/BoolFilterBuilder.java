@@ -21,9 +21,13 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * A filter that matches documents matching boolean combinations of other filters.
@@ -31,9 +35,13 @@ import java.util.ArrayList;
  *
  */
 public class BoolFilterBuilder extends BaseFilterBuilder {
+    
+    private ArrayList<FilterBuilder> mustClauses = new ArrayList<FilterBuilder>();
 
-    private ArrayList<Clause> clauses = new ArrayList<Clause>();
+    private ArrayList<FilterBuilder> mustNotClauses = new ArrayList<FilterBuilder>();
 
+    private ArrayList<FilterBuilder> shouldClauses = new ArrayList<FilterBuilder>();
+    
     private Boolean cache;
     private String cacheKey;
 
@@ -43,34 +51,35 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
      * Adds a filter that <b>must</b> appear in the matching documents.
      */
     public BoolFilterBuilder must(FilterBuilder filterBuilder) {
-        clauses.add(new Clause(filterBuilder, BooleanClause.Occur.MUST));
-        return this;
+    	mustClauses.add(filterBuilder);
+    	return this;
     }
 
     /**
      * Adds a filter that <b>must not</b> appear in the matching documents.
      */
     public BoolFilterBuilder mustNot(FilterBuilder filterBuilder) {
-        clauses.add(new Clause(filterBuilder, BooleanClause.Occur.MUST_NOT));
-        return this;
+    	mustNotClauses.add(filterBuilder);
+    	return this;
     }
 
+    
     /**
-     * Adds multiple <i>should</i> filters.
+     * Adds a filter that <i>should</i> appear in the matching documents. For a boolean filter
+     * with no <tt>MUST</tt> clauses one or more <code>SHOULD</code> clauses must match a document
+     * for the BooleanQuery to match.
      */
-    public BoolFilterBuilder should(FilterBuilder... filterBuilders) {
-        for (FilterBuilder filterBuilder : filterBuilders) {
-            clauses.add(new Clause(filterBuilder, BooleanClause.Occur.SHOULD));
-        }
-        return this;
+    public BoolFilterBuilder should(FilterBuilder filterBuilder) {
+    	shouldClauses.add(filterBuilder);
+    	return this;
     }
 
     /**
      * Adds multiple <i>must</i> filters.
      */
     public BoolFilterBuilder must(FilterBuilder... filterBuilders) {
-        for (FilterBuilder filterBuilder : filterBuilders) {
-            clauses.add(new Clause(filterBuilder, BooleanClause.Occur.MUST));
+        for (FilterBuilder fb : filterBuilders) {
+        	mustClauses.add(fb);
         }
         return this;
     }
@@ -79,22 +88,22 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
      * Adds multiple <i>must not</i> filters.
      */
     public BoolFilterBuilder mustNot(FilterBuilder... filterBuilders) {
-        for (FilterBuilder filterBuilder : filterBuilders) {
-            clauses.add(new Clause(filterBuilder, BooleanClause.Occur.MUST_NOT));
+        for (FilterBuilder fb : filterBuilders) {
+        	mustNotClauses.add(fb);
         }
         return this;
     }
 
     /**
-     * Adds a filter that <i>should</i> appear in the matching documents. For a boolean filter
-     * with no <tt>MUST</tt> clauses one or more <code>SHOULD</code> clauses must match a document
-     * for the BooleanQuery to match.
+     * Adds multiple <i>should</i> filters.
      */
-    public BoolFilterBuilder should(FilterBuilder filterBuilder) {
-        clauses.add(new Clause(filterBuilder, BooleanClause.Occur.SHOULD));
+    public BoolFilterBuilder should(FilterBuilder... filterBuilders) {
+        for (FilterBuilder fb : filterBuilders) {
+        	shouldClauses.add(fb);
+        }
         return this;
     }
-
+    
     /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
@@ -119,18 +128,10 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("bool");
-        for (Clause clause : clauses) {
-            if (clause.occur == BooleanClause.Occur.MUST) {
-                builder.field("must");
-                clause.filterBuilder.toXContent(builder, params);
-            } else if (clause.occur == BooleanClause.Occur.MUST_NOT) {
-                builder.field("must_not");
-                clause.filterBuilder.toXContent(builder, params);
-            } else if (clause.occur == BooleanClause.Occur.SHOULD) {
-                builder.field("should");
-                clause.filterBuilder.toXContent(builder, params);
-            }
-        }
+        doXArrayContent("must", mustClauses, builder, params);
+        doXArrayContent("must_not", mustNotClauses, builder, params);
+        doXArrayContent("should", shouldClauses, builder, params);
+        
         if (filterName != null) {
             builder.field("_name", filterName);
         }
@@ -143,13 +144,19 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
         builder.endObject();
     }
 
-    private static class Clause {
-        final FilterBuilder filterBuilder;
-        final BooleanClause.Occur occur;
-
-        private Clause(FilterBuilder filterBuilder, BooleanClause.Occur occur) {
-            this.filterBuilder = filterBuilder;
-            this.occur = occur;
+    private void doXArrayContent(String field, List<FilterBuilder> clauses, XContentBuilder builder, Params params) throws IOException {
+        if (clauses.isEmpty()) {
+            return;
+        }
+        if (clauses.size() == 1) {
+            builder.field(field);
+            clauses.get(0).toXContent(builder, params);
+        } else {
+            builder.startArray(field);
+            for (FilterBuilder clause : clauses) {
+                clause.toXContent(builder, params);
+            }
+            builder.endArray();
         }
     }
 }

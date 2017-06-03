@@ -40,6 +40,45 @@ sudo update-rc.d elasticsearch defaults 95 10
 sudo /etc/init.d/elasticsearch start
 --------------------------------------------------
 
+Note that on Ubuntu it is recommended to use upstart instead. Example:
+--------------------------------------------------
+sudo mv elasticsearch.conf /etc/ini
+sudo initctl reload-configuration
+sudo start elasticsearch
+--------------------------------------------------
+
+elasticsearch.conf can be found in various places, here's an example ([ref](https://gist.github.com/crofty/8841470)):
+--------------------------------------------------
+description     "ElasticSearch"
+
+start on (net-device-up
+          and local-filesystems
+          and runlevel [2345])
+
+stop on runlevel [016]
+
+respawn limit 10 5
+
+env ES_HOME=/usr/share/elasticsearch
+env JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64
+env LOG_DIR=/var/log/elasticsearch
+env DATA_DIR=/var/lib/elasticsearch
+env WORK_DIR=/tmp/elasticsearch
+env CONFIG_DIR=/etc/elasticsearch
+env DEFAULT_CONFIG=/etc/elasticsearch/elasticsearch.yml
+
+env DAEMON=/usr/share/elasticsearch/bin/elasticsearch
+
+console output
+
+script
+  if [ -f /etc/default/elasticsearch ]; then
+    . /etc/default/elasticsearch
+  fi
+
+  su -s /bin/dash -c "$DAEMON -f -Des.default.config=$DEFAULT_CONFIG -Des.path.conf=$CONFIG_DIR -Des.path.home=$ES_HOME -Des.path.logs=$LOG_DIR -Des.path.data=$DATA_DIR -Des.path.work=$WORK_DIR" elasticsearch
+--------------------------------------------------
+
 [float]
 ===== Installing the oracle JDK
 

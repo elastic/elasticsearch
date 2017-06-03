@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.mapper.geo;
 
-import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
+import org.elasticsearch.index.field.data.MultiValueOrdinalArray;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 
@@ -67,21 +67,17 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
         }
     };
 
-    // order with value 0 indicates no value
-    private final int[][] ordinals;
+    private final MultiValueOrdinalArray ordinals;
 
     public MultiValueGeoPointFieldData(String fieldName, int[][] ordinals, double[] lat, double[] lon) {
         super(fieldName, lat, lon);
-        this.ordinals = ordinals;
+        this.ordinals = new MultiValueOrdinalArray(ordinals);
     }
 
     @Override
     protected long computeSizeInBytes() {
         long size = super.computeSizeInBytes();
-        size += RamUsage.NUM_BYTES_ARRAY_HEADER; // for the top level array
-        for (int[] ordinal : ordinals) {
-            size += RamUsage.NUM_BYTES_INT * ordinal.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
-        }
+        size += ordinals.computeSizeInBytes();
         return size;
     }
 
@@ -92,89 +88,79 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
 
     @Override
     public boolean hasValue(int docId) {
-        for (int[] ordinal : ordinals) {
-            if (ordinal[docId] != 0) {
-                return true;
-            }
-        }
-        return false;
+        return ordinals.hasValue(docId);
     }
+
+
 
     @Override
     public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
-        for (int i = 0; i < ordinals.length; i++) {
-            int loc = ordinals[i][docId];
-            if (loc == 0) {
-                if (i == 0) {
-                    proc.onMissing(docId);
-                }
-                break;
-            }
-            proc.onValue(docId, GeoHashUtils.encode(lat[loc], lon[loc]));
+        MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+        int o = ordinalIter.getNextOrdinal();
+        if (o == 0) {
+            proc.onMissing(docId); // first one is special as we need to communicate 0 if nothing is found
+            return;
+        }
+
+        while (o != 0) {
+            proc.onValue(docId, GeoHashUtils.encode(lat[o], lon[o]));
+            o = ordinalIter.getNextOrdinal();
         }
     }
 
     @Override
     public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc == 0) {
-                break;
-            }
-            proc.onValue(docId, lat[loc], lon[loc]);
+        MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+        int o = ordinalIter.getNextOrdinal();
+
+        while (o != 0) {
+            proc.onValue(docId, lat[o], lon[o]);
+            o = ordinalIter.getNextOrdinal();
         }
     }
 
     @Override
     public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
-        for (int i = 0; i < ordinals.length; i++) {
-            int loc = ordinals[i][docId];
-            if (loc == 0) {
-                if (i == 0) {
-                    proc.onOrdinal(docId, 0);
-                }
-                break;
-            }
-            proc.onOrdinal(docId, loc);
-        }
+        ordinals.forEachOrdinalInDoc(docId, proc);
     }
 
     @Override
     public GeoPoint value(int docId) {
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                GeoPoint point = valuesCache.get().get();
-                point.latlon(lat[loc], lon[loc]);
-                return point;
-            }
-        }
-        return null;
+        MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+        int o = ordinalIter.getNextOrdinal();
+        if (o == 0) return null;
+        GeoPoint point = valuesCache.get().get();
+        point.latlon(lat[o], lon[o]);
+        return point;
     }
+
+    protected int geValueCount(int docId) {
+        MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+        int count = 0;
+        while (ordinalIter.getNextOrdinal() != 0) count++;
+        return count;
+    }
+
 
     @Override
     public GeoPoint[] values(int docId) {
-        int length = 0;
-        for (int[] ordinal : ordinals) {
-            if (ordinal[docId] == 0) {
-                break;
-            }
-            length++;
-        }
+        int length = geValueCount(docId);
         if (length == 0) {
             return EMPTY_ARRAY;
         }
         GeoPoint[] points;
+        MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+
         if (length < VALUE_CACHE_SIZE) {
             points = valuesArrayCache.get().get()[length];
             for (int i = 0; i < length; i++) {
-                int loc = ordinals[i][docId];
+                int loc = ordinalIter.getNextOrdinal();
                 points[i].latlon(lat[loc], lon[loc]);
             }
         } else {
             points = new GeoPoint[length];
             for (int i = 0; i < length; i++) {
-                int loc = ordinals[i][docId];
+                int loc = ordinalIter.getNextOrdinal();
                 points[i] = new GeoPoint(lat[loc], lon[loc]);
             }
         }
@@ -183,35 +169,21 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
 
     @Override
     public double latValue(int docId) {
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                return lat[loc];
-            }
-        }
-        return 0;
+        MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+        int o = ordinalIter.getNextOrdinal();
+        return o == 0 ? 0 : lat[o];
     }
 
     @Override
     public double lonValue(int docId) {
-        for (int[] ordinal : ordinals) {
-            int loc = ordinal[docId];
-            if (loc != 0) {
-                return lon[loc];
-            }
-        }
-        return 0;
+        MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+        int o = ordinalIter.getNextOrdinal();
+        return o == 0 ? 0 : lon[o];
     }
 
     @Override
     public double[] latValues(int docId) {
-        int length = 0;
-        for (int[] ordinal : ordinals) {
-            if (ordinal[docId] == 0) {
-                break;
-            }
-            length++;
-        }
+        int length = geValueCount(docId);
         if (length == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
@@ -221,20 +193,18 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
         } else {
             doubles = new double[length];
         }
+
+        MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+
         for (int i = 0; i < length; i++) {
-            doubles[i] = lat[ordinals[i][docId]];
+            doubles[i] = lat[ordinalIter.getNextOrdinal()];
         }
         return doubles;
     }
 
     @Override
     public double[] lonValues(int docId) {
-        int length = 0;
-        for (int[] ordinal : ordinals) {
-            if (ordinal[docId] != 0) {
-                length++;
-            }
-        }
+        int length = geValueCount(docId);
         if (length == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
@@ -244,8 +214,11 @@ public class MultiValueGeoPointFieldData extends GeoPointFieldData {
         } else {
             doubles = new double[length];
         }
+
+        MultiValueOrdinalArray.OrdinalIterator ordinalIter = ordinals.getOrdinalIteratorForDoc(docId);
+
         for (int i = 0; i < length; i++) {
-            doubles[i] = lon[ordinals[i][docId]];
+            doubles[i] = lon[ordinalIter.getNextOrdinal()];
         }
         return doubles;
     }

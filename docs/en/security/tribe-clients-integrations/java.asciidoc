@@ -93,9 +93,9 @@ dependencies {
 If you are using a repository manager such as https://www.sonatype.com/nexus-repository-oss[Nexus OSS] within your
 company, you need to add the repository as per the following screenshot:
 
-+
+
 image::images/nexus.png["Adding the Elastic repo in Nexus",link="images/nexus.png"]
-+
+
 
 Then in your project's `pom.xml` if using maven, add the following repositories and dependencies definitions:
 

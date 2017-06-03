@@ -1053,7 +1053,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-    public SearchRequestBuilder setTemplateParams(Map<String,String> templateParams) {
+    public SearchRequestBuilder setTemplateParams(Map<String,Object> templateParams) {
         request.templateParams(templateParams);
         return this;
     }

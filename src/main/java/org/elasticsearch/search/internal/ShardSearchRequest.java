@@ -58,7 +58,7 @@ public interface ShardSearchRequest {
 
     ScriptService.ScriptType templateType();
 
-    Map<String, String> templateParams();
+    Map<String, Object> templateParams();
 
     BytesReference templateSource();
 

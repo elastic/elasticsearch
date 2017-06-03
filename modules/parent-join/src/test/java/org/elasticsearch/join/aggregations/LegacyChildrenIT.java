@@ -16,24 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.join.aggregations;
 
-package org.elasticsearch.painless;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+@ClusterScope(scope = Scope.SUITE)
+public class LegacyChildrenIT extends ChildrenIT {
 
-import java.util.Map;
+    @Override
+    protected boolean legacy() {
+        return true;
+    }
 
-/**
- * Generic script interface that Painless implements for all Elasticsearch scripts.
- */
-public abstract class GenericElasticsearchScript {
-
-    public GenericElasticsearchScript() {}
-
-    public static final String[] PARAMETERS = new String[] {"params", "_score", "doc", "_value", "ctx"};
-    public abstract Object execute(
-        Map<String, Object> params, double _score, Map<String, ScriptDocValues<?>> doc, Object _value, Map<?, ?> ctx);
-
-    public abstract boolean needs_score();
-    public abstract boolean needsCtx();
+    @Override
+    public Settings indexSettings() {
+        Settings indexSettings = super.indexSettings();
+        return Settings.builder()
+            .put(indexSettings)
+            .put("index.mapping.single_type", false)
+            .build();
+    }
 }

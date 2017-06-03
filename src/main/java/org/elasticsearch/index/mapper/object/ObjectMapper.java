@@ -48,6 +48,7 @@ import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 
@@ -117,6 +118,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
         protected Boolean includeInAll;
 
+        protected Integer maxNumberOfFields;
+
         protected final List<Mapper.Builder> mappersBuilders = newArrayList();
 
         public Builder(String name) {
@@ -149,6 +152,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             return builder;
         }
 
+        public T maxNumberOfFields(int maxNumberOfFields) {
+            this.maxNumberOfFields = maxNumberOfFields;
+            return builder;
+        }
+
         public T add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
             return this.builder;
@@ -170,6 +178,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
             ObjectMapper objectMapper = createMapper(name, context.path().fullPathAsText(name), enabled, nested, dynamic, pathType, mappers, context.indexSettings());
             objectMapper.includeInAllIfNotSet(includeInAll);
+            objectMapper.maxNumberOfFieldsIfNotSet(maxNumberOfFields);
 
             return (Y) objectMapper;
         }
@@ -216,6 +225,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 return true;
             } else if (fieldName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(fieldNode));
+                return true;
+            } else if (fieldName.equals("max_number_of_fields")) {
+                builder.maxNumberOfFields(nodeIntegerValue(fieldNode));
                 return true;
             }
             return false;
@@ -318,6 +330,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     private Boolean includeInAll;
 
+    private Integer maxNumberOfFields;
+
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     private final Object mutex = new Object();
@@ -382,6 +396,31 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
     }
 
+    public void maxNumberOfFields(Integer maxNumberOfFields) {
+        if (maxNumberOfFields == null) {
+            return;
+        }
+        this.maxNumberOfFields = maxNumberOfFields;
+        // when called from outside, apply this on all the inner mappers
+        for (Mapper mapper : mappers.values()) {
+            if (mapper instanceof ObjectMapper) {
+                ((ObjectMapper) mapper).maxNumberOfFields(maxNumberOfFields);
+            }
+        }
+    }
+
+    public void maxNumberOfFieldsIfNotSet(Integer maxNumberOfFields) {
+        if (this.maxNumberOfFields == null) {
+            this.maxNumberOfFields = maxNumberOfFields;
+        }
+        // when called from outside, apply this on all the inner mappers
+        for (Mapper mapper : mappers.values()) {
+            if (mapper instanceof ObjectMapper) {
+                ((ObjectMapper) mapper).maxNumberOfFieldsIfNotSet(maxNumberOfFields);
+            }
+        }
+    }
+
     public Nested nested() {
         return this.nested;
     }
@@ -393,6 +432,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     public ObjectMapper putMapper(Mapper mapper) {
         if (mapper instanceof AllFieldMapper.IncludeInAll) {
             ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
+        }
+        if (mapper instanceof ObjectMapper) {
+            ((ObjectMapper) mapper).maxNumberOfFieldsIfNotSet(maxNumberOfFields);
         }
         synchronized (mutex) {
             mappers = mappers.copyAndPut(mapper.name(), mapper);
@@ -563,6 +605,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 // we sync here just so we won't add it twice. Its not the end of the world
                 // to sync here since next operations will get it before
                 synchronized (mutex) {
+                    if (maxNumberOfFields != null && maxNumberOfFields > 0 && mappers.size() >= maxNumberOfFields) {
+                        throw new MaxNumberOfFieldsMappingException(fullPath, currentFieldName);
+                    }
                     objectMapper = mappers.get(currentFieldName);
                     if (objectMapper == null) {
                         // remove the current field name from path, since template search and the object builder add it as well...
@@ -615,6 +660,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 // we sync here just so we won't add it twice. Its not the end of the world
                 // to sync here since next operations will get it before
                 synchronized (mutex) {
+                    if (maxNumberOfFields != null && maxNumberOfFields > 0 && mappers.size() > maxNumberOfFields) {
+                        throw new MaxNumberOfFieldsMappingException(fullPath, arrayFieldName);
+                    }
                     mapper = mappers.get(arrayFieldName);
                     if (mapper == null) {
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, arrayFieldName, "object");
@@ -724,6 +772,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // its not the end of the world, since we add it to the mappers once we create it
         // so next time we won't even get here for this field
         synchronized (mutex) {
+            if (maxNumberOfFields != null && maxNumberOfFields > 0 && mappers.size() >= maxNumberOfFields) {
+                throw new MaxNumberOfFieldsMappingException(fullPath, currentFieldName);
+            }
             Mapper mapper = mappers.get(currentFieldName);
             if (mapper == null) {
                 BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
@@ -985,6 +1036,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
+        }
+        if (maxNumberOfFields != null) {
+            builder.field("max_number_of_fields", maxNumberOfFields);
         }
 
         if (custom != null) {

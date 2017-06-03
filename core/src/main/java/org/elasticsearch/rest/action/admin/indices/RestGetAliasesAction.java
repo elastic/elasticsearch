@@ -20,14 +20,15 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -40,8 +41,11 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.SortedSet;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -80,20 +84,34 @@ public class RestGetAliasesAction extends BaseRestHandler {
         return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
-                if (response.getAliases().isEmpty()) {
-                    // empty body if indices were specified but no matching aliases exist
-                    if (indices.length > 0) {
-                        return new BytesRestResponse(OK, builder.startObject().endObject());
-                    } else {
-                        final String message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(getAliasesRequest.aliases()));
-                        builder.startObject();
-                        {
-                            builder.field("error", message);
-                            builder.field("status", RestStatus.NOT_FOUND.getStatus());
-                        }
-                        builder.endObject();
-                        return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                final ImmutableOpenMap<String, List<AliasMetaData>> aliasMap = response.getAliases();
+
+                final Set<String> aliasNames = new HashSet<>();
+                for (final ObjectObjectCursor<String, List<AliasMetaData>> cursor : aliasMap) {
+                    for (final AliasMetaData aliasMetaData : cursor.value) {
+                        aliasNames.add(aliasMetaData.alias());
                     }
+                }
+
+                final SortedSet<String> difference = Sets.sortedDifference(Arrays.stream(aliases).collect(Collectors.toSet()), aliasNames);
+                if (!difference.isEmpty()) {
+                    final String message;
+                    if (difference.size() == 1) {
+                        message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(difference.iterator().next()));
+                    } else {
+                        message = String.format(Locale.ROOT, "aliases [%s] missing", toNamesString(difference.toArray(new String[0])));
+                    }
+                    builder.startObject();
+                    {
+                        builder.field("error", message);
+                        builder.field("status", RestStatus.NOT_FOUND.getStatus());
+                    }
+                    builder.endObject();
+                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                }
+
+                if (aliasMap.isEmpty()) {
+                    return new BytesRestResponse(OK, builder.startObject().endObject());
                 } else {
                     builder.startObject();
                     {

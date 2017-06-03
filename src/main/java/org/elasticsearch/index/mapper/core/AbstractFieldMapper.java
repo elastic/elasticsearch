@@ -31,7 +31,6 @@ import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -58,6 +57,7 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.search.DeferredTermsFilter;
 import org.elasticsearch.index.search.FieldDataTermsFilter;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -481,11 +481,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             // bit set
             return termFilter(values.get(0), context);
         default:
-            BytesRef[] bytesRefs = new BytesRef[values.size()];
-            for (int i = 0; i < bytesRefs.length; i++) {
-                bytesRefs[i] = indexedValueForSearch(values.get(i));
-            }
-            return new TermsFilter(names.indexName(), bytesRefs);
+            return new DeferredTermsFilter(names.indexName(), values, this);
             
         }
     }

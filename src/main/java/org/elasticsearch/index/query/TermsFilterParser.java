@@ -188,7 +188,12 @@ public class TermsFilterParser implements FilterParser {
 
             // external lookup, use it
             TermsLookup termsLookup = new TermsLookup(lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext, SearchContext.current());
-            terms.addAll(termsFilterCache.terms(termsLookup, lookupCache, cacheKey));
+            // We always pass null as the cacheKey here:  Using the cache key for the overall filter generally leads
+            // to redundant lookup caching:  The overall filter needs to be keyed off the field being filtered +
+            // the lookup options.  Whereas the lookup only needs to be keyed off the lookup options.
+            // Note that we avoid a copy here and just assign to the looked-up terms.  This is safe so long as
+            // terms is never modified.
+            terms = termsFilterCache.terms(termsLookup, lookupCache, null);
         }
 
         if (terms.isEmpty()) {

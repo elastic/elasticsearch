@@ -93,6 +93,7 @@ public class VersionUtilsTests extends ESTestCase {
         Version unreleased = randomFrom(VersionUtils.allUnreleasedVersions());
         assertThat(VersionUtils.randomVersionBetween(random(), null, unreleased), lessThanOrEqualTo(unreleased));
         assertThat(VersionUtils.randomVersionBetween(random(), unreleased, null), greaterThanOrEqualTo(unreleased));
+        assertEquals(unreleased, VersionUtils.randomVersionBetween(random(), unreleased, unreleased));
     }
 
     static class TestReleaseBranch {

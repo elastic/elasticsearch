@@ -22,7 +22,7 @@ Installing plugins typically take the following form:
 
 [source,shell]
 -----------------------------------
-plugin --install <org>/<user/component>/<version>
+plugin install <org>/<user/component>/<version>
 -----------------------------------
 
 The plugins will be
@@ -63,13 +63,11 @@ running:
 
 [source,js]
 --------------------------------------------------
-bin/plugin --install mobz/elasticsearch-head
-bin/plugin --install lukas-vlcek/bigdesk
+bin/plugin install mobz/elasticsearch-head
 --------------------------------------------------
 
-Will install both of those site plugins, with `elasticsearch-head`
-available under `http://localhost:9200/_plugin/head/` and `bigdesk`
-available under `http://localhost:9200/_plugin/bigdesk/`.
+Will install this plugin, with `elasticsearch-head`
+available under `http://localhost:9200/_plugin/head/`.
 
 [float]
 ==== Mandatory Plugins
@@ -119,7 +117,7 @@ Note that exit codes could be:
 
 [source,shell]
 -----------------------------------
-bin/plugin --install mobz/elasticsearch-head --verbose
+bin/plugin install mobz/elasticsearch-head --verbose
 plugin --remove head --silent
 -----------------------------------
 
@@ -133,13 +131,13 @@ different values:
 [source,shell]
 -----------------------------------
 # Wait for 30 seconds before failing
-bin/plugin --install mobz/elasticsearch-head --timeout 30s
+bin/plugin install mobz/elasticsearch-head --timeout 30s
 
 # Wait for 1 minute before failing
-bin/plugin --install mobz/elasticsearch-head --timeout 1m
+bin/plugin install mobz/elasticsearch-head --timeout 1m
 
 # Wait forever (default)
-bin/plugin --install mobz/elasticsearch-head --timeout 0
+bin/plugin install mobz/elasticsearch-head --timeout 0
 -----------------------------------
 
 [float]
@@ -159,7 +157,7 @@ On Windows, here is an example of setting it:
 [source,shell]
 -----------------------------------
 set JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
-bin/plugin --install mobz/elasticsearch-head
+bin/plugin install mobz/elasticsearch-head
 -----------------------------------
 
 [float]

@@ -22,7 +22,7 @@ request:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/_search' -d {
+curl -XPOST 'localhost:9200/_search' -d '{
   "suggest" : {
     "text" : "Xor the Got-Jewel",
     "simple_phrase" : {
@@ -45,7 +45,7 @@ curl -XPOST 'localhost:9200/_search' -d {
       }
     }
   }
-}
+}'
 --------------------------------------------------
 
 The response contains suggestions scored by the most likely spell

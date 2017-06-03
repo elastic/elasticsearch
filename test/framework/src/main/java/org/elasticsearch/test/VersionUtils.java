@@ -126,8 +126,6 @@ public class VersionUtils {
 
     /**
      * Returns an immutable, sorted list containing all released versions.
-     *
-     * @return all released versions
      */
     public static List<Version> allReleasedVersions() {
         return RELEASED_VERSIONS;
@@ -135,8 +133,6 @@ public class VersionUtils {
 
     /**
      * Returns an immutable, sorted list containing all unreleased versions.
-     *
-     * @return all unreleased versions
      */
     public static List<Version> allUnreleasedVersions() {
         return UNRELEASED_VERSIONS;
@@ -144,7 +140,6 @@ public class VersionUtils {
 
     /**
      * Returns an immutable, sorted list containing all versions, both released and unreleased.
-     * @return
      */
     public static List<Version> allVersions() {
         return ALL_VERSIONS;
@@ -212,12 +207,5 @@ public class VersionUtils {
             int range = maxVersionIndex + 1 - minVersionIndex;
             return ALL_VERSIONS.get(minVersionIndex + random.nextInt(range));
         }
-    }
-
-    public static boolean isSnapshot(Version version) { // TODO this seems wrong - we keep unreleased versions in 
-        if (Version.CURRENT.equals(version)) {
-            return true;
-        }
-        return false;
     }
 }

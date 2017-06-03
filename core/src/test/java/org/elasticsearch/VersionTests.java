@@ -254,7 +254,7 @@ public class VersionTests extends ESTestCase {
         final Set<Version> unreleasedVersions = new HashSet<>(VersionUtils.allUnreleasedVersions());
         Map<String, Version> maxBranchVersions = new HashMap<>();
         for (java.lang.reflect.Field field : Version.class.getFields()) {
-            if (field.getName().matches("_ID(_UNRELEASED)?")) {
+            if (field.getName().matches("_ID")) {
                 assertTrue(field.getName() + " should be static", Modifier.isStatic(field.getModifiers()));
                 assertTrue(field.getName() + " should be final", Modifier.isFinal(field.getModifiers()));
                 int versionId = (Integer)field.get(Version.class);
@@ -293,7 +293,12 @@ public class VersionTests extends ESTestCase {
                 if (maxBranchVersion == null) {
                     maxBranchVersions.put(branchName, v);
                 } else if (v.after(maxBranchVersion)) {
-                    assertFalse("Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists", VersionUtils.isSnapshot(maxBranchVersion));
+                    if (v == Version.CURRENT) {
+                        // Current is weird - it counts as released even though it shouldn't.
+                        continue;
+                    }
+                    assertFalse("Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists",
+                            VersionUtils.allUnreleasedVersions().contains(maxBranchVersion));
                     maxBranchVersions.put(branchName, v);
                 }
             }

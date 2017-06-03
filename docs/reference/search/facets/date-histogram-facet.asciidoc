@@ -26,7 +26,7 @@ facet>>. Here is a quick example:
 ==== Interval
 
 The `interval` allows to set the interval at which buckets will be
-created for each hit. It allows for the constant values of `year`,
+created for each hit. It allows for the constant values of `century`, `year`,
 `quarter`, `month`, `week`, `day`, `hour`, `minute`.
 
 It also support time setting like `1.5h` (up to `w` for weeks).

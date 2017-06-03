@@ -1,5 +1,6 @@
 .gradle/
 elasticsearch.iws
+elasticsearch.iml
 .idea/workspace.xml
 work/
 /data/

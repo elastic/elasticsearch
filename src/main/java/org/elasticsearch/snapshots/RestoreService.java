@@ -167,11 +167,28 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    // Check if another restore process is already running - cannot run two restore processes at the
-                    // same time
+                    // Check if another restore process is already running and has possible index collisions 
                     RestoreMetaData restoreMetaData = currentState.metaData().custom(RestoreMetaData.TYPE);
-                    if (restoreMetaData != null && !restoreMetaData.entries().isEmpty()) {
-                        throw new ConcurrentSnapshotExecutionException(snapshotId, "Restore process is already running in this cluster");
+
+                    boolean IndexCollision = false;
+                    if(restoreMetaData != null) {
+                        ImmutableList<RestoreMetaData.Entry> entries = restoreMetaData.entries();
+                        for(RestoreMetaData.Entry entry : entries) {
+                            ImmutableList<String> indices = entry.indices();
+                            for(String index : indices) {
+                                // compare requested snapshot indices with in-progress indices to ensure no collisions exist
+                                for (Map.Entry<String, String> indexEntry : renamedIndices.entrySet()) {
+                                    String renamedIndex = indexEntry.getKey();
+                                    if(index.equals(renamedIndex)) {
+                                        IndexCollision = true;
+                                    }
+                                    logger.info("comparing {} {}", index, renamedIndex);
+                                }
+                            }
+                        }
+                    }
+                    if (restoreMetaData != null && !restoreMetaData.entries().isEmpty() && IndexCollision) {
+                        throw new ConcurrentSnapshotExecutionException(snapshotId, "Restore process involving the same indices is already running in this cluster");
                     }
 
                     // Updating cluster state
@@ -250,7 +267,24 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                         shards = shardsBuilder.build();
                         RestoreMetaData.Entry restoreEntry = new RestoreMetaData.Entry(snapshotId, RestoreMetaData.State.INIT, ImmutableList.copyOf(renamedIndices.keySet()), shards);
-                        mdBuilder.putCustom(RestoreMetaData.TYPE, new RestoreMetaData(restoreEntry));
+
+                        // merge any existing metadata
+                        if(restoreMetaData != null) {
+                            List<RestoreMetaData.Entry> restoreList = new ArrayList<RestoreMetaData.Entry>();
+                            for(RestoreMetaData.Entry entry : restoreMetaData.entries()) {
+                                restoreList.add(entry);
+                            }
+                            restoreList.add(restoreEntry);
+
+                            ImmutableList<RestoreMetaData.Entry> restoreEntries = ImmutableList.copyOf(restoreList);
+                            logger.info("restore entry count {}", restoreEntries.size());
+                            for(RestoreMetaData.Entry entry : restoreEntries) {
+                                logger.info("restore entry {}", entry.snapshotId());
+                            }
+                            mdBuilder.putCustom(RestoreMetaData.TYPE, new RestoreMetaData(restoreEntries));
+                        } else {
+                            mdBuilder.putCustom(RestoreMetaData.TYPE, new RestoreMetaData(restoreEntry));    
+                        }
                     } else {
                         shards = ImmutableMap.of();
                     }

@@ -629,4 +629,14 @@ public class TestSearchContext extends SearchContext {
     public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public boolean requireDocsCollectedInOrder() {
+        return false;
+    }
+
+    @Override
+    public void setRequireDocsCollectedInOrder() {
+        throw new UnsupportedOperationException();
+    }
 }

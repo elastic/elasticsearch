@@ -23,6 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
@@ -81,7 +82,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                         selectedValues = sortMode.select(values);
                     } else {
                         final FixedBitSet rootDocs = nested.rootDocs(context);
-                        final FixedBitSet innerDocs = nested.innerDocs(context);
+                        final DocIdSet innerDocs = nested.innerDocs(context);
                         selectedValues = sortMode.select(values, rootDocs, innerDocs);
                     }
                     if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
@@ -132,7 +133,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     selectedValues = sortMode.select(values, nonNullMissingBytes);
                 } else {
                     final FixedBitSet rootDocs = nested.rootDocs(context);
-                    final FixedBitSet innerDocs = nested.innerDocs(context);
+                    final DocIdSet innerDocs = nested.innerDocs(context);
                     selectedValues = sortMode.select(values, nonNullMissingBytes, rootDocs, innerDocs, context.reader().maxDoc());
                 }
                 return selectedValues;

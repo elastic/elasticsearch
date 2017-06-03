@@ -129,9 +129,11 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          * parent + 1, or 0 if there is no previous parent, and R (excluded).
          */
         public static class Nested {
-            private final FixedBitSetFilter rootFilter, innerFilter;
 
-            public Nested(FixedBitSetFilter rootFilter, FixedBitSetFilter innerFilter) {
+            private final FixedBitSetFilter rootFilter;
+            private final Filter innerFilter;
+
+            public Nested(FixedBitSetFilter rootFilter, Filter innerFilter) {
                 this.rootFilter = rootFilter;
                 this.innerFilter = innerFilter;
             }
@@ -146,7 +148,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             /**
              * Get a {@link FixedBitSet} that matches the inner documents.
              */
-            public FixedBitSet innerDocs(AtomicReaderContext ctx) throws IOException {
+            public DocIdSet innerDocs(AtomicReaderContext ctx) throws IOException {
                 return innerFilter.getDocIdSet(ctx, null);
             }
         }

@@ -31,7 +31,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 
@@ -193,9 +192,9 @@ public class TribeServiceTests extends ESTestCase {
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), "mock-socket-network");
 
-        boolean tribeServiceEnable = randomBoolean();
+        final boolean tribeServiceEnable = randomBoolean();
         if (tribeServiceEnable) {
-            String clusterName = InternalTestCluster.clusterName("single-node-cluster", randomLong());
+            String clusterName = "single-node-cluster";
             String tribeSetting = "tribe." + clusterName + ".";
             settings.put(tribeSetting + ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
                 .put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(),  NetworkModule.LOCAL_TRANSPORT);

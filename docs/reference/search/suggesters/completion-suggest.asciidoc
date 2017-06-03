@@ -148,7 +148,7 @@ type as `completion`.
 
 [source,js]
 --------------------------------------------------
-curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
+curl 'localhost:9200/music/_suggest?pretty' -d '{
     "song-suggest" : {
         "text" : "n",
         "completion" : {
@@ -198,7 +198,7 @@ you can actually have a typo in your search and still get results back.
 
 [source,js]
 --------------------------------------------------
-curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
+curl 'localhost:9200/music/_suggest?pretty' -d '{
     "song-suggest" : {
         "text" : "n",
         "completion" : {

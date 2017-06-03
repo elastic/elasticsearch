@@ -54,6 +54,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         super(settings, client);
         this.settingsFilter = settingsFilter;
 
+        controller.registerHandler(GET, "/_template", this);
         controller.registerHandler(GET, "/_template/{name}", this);
     }
 
@@ -62,7 +63,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .filterRoutingTable(true)
                 .filterNodes(true)
-                .filteredIndexTemplates(request.param("name"))
+                .filteredIndexTemplates(request.param("name", "*"))
                 .filteredIndices("_na");
 
         clusterStateRequest.listenerThreaded(false);

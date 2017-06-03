@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.support.format;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.DateTimeZone;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -80,16 +82,20 @@ public interface ValueParser {
      */
     static class DateMath implements ValueParser {
 
-        public static final DateMath DEFAULT = new ValueParser.DateMath(new DateMathParser(DateFieldMapper.Defaults.DATE_TIME_FORMATTER, DateFieldMapper.Defaults.TIME_UNIT));
+        public static final DateMath DEFAULT = new ValueParser.DateMath(new DateMathParser(DateFieldMapper.Defaults.DATE_TIME_FORMATTER, DateFieldMapper.Defaults.TIME_UNIT), DateTimeZone.UTC);
 
         private DateMathParser parser;
+        private DateTimeZone timezone = DateTimeZone.UTC;
 
-        public DateMath(String format, TimeUnit timeUnit) {
-            this(new DateMathParser(Joda.forPattern(format), timeUnit));
+        public DateMath(String format, TimeUnit timeUnit, DateTimeZone timezone) {
+            this(new DateMathParser(Joda.forPattern(format), timeUnit), timezone);
         }
 
-        public DateMath(DateMathParser parser) {
+        public DateMath(DateMathParser parser, @Nullable DateTimeZone timeZone) {
             this.parser = parser;
+            if (timeZone != null) {
+                this.timezone = timeZone;
+            }
         }
 
         @Override
@@ -100,7 +106,7 @@ public interface ValueParser {
                     return searchContext.nowInMillis();
                 }
             };
-            return parser.parse(value, now);
+            return parser.parse(value, now, false, timezone);
         }
 
         @Override
@@ -108,8 +114,8 @@ public interface ValueParser {
             return parseLong(value, searchContext);
         }
 
-        public static DateMath mapper(DateFieldMapper mapper) {
-            return new DateMath(new DateMathParser(mapper.dateTimeFormatter(), DateFieldMapper.Defaults.TIME_UNIT));
+        public static DateMath mapper(DateFieldMapper mapper, @Nullable DateTimeZone timezone) {
+            return new DateMath(new DateMathParser(mapper.dateTimeFormatter(), DateFieldMapper.Defaults.TIME_UNIT), timezone);
         }
     }
 

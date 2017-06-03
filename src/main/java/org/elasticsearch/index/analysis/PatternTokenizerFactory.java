@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.pattern.PatternTokenizer;
+import org.apache.lucene.analysis.pattern.XPatternTokenizer;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -52,6 +52,6 @@ public class PatternTokenizerFactory extends AbstractTokenizerFactory {
 
     @Override
     public Tokenizer create(Reader reader) {
-        return new PatternTokenizer(reader, pattern, group);
+        return new XPatternTokenizer(reader, pattern, group);
     }
 }

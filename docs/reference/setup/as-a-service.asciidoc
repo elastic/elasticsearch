@@ -32,7 +32,7 @@ The debian package ships with everything you need as it uses standard debian too
 
 ===== Installing the oracle JDK
 
-The usual recommendation is to run the Oracle JDK with elasticsearch. However Ubuntu and Debian only ship the OpenJDK due to license issues. You can easily install the oracle installer package though. In case you are missing the `add-apt-repository` command under Debian GNU/Linux, make sure have at least Debian Wheezy and the package `python-software-properties` installed
+The usual recommendation is to run the Oracle JDK with elasticsearch. However Ubuntu and Debian only ship the OpenJDK due to license issues. You can easily install the oracle installer package though. 
 
 [source,sh]
 --------------------------------------------------
@@ -44,6 +44,12 @@ java -version
 
 The last command should verify a successful installation of the Oracle JDK.
 
+In case you are missing the `add-apt-repository` command under Debian GNU/Linux, make sure have at least Debian Wheezy and the package `python-software-properties` installed. You can also need `software-properties-common`.
+
+[source,sh]
+--------------------------------------------------
+sudo apt-get install python-software-properties software-properties-common
+--------------------------------------------------
 
 ==== RedHat/Centos/Fedora
 

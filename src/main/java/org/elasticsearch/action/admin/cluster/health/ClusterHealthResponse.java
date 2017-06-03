@@ -71,7 +71,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
         this.clusterName = clusterName;
         RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
-        validationFailures = validation.failures();
+        validationFailures = validation.allFailures();
         numberOfNodes = clusterState.nodes().size();
         numberOfDataNodes = clusterState.nodes().dataNodes().size();
 

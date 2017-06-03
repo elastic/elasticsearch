@@ -30,6 +30,7 @@ import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.LinearRing;
 import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Polygon;
@@ -46,6 +47,9 @@ import com.vividsolutions.jts.geom.Polygon;
 public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
+
+    private static final LineString DATELINE_PLUS = FACTORY.createLineString(new Coordinate[] { new Coordinate(180,90), new Coordinate(180,-90) });
+    private static final LineString DATELINE_MINUS = FACTORY.createLineString(new Coordinate[] { new Coordinate(-180,90), new Coordinate(-180,-90) });
 
     // Linear ring defining the shell of the polygon
     protected Ring<E> shell; 
@@ -171,7 +175,8 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     }
     
     public Geometry buildGeometry(GeometryFactory factory, boolean fixDateline) {
-        if(fixDateline) {
+        // only attempt to fix the dateline, if we need to.
+        if(fixDateline && crossesDateline(factory)) {
             Coordinate[][][] polygons = coordinates();
             return polygons.length == 1
                     ? polygon(factory, polygons[0])
@@ -179,6 +184,11 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         } else {
             return toPolygon(factory);
         }
+    }
+
+    protected boolean crossesDateline(GeometryFactory factory) {
+        Polygon polygon = toPolygon(factory);
+        return (polygon.crosses(DATELINE_MINUS) || polygon.crosses(DATELINE_PLUS));
     }
 
     public Polygon toPolygon() {

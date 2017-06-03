@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.GeometryFactory;
 
 public class MultiPolygonBuilder extends ShapeBuilder {
 
@@ -70,7 +71,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
 
         List<Shape> shapes = new ArrayList<Shape>(this.polygons.size());
         
-        if(wrapdateline) {
+        if(wrapdateline && crossesDateline(FACTORY)) {
             for (BasePolygonBuilder<?> polygon : this.polygons) {
                 for(Coordinate[][] part : polygon.coordinates()) {
                     shapes.add(jtsGeometry(PolygonBuilder.polygon(FACTORY, part)));
@@ -86,6 +87,14 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         else
             return new ShapeCollection<Shape>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
+    }
+
+    private boolean crossesDateline(GeometryFactory factory) {
+        boolean result = false;
+        for (BasePolygonBuilder<?> polygon : this.polygons) {
+            result = result || polygon.crossesDateline(factory);
+        }
+        return result;
     }
 
     public static class InternalPolygonBuilder extends BasePolygonBuilder<InternalPolygonBuilder> {

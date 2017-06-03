@@ -133,7 +133,11 @@ public class XContentMapConverter {
     private static void writeIterable(XContentGenerator gen, Iterable iterable) throws IOException {
         gen.writeStartArray();
         for (Object value : iterable) {
-            writeValue(gen, value);
+	    if (value == null) {
+		gen.writeNull();
+	    } else {
+		writeValue(gen, value);
+	    }
         }
         gen.writeEndArray();
     }

@@ -27,6 +27,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.testng.annotations.Test;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -66,6 +68,17 @@ public class XContentBuilderTests {
         builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("test", "value").endObject();
         assertThat(builder.string(), equalTo("{\"test\":\"value\"}"));
+    }
+
+    @Test
+    public void testMapArraysWithNull() throws Exception {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        HashMap m = new HashMap();
+        ArrayList li = new ArrayList();
+        li.add(null);
+        m.put("map", li);
+        builder.startObject().field("test", m).endObject();
+        assertThat(builder.string(), equalTo("{\"test\":{\"map\":[null]}}"));
     }
 
     @Test public void testOverloadedList() throws Exception {

@@ -113,49 +113,41 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 }
                 difference.removeAll(matches);
 
-                /*
-                 * At this point, differences contains any requested aliases (containing wildcards or not) that are not satisfied by any
-                 * existing aliases.
-                 */
-                if (!difference.isEmpty()) {
-                    final String message;
-                    if (difference.size() == 1) {
-                        message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(difference.iterator().next()));
-                    } else {
-                        message = String.format(Locale.ROOT, "aliases [%s] missing", toNamesString(difference.toArray(new String[0])));
-                    }
-                    builder.startObject();
-                    {
+                final RestStatus status;
+                builder.startObject();
+                {
+                    if (!difference.isEmpty()) {
+                        status = RestStatus.NOT_FOUND;
+                        final String message;
+                        if (difference.size() == 1) {
+                            message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(difference.iterator().next()));
+                        } else {
+                            message = String.format(Locale.ROOT, "aliases [%s] missing", toNamesString(difference.toArray(new String[0])));
+                        }
                         builder.field("error", message);
                         builder.field("status", RestStatus.NOT_FOUND.getStatus());
+                    } else {
+                        status = RestStatus.OK;
                     }
-                    builder.endObject();
-                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
-                }
 
-                if (aliasMap.isEmpty()) {
-                    return new BytesRestResponse(OK, builder.startObject().endObject());
-                } else {
-                    builder.startObject();
-                    {
-                        for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
-                            builder.startObject(entry.key);
+                    for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
+                        builder.startObject(entry.key);
+                        {
+                            builder.startObject("aliases");
                             {
-                                builder.startObject("aliases");
-                                {
-                                    for (final AliasMetaData alias : entry.value) {
-                                        AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
-                                    }
+                                for (final AliasMetaData alias : entry.value) {
+                                    AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
                                 }
-                                builder.endObject();
                             }
                             builder.endObject();
                         }
+                        builder.endObject();
                     }
-                    builder.endObject();
-                    return new BytesRestResponse(OK, builder);
                 }
+                builder.endObject();
+                return new BytesRestResponse(status, builder);
             }
+
         });
     }
 

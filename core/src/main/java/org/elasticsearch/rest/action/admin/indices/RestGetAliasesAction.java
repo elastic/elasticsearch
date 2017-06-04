@@ -113,7 +113,10 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 }
                 difference.removeAll(matches);
 
-                // at this point, differences contains any aliases (containing wildcards or not) that are not satisfied by any aliases
+                /*
+                 * At this point, differences contains any requested aliases (containing wildcards or not) that are not satisfied by any
+                 * existing aliases.
+                 */
                 if (!difference.isEmpty()) {
                     final String message;
                     if (difference.size() == 1) {

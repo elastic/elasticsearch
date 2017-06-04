@@ -41,7 +41,7 @@ PUT /emails/message/_bulk?refresh
 { "index" : { "_id" : 3 } }
 { "accounts" : ["vladimir", "donald"]}
 
-GET emails/message/_search
+POST emails/message/_search
 {
   "size": 0,
   "aggs" : {

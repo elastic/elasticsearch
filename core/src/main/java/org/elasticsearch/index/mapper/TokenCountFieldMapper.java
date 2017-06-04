@@ -136,7 +136,7 @@ public class TokenCountFieldMapper extends FieldMapper {
 
         final int tokenCount;
         if (value == null) {
-            tokenCount = (Integer) fieldType().nullValue();
+            tokenCount = 0;
         } else {
             tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
         }

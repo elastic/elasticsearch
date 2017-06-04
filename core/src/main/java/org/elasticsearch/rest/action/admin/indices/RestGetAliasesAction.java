@@ -27,6 +27,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -40,6 +41,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -93,7 +95,25 @@ public class RestGetAliasesAction extends BaseRestHandler {
                     }
                 }
 
+                // first remove requested aliases that are exact matches
                 final SortedSet<String> difference = Sets.sortedDifference(Arrays.stream(aliases).collect(Collectors.toSet()), aliasNames);
+
+                // now remove requested aliases that contain wildcards that are simple matches
+                final List<String> matches = new ArrayList<>();
+                outer:
+                for (final String pattern : difference) {
+                    if (pattern.contains("*")) {
+                        for (final String aliasName : aliasNames) {
+                            if (Regex.simpleMatch(pattern, aliasName)) {
+                                matches.add(pattern);
+                                continue outer;
+                            }
+                        }
+                    }
+                }
+                difference.removeAll(matches);
+
+                // at this point, differences contains any aliases (containing wildcards or not) that are not satisfied by any aliases
                 if (!difference.isEmpty()) {
                     final String message;
                     if (difference.size() == 1) {

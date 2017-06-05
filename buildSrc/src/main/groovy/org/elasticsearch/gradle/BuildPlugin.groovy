@@ -528,6 +528,9 @@ class BuildPlugin implements Plugin<Project> {
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
                 if (property.getKey().startsWith('tests.') ||
                         property.getKey().startsWith('es.')) {
+                    if (property.getKey().equals('tests.seed')) {
+                        continue;
+                    }
                     systemProperty property.getKey(), property.getValue()
                 }
             }

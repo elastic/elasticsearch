@@ -57,6 +57,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqN
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -406,7 +407,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, Function<String, Searcher> searcherFactory, @Nullable MeanMetric refreshMetric) throws EngineException {
+    public GetResult get(Get get, Function<String, Searcher> searcherFactory, @Nullable Callback<Long> onRefreshMetric) throws EngineException {
         assert Objects.equals(get.uid().field(), uidField) : get.uid().field();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
@@ -420,11 +421,11 @@ public class InternalEngine extends Engine {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                             get.versionType().explainConflictForReads(versionValue.version, get.version()));
                     }
-                    if (refreshMetric == null)
-                        throw new InvalidParameterException("refresh metric should not be null for stats tracing of a realtime get");
+                    if (onRefreshMetric == null)
+                        throw new InvalidParameterException("Callback should not be null in case of realtime get.");
                     long time = System.nanoTime();
                     refresh("realtime_get");
-                    refreshMetric.inc(System.nanoTime() - time);
+                    onRefreshMetric.handle(System.nanoTime() - time);
                 }
             }
 

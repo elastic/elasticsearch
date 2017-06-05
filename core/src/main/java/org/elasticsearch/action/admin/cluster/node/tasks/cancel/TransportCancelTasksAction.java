@@ -167,12 +167,6 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         }
     }
 
-
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
-    }
-
     private void setBanOnNodes(String reason, CancellableTask task, DiscoveryNodes nodes, ActionListener<Void> listener) {
         sendSetBanRequest(nodes,
             BanParentTaskRequest.createSetBanParentTaskRequest(new TaskId(clusterService.localNode().getId(), task.getId()), reason),

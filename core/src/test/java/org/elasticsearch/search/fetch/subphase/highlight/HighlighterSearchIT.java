@@ -802,7 +802,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
          * in the neighborhood of 300ms and the large phrase limit is in the
          * neighborhood of 8 seconds.
          */
-        assertThat(defaultPhraseLimit.getTookInMillis(), lessThan(largePhraseLimit.getTookInMillis()));
+        assertThat(defaultPhraseLimit.getTook().getMillis(),
+                lessThan(largePhraseLimit.getTook().getMillis()));
     }
 
 

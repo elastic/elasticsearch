@@ -20,7 +20,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             'fedora-25',
             'oel-6',
             'oel-7',
-            'opensuse-13',
+            'opensuse-42',
             'sles-12',
             'ubuntu-1404',
             'ubuntu-1604'

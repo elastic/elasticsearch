@@ -23,6 +23,12 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +53,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
     static final String CONTENT_TYPE = "parent";
 
     static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new ParentIdFieldType();
+        static final MappedFieldType FIELD_TYPE = new ParentIdFieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
@@ -73,6 +79,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
             return children;
         }
 
+        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+            fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            return builder;
+        }
+
         @Override
         public ParentIdFieldMapper build(BuilderContext context) {
             fieldType.setName(name);
@@ -81,7 +92,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     public static final class ParentIdFieldType extends StringFieldType {
-        public ParentIdFieldType() {
+        ParentIdFieldType() {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
@@ -140,11 +151,26 @@ public final class ParentIdFieldMapper extends FieldMapper {
         return parentName;
     }
 
+    public Query getParentFilter() {
+        return new TermQuery(new Term(name().substring(0, name().indexOf('#')), parentName));
+    }
     /**
      * Returns the children names associated with this mapper.
      */
     public Collection<String> getChildren() {
         return children;
+    }
+
+    public Query getChildFilter(String type) {
+        return new TermQuery(new Term(name().substring(0, name().indexOf('#')), type));
+    }
+
+    public Query getChildrenFilter() {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (String child : children) {
+            builder.add(getChildFilter(child), BooleanClause.Occur.SHOULD);
+        }
+        return new ConstantScoreQuery(builder.build());
     }
 
     @Override

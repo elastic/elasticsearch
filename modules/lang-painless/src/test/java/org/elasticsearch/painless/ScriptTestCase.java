@@ -34,9 +34,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -94,11 +92,11 @@ public abstract class ScriptTestCase extends ESTestCase {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
             Definition definition = Definition.BUILTINS;
-            ScriptInterface scriptInterface = new ScriptInterface(definition, GenericElasticsearchScript.class);
+            ScriptClassInfo scriptClassInfo = new ScriptClassInfo(definition, GenericElasticsearchScript.class);
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
-            Walker.buildPainlessTree(scriptInterface, getTestName(), script, pickySettings,
+            Walker.buildPainlessTree(scriptClassInfo, getTestName(), script, pickySettings,
                     definition, null);
         }
         // test actual script execution

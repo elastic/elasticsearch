@@ -513,7 +513,6 @@ class BuildPlugin implements Plugin<Project> {
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
             systemProperty 'java.io.tmpdir', './temp'
             systemProperty 'java.awt.headless', 'true'
-            systemProperty 'tests.seed', project.testSeed
             systemProperty 'tests.gradle', 'true'
             systemProperty 'tests.artifact', project.name
             systemProperty 'tests.task', path
@@ -529,6 +528,8 @@ class BuildPlugin implements Plugin<Project> {
                 if (property.getKey().startsWith('tests.') ||
                         property.getKey().startsWith('es.')) {
                     if (property.getKey().equals('tests.seed')) {
+                        /* The see is already set on the project so we shouldn't
+                         * attempt to override it. */
                         continue;
                     }
                     systemProperty property.getKey(), property.getValue()

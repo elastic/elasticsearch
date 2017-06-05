@@ -75,6 +75,10 @@ public class RestGetIndicesAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] featureParams = request.paramAsStringArray("type", null);
+        if (featureParams != null && featureParams.length > 1) {
+            deprecationLogger.deprecated("Requesting comma-separated features is deprecated and " +
+                            "will be removed in 6.0+, retrieve all features instead.");
+        }
         // Work out if the indices is a list of features
         if (featureParams == null && indices.length > 0 && indices[0] != null && indices[0].startsWith("_") && !"_all".equals(indices[0])) {
             featureParams = indices;

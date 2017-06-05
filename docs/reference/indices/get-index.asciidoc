@@ -19,6 +19,8 @@ all indices by using `_all` or `*` as index.
 [float]
 === Filtering index information
 
+deprecated[5.5.0, This comma-separated format is deprecated and will be removed. You can retrieve either a single feature (ie _alias) or all features]
+
 The information returned by the get API can be filtered to include only specific features
 by specifying a comma delimited list of features in the URL:
 
@@ -27,7 +29,7 @@ by specifying a comma delimited list of features in the URL:
 GET twitter/_settings,_mappings
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:twitter warning:Requesting comma-separated features is deprecated and will be removed in 6.0+, retrieve all features instead.]
 
 The above command will only return the settings and mappings for the index called `twitter`.
 

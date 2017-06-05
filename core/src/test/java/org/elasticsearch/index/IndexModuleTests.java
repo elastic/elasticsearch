@@ -120,7 +120,7 @@ public class IndexModuleTests extends ESTestCase {
         index = indexSettings.getIndex();
         environment = new Environment(settings);
         emptyAnalysisRegistry = new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap());
+                emptyMap(), emptyMap(), emptyMap());
         threadPool = new TestThreadPool("test");
         circuitBreakerService = new NoneCircuitBreakerService();
         bigArrays = new BigArrays(settings, circuitBreakerService);

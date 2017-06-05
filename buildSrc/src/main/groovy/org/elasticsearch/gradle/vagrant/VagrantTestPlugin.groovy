@@ -1,5 +1,6 @@
 package org.elasticsearch.gradle.vagrant
 
+import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
 import org.elasticsearch.gradle.FileContentsTask
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
@@ -98,13 +99,15 @@ class VagrantTestPlugin implements Plugin<Project> {
     }
 
     private static void createBatsConfiguration(Project project) {
+        /* Setup the seed so it is available to bats tests if they want it and
+         * to the code below that sets up dependencies. */
+        RandomizedTestingPlugin.setupSeed(project)
         project.configurations.create(BATS)
-
-        String firstPartOfSeed = project.testSeed.tokenize(':').get(0)
-        final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16)
 
         String upgradeFromVersion = System.getProperty("tests.packaging.upgradeVersion");
         if (upgradeFromVersion == null) {
+            String firstPartOfSeed = project.testSeed.tokenize(':').get(0)
+            final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16)
             upgradeFromVersion = project.indexCompatVersions[new Random(seed).nextInt(project.indexCompatVersions.size())]
         }
 
@@ -118,7 +121,6 @@ class VagrantTestPlugin implements Plugin<Project> {
             project.dependencies.add(BATS, "org.elasticsearch.distribution.${it}:elasticsearch:${upgradeFromVersion}@${it}")
         }
 
-        project.extensions.esvagrant.testSeed = seed
         project.extensions.esvagrant.upgradeFromVersion = upgradeFromVersion
     }
 

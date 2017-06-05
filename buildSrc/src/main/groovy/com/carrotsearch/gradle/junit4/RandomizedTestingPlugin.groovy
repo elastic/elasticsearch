@@ -12,8 +12,34 @@ import org.gradle.api.tasks.testing.Test
 class RandomizedTestingPlugin implements Plugin<Project> {
 
     void apply(Project project) {
+        setupSeed(project)
         replaceTestTask(project.tasks)
         configureAnt(project.ant)
+    }
+
+    /**
+     * Pins the test seed at configuration time so it isn't different on every
+     * {@link RandomizedTestingTask} execution. This is useful if random
+     * decisions in one run of {@linkplain RandomizedTestingTask} influence the
+     * outcome of subsequent runs. Pinning the seed up front like this makes
+     * the reproduction line from one run be useful on another run.
+     */
+    static void setupSeed(Project project) {
+        if (project.ext.has('testSeed')) {
+            // Already done
+            return
+        }
+        String testSeed = System.getProperty('tests.seed')
+        if (testSeed == null) {
+            long seed = new Random(System.currentTimeMillis()).nextLong()
+            testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT)
+        } else {
+            // Clear the property so it doesn't muddy other things
+            System.clearProperty("tests.seed")
+        }
+        project.allprojects {
+            project.ext.testSeed = testSeed
+        }
     }
 
     static void replaceTestTask(TaskContainer tasks) {

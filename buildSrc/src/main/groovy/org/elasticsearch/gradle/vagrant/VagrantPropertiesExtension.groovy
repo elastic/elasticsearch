@@ -26,9 +26,6 @@ class VagrantPropertiesExtension {
     List<String> boxes
 
     @Input
-    Long testSeed
-
-    @Input
     String upgradeFromVersion
 
     @Input

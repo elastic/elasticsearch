@@ -93,7 +93,7 @@ A service account file looks like this:
 // NOTCONSOLE
 
 This file must be stored in the {ref}/secure-settings.html[elasticsearch keystore], under a setting name
-of the form `gcs.client.NAME.credentials_file`, where `NAME` is the name of the client congiguration.
+of the form `gcs.client.NAME.credentials_file`, where `NAME` is the name of the client configuration.
 The default client name is `default`, but a different client name can be specified in repository
 settings using `client`.
 

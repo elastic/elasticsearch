@@ -27,10 +27,8 @@ import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,23 +49,14 @@ public class WriteOperationTests extends ESTestCase {
         NetworkBytesReference reference =  ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
         WriteOperation writeOp = new WriteOperation(channel, reference, listener);
 
-        when(channel.write(reference.getReadByteBuffers()[0])).thenReturn(10);
+
+        when(channel.write(reference)).thenAnswer(invocationOnMock -> {
+            NetworkBytesReference ref = (NetworkBytesReference) invocationOnMock.getArguments()[0];
+            ref.incrementRead(10);
+            return 10;
+        });
 
         writeOp.flush();
-
-        assertTrue(writeOp.isFullyFlushed());
-    }
-
-    public void testFlushInMultipleCalls() throws IOException {
-        NetworkBytesReference reference = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
-        WriteOperation writeOp = new WriteOperation(channel, reference, listener);
-        ByteBuffer rawBuffer = reference.getReadByteBuffers()[0];
-
-        when(channel.write(rawBuffer)).thenReturn(5);
-
-        writeOp.flush();
-
-        verify(channel, times(2)).write(rawBuffer);
 
         assertTrue(writeOp.isFullyFlushed());
     }
@@ -75,46 +64,16 @@ public class WriteOperationTests extends ESTestCase {
     public void testPartialFlush() throws IOException {
         NetworkBytesReference reference = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
         WriteOperation writeOp = new WriteOperation(channel, reference, listener);
-        ByteBuffer rawBuffer = reference.getReadByteBuffers()[0];
 
-        when(channel.write(rawBuffer)).thenReturn(5, 0);
-
-        writeOp.flush();
-
-        verify(channel, times(2)).write(rawBuffer);
-
-        assertFalse(writeOp.isFullyFlushed());
-        assertEquals(5, reference.getReadIndex());
-    }
-
-    public void testVectoredFlushInMultipleCalls() throws IOException {
-        ByteBufferReference heap1 = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
-        ByteBufferReference heap2 = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
-        ByteBuffer[] rawRefs = {heap1.getReadByteBuffer(), heap2.getReadByteBuffer()};
-        CompositeByteBufferReference reference = new CompositeByteBufferReference(heap1, heap2);
-        WriteOperation writeOp = new WriteOperation(channel, reference, listener);
-
-        when(channel.vectorizedWrite(rawRefs)).thenReturn(5L, 15L);
+        when(channel.write(reference)).thenAnswer(invocationOnMock -> {
+            NetworkBytesReference ref = (NetworkBytesReference) invocationOnMock.getArguments()[0];
+            ref.incrementRead(5);
+            return 5;
+        });
 
         writeOp.flush();
 
-        verify(channel, times(2)).vectorizedWrite(rawRefs);
-
-        assertTrue(writeOp.isFullyFlushed());
-    }
-
-    public void testPartialVectoredFlush() throws IOException {
-        ByteBufferReference heap1 = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
-        ByteBufferReference heap2 = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
-        ByteBuffer[] rawRefs = {heap1.getReadByteBuffer(), heap2.getReadByteBuffer()};
-        CompositeByteBufferReference reference = new CompositeByteBufferReference(heap1, heap2);
-        WriteOperation writeOp = new WriteOperation(channel, reference, listener);
-
-        when(channel.vectorizedWrite(rawRefs)).thenReturn(5L, 0L);
-
-        writeOp.flush();
-
-        verify(channel, times(2)).vectorizedWrite(rawRefs);
+        verify(channel).write(reference);
 
         assertFalse(writeOp.isFullyFlushed());
     }

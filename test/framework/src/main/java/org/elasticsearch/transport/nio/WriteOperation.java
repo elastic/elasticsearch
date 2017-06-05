@@ -20,12 +20,10 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 public class WriteOperation {
 
@@ -56,36 +54,6 @@ public class WriteOperation {
     }
 
     public int flush() throws IOException {
-        if (networkBuffer.hasMultipleBuffers()) {
-            return vectorizedFlush(networkBuffer.getReadByteBuffers());
-        } else {
-            return singleFlush(networkBuffer.getReadByteBuffer());
-        }
-    }
-
-    private int singleFlush(ByteBuffer buffer) throws IOException {
-        int totalWritten = 0;
-        while (networkBuffer.getReadRemaining() != 0) {
-            int written = channel.write(buffer);
-            if (written <= 0) {
-                break;
-            }
-            totalWritten += written;
-            networkBuffer.incrementRead(written);
-        }
-        return totalWritten;
-    }
-
-    private int vectorizedFlush(ByteBuffer[] buffers) throws IOException {
-        int totalWritten = 0;
-        while (networkBuffer.getReadRemaining() != 0) {
-            int written = (int) channel.vectorizedWrite(buffers);
-            if (written <= 0) {
-                break;
-            }
-            totalWritten += written;
-            networkBuffer.incrementRead(written);
-        }
-        return totalWritten;
+        return channel.write(networkBuffer);
     }
 }

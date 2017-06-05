@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.transport.nio.ESSelector;
+import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 
 import java.io.IOException;
@@ -72,20 +73,39 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return super.markRegistered(selector);
     }
 
-    public int write(ByteBuffer buffer) throws IOException {
-        return socketChannel.write(buffer);
+    public int write(NetworkBytesReference reference) throws IOException {
+        int totalWritten = 0;
+        while (reference.getReadRemaining() != 0) {
+            int written;
+            if (!reference.hasMultipleBuffers()) {
+                written = socketChannel.write(reference.getReadByteBuffer());
+            } else {
+                written = (int) socketChannel.write(reference.getReadByteBuffers());
+            }
+            if (written <= 0) {
+                break;
+            }
+            totalWritten += written;
+            reference.incrementRead(written);
+        }
+        return totalWritten;
     }
 
-    public long vectorizedWrite(ByteBuffer[] buffers) throws IOException {
-        return socketChannel.write(buffers);
-    }
+    public int read(NetworkBytesReference reference) throws IOException {
+        int bytesRead;
+        if (!reference.hasMultipleBuffers()) {
+            bytesRead = socketChannel.read(reference.getWriteByteBuffer());
+        } else {
+            // The buffers are bounded by Integer.MAX_VALUE
+            bytesRead = (int) socketChannel.read(reference.getWriteByteBuffers());
+        }
 
-    public int read(ByteBuffer buffer) throws IOException {
-        return socketChannel.read(buffer);
-    }
+        if (bytesRead == -1) {
+            return bytesRead;
+        }
 
-    public long vectorizedRead(ByteBuffer[] buffers) throws IOException {
-        return socketChannel.read(buffers);
+        reference.incrementWrite(bytesRead);
+        return bytesRead;
     }
 
     public void setContexts(ReadContext readContext, WriteContext writeContext) {

@@ -26,7 +26,6 @@ import org.elasticsearch.transport.nio.CompositeByteBufferReference;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 public class TcpReadContext implements ReadContext {
 
@@ -55,21 +54,11 @@ public class TcpReadContext implements ReadContext {
             this.references.addBuffer(ByteBufferReference.heapBuffer(new BytesArray(new byte[DEFAULT_READ_LENGTH])));
         }
 
-        ByteBuffer[] buffers = references.getWriteByteBuffers();
-
-        int bytesRead;
-        if (buffers.length == 1) {
-            bytesRead = channel.read(buffers[0]);
-        } else {
-            // The buffers are bounded by Integer.MAX_VALUE
-            bytesRead = (int) channel.vectorizedRead(buffers);
-        }
+        int bytesRead = channel.read(references);
 
         if (bytesRead == -1) {
             return bytesRead;
         }
-
-        references.incrementWrite(bytesRead);
 
         BytesReference message;
         while ((message = frameDecoder.decode(references, references.getWriteIndex())) != null) {

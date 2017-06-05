@@ -259,7 +259,9 @@ class RandomizedTestingTask extends DefaultTask {
                     }
                 }
                 for (Map.Entry<String, Object> prop : systemProperties) {
-                    sysproperty key: prop.getKey(), value: prop.getValue().toString()
+                    if (false == prop.getKey().equals('tests.seed')) {
+                        sysproperty key: prop.getKey(), value: prop.getValue().toString()
+                    }
                 }
                 for (Map.Entry<String, Object> envvar : environmentVariables) {
                     env key: envvar.getKey(), value: envvar.getValue().toString()

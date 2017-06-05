@@ -25,19 +25,21 @@ class RandomizedTestingPlugin implements Plugin<Project> {
      * the reproduction line from one run be useful on another run.
      */
     static void setupSeed(Project project) {
-        if (project.ext.has('testSeed')) {
-            // Already done
+        if (project.rootProject.ext.has('testSeed')) {
+            /* Skip this if we've already pinned the testSeed. It is important
+             * that this checks the rootProject so that we know we've only ever
+             * initialized one time. */
             return
         }
         String testSeed = System.getProperty('tests.seed')
         if (testSeed == null) {
             long seed = new Random(System.currentTimeMillis()).nextLong()
             testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT)
-        } else {
-            // Clear the property so it doesn't muddy other things
-            System.clearProperty("tests.seed")
         }
-        project.allprojects {
+        /* Set the testSeed on the root project first so other projects can use
+         * it during initialization. */
+        project.rootProject.ext.testSeed = testSeed
+        project.rootProject.subprojects {
             project.ext.testSeed = testSeed
         }
     }

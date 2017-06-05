@@ -54,12 +54,8 @@ service API requests but it cannot run jobs. If you want to use {xpackml}
 features, there must be at least one {ml} node in your cluster. For more
 information about this setting, see <<ml-settings>>.
 
-include::functions.asciidoc[]
+[float]
+[[ml-function-overview]]
+=== Analytical functions
 
-include::functions/count.asciidoc[]
-include::functions/geo.asciidoc[]
-include::functions/info.asciidoc[]
-include::functions/metric.asciidoc[]
-include::functions/rare.asciidoc[]
-include::functions/sum.asciidoc[]
-include::functions/time.asciidoc[]
+See <<ml-functions>>.

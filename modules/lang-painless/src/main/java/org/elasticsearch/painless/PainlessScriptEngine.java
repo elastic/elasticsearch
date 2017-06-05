@@ -25,19 +25,20 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 
-import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,17 +71,32 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
     /**
      * Default compiler settings to be used. Note that {@link CompilerSettings} is mutable but this instance shouldn't be mutated outside
-     * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings)}.
+     * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings, Collection)}.
      */
     private final CompilerSettings defaultCompilerSettings = new CompilerSettings();
+
+    private final Map<ScriptContext<?>, Compiler> contextsToCompilers;
 
     /**
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
-    public PainlessScriptEngine(final Settings settings) {
+    public PainlessScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         super(settings);
+
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
+
+        Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
+
+        for (ScriptContext<?> context : contexts) {
+            if (context.instanceClazz.equals(SearchScript.class) || context.instanceClazz.equals(ExecutableScript.class)) {
+                contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, Definition.BUILTINS));
+            } else {
+                contextsToCompilers.put(context, new Compiler(context.instanceClazz, Definition.BUILTINS));
+            }
+        }
+
+        this.contextsToCompilers = Collections.unmodifiableMap(contextsToCompilers);
     }
 
     /**
@@ -99,27 +115,28 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
     @Override
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
-        GenericElasticsearchScript painlessScript = compile(GenericElasticsearchScript.class, scriptName, scriptSource, params);
+        GenericElasticsearchScript painlessScript =
+            (GenericElasticsearchScript)compile(contextsToCompilers.get(context), scriptName, scriptSource, params);
         if (context.instanceClazz.equals(SearchScript.class)) {
-            SearchScript.Factory factory = (p, lookup) -> new SearchScript() {
+            SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
                 @Override
-                public LeafSearchScript getLeafSearchScript(final LeafReaderContext context) throws IOException {
-                    return new ScriptImpl(painlessScript, p, lookup.getLeafSearchLookup(context));
+                public SearchScript newInstance(final LeafReaderContext context) {
+                    return new ScriptImpl(painlessScript, p, lookup, context);
                 }
                 @Override
                 public boolean needsScores() {
-                    return painlessScript.uses$_score();
+                    return painlessScript.needs_score();
                 }
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
-            ExecutableScript.Factory factory = (p) -> new ScriptImpl(painlessScript, p, null);
+            ExecutableScript.Factory factory = (p) -> new ScriptImpl(painlessScript, p, null, null);
             return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("painless does not know how to handle context [" + context.name + "]");
     }
 
-    <T> T compile(Class<T> iface, String scriptName, final String scriptSource, final Map<String, String> params) {
+    Object compile(Compiler compiler, String scriptName, String source, Map<String, String> params, Object... args) {
         final CompilerSettings compilerSettings;
 
         if (params.isEmpty()) {
@@ -172,16 +189,23 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
         try {
             // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<T>() {
+            return AccessController.doPrivileged(new PrivilegedAction<Object>() {
                 @Override
-                public T run() {
+                public Object run() {
                     String name = scriptName == null ? INLINE_NAME : scriptName;
-                    return Compiler.compile(loader, iface, name, scriptSource, compilerSettings);
+                    Constructor<?> constructor = compiler.compile(loader, name, source, compilerSettings);
+
+                    try {
+                        return constructor.newInstance(args);
+                    } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
+                        throw new IllegalStateException(
+                            "An internal error occurred attempting to define the script [" + name + "].", exception);
+                    }
                 }
             }, COMPILATION_CONTEXT);
         // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
-            throw convertToScriptException(scriptName == null ? scriptSource : scriptName, scriptSource, e);
+            throw convertToScriptException(scriptName == null ? source : scriptName, source, e);
         }
     }
 

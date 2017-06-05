@@ -68,6 +68,11 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "bulk_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         BulkRequest bulkRequest = Requests.bulkRequest();
         String defaultIndex = request.param("index");

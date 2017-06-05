@@ -41,6 +41,11 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
     }
 
     @Override
+    public String getName() {
+        return "delete_by_query_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         return doPrepareRequest(request, client, false, false);
     }

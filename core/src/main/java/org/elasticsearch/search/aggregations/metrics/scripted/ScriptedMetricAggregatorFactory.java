@@ -38,13 +38,13 @@ import java.util.function.Function;
 
 public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAggregatorFactory> {
 
-    private final Function<Map<String, Object>, SearchScript> mapScript;
+    private final Function<Map<String, Object>, SearchScript.LeafFactory> mapScript;
     private final Function<Map<String, Object>, ExecutableScript> combineScript;
     private final Script reduceScript;
     private final Map<String, Object> params;
     private final Function<Map<String, Object>, ExecutableScript> initScript;
 
-    public ScriptedMetricAggregatorFactory(String name, Function<Map<String, Object>, SearchScript> mapScript,
+    public ScriptedMetricAggregatorFactory(String name, Function<Map<String, Object>, SearchScript.LeafFactory> mapScript,
             Function<Map<String, Object>, ExecutableScript> initScript, Function<Map<String, Object>, ExecutableScript> combineScript,
             Script reduceScript, Map<String, Object> params, SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
@@ -71,7 +71,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         }
 
         final ExecutableScript initScript = this.initScript.apply(params);
-        final SearchScript mapScript = this.mapScript.apply(params);
+        final SearchScript.LeafFactory mapScript = this.mapScript.apply(params);
         final ExecutableScript combineScript = this.combineScript.apply(params);
 
         final Script reduceScript = deepCopyScript(this.reduceScript, context);

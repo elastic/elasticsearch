@@ -52,6 +52,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -60,6 +61,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -285,6 +287,27 @@ public class PluginsService extends AbstractComponent {
         return bundles;
     }
 
+    static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
+        /*
+         * Check for the existence of a marker file that indicates any plugins are in a garbage state from a failed attempt to remove the
+         * plugin.
+         */
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory, ".removing-*")) {
+            final Iterator<Path> iterator = stream.iterator();
+            if (iterator.hasNext()) {
+                final Path removing = iterator.next();
+                final String fileName = removing.getFileName().toString();
+                final String name = fileName.substring(1 + fileName.indexOf("-"));
+                final String message = String.format(
+                        Locale.ROOT,
+                        "found file [%s] from a failed attempt to remove the plugin [%s]; execute [elasticsearch-plugin remove %2$s]",
+                        removing,
+                        name);
+                throw new IllegalStateException(message);
+            }
+        }
+    }
+
     static Set<Bundle> getPluginBundles(Path pluginsDirectory) throws IOException {
         Logger logger = Loggers.getLogger(PluginsService.class);
 
@@ -295,6 +318,8 @@ public class PluginsService extends AbstractComponent {
 
         Set<Bundle> bundles = new LinkedHashSet<>();
 
+        checkForFailedPluginRemovals(pluginsDirectory);
+
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
                 logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
@@ -304,19 +329,6 @@ public class PluginsService extends AbstractComponent {
                 } catch (IOException e) {
                     throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
                         + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
-                }
-                /*
-                 * Check for the existence of a marker file that indicates the plugin is in a garbage state from a failed attempt to remove
-                 * the plugin.
-                 */
-                final Path removing = plugin.resolve(".removing-" + info.getName());
-                if (Files.exists(removing)) {
-                    final String message = String.format(
-                            Locale.ROOT,
-                            "found file [%s] from a failed attempt to remove the plugin [%s]; execute [elasticsearch-plugin remove %2$s]",
-                            removing,
-                            info.getName());
-                    throw new IllegalStateException(message);
                 }
 
                 Set<URL> urls = new LinkedHashSet<>();

@@ -72,6 +72,8 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        // TODO: use a single type when inner hits have been changed to work with join field,
+        // this test randomly generates queries with inner hits
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",

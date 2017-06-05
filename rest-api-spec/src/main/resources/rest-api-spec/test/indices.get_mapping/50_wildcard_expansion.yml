@@ -96,11 +96,10 @@ setup:
 "Get test-* with wildcard_expansion=none":
 
  - do:
+    catch: missing
     indices.get_mapping:
         index: test-x*
         expand_wildcards: none
-
- - match: { $body: {} }
 
 ---
 "Get test-* with wildcard_expansion=open,closed":

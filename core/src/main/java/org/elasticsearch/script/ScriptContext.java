@@ -27,26 +27,36 @@ import java.lang.reflect.Method;
  * A {@link ScriptContext} contains the information related to a single use case and the interfaces
  * and methods necessary for a {@link ScriptEngine} to implement.
  * <p>
- * There are two related classes which must be supplied to construct a {@link ScriptContext}.
+ * There are at least two (and optionally a third) related classes which must be defined.
  * <p>
- * The <i>FactoryType</i> is a factory class for constructing instances of a script. The
- * {@link ScriptService} returns an instance of <i>FactoryType</i> when compiling a script. This class
- * must be stateless so it is cacheable by the {@link ScriptService}. It must have an abstract method
- * named {@code newInstance} which {@link ScriptEngine} implementations will define.
- * <p>
- * The <i>InstanceType</i> is a class returned by the {@code newInstance} method of the
- * <i>FactoryType</i>. It is an instance of a script and may be stateful. Instances of
+ * The <i>InstanceType</i> is a class which users of the script api call to execute a script. It
+ * may be stateful. Instances of
  * the <i>InstanceType</i> may be executed multiple times by a caller with different arguments. This
  * class must have an abstract method named {@code execute} which {@link ScriptEngine} implementations
  * will define.
+ * <p>
+ * The <i>FactoryType</i> is a factory class returned by the {@link ScriptService} when compiling
+ * a script. This class must be stateless so it is cacheable by the {@link ScriptService}. It must
+ * have one of the following:
+ * <ul>
+ *     <li>An abstract method named {@code newInstance} which returns an instance of <i>InstanceType</i></li>
+ *     <li>An abstract method named {@code newFactory} which returns an instance of <i>StatefulFactoryType</i></li>
+ * </ul>
+ * <p>
+ * The <i>StatefulFactoryType</i> is an optional class which allows a stateful factory from the
+ * stateless factory type required by the {@link ScriptService}. If defined, the <i>StatefulFactoryType</i>
+ * must have a method named {@code newInstance} which returns an instance of <i>InstanceType</i>.
  */
 public final class ScriptContext<FactoryType> {
 
     /** A unique identifier for this context. */
     public final String name;
 
-    /** A factory class for constructing instances of a script. */
+    /** A factory class for constructing script or stateful factory instances. */
     public final Class<FactoryType> factoryClazz;
+
+    /** A factory class for construct script instances. */
+    public final Class<?> statefulFactoryClazz;
 
     /** A class that is an instance of a script. */
     public final Class<?> instanceClazz;
@@ -55,20 +65,38 @@ public final class ScriptContext<FactoryType> {
     public ScriptContext(String name, Class<FactoryType> factoryClazz) {
         this.name = name;
         this.factoryClazz = factoryClazz;
-        Method newInstanceMethod = null;
-        for (Method method : factoryClazz.getMethods()) {
-            if (method.getName().equals("newInstance")) {
-                if (newInstanceMethod != null) {
-                    throw new IllegalArgumentException("Cannot have multiple newInstance methods on FactoryType class ["
-                        + factoryClazz.getName() + "] for script context [" + name + "]");
-                }
-                newInstanceMethod = method;
+        Method newInstanceMethod = findMethod("FactoryType", factoryClazz, "newInstance");
+        Method newFactoryMethod = findMethod("FactoryType", factoryClazz, "newFactory");
+        if (newFactoryMethod != null) {
+            assert newInstanceMethod == null;
+            statefulFactoryClazz = newFactoryMethod.getReturnType();
+            newInstanceMethod = findMethod("StatefulFactoryType", statefulFactoryClazz, "newInstance");
+            if (newInstanceMethod == null) {
+                throw new IllegalArgumentException("Could not find method newInstance StatefulFactoryType class ["
+                    + statefulFactoryClazz.getName() + "] for script context [" + name + "]");
             }
-        }
-        if (newInstanceMethod == null) {
-            throw new IllegalArgumentException("Could not find method newInstance on FactoryType class ["
+        } else if (newInstanceMethod != null) {
+            assert newFactoryMethod == null;
+            statefulFactoryClazz = null;
+        } else {
+            throw new IllegalArgumentException("Could not find method newInstance or method newFactory on FactoryType class ["
                 + factoryClazz.getName() + "] for script context [" + name + "]");
         }
         instanceClazz = newInstanceMethod.getReturnType();
+    }
+
+    /** Returns a method with the given name, or throws an exception if multiple are found. */
+    private Method findMethod(String type, Class<?> clazz, String methodName) {
+        Method foundMethod = null;
+        for (Method method : clazz.getMethods()) {
+            if (method.getName().equals(methodName)) {
+                if (foundMethod != null) {
+                    throw new IllegalArgumentException("Cannot have multiple " + methodName + " methods on " + type + " class ["
+                        + clazz.getName() + "] for script context [" + name + "]");
+                }
+                foundMethod = method;
+            }
+        }
+        return foundMethod;
     }
 }

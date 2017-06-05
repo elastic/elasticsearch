@@ -329,21 +329,21 @@ public class QueryShardContext extends QueryRewriteContext {
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public final SearchScript getSearchScript(Script script, ScriptContext<SearchScript.Factory> context) {
+    public final SearchScript.LeafFactory getSearchScript(Script script, ScriptContext<SearchScript.Factory> context) {
         failIfFrozen();
         SearchScript.Factory factory = scriptService.compile(script, context);
-        return factory.newInstance(script.getParams(), lookup());
+        return factory.newFactory(script.getParams(), lookup());
     }
     /**
      * Returns a lazily created {@link SearchScript} that is compiled immediately but can be pulled later once all
      * parameters are available.
      */
-    public final Function<Map<String, Object>, SearchScript> getLazySearchScript(
+    public final Function<Map<String, Object>, SearchScript.LeafFactory> getLazySearchScript(
         Script script, ScriptContext<SearchScript.Factory> context) {
         // TODO: this "lazy" binding can be removed once scripted metric aggs have their own contexts, which take _agg/_aggs as a parameter
         failIfFrozen();
         SearchScript.Factory factory = scriptService.compile(script, context);
-        return (p) -> factory.newInstance(p, lookup());
+        return (p) -> factory.newFactory(p, lookup());
     }
 
     /**
@@ -366,6 +366,11 @@ public class QueryShardContext extends QueryRewriteContext {
         failIfFrozen();
         ExecutableScript.Factory factory = scriptService.compile(script, context);
         return factory::newInstance;
+    }
+
+    /** Return the script service to allow compiling scripts. */
+    public final ScriptService getScriptService() {
+        return scriptService;
     }
 
     /**

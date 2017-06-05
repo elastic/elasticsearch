@@ -56,6 +56,11 @@ public class RestListTasksAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "list_tasks_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
         final String groupBy = request.param("group_by", "nodes");

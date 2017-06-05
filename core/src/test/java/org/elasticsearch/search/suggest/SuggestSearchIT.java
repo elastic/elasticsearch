@@ -33,6 +33,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
 import org.elasticsearch.search.suggest.phrase.Laplace;
 import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
@@ -1025,26 +1026,16 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         @Override
         public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
-            if (context.instanceClazz != ExecutableScript.class) {
+            if (context.instanceClazz != TemplateScript.class) {
                 throw new UnsupportedOperationException();
             }
-            ExecutableScript.Factory factory = p -> {
+            TemplateScript.Factory factory = p -> {
                 String script = scriptSource;
                 for (Entry<String, Object> entry : p.entrySet()) {
                     script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
                 }
                 String result = script;
-                return new ExecutableScript() {
-                    @Override
-                    public void setNextVar(String name, Object value) {
-                        throw new UnsupportedOperationException("setNextVar not supported");
-                    }
-
-                    @Override
-                    public Object run() {
-                        return result;
-                    }
-                };
+                return () -> result;
             };
             return context.factoryClazz.cast(factory);
         }

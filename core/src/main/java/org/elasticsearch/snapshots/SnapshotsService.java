@@ -745,9 +745,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     logger.warn("failed to clean up abandoned snapshot {} in INIT state", snapshot.snapshot());
                                 }
                             }, updatedSnapshot.getRepositoryStateId(), false);
-                        } else if (snapshot.state() == State.SUCCESS && newMaster) {
-                            // Finalize the snapshot
-                            endSnapshot(snapshot);
                         }
                     }
                     if (changed) {

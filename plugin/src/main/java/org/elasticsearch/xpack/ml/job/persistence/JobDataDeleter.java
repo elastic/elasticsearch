@@ -53,26 +53,60 @@ public class JobDataDeleter {
         }
 
         String stateIndexName = AnomalyDetectorsIndex.jobStateIndexName();
+
+        // TODO: remove in 7.0
+        ActionListener<BulkResponse> docDeleteListener = ActionListener.wrap(
+                response -> {
+                    // if the doc delete worked then don't bother trying the old types
+                    if (response.hasFailures() == false) {
+                        listener.onResponse(response);
+                        return;
+                    }
+                    BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+                    for (ModelSnapshot modelSnapshot : modelSnapshots) {
+                        for (String stateDocId : modelSnapshot.legacyStateDocumentIds()) {
+                            bulkRequestBuilder.add(client.prepareDelete(stateIndexName, ModelState.TYPE, stateDocId));
+                        }
+
+                        bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()),
+                                ModelSnapshot.TYPE.getPreferredName(), ModelSnapshot.v54DocumentId(modelSnapshot)));
+                    }
+
+                    bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    try {
+                        bulkRequestBuilder.execute(ActionListener.wrap(
+                                listener::onResponse,
+                                // ignore problems relating to single type indices - if we're running against a single type
+                                // index then it must be type doc, so just return the response from deleting that type
+                                e -> {
+                                    if (e instanceof IllegalArgumentException
+                                            && e.getMessage().contains("as the final mapping would have more than 1 type")) {
+                                        listener.onResponse(response);
+                                    }
+                                    listener.onFailure(e);
+                                }
+                        ));
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                },
+                listener::onFailure
+        );
+
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         for (ModelSnapshot modelSnapshot : modelSnapshots) {
             for (String stateDocId : modelSnapshot.stateDocumentIds()) {
                 bulkRequestBuilder.add(client.prepareDelete(stateIndexName, ElasticsearchMappings.DOC_TYPE, stateDocId));
             }
-            // TODO: remove in 7.0
-            for (String stateDocId : modelSnapshot.legacyStateDocumentIds()) {
-                bulkRequestBuilder.add(client.prepareDelete(stateIndexName, ModelState.TYPE, stateDocId));
-            }
 
             bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()),
                     ElasticsearchMappings.DOC_TYPE, ModelSnapshot.documentId(modelSnapshot)));
-            // TODO: remove in 7.0
-            bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()),
-                    ModelSnapshot.TYPE.getPreferredName(), ModelSnapshot.v54DocumentId(modelSnapshot)));
         }
 
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         try {
-            bulkRequestBuilder.execute(listener);
+            // TODO: change docDeleteListener to listener in 7.0
+            bulkRequestBuilder.execute(docDeleteListener);
         } catch (Exception e) {
             listener.onFailure(e);
         }

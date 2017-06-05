@@ -104,7 +104,7 @@ public class RestHttpResponseHeadersIT extends HttpSmokeTestCase {
             assertThat(response.getHeader("Allow"), notNullValue());
             List<String> responseAllowHeaderStringArray =
                     Arrays.asList(response.getHeader("Allow").split(","));
-            assertThat(responseAllowHeaderStringArray, containsInAnyOrder("PUT"));
+            assertThat(responseAllowHeaderStringArray, containsInAnyOrder("PUT", "GET"));
         }
     }
 

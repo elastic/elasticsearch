@@ -24,11 +24,11 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -37,11 +37,13 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -51,7 +53,10 @@ import java.util.Set;
 
 /**
  * A {@link FieldMapper} that creates hierarchical joins (parent-join) between documents in the same index.
- * TODO Should be restricted to a single join field per index
+ * Only one parent-join field can be defined per index. The verification of this assumption is done
+ * through the {@link MetaJoinFieldMapper} which declares a meta field called "_parent_join".
+ * This field is only used to ensure that there is a single parent-join field defined in the mapping and
+ * cannot be used to index or query any data.
  */
 public final class ParentJoinFieldMapper extends FieldMapper {
     public static final String NAME = "join";
@@ -69,23 +74,39 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    static String getParentIdFieldName(String joinFieldName, String parentName) {
+    /**
+     * Returns the {@link ParentJoinFieldMapper} associated with the <code>service</code> or null
+     * if there is no parent-join field in this mapping.
+     */
+    public static ParentJoinFieldMapper getMapper(MapperService service) {
+        MetaJoinFieldMapper.MetaJoinFieldType fieldType =
+            (MetaJoinFieldMapper.MetaJoinFieldType) service.fullName(MetaJoinFieldMapper.NAME);
+        return fieldType == null ? null : fieldType.getMapper();
+    }
+
+    private static String getParentIdFieldName(String joinFieldName, String parentName) {
         return joinFieldName + "#" + parentName;
     }
 
-    static void checkPreConditions(Version indexCreatedVersion, ContentPath path, String name) {
-        if (indexCreatedVersion.before(Version.V_6_0_0_alpha2)) {
-            throw new IllegalStateException("unable to create join field [" + name +
-                "] for index created before " + Version.V_6_0_0_alpha2);
+    private static void checkIndexCompatibility(IndexSettings settings, String name) {
+        if (settings.getIndexMetaData().isRoutingPartitionedIndex()) {
+            throw new IllegalStateException("cannot create join field [" + name + "] " +
+                "for the partitioned index " + "[" + settings.getIndex().getName() + "]");
         }
+        if (settings.isSingleType() == false) {
+            throw new IllegalStateException("cannot create join field [" + name + "] " +
+                "on multi-types index [" + settings.getIndex().getName() + "]");
+        }
+    }
 
+    private static void checkObjectOrNested(ContentPath path, String name) {
         if (path.pathAsText(name).contains(".")) {
             throw new IllegalArgumentException("join field [" + path.pathAsText(name) + "] " +
                 "cannot be added inside an object or in a multi-field");
         }
     }
 
-    static void checkParentFields(String name, List<ParentIdFieldMapper> mappers) {
+    private static void checkParentFields(String name, List<ParentIdFieldMapper> mappers) {
         Set<String> children = new HashSet<>();
         List<String> conflicts = new ArrayList<>();
         for (ParentIdFieldMapper mapper : mappers) {
@@ -100,14 +121,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    static void checkDuplicateJoinFields(ParseContext.Document doc) {
-        if (doc.getFields().stream().anyMatch((m) -> m.fieldType() instanceof JoinFieldType)) {
-            throw new IllegalStateException("cannot have two join fields in the same document");
-        }
-    }
-
     public static class Builder extends FieldMapper.Builder<Builder, ParentJoinFieldMapper> {
         final List<ParentIdFieldMapper.Builder> parentIdFieldBuilders = new ArrayList<>();
+        boolean eagerGlobalOrdinals = true;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -122,18 +138,31 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         public Builder addParent(String parent, Set<String> children) {
             String parentIdFieldName = getParentIdFieldName(name, parent);
             parentIdFieldBuilders.add(new ParentIdFieldMapper.Builder(parentIdFieldName, parent, children));
-            return this;
+            return builder;
+        }
+
+        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+            return builder;
         }
 
         @Override
         public ParentJoinFieldMapper build(BuilderContext context) {
-            checkPreConditions(context.indexCreatedVersion(), context.path(), name);
+            checkObjectOrNested(context.path(), name);
             fieldType.setName(name);
             final List<ParentIdFieldMapper> parentIdFields = new ArrayList<>();
-            parentIdFieldBuilders.stream().map((e) -> e.build(context)).forEach(parentIdFields::add);
+            parentIdFieldBuilders.stream()
+                .map((parentBuilder) -> {
+                    if (eagerGlobalOrdinals) {
+                        parentBuilder.eagerGlobalOrdinals(true);
+                    }
+                    return parentBuilder.build(context);
+                })
+                .forEach(parentIdFields::add);
             checkParentFields(name(), parentIdFields);
+            MetaJoinFieldMapper unique = new MetaJoinFieldMapper.Builder().build(context);
             return new ParentJoinFieldMapper(name, fieldType, context.indexSettings(),
-                Collections.unmodifiableList(parentIdFields));
+                unique, Collections.unmodifiableList(parentIdFields));
         }
     }
 
@@ -141,10 +170,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             final IndexSettings indexSettings = parserContext.mapperService().getIndexSettings();
-            if (indexSettings.getIndexMetaData().isRoutingPartitionedIndex()) {
-                throw new IllegalStateException("cannot set join field [" + name + "] for the partitioned index " +
-                    "[" + indexSettings.getIndex().getName() + "]");
-            }
+            checkIndexCompatibility(indexSettings, name);
 
             Builder builder = new Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -152,25 +178,17 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 if ("type".equals(entry.getKey())) {
                     continue;
                 }
-
+                if ("eager_global_ordinals".equals(entry.getKey())) {
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(entry.getValue(), "eager_global_ordinals"));
+                    iterator.remove();
+                    continue;
+                }
                 final String parent = entry.getKey();
                 Set<String> children;
-                if (entry.getValue() instanceof List) {
-                    children = new HashSet<>();
-                    for (Object childObj : (List) entry.getValue()) {
-                        if (childObj instanceof String) {
-                           children.add(childObj.toString());
-                        } else {
-                            throw new MapperParsingException("[" + parent + "] expected an array of strings but was:" +
-                                childObj.getClass().getSimpleName());
-                        }
-                    }
-                    children = Collections.unmodifiableSet(children);
-                } else if (entry.getValue() instanceof String) {
-                    children = Collections.singleton(entry.getValue().toString());
+                if (XContentMapValues.isArray(entry.getValue())) {
+                    children = new HashSet<>(Arrays.asList(XContentMapValues.nodeStringArrayValue(entry.getValue())));
                 } else {
-                    throw new MapperParsingException("[" + parent + "] expected string but was:" +
-                        entry.getValue().getClass().getSimpleName());
+                    children = Collections.singleton(entry.getValue().toString());
                 }
                 builder.addParent(parent, children);
                 iterator.remove();
@@ -214,14 +232,19 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
+    // The meta field that ensures that there is no other parent-join in the mapping
+    private MetaJoinFieldMapper uniqueFieldMapper;
     private List<ParentIdFieldMapper> parentIdFields;
 
     protected ParentJoinFieldMapper(String simpleName,
                                     MappedFieldType fieldType,
                                     Settings indexSettings,
+                                    MetaJoinFieldMapper uniqueFieldMapper,
                                     List<ParentIdFieldMapper> parentIdFields) {
         super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), null);
         this.parentIdFields = parentIdFields;
+        this.uniqueFieldMapper = uniqueFieldMapper;
+        this.uniqueFieldMapper.setFieldMapper(this);
     }
 
     @Override
@@ -241,7 +264,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
-        return parentIdFields.stream().map((field) -> (Mapper) field).iterator();
+        List<Mapper> mappers = new ArrayList<> (parentIdFields);
+        mappers.add(uniqueFieldMapper);
+        return mappers.iterator();
     }
 
     /**
@@ -305,7 +330,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                         conflicts.add("cannot remove child [" + child + "] in join field [" + name() + "]");
                     }
                 }
-                ParentIdFieldMapper merged = (ParentIdFieldMapper) self.merge(mergeWithMapper, false);
+                ParentIdFieldMapper merged = (ParentIdFieldMapper) self.merge(mergeWithMapper, updateAllTypes);
                 newParentIdFields.add(merged);
             }
         }
@@ -313,6 +338,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             throw new IllegalStateException("invalid update for join field [" + name() + "]:\n" + conflicts.toString());
         }
         this.parentIdFields = Collections.unmodifiableList(newParentIdFields);
+        this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.merge(joinMergeWith.uniqueFieldMapper, updateAllTypes);
+        uniqueFieldMapper.setFieldMapper(this);
     }
 
     @Override
@@ -323,6 +350,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             newMappers.add((ParentIdFieldMapper) mapper.updateFieldType(fullNameToFieldType));
         }
         fieldMapper.parentIdFields = Collections.unmodifiableList(newMappers);
+        this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.updateFieldType(fullNameToFieldType);
+        uniqueFieldMapper.setFieldMapper(this);
         return fieldMapper;
     }
 
@@ -333,9 +362,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     public Mapper parse(ParseContext context) throws IOException {
-        // Only one join field per document
-        checkDuplicateJoinFields(context.doc());
-
         context.path().add(simpleName());
         XContentParser.Token token = context.parser().currentToken();
         String name = null;
@@ -405,4 +431,5 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             }
         }
     }
+
 }

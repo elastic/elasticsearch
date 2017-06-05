@@ -547,7 +547,9 @@ public class InnerHitsIT extends ESIntegTestCase {
             .addMapping("parent_type", "nested_type", "type=nested")
             .addMapping("child_type", "_parent", "type=parent_type")
         );
-        createIndex("index2");
+        assertAcked(prepareCreate("index2")
+            .setSettings("index.mapping.single_type", false)
+        );
         client().prepareIndex("index1", "parent_type", "1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
         client().prepareIndex("index1", "child_type", "2").setParent("1").setSource("{}", XContentType.JSON).get();
         client().prepareIndex("index2", "type", "3").setSource("key", "value").get();

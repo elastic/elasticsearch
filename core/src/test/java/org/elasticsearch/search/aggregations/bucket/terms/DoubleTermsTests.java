@@ -48,7 +48,7 @@ public class DoubleTermsTests extends InternalTermsTestCase {
         DocValueFormat format = randomNumericDocValueFormat();
         long otherDocCount = 0;
         List<DoubleTerms.Bucket> buckets = new ArrayList<>();
-        final int numBuckets = randomInt(shardSize);
+        final int numBuckets = randomNumberOfBuckets();
         Set<Double> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
             double term = randomValueOtherThanMany(d -> terms.add(d) == false, random()::nextDouble);

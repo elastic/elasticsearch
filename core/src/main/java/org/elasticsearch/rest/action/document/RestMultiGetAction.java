@@ -52,6 +52,11 @@ public class RestMultiGetAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "document_mget_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));

@@ -55,6 +55,8 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.join.mapper.ParentIdFieldMapper;
+import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -187,6 +189,35 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (context.getIndexSettings().isSingleType()) {
+            return joinFieldDoToQuery(context);
+        } else  {
+            return parentFieldDoToQuery(context);
+        }
+    }
+
+    private Query joinFieldDoToQuery(QueryShardContext context) throws IOException {
+        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
+        ParentIdFieldMapper parentIdFieldMapper = joinFieldMapper.getParentIdFieldMapper(type, true);
+        if (parentIdFieldMapper != null) {
+            Query parentFilter = parentIdFieldMapper.getParentFilter();
+            Query innerQuery = Queries.filtered(query.toQuery(context), parentFilter);
+            Query childFilter = parentIdFieldMapper.getChildrenFilter();
+            MappedFieldType fieldType = parentIdFieldMapper.fieldType();
+            final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
+            return new HasChildQueryBuilder.LateParsingQuery(childFilter, innerQuery,
+                HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
+                fieldType.name(), score ? ScoreMode.Max : ScoreMode.None, fieldData, context.getSearchSimilarity());
+        } else {
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new QueryShardException(context, "[" + NAME + "] join field has no parent type configured");
+            }
+        }
+    }
+
+    private Query parentFieldDoToQuery(QueryShardContext context) throws IOException {
         Query innerQuery;
         String[] previousTypes = context.getTypes();
         context.setTypes(type);
@@ -239,7 +270,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             innerQuery,
             HasChildQueryBuilder.DEFAULT_MIN_CHILDREN,
             HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
-            type,
+            ParentFieldMapper.joinField(type),
             score ? ScoreMode.Max : ScoreMode.None,
             fieldData,
             context.getSearchSimilarity());

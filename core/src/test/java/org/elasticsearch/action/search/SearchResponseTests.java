@@ -95,7 +95,6 @@ public class SearchResponseTests extends ESTestCase {
         return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards, tookInMillis, shardSearchFailures);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/24891")
     public void testFromXContent() throws IOException {
         // the "_shard/total/failures" section makes if impossible to directly compare xContent, so we omit it here
         SearchResponse response = createTestItem();

@@ -55,6 +55,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -79,6 +80,7 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.security.InvalidParameterException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -404,7 +406,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
+    public GetResult get(Get get, Function<String, Searcher> searcherFactory, @Nullable MeanMetric refreshMetric) throws EngineException {
         assert Objects.equals(get.uid().field(), uidField) : get.uid().field();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
@@ -418,7 +420,11 @@ public class InternalEngine extends Engine {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                             get.versionType().explainConflictForReads(versionValue.version, get.version()));
                     }
+                    if (refreshMetric == null)
+                        throw new InvalidParameterException("refresh metric should not be null for stats tracing of a realtime get");
+                    long time = System.nanoTime();
                     refresh("realtime_get");
+                    refreshMetric.inc(System.nanoTime() - time);
                 }
             }
 

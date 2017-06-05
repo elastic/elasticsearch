@@ -59,6 +59,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
@@ -486,10 +487,10 @@ public abstract class Engine implements Closeable {
     }
 
     public final GetResult get(Get get) throws EngineException {
-        return get(get, this::acquireSearcher);
+        return get(get, this::acquireSearcher, null);
     }
 
-    public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException;
+    public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory, @Nullable MeanMetric refreshMetric) throws EngineException;
 
     /**
      * Returns a new searcher instance. The consumer of this

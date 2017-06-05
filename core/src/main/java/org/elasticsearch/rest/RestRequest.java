@@ -141,6 +141,18 @@ public abstract class RestRequest implements ToXContent.Params {
     public abstract BytesReference content();
 
     /**
+     * @return content of the request body or throw an exception if the body or content type is missing
+     */
+    public final BytesReference requiredContent() {
+        if (hasContent() == false) {
+            throw new ElasticsearchParseException("request body is required");
+        } else if (xContentType.get() == null) {
+            throw new IllegalStateException("unknown content type");
+        }
+        return content();
+    }
+
+    /**
      * Get the value of the header or {@code null} if not found. This method only retrieves the first header value if multiple values are
      * sent. Use of {@link #getAllHeaderValues(String)} should be preferred
      */
@@ -336,12 +348,7 @@ public abstract class RestRequest implements ToXContent.Params {
      * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
      */
     public final XContentParser contentParser() throws IOException {
-        BytesReference content = content();
-        if (content.length() == 0) {
-            throw new ElasticsearchParseException("Body required");
-        } else if (xContentType.get() == null) {
-            throw new IllegalStateException("unknown content type");
-        }
+        BytesReference content = requiredContent(); // will throw exception if body or content type missing
         return xContentType.get().xContent().createParser(xContentRegistry, content);
     }
 
@@ -371,11 +378,7 @@ public abstract class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
-        BytesReference content = tuple.v2();
-        if (content.length() == 0) {
-            throw new ElasticsearchParseException("Body required");
-        }
-        return tuple.v1().xContent().createParser(xContentRegistry, content);
+        return tuple.v1().xContent().createParser(xContentRegistry, tuple.v2());
     }
 
     /**
@@ -384,10 +387,10 @@ public abstract class RestRequest implements ToXContent.Params {
      * back to the user when there isn't request content.
      */
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
-        Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
-        BytesReference content = tuple.v2();
-        XContentType xContentType = tuple.v1();
-        if (content.length() > 0) {
+        if (hasContentOrSourceParam()) {
+            Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
+            BytesReference content = tuple.v2();
+            XContentType xContentType = tuple.v1();
             try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry, content)) {
                 withParser.accept(parser);
             }
@@ -397,36 +400,31 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     /**
-     * Get the content of the request or the contents of the {@code source} param. Prefer {@link #contentOrSourceParamParser()} or
-     * {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
+     * Get the content of the request or the contents of the {@code source} param or throw an exception if both are missing.
+     * Prefer {@link #contentOrSourceParamParser()} or {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
      */
     public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
-        if (hasContent()) {
-            if (xContentType.get() == null) {
-                throw new IllegalStateException("unknown content type");
-            }
-            return new Tuple<>(xContentType.get(), content());
+        if (hasContentOrSourceParam() == false) {
+            throw new ElasticsearchParseException("request body or source parameter is required");
+        } else if (hasContent()) {
+            return new Tuple<>(xContentType.get(), requiredContent());
         }
-
         String source = param("source");
         String typeParam = param("source_content_type");
-        if (source != null) {
-            BytesArray bytes = new BytesArray(source);
-            final XContentType xContentType;
-            if (typeParam != null) {
-                xContentType = parseContentType(Collections.singletonList(typeParam));
-            } else {
-                DEPRECATION_LOGGER.deprecated("Deprecated use of the [source] parameter without the [source_content_type] parameter. Use " +
-                    "the [source_content_type] parameter to specify the content type of the source such as [application/json]");
-                xContentType = XContentFactory.xContentType(bytes);
-            }
-
-            if (xContentType == null) {
-                throw new IllegalStateException("could not determine source content type");
-            }
-            return new Tuple<>(xContentType, bytes);
+        BytesArray bytes = new BytesArray(source);
+        final XContentType xContentType;
+        if (typeParam != null) {
+            xContentType = parseContentType(Collections.singletonList(typeParam));
+        } else {
+            DEPRECATION_LOGGER.deprecated("Deprecated use of the [source] parameter without the [source_content_type] parameter. Use " +
+                "the [source_content_type] parameter to specify the content type of the source such as [application/json]");
+            xContentType = XContentFactory.xContentType(bytes);
         }
-        return new Tuple<>(XContentType.JSON, BytesArray.EMPTY);
+
+        if (xContentType == null) {
+            throw new IllegalStateException("could not determine source content type");
+        }
+        return new Tuple<>(xContentType, bytes);
     }
 
     /**
@@ -437,7 +435,9 @@ public abstract class RestRequest implements ToXContent.Params {
     @Deprecated
     public final void withContentOrSourceParamParserOrNullLenient(CheckedConsumer<XContentParser, IOException> withParser)
         throws IOException {
-        if (hasContent() && xContentType.get() == null) {
+        if (hasContentOrSourceParam() == false) {
+            withParser.accept(null);
+        } else if (hasContent() && xContentType.get() == null) {
             withParser.accept(null);
         } else {
             Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();

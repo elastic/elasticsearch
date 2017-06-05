@@ -45,7 +45,7 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
-        BytesReference content = request.content();
+        BytesReference content = request.requiredContent();
 
         PutStoredScriptRequest put = new PutStoredScriptRequest(id, Script.DEFAULT_TEMPLATE_LANG, content, request.getXContentType());
         return channel -> client.admin().cluster().putStoredScript(put, new AcknowledgedRestListener<>(channel));

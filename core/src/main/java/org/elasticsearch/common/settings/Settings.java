@@ -721,6 +721,11 @@ public final class Settings implements ToXContent {
             return map.get(key);
         }
 
+        /** Return the current secure settings, or {@code null} if none have been set. */
+        public SecureSettings getSecureSettings() {
+            return secureSettings.get();
+        }
+
         public Builder setSecureSettings(SecureSettings secureSettings) {
             if (secureSettings.isLoaded() == false) {
                 throw new IllegalStateException("Secure settings must already be loaded");

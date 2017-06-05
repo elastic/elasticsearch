@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -45,7 +44,8 @@ public class ScriptModule {
             ExecutableScript.CONTEXT,
             ExecutableScript.AGGS_CONTEXT,
             ExecutableScript.UPDATE_CONTEXT,
-            ExecutableScript.INGEST_CONTEXT
+            ExecutableScript.INGEST_CONTEXT,
+            TemplateScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 

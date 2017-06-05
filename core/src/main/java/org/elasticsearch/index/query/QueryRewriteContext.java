@@ -24,11 +24,9 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.template.CompiledTemplate;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.function.LongSupplier;
 
@@ -104,7 +102,7 @@ public class QueryRewriteContext {
     }
 
     public String getTemplateBytes(Script template) {
-        CompiledTemplate compiledTemplate = scriptService.compileTemplate(template, ExecutableScript.CONTEXT);
-        return compiledTemplate.run(template.getParams());
+        TemplateScript compiledTemplate = scriptService.compile(template, TemplateScript.CONTEXT).newInstance(template.getParams());
+        return compiledTemplate.execute();
     }
 }

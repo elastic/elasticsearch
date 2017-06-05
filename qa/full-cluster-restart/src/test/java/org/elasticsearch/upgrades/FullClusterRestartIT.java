@@ -115,6 +115,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 // TODO a binary field
                 .endObject();
             });
+            logger.info("Refreshing [{}]", index);
+            client().performRequest("POST", "/" + index + "/_refresh");
         }
         assertBasicSearchWorks(index);
     }

@@ -21,11 +21,13 @@ package org.elasticsearch.test;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toList;
 
 public class VersionUtilsTests extends ESTestCase {
 
@@ -158,5 +160,73 @@ public class VersionUtilsTests extends ESTestCase {
         assertEquals(Arrays.asList(TestUnstableBranch.V_5_3_2, TestUnstableBranch.V_5_4_0), unreleased);
     }
 
-    // TODO add a test that compares gradle and VersionUtils.java in a followup
+    /**
+     * Tests that {@link Version#minimumCompatibilityVersion()} and {@link VersionUtils#allReleasedVersions()}
+     * agree with the list of wire and index compatible versions we build in gradle.
+     */
+    public void testGradleVersionsMatchVerionUtils() {
+        // First check the index compatible versions
+        VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");
+
+        List<Version> released = VersionUtils.allReleasedVersions().stream()
+                /* We skip alphas, betas, and the like in gradle because they don't have
+                 * backwards compatibility guarantees even though they are technically
+                 * released. */
+                .filter(Version::isRelease)
+                .collect(toList());
+        List<String> releasedIndexCompatible = released.stream()
+                .map(Object::toString)
+                .collect(toList());
+        assertEquals(releasedIndexCompatible, indexCompatible.released);
+
+        List<String> unreleasedIndexCompatible = VersionUtils.allUnreleasedVersions().stream()
+                .map(Object::toString)
+                .collect(toList());
+        assertEquals(unreleasedIndexCompatible, indexCompatible.unreleased);
+
+        // Now the wire compatible versions
+        VersionsFromProperty wireCompatible = new VersionsFromProperty("tests.gradle_wire_compat_versions");
+
+        // Big horrible hack:
+        // This *should* be:
+        //         Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
+        // But instead it is:
+        Version minimumCompatibleVersion = Version.V_5_5_0;
+        // Because things blow up all over the place if the minimum compatible version isn't released.
+        // We'll fix this very, very soon. But for now, this hack.
+        // end big horrible hack
+        List<String> releasedWireCompatible = released.stream()
+                .filter(v -> v.onOrAfter(minimumCompatibleVersion))
+                .map(Object::toString)
+                .collect(toList());
+        assertEquals(releasedWireCompatible, wireCompatible.released);
+
+        List<String> unreleasedWireCompatible = VersionUtils.allUnreleasedVersions().stream()
+                .filter(v -> v.onOrAfter(minimumCompatibleVersion))
+                .map(Object::toString)
+                .collect(toList());
+        assertEquals(unreleasedWireCompatible, wireCompatible.unreleased);
+    }
+
+    /**
+     * Read a versions system property as set by gradle into a tuple of {@code (releasedVersion, unreleasedVersion)}.
+     */
+    private class VersionsFromProperty {
+        private final List<String> released = new ArrayList<>();
+        private final List<String> unreleased = new ArrayList<>();
+
+        private VersionsFromProperty(String property) {
+            String versions = System.getProperty(property);
+            assertNotNull("Couldn't find [" + property + "]. Gradle should set these before running the tests.", versions);
+            logger.info("Looked up versions [{}={}]", property, versions);
+
+            for (String version : versions.split(",")) {
+                if (version.endsWith("-SNAPSHOT")) {
+                    unreleased.add(version.replace("-SNAPSHOT", ""));
+                } else {
+                    released.add(version);
+                }
+            }
+        }
+    }
 }

@@ -278,3 +278,9 @@ params::           Optional. An object whose contents will be passed as variable
     "_agg" : {}
 }
 --------------------------------------------------
+
+==== Empty Buckets
+
+If a parent bucket of the scripted metric aggregation does not collect any documents an empty aggregation response will be returned from the
+shard with a `null` value. In this case the `reduce_script`'s `_aggs` variable will contain `null` as a response from that shard.  
+`reduce_script`'s should therefore expect and deal with `null` responses from shards.  

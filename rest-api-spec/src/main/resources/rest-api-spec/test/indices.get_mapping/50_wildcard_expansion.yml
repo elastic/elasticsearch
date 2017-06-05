@@ -94,13 +94,15 @@ setup:
 
 ---
 "Get test-* with wildcard_expansion=none":
+ - skip:
+    version: " - 5.99.99"
+    reason:  this was a breaking change in 6.0
 
  - do:
+    catch: missing
     indices.get_mapping:
         index: test-x*
         expand_wildcards: none
-
- - match: { $body: {} }
 
 ---
 "Get test-* with wildcard_expansion=open,closed":

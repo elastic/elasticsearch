@@ -215,8 +215,8 @@
 "missing body":
 
   - skip:
-      version: " - 5.99.99"
-      reason: NPE caused by missing body fixed in 6.0.0
+      version: " - 5.4.99"
+      reason: NPE caused by missing body fixed in 5.5.0
       
   - do:
       catch: /request body is required/

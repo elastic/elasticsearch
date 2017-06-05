@@ -66,7 +66,7 @@ for (Version version : indexCompatVersions) {
     clusterName = 'full-cluster-restart'
     numNodes = 2
     dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
-    preserveShared = true // We want to keep snapshots made by the old cluster!
+    cleanShared = false // We want to keep snapshots made by the old cluster!
   }
 
   tasks.getByName("${baseName}#upgradedClusterTestRunner").configure {

@@ -61,7 +61,7 @@ class ClusterFormationTasks {
          * are only deleted in the cluster-state and not on-disk such that
          * snapshots survive failures / test runs and there is no simple way
          * today to fix that. */
-        if (false == config.preserveShared) {
+        if (config.cleanShared) {
           Task cleanup = project.tasks.create(
             name: "${prefix}#prepareCluster.cleanShared",
             type: Delete,

@@ -163,7 +163,12 @@ public class JobManager extends AbstractComponent {
     public void putJob(PutJobAction.Request request, ClusterState state, ActionListener<PutJobAction.Response> actionListener) {
         Job job = request.getJobBuilder().build(new Date());
 
-        jobProvider.createJobResultIndex(job, state, new ActionListener<Boolean>() {
+        MlMetadata currentMlMetadata = state.metaData().custom(MlMetadata.TYPE);
+        if (currentMlMetadata.getJobs().containsKey(job.getId())) {
+            actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
+        }
+
+        ActionListener<Boolean> putJobListener = new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean indicesCreated) {
 
@@ -192,7 +197,16 @@ public class JobManager extends AbstractComponent {
                 }
 
             }
-        });
+        };
+
+        ActionListener<Boolean> checkForLeftOverDocs = ActionListener.wrap(
+                response -> {
+                    jobProvider.createJobResultIndex(job, state, putJobListener);
+                },
+                actionListener::onFailure
+        );
+
+        jobProvider.checkForLeftOverDocuments(job, checkForLeftOverDocs);
     }
 
     public void updateJob(String jobId, JobUpdate jobUpdate, AckedRequest request, ActionListener<PutJobAction.Response> actionListener) {

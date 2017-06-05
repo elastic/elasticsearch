@@ -112,6 +112,65 @@ public class JobProvider {
     }
 
     /**
+     * Check that a previously deleted job with the same Id has not left any result
+     * or categorizer state documents due to a failed delete. Any left over results would
+     * appear to be part of the new job.
+     *
+     * We can't check for model state as the Id is based on the snapshot Id which is
+     * a timestamp and so unpredictable however, it is unlikely a new job would have
+     * the same snapshot Id as an old one.
+     *
+     * @param job  Job configuration
+     * @param listener The ActionListener
+     */
+    public void checkForLeftOverDocuments(Job job, ActionListener<Boolean> listener) {
+
+        String resultsIndexName = job.getResultsIndexName();
+        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+                .setQuery(QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1),
+                        CategorizerState.v54DocumentId(job.getId(), 1)))
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+
+        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+                .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+
+        SearchRequestBuilder resultDocSearch = client.prepareSearch(resultsIndexName)
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setQuery(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
+                .setSize(1);
+
+
+        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<MultiSearchResponse>() {
+            @Override
+            public void onResponse(MultiSearchResponse searchResponse) {
+                for (MultiSearchResponse.Item itemResponse : searchResponse.getResponses()) {
+                    if (itemResponse.getResponse().getHits().getTotalHits() > 0) {
+                        listener.onFailure(ExceptionsHelper.conflictStatusException(
+                                "Result and/or state documents exist for a prior job with Id [" + job.getId() + "]. " +
+                                        "Please create the job with a different Id"));
+                        return;
+                    }
+                }
+
+                listener.onResponse(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
+
+        client.prepareMultiSearch()
+                .add(stateDocSearch)
+                .add(resultDocSearch)
+                .add(quantilesDocSearch)
+                .execute(searchResponseActionListener);
+    }
+
+
+    /**
      * Create the Elasticsearch index and the mappings
      */
     public void createJobResultIndex(Job job, ClusterState state, final ActionListener<Boolean> finalListener) {

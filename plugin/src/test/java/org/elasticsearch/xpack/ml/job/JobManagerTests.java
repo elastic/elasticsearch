@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
@@ -137,7 +138,9 @@ public class JobManagerTests extends ESTestCase {
             return null;
         }).when(jobProvider).createJobResultIndex(requestCaptor.capture(), any(ClusterState.class), any(ActionListener.class));
 
-        jobManager.putJob(putJobRequest, mock(ClusterState.class), new ActionListener<PutJobAction.Response>() {
+        ClusterState clusterState = createClusterState();
+
+        jobManager.putJob(putJobRequest, clusterState, new ActionListener<PutJobAction.Response>() {
             @Override
             public void onResponse(PutJobAction.Response response) {
                 Job job = requestCaptor.getValue();
@@ -153,6 +156,29 @@ public class JobManagerTests extends ESTestCase {
                 fail(e.toString());
             }
         });
+    }
+
+    public void testPutJob_ThrowsIfJobExists() {
+        JobManager jobManager = createJobManager();
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(buildJobBuilder("foo").build(), false);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
+                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata.build())).build();
+
+        expectThrows(ResourceAlreadyExistsException.class, () ->
+                jobManager.putJob(putJobRequest, clusterState, new ActionListener<PutJobAction.Response>() {
+                        @Override
+                        public void onResponse(PutJobAction.Response response) {
+
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            fail(e.toString());
+                        }
+                    }));
     }
 
     private Job.Builder createJob() {

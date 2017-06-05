@@ -551,3 +551,94 @@
         job_id: jobs-crud-close-a-closed-job
         force: true
   - match: { closed: true }
+
+---
+"Test cannot create job with existing categorizer state document":
+
+  - do:
+      index:
+        index: .ml-state
+        type: doc
+        id: jobs-crud-existing-docs_categorizer_state#1
+        body:
+          key: value
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /status_exception/
+      xpack.ml.put_job:
+        job_id: jobs-crud-existing-docs
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+---
+"Test cannot create job with existing quantiles document":
+
+  - do:
+      index:
+        index: .ml-state
+        type: doc
+        id: jobs-crud-existing-docs_quantiles
+        body:
+          key: value
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /status_exception/
+      xpack.ml.put_job:
+        job_id: jobs-crud-existing-docs
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+
+---
+"Test cannot create job with existing result document":
+
+  - do:
+      index:
+        index:  .ml-anomalies-shared
+        type:   doc
+        id:     "jobs-crud-existing-result-docs_1464739200000_1"
+        body:
+          {
+            "job_id": "jobs-crud-existing-result-docs",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "anomaly_score": 90.0,
+            "bucket_span":1
+          }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /status_exception/
+      xpack.ml.put_job:
+        job_id: jobs-crud-existing-result-docs
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }

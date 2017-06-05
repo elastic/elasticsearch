@@ -515,6 +515,16 @@ public class SettingsTests extends ESTestCase {
         expectThrows(NoSuchElementException.class, () -> prefixIterator.next());
     }
 
+    public void testSecureSettingsPrefix() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("test.prefix.foo", "somethingsecure");
+        Settings.Builder builder = Settings.builder();
+        builder.setSecureSettings(secureSettings);
+        Settings settings = builder.build();
+        Settings prefixSettings = settings.getByPrefix("test.prefix.");
+        assertTrue(prefixSettings.names().contains("foo"));
+    }
+
     public void testEmptyFilterMap() {
         Settings.Builder builder = Settings.builder();
         builder.put("a", "a1");

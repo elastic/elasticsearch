@@ -1,20 +1,20 @@
 //lcawley Verified example output 2017-04-11
 [[ml-update-job]]
-==== Update Jobs
+=== Update Jobs
 
 The update job API enables you to update certain properties of a job.
 
-===== Request
+==== Request
 
 `POST _xpack/ml/anomaly_detectors/<job_id>/_update`
 
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id` (required)::
   (string) Identifier for the job
 
-===== Request Body
+==== Request Body
 
 The following properties can be updated after the job is created:
 
@@ -71,13 +71,13 @@ want to re-run this job with an increased `model_memory_limit`.
 --
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see <<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example updates the `it_ops_new_logs` job:
 

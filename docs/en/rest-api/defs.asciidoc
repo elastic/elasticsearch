@@ -1,0 +1,18 @@
+[[ml-api-definitions]]
+== Definitions
+
+These resource definitions are used in {ml} APIs and in {kib} advanced
+job configuration options.
+
+* <<ml-datafeed-resource,{dfeeds-cap}>>
+* <<ml-datafeed-counts,{dfeed-cap} counts>>
+* <<ml-job-resource,Jobs>>
+* <<ml-jobstats,Job statistics>>
+* <<ml-snapshot-resource,Model snapshots>>
+* <<ml-results-resource,Results>>
+
+include::ml/datafeedresource.asciidoc[]
+include::ml/jobresource.asciidoc[]
+include::ml/jobcounts.asciidoc[]
+include::ml/snapshotresource.asciidoc[]
+include::ml/resultsresource.asciidoc[]

@@ -1,6 +1,6 @@
 //lcawley Verified example output 2017-04-11
 [[ml-job-resource]]
-==== Job Resources
+=== Job Resources
 
 A job resource has the following properties:
 
@@ -73,7 +73,7 @@ so do not set the `background_persist_interval` value too low.
   are retained.
 
 [[ml-analysisconfig]]
-===== Analysis Configuration Objects
+==== Analysis Configuration Objects
 
 An analysis configuration object has the following properties:
 
@@ -152,7 +152,7 @@ LEAVE UNDOCUMENTED
 
 [float]
 [[ml-detectorconfig]]
-===== Detector Configuration Objects
+==== Detector Configuration Objects
 
 Detector configuration objects specify which data fields a job analyzes.
 They also specify which analytical functions are used.
@@ -213,7 +213,7 @@ LEAVE UNDOCUMENTED
 
 [float]
 [[ml-datadescription]]
-===== Data Description Objects
+==== Data Description Objects
 
 The data description defines the format of the input data when you send data to
 the job by using the <<ml-post-data,post data>> API. Note that when configure
@@ -247,7 +247,7 @@ job creation fails.
 
 [float]
 [[ml-apilimits]]
-===== Analysis Limits
+==== Analysis Limits
 
 Limits can be applied for the resources required to hold the mathematical models in memory.
 These limits are approximate and can be set per job. They do not control the
@@ -272,7 +272,7 @@ NOTE: The `categorization_examples_limit` only applies to analysis that uses cat
 
 [float]
 [[ml-apimodelplotconfig]]
-===== Model Plot Config
+==== Model Plot Config
 
 This advanced configuration option stores model information along with the
 results. It provides a more detailed view into anomaly detection. If you enable

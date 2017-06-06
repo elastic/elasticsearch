@@ -1,16 +1,16 @@
 //lcawley: Verified example output 2017-04-11
 [[ml-delete-job]]
-==== Delete Jobs
+=== Delete Jobs
 
 The delete job API enables you to delete an existing anomaly detection job.
 
 
-===== Request
+==== Request
 
 `DELETE _xpack/ml/anomaly_detectors/<job_id>`
 
 
-===== Description
+==== Description
 
 All job configuration, model state and results are deleted.
 
@@ -26,7 +26,7 @@ is used the job must be closed before it can be deleted.
 It is not currently possible to delete multiple jobs using wildcards or a comma
 separated list.
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id` (required)::
   (string) Identifier for the job
@@ -38,13 +38,13 @@ separated list.
   closing and deleting the job.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see <<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example deletes the `event_rate` job:
 

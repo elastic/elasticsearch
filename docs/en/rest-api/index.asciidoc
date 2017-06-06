@@ -10,6 +10,7 @@
 * <<watcher-api, Watcher APIs>>
 * <<graph-api, Graph APIs>>
 * <<ml-apis, Machine Learning APIs>>
+* <<ml-api-definitions, Definitions>>
 --
 
 [[info-api]]
@@ -113,3 +114,4 @@ include::watcher.asciidoc[]
 
 include::graph.asciidoc[]
 include::ml-api.asciidoc[]
+include::defs.asciidoc[]

@@ -1,6 +1,6 @@
 //lcawley Verified example output 2017-04-11
 [[ml-datafeed-resource]]
-==== {dfeed-cap} Resources
+=== {dfeed-cap} Resources
 
 A {dfeed} resource has the following properties:
 
@@ -75,7 +75,7 @@ A {dfeed} resource has the following properties:
   For example: `["network","sql","kpi"]`.
 
 [[ml-datafeed-chunking-config]]
-===== Chunking Configuration Objects
+==== Chunking Configuration Objects
 
 {dfeeds-cap} might be required to search over long time periods, for several months
 or years. This search is split into time chunks in order to ensure the load

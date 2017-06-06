@@ -1,6 +1,6 @@
 //lcawley Verified example output 2017-04-11
 [[ml-close-job]]
-==== Close Jobs
+=== Close Jobs
 
 The close job API enables you to close a job.
 A job can be opened and closed multiple times throughout its lifecycle.
@@ -9,12 +9,12 @@ A closed job cannot receive data or perform analysis
 operations, but you can still explore and navigate results.
 
 
-===== Request
+==== Request
 
 `POST _xpack/ml/anomaly_detectors/<job_id>/_close`
 
 
-===== Description
+==== Description
 
 //A job can be closed once all data has been analyzed.
 
@@ -36,13 +36,13 @@ complete. Therefore, do not use that parameter in a script that expects the job
 to be in a consistent state after the close job API returns.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id` (required)::
   (string) Identifier for the job
 
 
-===== Query Parameters
+==== Query Parameters
 
 `force`::
   (boolean) Use to close a failed job, or to forcefully close a job which has not
@@ -53,13 +53,13 @@ to be in a consistent state after the close job API returns.
   The default value is 30 minutes.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see <<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example closes the `event_rate` job:
 

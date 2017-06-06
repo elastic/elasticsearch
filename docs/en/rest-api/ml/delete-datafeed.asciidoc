@@ -1,21 +1,21 @@
 //lcawley Verified example output 2017-04-11
 [[ml-delete-datafeed]]
-==== Delete {dfeeds-cap}
+=== Delete {dfeeds-cap}
 
 The delete {dfeed} API enables you to delete an existing {dfeed}.
 
 
-===== Request
+==== Request
 
 `DELETE _xpack/ml/datafeeds/<feed_id>`
 
 
-===== Description
+==== Description
 
 NOTE: Unless the `force` parameter is used, the {dfeed} must be stopped before it can be deleted.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `feed_id` (required)::
   (string) Identifier for the {dfeed}
@@ -27,13 +27,14 @@ NOTE: Unless the `force` parameter is used, the {dfeed} must be stopped before i
   (boolean) Use to forcefully delete a started {dfeed}; this method is quicker than
   stopping and deleting the {dfeed}.
 
+
 ===== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see <<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example deletes the `datafeed-it-ops` {dfeed}:
 

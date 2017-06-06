@@ -196,7 +196,7 @@ Nested document don't have a `_source` field, because the entire source of docum
 its `_source` field. To include the source of just the nested document, the source of the root document is parsed and just
 the relevant bit for the nested document is included as source in the inner hit. Doing this for each matching nested document
 has an impact on the time it takes to execute the entire search request, especially when `size` and the inner hits' `size`
-are set higher than the default. To avoid the relative expensive source extraction for nested inner hits, one can disable
+are set higher than the default. To avoid the relatively expensive source extraction for nested inner hits, one can disable
 including the source and solely rely on stored fields. Like this:
 
 [source,js]

@@ -852,10 +852,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return types;
     }
 
-    protected static String getRandomType() {
-        return (currentTypes.length == 0) ? MetaData.ALL : randomFrom(currentTypes);
-    }
-
     protected static Fuzziness randomFuzziness(String fieldName) {
         switch (fieldName) {
             case INT_FIELD_NAME:

@@ -25,9 +25,9 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
-     * The name of the default index where the job's results are stored
+     * The name of the alias pointing to the indices where the job's results are stored
      * @param jobId Job Id
-     * @return The index name
+     * @return The read alias
      */
     public static String jobResultsAliasedName(String jobId) {
         return RESULTS_INDEX_PREFIX + jobId;
@@ -39,8 +39,9 @@ public final class AnomalyDetectorsIndex {
      * @return The write alias
      */
     public static String resultsWriteAlias(String jobId) {
-        // TODO: Replace with an actual write alias
-        return jobResultsAliasedName(jobId);
+        // ".write" rather than simply "write" to avoid the danger of clashing
+        // with the read alias of a job whose name begins with "write-"
+        return RESULTS_INDEX_PREFIX + ".write-" + jobId;
     }
 
     /**

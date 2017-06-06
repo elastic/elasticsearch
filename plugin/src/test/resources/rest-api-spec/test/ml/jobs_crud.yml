@@ -41,6 +41,16 @@
   - match: { jobs.0.job_id: "job-crud-test-apis" }
 
   - do:
+      indices.get_alias:
+        name: ".ml-anomalies-job-crud-test-apis"
+  - match: { \.ml-anomalies-shared.aliases.\.ml-anomalies-job-crud-test-apis.filter.term.job_id.value: job-crud-test-apis }
+
+  - do:
+      indices.get_alias:
+        name: ".ml-anomalies-.write-job-crud-test-apis"
+  - match: { \.ml-anomalies-shared.aliases.\.ml-anomalies-\.write-job-crud-test-apis: {} }
+
+  - do:
       xpack.ml.delete_job:
         job_id: "job-crud-test-apis"
   - match: { acknowledged: true }
@@ -48,6 +58,16 @@
   - do:
       indices.exists:
         index: ".ml-anomalies-job-crud-test-apis"
+  - is_false: ''
+
+  - do:
+      indices.exists_alias:
+        name: ".ml-anomalies-job-crud-test-apis"
+  - is_false: ''
+
+  - do:
+      indices.exists_alias:
+        name: ".ml-anomalies-.write-job-crud-test-apis"
   - is_false: ''
 
 ---

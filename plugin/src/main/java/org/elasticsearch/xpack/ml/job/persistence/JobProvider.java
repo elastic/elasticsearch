@@ -176,17 +176,18 @@ public class JobProvider {
     public void createJobResultIndex(Job job, ClusterState state, final ActionListener<Boolean> finalListener) {
         Collection<String> termFields = (job.getAnalysisConfig() != null) ? job.getAnalysisConfig().termFields() : Collections.emptyList();
 
-        String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
+        String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
+        String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
         String indexName = job.getResultsIndexName();
 
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
                     client.admin().indices().prepareAliases()
-                            .addAlias(indexName, aliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
+                            .addAlias(indexName, readAliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
+                            .addAlias(indexName, writeAliasName)
                             // we could return 'success && r.isAcknowledged()' instead of 'true', but that makes
                             // testing not possible as we can't create IndicesAliasesResponse instance or
                             // mock IndicesAliasesResponse#isAcknowledged()
-                            .execute(ActionListener.wrap(r -> finalListener.onResponse(true),
-                                    finalListener::onFailure));
+                            .execute(ActionListener.wrap(r -> finalListener.onResponse(true), finalListener::onFailure));
                 },
                 finalListener::onFailure);
 

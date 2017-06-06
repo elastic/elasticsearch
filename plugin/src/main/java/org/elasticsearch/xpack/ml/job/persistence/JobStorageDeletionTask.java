@@ -50,11 +50,10 @@ public class JobStorageDeletionTask extends Task {
 
         final String indexName = AnomalyDetectorsIndex.getPhysicalIndexFromState(state, jobId);
         final String indexPattern = indexName + "-*";
-        final String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
 
         ActionListener<Boolean> deleteAliasHandler = ActionListener.wrap(finishedHandler, failureHandler);
 
-        // Step 5. DBQ state done, delete the alias
+        // Step 5. DBQ state done, delete the aliases
         ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(
                 bulkByScrollResponse -> {
                     if (bulkByScrollResponse.isTimedOut()) {
@@ -68,7 +67,7 @@ public class JobStorageDeletionTask extends Task {
                             logger.warn("DBQ failure: " + failure);
                         }
                     }
-                    deleteAlias(jobId, aliasName, indexName, client, deleteAliasHandler);
+                    deleteAliases(jobId, client, deleteAliasHandler);
                 },
                 failureHandler);
 
@@ -172,18 +171,27 @@ public class JobStorageDeletionTask extends Task {
                 }));
     }
 
-    private void deleteAlias(String jobId, String aliasName, String indexName, Client client, ActionListener<Boolean> finishedHandler ) {
-        IndicesAliasesRequest request = new IndicesAliasesRequest()
-                .addAliasAction(IndicesAliasesRequest.AliasActions.remove().alias(aliasName).index(indexName));
+    private void deleteAliases(String jobId, Client client, ActionListener<Boolean> finishedHandler) {
+        final String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        final String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
+        final String indexPattern = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*";
+
+        IndicesAliasesRequest request = new IndicesAliasesRequest().addAliasAction(
+                IndicesAliasesRequest.AliasActions.remove().aliases(readAliasName, writeAliasName).indices(indexPattern));
         client.admin().indices().aliases(request, ActionListener.wrap(
                 response -> finishedHandler.onResponse(true),
                 e -> {
-                    if (e instanceof AliasesNotFoundException || e instanceof IndexNotFoundException) {
-                        logger.warn("[{}] Alias [{}] not found. Continuing to delete job.", jobId, aliasName);
+                    if (e instanceof AliasesNotFoundException) {
+                        logger.warn("[{}] Aliases {} not found. Continuing to delete job.", jobId,
+                                ((AliasesNotFoundException) e).getResourceId());
+                        finishedHandler.onResponse(true);
+                    } else if (e instanceof IndexNotFoundException) {
+                        logger.warn("[{}] Index [{}] referenced by alias not found. Continuing to delete job.", jobId,
+                                ((IndexNotFoundException) e).getIndex().getName());
                         finishedHandler.onResponse(true);
                     } else {
                         // all other exceptions should die
-                        logger.error("[" + jobId + "] Failed to delete alias [" + aliasName + "].", e);
+                        logger.error("[" + jobId + "] Failed to delete aliases [" + readAliasName + ", " + writeAliasName + "].", e);
                         finishedHandler.onFailure(e);
                     }
                 }));

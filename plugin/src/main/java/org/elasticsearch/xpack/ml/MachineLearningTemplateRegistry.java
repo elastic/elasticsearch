@@ -40,7 +40,7 @@ import java.util.function.BiConsumer;
 /**
  * Registry for the ML index templates and settings
  */
-public class MachineLearningTemplateRegistry  extends AbstractComponent implements ClusterStateListener {
+public class MachineLearningTemplateRegistry extends AbstractComponent implements ClusterStateListener {
     private static final String ASYNC = "async";
 
     private final Client client;

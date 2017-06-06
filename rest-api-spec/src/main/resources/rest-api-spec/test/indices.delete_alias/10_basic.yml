@@ -1,5 +1,8 @@
 ---
 "Basic test for delete alias":
+  - skip:
+      version: " - 5.99.99"
+      reason: Previous versions did not 404 on missing aliases
 
   - do:
       indices.create:
@@ -25,8 +28,10 @@
         name: testali
 
   - do:
+      catch: missing
       indices.get_alias:
         index: testind
         name:  testali
   
-  - match: { '': {}}
+  - match: { 'status': 404 }
+  - match: { 'error': 'alias [testali] missing' }

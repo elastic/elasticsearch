@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.join.aggregations;
+package org.elasticsearch.join.query;
 
-public class LegacyChildrenIT extends ChildrenIT {
+public class LegacyInnerHitsIT extends InnerHitsIT {
 
     @Override
     protected boolean legacy() {
         return true;
     }
+
 }

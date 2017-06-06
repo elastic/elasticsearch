@@ -95,6 +95,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 public class InternalEngine extends Engine {
@@ -407,7 +408,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, Function<String, Searcher> searcherFactory, @Nullable Callback<Long> onRefreshMetric) throws EngineException {
+    public GetResult get(Get get, Function<String, Searcher> searcherFactory, LongConsumer onRefresh) throws EngineException {
         assert Objects.equals(get.uid().field(), uidField) : get.uid().field();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
@@ -421,11 +422,11 @@ public class InternalEngine extends Engine {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                             get.versionType().explainConflictForReads(versionValue.version, get.version()));
                     }
-                    if (onRefreshMetric == null)
-                        throw new InvalidParameterException("Callback should not be null in case of realtime get.");
+                    if (onRefresh == null)
+                        throw new InvalidParameterException("Consumer onRefresh should not be null in case of realtime get.");
                     long time = System.nanoTime();
                     refresh("realtime_get");
-                    onRefreshMetric.handle(System.nanoTime() - time);
+                    onRefresh.accept(System.nanoTime() - time);
                 }
             }
 

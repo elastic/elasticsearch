@@ -1,6 +1,6 @@
 {
   "xpack.security.put_role_mapping": {
-    "documentation": "Stores a native role mapping (Documentation WIP)",
+    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-role-mapping.html#security-api-put-role-mapping",
     "methods": [ "PUT", "POST" ],
     "url": {
       "path": "/_xpack/security/role_mapping/{name}",

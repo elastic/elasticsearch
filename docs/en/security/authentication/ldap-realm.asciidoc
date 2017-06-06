@@ -207,6 +207,9 @@ failover and load balancing modes of operation.
                                               the user DN is passed to the filter.
 | `unmapped_groups_as_roles`     | no       | Specifies whether the names of any unmapped LDAP groups
                                               should be used as role names and assigned to the user.
+                                              A group is considered to be _unmapped_ if it is not referenced
+                                              in any <<mapping-roles-file, role-mapping files>> (API based
+                                              role-mappings are not considered).
                                               Defaults to `false`.
 | `timeout.tcp_connect`          | no       | Specifies the TCP connect timeout period for establishing an
                                               LDAP connection. An `s` at the end indicates seconds, or `ms`
@@ -224,6 +227,8 @@ failover and load balancing modes of operation.
                                               returned by the LDAP server. Referrals are URLs returned by
                                               the server that are to be used to continue the LDAP operation
                                               (e.g. search). Defaults to `true`.
+| `metadata`                     | no       | Specifies the list of additional LDAP attributes that should
+                                              be stored in the `metadata` of an authenticated user.
 | `ssl.key`                      | no       | Specifies the path to the PEM encoded private key to use if the LDAP
                                               server requires client authentication. `ssl.key` and `ssl.keystore.path`
                                               may not be used at the same time.
@@ -330,15 +335,48 @@ the expectation is that their roles are managed there as well. If fact, LDAP
 supports the notion of groups, which often represent user roles for different
 systems in the organization.
 
-The `ldap` realm enables you to map LDAP groups to roles in the role mapping
-file stored on each node. When a user authenticates with LDAP, the privileges
-for that user are the union of all privileges defined by the roles assigned to
-the set of groups that the user belongs to.
+The `ldap` realm enables you to map LDAP users to to roles via their LDAP
+groups, or other metadata. This role mapping can be configured via the
+<<security-api-role-mapping, role-mapping API>>, or by using a file stored
+on each node. When a user authenticates with LDAP, the privileges
+for that user are the union of all privileges defined by the roles to which
+the user is mapped.
 
-You specify groups using their distinguished names. For example, the following
-mapping configuration maps the LDAP `admins` group to both the `monitoring` and
-`user` roles, and maps the `users` group to the `user` role.
+Within a mapping definition, you specify groups using their distinguished
+names. For example, the following mapping configuration maps the LDAP
+`admins` group to both the `monitoring` and `user` roles, and maps the
+`users` group to the `user` role.
 
+Configured via the role-mapping API:
+[source,js]
+--------------------------------------------------
+PUT _xpack/security/role_mapping/admins
+{
+  "roles" : [ "monitoring" , "user" ],
+  "rules" : { "field" : {
+    "groups" : "cn=admins,dc=example,dc=com" <1>
+  } },
+  "enabled": true
+}
+--------------------------------------------------
+// CONSOLE
+<1> The LDAP distinguished name (DN) of the `admins` group.
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/security/role_mapping/basic_users
+{
+  "roles" : [ "user" ],
+  "rules" : { "field" : {
+    "groups" : "cn=users,dc=example,dc=com" <1>
+  } },
+  "enabled": true
+}
+--------------------------------------------------
+// CONSOLE
+<1> The LDAP distinguished name (DN) of the `users` group.
+
+Or, alternatively, configured via the role-mapping file:
 [source, yaml]
 ------------------------------------------------------------
 monitoring: <1>
@@ -367,6 +405,24 @@ populated in user's _metadata_. This metadata is returned in the
                         resolved for the user (regardless of whether those
                         groups were mapped to a role).
 |=======================
+
+Additional fields can be included in the user's metadata by  configuring
+the `metadata` setting on the LDAP realm. This metadata is available for use
+with the <<mapping-roles-api, role mapping API>> or in
+<<templating-role-query, templated role queries>>.
+
+The example below includes the user's common name (`cn`) as an additional
+field in their metadata.
+[source,yaml]
+--------------------------------------------------
+xpack:
+  security:
+    authc:
+      realms:
+        ldap1:
+          type: ldap
+          metadata: cn
+--------------------------------------------------
 
 [[ldap-ssl]]
 ==== Setting up SSL Between Elasticsearch and LDAP

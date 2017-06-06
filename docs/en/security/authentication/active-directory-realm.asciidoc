@@ -219,9 +219,12 @@ operation are supported: failover and load balancing
                                           `base_dn` is a group object and that it is the only group considered.
 | `unmapped_groups_as_roles` | no       | Specifies whether the names of any unmapped Active Directory
                                           groups should be used as role names and assigned to the user.
+                                          A group is considered to be _unmapped_ if it is not referenced
+                                          in any <<mapping-roles-file, role-mapping files>> (API based
+                                          role-mappings are not considered).
                                           Defaults to `false`.
 | `files.role_mapping`       | no       | Specifies the path and file name of the
-                                          <<ad-role-mapping, YAML role  mapping configuration file>>.
+                                          <<ldap-role-mapping, YAML role  mapping configuration file>>.
                                           Defaults to `CONF_DIR/x-pack/role_mapping.yml`,
                                           where `CONF_DIR` is `ES_HOME/config` (zip/tar installations)
                                           or `/etc/elasticsearch` (package installations).
@@ -229,6 +232,8 @@ operation are supported: failover and load balancing
                                           by the Active Directory server. Referrals are URLs returned by
                                           the server that are to be used to continue the LDAP operation
                                           (such as `search`). Defaults to `true`.
+| `metadata`                 | no       | Specifies the list of additional LDAP attributes that should
+                                          be stored in the `metadata` of an authenticated user.
 | `ssl.key`                  | no       | Specifies the path to the PEM encoded private key to use if the Active Directory
                                           server requires client authentication. `ssl.key` and `ssl.keystore.path` may not be used at the
                                           same time.
@@ -281,13 +286,55 @@ Active Directory server, the expectation is that their roles are managed there
 as well. In fact, Active Directory supports the notion of groups, which often
 represent user roles for different systems in the organization.
 
-The `active_directory` realm enables you to map Active Directory users and groups
-to roles in the role mapping file stored on each node. You specify users and
-groups using their distinguished names (DNs). For example, the following mapping
-configuration maps the Active Directory `admins` group to both the `monitoring`
-and `user` roles, maps the `users` group to the `user` role and maps the `John Doe`
-user to the `user` role.
+The `active_directory` realm enables you to map Active Directory users to roles
+via their Active Directory groups, or other metadata. This role mapping can be
+configured via the <<security-api-role-mapping, role-mapping API>>, or by using
+a file stored on each node. When a user authenticates against an Active
+Directory realm, the privileges for that user are the union of all privileges
+defined by the roles to which the user is mapped.
 
+Within a mapping definition, you specify groups using their distinguished
+names. For example, the following mapping configuration maps the Active
+Directory `admins` group to both the `monitoring` and `user` roles, maps the
+`users` group to the `user` role and maps the `John Doe` user to the `user`
+role.
+
+Configured via the role-mapping API:
+[source,js]
+--------------------------------------------------
+PUT _xpack/security/role_mapping/admins
+{
+  "roles" : [ "monitoring" , "user" ],
+  "rules" : { "field" : {
+    "groups" : "cn=admins,dc=example,dc=com" <1>
+  } },
+  "enabled": true
+}
+--------------------------------------------------
+// CONSOLE
+<1> The Active Directory distinguished name (DN) of the `admins` group.
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/security/role_mapping/basic_users
+{
+  "roles" : [ "user" ],
+  "rules" : { "any": [
+    { "field" : {
+      "groups" : "cn=users,dc=example,dc=com" <1>
+    } },
+    { "field" : {
+      "dn" : "cn=John Doe,cn=contractors,dc=example,dc=com" <2>
+    } }
+  ] },
+  "enabled": true
+}
+--------------------------------------------------
+// CONSOLE
+<1> The Active Directory distinguished name (DN) of the `users` group.
+<2> The Active Directory distinguished name (DN) of the user `John Doe`.
+
+Or, alternatively, configured via the role-mapping file:
 [source, yaml]
 ------------------------------------------------------------
 monitoring: <1>
@@ -307,7 +354,7 @@ For more information, see <<mapping-roles, Mapping Users and Groups to Roles>>.
 [[ad-user-metadata]]
 ==== User Metadata in Active Directory Realms
 When a user is authenticated via an Active Directory realm, the following
-properties are populated in user's _metadata_. This metadata is returned in the
+properties are populated in the user's _metadata_. This metadata is returned in the
 <<security-api-authenticate,authenticate API>>, and can be used with
 <<templating-role-query, templated queries>> in roles.
 
@@ -319,6 +366,8 @@ properties are populated in user's _metadata_. This metadata is returned in the
                         groups were mapped to a role).
 |=======================
 
+Additional metadata can be extracted from the Active Directory server by configuring
+the `metadata` setting on the Active Directory realm.
 
 [[active-directory-ssl]]
 ==== Setting up SSL Between Elasticsearch and Active Directory

@@ -117,10 +117,32 @@ xpack:
 [[assigning-roles-pki]]
 ==== Mapping Roles for PKI Users
 
-You map roles for PKI users in the role mapping file stored on each node. You
-identify a user by the distinguished name in their certificate. For example, the
-following mapping configuration maps `John Doe` to the `user` role:
+You map roles for PKI users through the
+<<security-api-role-mapping, role-mapping API>>, or by using a file stored on
+each node. When a user authenticates against a PKI realm, the privileges for
+that user are the union of all privileges defined by the roles to which the
+user is mapped.
 
+You identify a user by the distinguished name in their certificate.
+For example, the following mapping configuration maps `John Doe` to the
+`user` role:
+
+Using the role-mapping API:
+[source,js]
+--------------------------------------------------
+PUT _xpack/security/role_mapping/users
+{
+  "roles" : [ "user" ],
+  "rules" : { "field" : {
+    "dn" : "cn=John Doe,ou=example,o=com" <1>
+  } },
+  "enabled": true
+}
+--------------------------------------------------
+// CONSOLE
+<1> The distinguished name (DN) of a PKI user.
+
+Or, alternatively, configured in a role-mapping file:
 [source, yaml]
 ------------------------------------------------------------
 user: <1>

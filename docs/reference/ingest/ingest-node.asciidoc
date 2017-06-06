@@ -1113,7 +1113,7 @@ so the following `foreach` processor is used:
     "field" : "persons",
     "processor" : {
       "remove" : {
-        "field" : ["_ingest._value.id"]
+        "field" : "_ingest._value.id"
       }
     }
   }
@@ -1150,7 +1150,7 @@ block to send the document to the 'failure_index' index for later inspection:
     "field" : "persons",
     "processor" : {
       "remove" : {
-        "field" : ["_value.id"],
+        "field" : "_value.id",
         "on_failure" : [
           {
             "set" : {
@@ -1657,8 +1657,22 @@ Removes existing fields. If one field doesn't exist, an exception will be thrown
 [options="header"]
 |======
 | Name      | Required  | Default  | Description
-| `field`   | yes       | -        | Field to be removed
+| `field`   | yes       | -        | Fields to be removed
 |======
+
+Here is an example to remove a single field:
+
+[source,js]
+--------------------------------------------------
+{
+  "remove": {
+    "field": "foo"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+To remove multiple fields, you can use the following query:
 
 [source,js]
 --------------------------------------------------

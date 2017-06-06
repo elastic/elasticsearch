@@ -28,6 +28,7 @@ import org.elasticsearch.ingest.TemplateService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Processor that removes existing fields. Nothing happens if the field is not present.
@@ -36,14 +37,14 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     public static final String TYPE = "remove";
 
-    private final List<String> fields;
+    private final List<TemplateService.Template> fields;
 
-    RemoveProcessor(String tag, List<String> fields) {
+    RemoveProcessor(String tag, List<TemplateService.Template> fields) {
         super(tag);
         this.fields = new ArrayList<>(fields);
     }
 
-    public List<String> getField() {
+    public List<TemplateService.Template> getField() {
         return fields;
     }
 
@@ -59,11 +60,27 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
+        private final TemplateService templateService;
+
+        public Factory(TemplateService templateService) {
+            this.templateService = templateService;
+        }
+
         @Override
         public RemoveProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
-            List<String> fields = ConfigurationUtils.readList(TYPE, processorTag, config, "field");
-            return new RemoveProcessor(processorTag, fields);
+            final List<String> fields = new ArrayList<>();
+            final Object field = ConfigurationUtils.readObject(TYPE, processorTag, config, "field");
+            if (field instanceof List) {
+                fields.addAll((List) field);
+            } else {
+                fields.add((String) field);
+            }
+
+            final List<TemplateService.Template> compiledTemplates = fields.stream()
+                .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", f, templateService))
+                .collect(Collectors.toList());
+            return new RemoveProcessor(processorTag, compiledTemplates);
         }
     }
 }

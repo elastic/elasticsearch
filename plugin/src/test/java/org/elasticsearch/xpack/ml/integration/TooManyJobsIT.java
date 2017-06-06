@@ -119,6 +119,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                     .put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
         }
         logger.info("Started [{}] nodes", numNodes);
+        ensureStableCluster(numNodes);
     }
 
 }

@@ -605,3 +605,16 @@ teardown:
   - length: { docs.0.processor_results.1: 2 }
   - match: { docs.0.processor_results.1.tag: "rename-1" }
   - match: { docs.0.processor_results.1.doc._source.new_status: 200 }
+
+---
+"missing body":
+
+  - skip:
+      version: " - 5.99.99"
+      reason: NPE caused by missing body fixed in 6.0.0
+      
+  - do:
+      catch: /request body or source parameter is required/
+      raw:
+        method: POST
+        path: _ingest/pipeline/my_pipeline/_simulate

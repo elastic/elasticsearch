@@ -54,14 +54,24 @@ class ClusterFormationTasks {
      */
     static List<NodeInfo> setup(Project project, String prefix, Task runner, ClusterConfiguration config) {
         File sharedDir = new File(project.buildDir, "cluster/shared")
-        // first we remove everything in the shared cluster directory to ensure there are no leftovers in repos or anything
-        // in theory this should not be necessary but repositories are only deleted in the cluster-state and not on-disk
-        // such that snapshots survive failures / test runs and there is no simple way today to fix that.
-        Task cleanup = project.tasks.create(name: "${prefix}#prepareCluster.cleanShared", type: Delete, dependsOn: config.dependencies) {
-            delete sharedDir
-            doLast {
-                sharedDir.mkdirs()
-            }
+        Object startDependencies = config.dependencies
+        /* First, if we want a clean environment, we remove everything in the
+         * shared cluster directory to ensure there are no leftovers in repos
+         * or anything in theory this should not be necessary but repositories
+         * are only deleted in the cluster-state and not on-disk such that
+         * snapshots survive failures / test runs and there is no simple way
+         * today to fix that. */
+        if (config.cleanShared) {
+          Task cleanup = project.tasks.create(
+            name: "${prefix}#prepareCluster.cleanShared",
+            type: Delete,
+            dependsOn: startDependencies) {
+              delete sharedDir
+              doLast {
+                  sharedDir.mkdirs()
+              }
+          }
+          startDependencies = cleanup
         }
         List<Task> startTasks = []
         List<NodeInfo> nodes = []
@@ -103,7 +113,7 @@ class ClusterFormationTasks {
             }
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
             nodes.add(node)
-            Task dependsOn = startTasks.empty ? cleanup : startTasks.get(0)
+            Object dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
             startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, nodes.get(0)))
         }
 

@@ -611,7 +611,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
      * </ul>
      */
     static void validate(String jobId, MlMetadata mlMetadata) {
-        Job job = mlMetadata.getJobs().get(jobId);
+        Job job = (mlMetadata == null) ? null : mlMetadata.getJobs().get(jobId);
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
         }

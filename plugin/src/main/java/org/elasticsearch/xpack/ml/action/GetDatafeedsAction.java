@@ -199,6 +199,9 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
 
             QueryPage<DatafeedConfig> response;
             MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
+            if (mlMetadata == null) {
+                mlMetadata = MlMetadata.EMPTY_METADATA;
+            }
             if (ALL.equals(request.getDatafeedId())) {
                 List<DatafeedConfig> datafeedConfigs = new ArrayList<>(mlMetadata.getDatafeeds().values());
                 response = new QueryPage<>(datafeedConfigs, datafeedConfigs.size(), DatafeedConfig.RESULTS_FIELD);

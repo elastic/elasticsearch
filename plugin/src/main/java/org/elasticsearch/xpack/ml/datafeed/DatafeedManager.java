@@ -90,6 +90,9 @@ public class DatafeedManager extends AbstractComponent {
         String datafeedId = task.getDatafeedId();
         ClusterState state = clusterService.state();
         MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
+        if (mlMetadata == null) {
+            mlMetadata = MlMetadata.EMPTY_METADATA;
+        }
 
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         Job job = mlMetadata.getJobs().get(datafeed.getJobId());

@@ -227,13 +227,18 @@ public class MlMetadata implements MetaData.Custom {
         private TreeMap<String, DatafeedConfig> datafeeds;
 
         public Builder() {
-            this.jobs = new TreeMap<>();
-            this.datafeeds = new TreeMap<>();
+            jobs = new TreeMap<>();
+            datafeeds = new TreeMap<>();
         }
 
-        public Builder(MlMetadata previous) {
-            jobs = new TreeMap<>(previous.jobs);
-            datafeeds = new TreeMap<>(previous.datafeeds);
+        public Builder(@Nullable MlMetadata previous) {
+            if (previous == null) {
+                jobs = new TreeMap<>();
+                datafeeds = new TreeMap<>();
+            } else {
+                jobs = new TreeMap<>(previous.jobs);
+                datafeeds = new TreeMap<>(previous.datafeeds);
+            }
         }
 
         public Builder putJob(Job job, boolean overwrite) {

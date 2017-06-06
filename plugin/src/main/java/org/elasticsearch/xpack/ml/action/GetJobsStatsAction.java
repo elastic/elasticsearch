@@ -370,9 +370,11 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
+            MlMetadata clusterMlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
+            MlMetadata mlMetadata = (clusterMlMetadata == null) ? MlMetadata.EMPTY_METADATA : clusterMlMetadata;
+
             if (Job.ALL.equals(request.getJobId())) {
-                request.expandedJobsIds = mlMetadata.getJobs().keySet().stream().collect(Collectors.toList());
+                request.expandedJobsIds = new ArrayList<>(mlMetadata.getJobs().keySet());
             } else {
                 if (mlMetadata.getJobs().containsKey(request.getJobId()) == false) {
                     throw ExceptionsHelper.missingJobException(request.getJobId());

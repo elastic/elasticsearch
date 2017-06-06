@@ -11,9 +11,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -90,7 +88,7 @@ public class JobManager extends AbstractComponent {
             return getJobs(clusterState);
         }
         MlMetadata mlMetadata = clusterState.getMetaData().custom(MlMetadata.TYPE);
-        Job job = mlMetadata.getJobs().get(jobId);
+        Job job = (mlMetadata == null) ? null : mlMetadata.getJobs().get(jobId);
         if (job == null) {
             logger.debug(String.format(Locale.ROOT, "Cannot find job '%s'", jobId));
             throw ExceptionsHelper.missingJobException(jobId);
@@ -109,6 +107,9 @@ public class JobManager extends AbstractComponent {
      */
     public QueryPage<Job> getJobs(ClusterState clusterState) {
         MlMetadata mlMetadata = clusterState.getMetaData().custom(MlMetadata.TYPE);
+        if (mlMetadata == null) {
+            mlMetadata = MlMetadata.EMPTY_METADATA;
+        }
         List<Job> jobs = mlMetadata.getJobs().entrySet().stream()
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
@@ -150,7 +151,7 @@ public class JobManager extends AbstractComponent {
      */
     public static Job getJobOrThrowIfUnknown(ClusterState clusterState, String jobId) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-        Job job = mlMetadata.getJobs().get(jobId);
+        Job job = (mlMetadata == null) ? null : mlMetadata.getJobs().get(jobId);
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
@@ -164,7 +165,7 @@ public class JobManager extends AbstractComponent {
         Job job = request.getJobBuilder().build(new Date());
 
         MlMetadata currentMlMetadata = state.metaData().custom(MlMetadata.TYPE);
-        if (currentMlMetadata.getJobs().containsKey(job.getId())) {
+        if (currentMlMetadata != null && currentMlMetadata.getJobs().containsKey(job.getId())) {
             actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
         }
 

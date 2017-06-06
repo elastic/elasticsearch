@@ -31,7 +31,7 @@ public class DatafeedNodeSelector {
     private final IndexNameExpressionResolver resolver;
 
     public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, String datafeedId) {
-        MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
+        MlMetadata mlMetadata = Objects.requireNonNull(clusterState.metaData().custom(MlMetadata.TYPE));
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         this.datafeed = mlMetadata.getDatafeed(datafeedId);
         this.jobTask = MlMetadata.getJobTask(datafeed.getJobId(), tasks);

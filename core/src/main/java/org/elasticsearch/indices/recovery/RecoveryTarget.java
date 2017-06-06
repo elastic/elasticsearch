@@ -62,6 +62,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -382,18 +383,22 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
-        int completedOps = 0;
         if (indexShard().state() != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, indexShard().state());
         }
-        for (Translog.Operation op : operations) {
-            Engine.Operation engineOp = indexShard().convertToEngineOp(op, Engine.Operation.Origin.PEER_RECOVERY);
-            if (engineOp instanceof Engine.Index && ((Engine.Index) engineOp).parsedDoc().dynamicMappingsUpdate() != null) {
-                translog.decrementRecoveredOperations(completedOps); // clean-up stats
-                throw new MapperException("mapping updates are not allowed (type: [" + engineOp.type() + "], id: [" +
-                    ((Engine.Index) engineOp).id() + "])");
+        // first convert all translog operations to engine operations to check for mapping updates
+        List<Engine.Operation> engineOps = operations.stream().map(
+            op -> {
+                Engine.Operation engineOp = indexShard().convertToEngineOp(op, Engine.Operation.Origin.PEER_RECOVERY);
+                if (engineOp instanceof Engine.Index && ((Engine.Index) engineOp).parsedDoc().dynamicMappingsUpdate() != null) {
+                    throw new MapperException("mapping updates are not allowed (type: [" + engineOp.type() + "], id: [" +
+                        ((Engine.Index) engineOp).id() + "])");
+                }
+                return engineOp;
             }
-            completedOps++;
+        ).collect(Collectors.toList());
+        // actually apply engine operations
+        for (Engine.Operation engineOp : engineOps) {
             indexShard().applyOperation(engineOp);
             translog.incrementRecoveredOperations();
         }

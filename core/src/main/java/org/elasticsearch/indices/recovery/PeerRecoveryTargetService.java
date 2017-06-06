@@ -425,8 +425,6 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 } catch (MapperException exception) {
                     // in very rare cases a translog replay from primary is processed before a mapping update on this node
                     // which causes local mapping changes since the mapping (clusterstate) might not have arrived on this node.
-                    // we want to wait until these mappings are processed but also need to do some maintenance and roll back the
-                    // number of processed (completed) operations in this batch to ensure accounting is correct.
                     logger.debug("delaying recovery due to missing mapping changes", exception);
                     // we do not need to use a timeout here since the entire recovery mechanism has an inactivity protection (it will be
                     // canceled)

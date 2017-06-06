@@ -53,7 +53,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * The REST handler for get alias and head alias APIs.

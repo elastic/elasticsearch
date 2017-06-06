@@ -117,7 +117,9 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 final RestStatus status;
                 builder.startObject();
                 {
-                    if (!difference.isEmpty()) {
+                    if (difference.isEmpty()) {
+                        status = RestStatus.OK;
+                    } else {
                         status = RestStatus.NOT_FOUND;
                         final String message;
                         if (difference.size() == 1) {
@@ -127,8 +129,6 @@ public class RestGetAliasesAction extends BaseRestHandler {
                         }
                         builder.field("error", message);
                         builder.field("status", status.getStatus());
-                    } else {
-                        status = RestStatus.OK;
                     }
 
                     for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {

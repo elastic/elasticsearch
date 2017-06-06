@@ -255,6 +255,14 @@ public class CryptoService extends AbstractComponent {
         return this.encryptionKey != null;
     }
 
+    /**
+     * Flag for callers to determine if values will actually be signed or returned as is
+     * @return true if values will be signed
+     */
+    public boolean isSystemKeyPresent() {
+        return this.systemKey != null;
+    }
+
     private byte[] encryptInternal(byte[] bytes, SecretKey key) {
         byte[] iv = new byte[ivLength];
         secureRandom.nextBytes(iv);

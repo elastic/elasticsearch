@@ -121,6 +121,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
+import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -206,6 +207,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     private final SetOnce<TransportInterceptor> securityInterceptor = new SetOnce<>();
     private final SetOnce<IPFilter> ipFilter = new SetOnce<>();
     private final SetOnce<AuthenticationService> authcService = new SetOnce<>();
+    private final SetOnce<AuditTrailService> auditTrailService = new SetOnce<>();
     private final SetOnce<SecurityContext> securityContext = new SetOnce<>();
     private final SetOnce<ThreadContext> threadContext = new SetOnce<>();
 
@@ -312,6 +314,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         final AuditTrailService auditTrailService =
                 new AuditTrailService(settings,  auditTrails.stream().collect(Collectors.toList()), licenseState);
         components.add(auditTrailService);
+        this.auditTrailService.set(auditTrailService);
 
         final SecurityLifecycleService securityLifecycleService =
                 new SecurityLifecycleService(settings, clusterService, threadPool, client, licenseState, indexAuditTrail);
@@ -512,31 +515,34 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     }
 
     public void onIndexModule(IndexModule module) {
-        if (enabled == false) {
-            return;
-        }
+        if (enabled) {
+            assert licenseState != null;
+            if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
+                module.setSearcherWrapper(indexService ->
+                        new SecurityIndexSearcherWrapper(indexService.getIndexSettings(),
+                                shardId -> indexService.newQueryShardContext(shardId.id(),
+                                // we pass a null index reader, which is legal and will disable rewrite optimizations
+                                // based on index statistics, which is probably safer...
+                                null,
+                                () -> {
+                                    throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
 
-        assert licenseState != null;
-        if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
-            module.setSearcherWrapper(indexService ->
-                new SecurityIndexSearcherWrapper(indexService.getIndexSettings(),
-                    shardId -> indexService.newQueryShardContext(shardId.id(),
-                            // we pass a null index reader, which is legal and will disable rewrite optimizations
-                            // based on index statistics, which is probably safer...
-                            null,
-                            () -> {
-                                throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
-                            }),
-                    indexService.cache().bitsetFilterCache(),
-                    indexService.getThreadPool().getThreadContext(), licenseState,
-                    indexService.getScriptService()));
-        }
-        if (transportClientMode == false) {
-            /*  We need to forcefully overwrite the query cache implementation to use security's opt out query cache implementation.
-             *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
-             *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
-             *  unauthorized users. */
-            module.forceQueryCacheProvider((settings, cache) -> new OptOutQueryCache(settings, cache, threadContext.get()));
+                                }),
+                                indexService.cache().bitsetFilterCache(),
+                                indexService.getThreadPool().getThreadContext(), licenseState,
+                                indexService.getScriptService()));
+                /*  We need to forcefully overwrite the query cache implementation to use security's opt out query cache implementation.
+                *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
+                *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
+                *  unauthorized users. */
+                module.forceQueryCacheProvider((settings, cache) -> new OptOutQueryCache(settings, cache, threadContext.get()));
+            }
+
+            // in order to prevent scroll ids from being maliciously crafted and/or guessed, a listener is added that
+            // attaches information to the scroll context so that we can validate the user that created the scroll against
+            // the user that is executing a scroll operation
+            module.addSearchOperationListener(
+                    new SecuritySearchOperationListener(threadContext.get(), licenseState, auditTrailService.get()));
         }
     }
 

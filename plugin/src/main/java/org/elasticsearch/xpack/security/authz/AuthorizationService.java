@@ -129,7 +129,7 @@ public class AuthorizationService extends AbstractComponent {
         }
         request = TransportActionProxy.unwrapRequest(request);
         // prior to doing any authorization lets set the originating action in the context only
-        setOriginatingAction(action);
+        putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
 
         // first we need to check if the user is the system. If it is, we'll just authorize the system access
         if (SystemUser.is(authentication.getUser())) {
@@ -181,7 +181,7 @@ public class AuthorizationService extends AbstractComponent {
                 throw new IllegalStateException("Composite actions must implement " + CompositeIndicesRequest.class.getSimpleName()
                         + ", " + request.getClass().getSimpleName() + " doesn't");
             }
-            //we check if the user can execute the action, without looking at indices, whici will be authorized at the shard level
+            // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
             if (permission.indices().check(action)) {
                 grant(authentication, action, request);
                 return;
@@ -203,19 +203,31 @@ public class AuthorizationService extends AbstractComponent {
         // some APIs are indices requests that are not actually associated with indices. For example,
         // search scroll request, is categorized under the indices context, but doesn't hold indices names
         // (in this case, the security check on the indices was done on the search request that initialized
-        // the scroll... and we rely on the signed scroll id to provide security over this request).
-        // so we only check indices if indeed the request is an actual IndicesRequest, if it's not,
-        // we just grant it if it's a scroll, deny otherwise
+        // the scroll. Given that scroll is implemented using a context on the node holding the shard, we
+        // piggyback on it and enhance the context with the original authentication. This serves as our method
+        // to validate the scroll id only stays with the same user!
         if (request instanceof IndicesRequest == false && request instanceof IndicesAliasesRequest == false) {
+            //note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
+            //indices permission as it's categorized under cluster. This is why the scroll check is performed
+            //even before checking if the user has any indices permission.
             if (isScrollRelatedAction(action)) {
-                //note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
-                //indices permission as it's categorized under cluster. This is why the scroll check is performed
-                //even before checking if the user has any indices permission.
-                grant(authentication, action, request);
-                return;
+                // if the action is a search scroll action, we first authorize that the user can execute the action for some
+                // index and if they cannot, we can fail the request early before we allow the execution of the action and in
+                // turn the shard actions
+                if (SearchScrollAction.NAME.equals(action) && permission.indices().check(action) == false) {
+                    throw denial(authentication, action, request);
+                } else {
+                    // we store the request as a transient in the ThreadContext in case of a authorization failure at the shard
+                    // level. If authorization fails we will audit a access_denied message and will use the request to retrieve
+                    // information such as the index and the incoming address of the request
+                    grant(authentication, action, request);
+                    return;
+                }
+            } else {
+                assert false :
+                        "only scroll related requests are known indices api that don't support retrieving the indices they relate to";
+                throw denial(authentication, action, request);
             }
-            assert false : "only scroll related requests are known indices api that don't support retrieving the indices they relate to";
-            throw denial(authentication, action, request);
         }
 
         if (permission.indices().check(action) == false) {
@@ -289,10 +301,10 @@ public class AuthorizationService extends AbstractComponent {
         }
     }
 
-    private void setOriginatingAction(String action) {
-        String originatingAction = threadContext.getTransient(ORIGINATING_ACTION_KEY);
-        if (originatingAction == null) {
-            threadContext.putTransient(ORIGINATING_ACTION_KEY, action);
+    private void putTransientIfNonExisting(String key, Object value) {
+        Object existing = threadContext.getTransient(key);
+        if (existing == null) {
+            threadContext.putTransient(key, value);
         }
     }
 
@@ -403,7 +415,7 @@ public class AuthorizationService extends AbstractComponent {
         return ReservedRealm.TYPE.equals(realmType) || NativeRealm.TYPE.equals(realmType);
     }
 
-    private ElasticsearchSecurityException denial(Authentication authentication, String action, TransportRequest request) {
+    ElasticsearchSecurityException denial(Authentication authentication, String action, TransportRequest request) {
         auditTrail.accessDenied(authentication.getUser(), action, request);
         return denialException(authentication, action);
     }

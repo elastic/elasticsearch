@@ -125,7 +125,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             // superuser since the role used there is a file based role since we cannot guarantee the superuser role is always available
             internalClient().admin().indices().prepareDelete(TokenService.INDEX_NAME).get();
         } catch (IndexNotFoundException e) {
-            logger.warn("securirty index does not exist", e);
+            logger.warn("security index does not exist", e);
         }
     }
 }

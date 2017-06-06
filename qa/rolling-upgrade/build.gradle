@@ -113,6 +113,7 @@ for (boolean withSystemKey: [true, false]) {
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'
+      setting 'node.attr.upgraded', 'first'
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {
         setting 'xpack.security.system_key.required', 'true'

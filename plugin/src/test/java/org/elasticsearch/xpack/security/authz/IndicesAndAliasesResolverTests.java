@@ -601,16 +601,16 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsIndicesAliasesRequest() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
-        request.addAliasAction(AliasActions.add().alias("alias1").index("foo*"));
+        request.addAliasAction(AliasActions.add().alias("foo-alias").index("foo*"));
         request.addAliasAction(AliasActions.add().alias("alias2").index("bar*"));
         Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
         //the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
-        String[] expectedIndices = new String[]{"alias1", "alias2", "foofoo", "foofoobar", "bar"};
+        String[] expectedIndices = new String[]{"foo-alias", "alias2", "foofoo", "bar"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced on each single action
-        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoobar", "foofoo"));
-        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("alias1"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foo-alias"));
         assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar"));
         assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("alias2"));
     }
@@ -631,10 +631,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.addAliasAction(AliasActions.add().alias("alias2").index("_all"));
         Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
         //the union of all resolved indices and aliases gets returned
-        String[] expectedIndices = new String[]{"bar", "foofoobar", "foofoo", "alias1", "alias2"};
+        String[] expectedIndices = new String[]{"bar", "foofoo", "alias1", "alias2"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
-        String[] replacedIndices = new String[]{"bar", "foofoobar", "foofoo"};
+        String[] replacedIndices = new String[]{"bar", "foofoo"};
         //_all gets replaced with all indices that user is authorized for, on each single action
         assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder(replacedIndices));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("alias1"));
@@ -698,7 +698,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced within each single action
-        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoo"));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
         assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar"));
         assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("barbaz"));
@@ -716,9 +716,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //alias foofoobar on both sides, that's fine, es core would do the same, same as above
-        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("bar", "foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("bar", "foofoo"));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
-        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar", "foofoobar"));
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar"));
         assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar"));
     }
 
@@ -734,9 +734,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //alias foofoobar on both sides, that's fine, es core would do the same, same as above
-        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("bar", "foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("bar", "foofoo"));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
-        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("bar", "foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("bar", "foofoo"));
         assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar", "explicit"));
     }
 
@@ -759,7 +759,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //every single action has its indices replaced with matching (authorized) ones
-        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoobar", "foofoo"));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoo"));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
         assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar"));
         assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar"));
@@ -1146,7 +1146,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
-            aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index("*"));
+            aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index(SecurityLifecycleService.SECURITY_INDEX_NAME));
             Set<String> indices = defaultIndicesResolver.resolve(aliasesRequest,
                     metaData, buildAuthorizedIndices(XPackUser.INSTANCE, IndicesAliasesAction.NAME));
             assertThat(indices, hasItem(SecurityLifecycleService.SECURITY_INDEX_NAME));

@@ -334,20 +334,20 @@ public class IndicesAndAliasesResolver {
     }
 
     private static boolean isIndexVisible(String index, IndicesOptions indicesOptions, MetaData metaData, boolean dateMathExpression) {
-        if (metaData.hasConcreteIndex(index)) {
-            IndexMetaData indexMetaData = metaData.index(index);
-            if (indexMetaData == null) {
-                //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
-                //complicated to support those options with aliases pointing to multiple indices...
-                //TODO investigate supporting expandWildcards option for aliases too, like es core does.
-                return true;
-            }
-            if (indexMetaData.getState() == IndexMetaData.State.CLOSE && (indicesOptions.expandWildcardsClosed() || dateMathExpression)) {
-                return true;
-            }
-            if (indexMetaData.getState() == IndexMetaData.State.OPEN && (indicesOptions.expandWildcardsOpen() || dateMathExpression)) {
-                return true;
-            }
+        AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(index);
+        if (aliasOrIndex.isAlias()) {
+            //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
+            //complicated to support those options with aliases pointing to multiple indices...
+            //TODO investigate supporting expandWildcards option for aliases too, like es core does.
+            return indicesOptions.ignoreAliases() == false;
+        }
+        assert aliasOrIndex.getIndices().size() == 1 : "concrete index must point to a single index";
+        IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
+        if (indexMetaData.getState() == IndexMetaData.State.CLOSE && (indicesOptions.expandWildcardsClosed() || dateMathExpression)) {
+            return true;
+        }
+        if (indexMetaData.getState() == IndexMetaData.State.OPEN && (indicesOptions.expandWildcardsOpen() || dateMathExpression)) {
+            return true;
         }
         return false;
     }

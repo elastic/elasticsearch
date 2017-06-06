@@ -101,6 +101,7 @@ import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.PortugueseAnalyzerProvider;
+import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ReverseTokenFilterFactory;
@@ -173,11 +174,14 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
 
+        Map<String, PreConfiguredCharFilter> preConfiguredCharFilters = setupPreConfiguredCharFilters(plugins);
         Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
         Map<String, PreConfiguredTokenizer> preConfiguredTokenizers = setupPreConfiguredTokenizers(plugins);
 
-        analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers
-            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry(), preConfiguredTokenFilters, preConfiguredTokenizers);
+        analysisRegistry = new AnalysisRegistry(environment,
+                charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers.getRegistry(),
+                analyzers.getRegistry(), normalizers.getRegistry(),
+                preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers);
     }
 
     HunspellService getHunspellService() {
@@ -259,6 +263,19 @@ public final class AnalysisModule {
         tokenFilters.register("fingerprint", FingerprintTokenFilterFactory::new);
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
+    }
+
+    static Map<String, PreConfiguredCharFilter> setupPreConfiguredCharFilters(List<AnalysisPlugin> plugins) {
+        NamedRegistry<PreConfiguredCharFilter> preConfiguredCharFilters = new NamedRegistry<>("pre-configured char_filter");
+
+        // No char filter are available in lucene-core so none are built in to Elasticsearch core
+
+        for (AnalysisPlugin plugin: plugins) {
+            for (PreConfiguredCharFilter filter : plugin.getPreConfiguredCharFilters()) {
+                preConfiguredCharFilters.register(filter.getName(), filter);
+            }
+        }
+        return unmodifiableMap(preConfiguredCharFilters.getRegistry());
     }
 
     static Map<String, PreConfiguredTokenFilter> setupPreConfiguredTokenFilters(List<AnalysisPlugin> plugins) {

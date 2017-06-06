@@ -20,12 +20,13 @@
 package org.elasticsearch.common.util.concurrent;
 
 /**
- * A class used to wrap a {@code Runnable} that allows capturing the time the task since creation
- * through execution.
+ * A class used to wrap a {@code Runnable} that allows capturing the time of the task since creation
+ * through execution as well as only execution time.
  */
 class TimedRunnable implements Runnable {
     private final Runnable original;
     private final long creationTimeNanos;
+    private long startTimeNanos;
     private long finishTimeNanos = -1;
 
     TimedRunnable(Runnable original) {
@@ -36,6 +37,7 @@ class TimedRunnable implements Runnable {
     @Override
     public void run() {
         try {
+            startTimeNanos = System.nanoTime();
             original.run();
         } finally {
             finishTimeNanos = System.nanoTime();
@@ -52,5 +54,17 @@ class TimedRunnable implements Runnable {
             return -1;
         }
         return finishTimeNanos - creationTimeNanos;
+    }
+
+    /**
+     * Return the time this task spent being run.
+     * If the task is still running or has not yet been run, returns -1.
+     */
+    long getTotalExecutionNanos() {
+        if (startTimeNanos == -1 || finishTimeNanos == -1) {
+            // There must have been an exception thrown, the total time is unknown (-1)
+            return -1;
+        }
+        return finishTimeNanos - startTimeNanos;
     }
 }

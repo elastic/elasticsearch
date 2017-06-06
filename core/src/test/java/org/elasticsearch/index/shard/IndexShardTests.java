@@ -102,12 +102,14 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1614,6 +1616,57 @@ public class IndexShardTests extends IndexShardTestCase {
             }, true);
 
         closeShards(primary, replica);
+    }
+
+    public void testRecoverFromTranslog() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetaData metaData = IndexMetaData.builder("test")
+            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        List<Translog.Operation> operations = new ArrayList<>();
+        int numTotalEntries = randomIntBetween(0, 10);
+        int numCorruptEntries = 0;
+        for (int i = 0; i < numTotalEntries; i++) {
+            if (randomBoolean()) {
+                operations.add(new Translog.Index("test", "1", 0, 1, VersionType.INTERNAL,
+                    "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8"))));
+            } else {
+                // corrupt entry
+                operations.add(new Translog.Index("test", "2", 1, 1, VersionType.INTERNAL,
+                    "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8"))));
+                numCorruptEntries++;
+            }
+        }
+
+        Iterator<Translog.Operation> iterator = operations.iterator();
+        Translog.Snapshot snapshot = new Translog.Snapshot() {
+
+            @Override
+            public int totalOperations() {
+                return numTotalEntries;
+            }
+
+            @Override
+            public Translog.Operation next() throws IOException {
+                return iterator.hasNext() ? iterator.next() : null;
+            }
+        };
+        primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(),
+            getFakeDiscoNode(primary.routingEntry().currentNodeId()),
+            null));
+        primary.recoverFromStore();
+
+        primary.runTranslogRecovery(primary.getEngine(), snapshot);
+        assertThat(primary.recoveryState().getTranslog().totalOperationsOnStart(), equalTo(numTotalEntries));
+        assertThat(primary.recoveryState().getTranslog().totalOperations(), equalTo(numTotalEntries));
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numTotalEntries - numCorruptEntries));
+
+        closeShards(primary);
     }
 
     public void testShardActiveDuringInternalRecovery() throws IOException {

@@ -1054,7 +1054,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return translogOpToEngineOpConverter.convertToEngineOp(operation, origin);
     }
 
-    private int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot) throws IOException {
+    // package-private for testing
+    int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot) throws IOException {
         recoveryState.getTranslog().totalOperations(snapshot.totalOperations());
         recoveryState.getTranslog().totalOperationsOnStart(snapshot.totalOperations());
         int opsRecovered = 0;

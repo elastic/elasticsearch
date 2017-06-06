@@ -19,12 +19,16 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.common.inject.internal.Nullable;
+
 class ScrollIdForNode {
     private final String node;
     private final long scrollId;
+    private final String clusterAlias;
 
-    ScrollIdForNode(String node, long scrollId) {
+    ScrollIdForNode(@Nullable String clusterAlias, String node, long scrollId) {
         this.node = node;
+        this.clusterAlias = clusterAlias;
         this.scrollId = scrollId;
     }
 
@@ -32,7 +36,20 @@ class ScrollIdForNode {
         return node;
     }
 
+    public String getClusterAlias() {
+        return clusterAlias;
+    }
+
     public long getScrollId() {
         return scrollId;
+    }
+
+    @Override
+    public String toString() {
+        return "ScrollIdForNode{" +
+            "node='" + node + '\'' +
+            ", scrollId=" + scrollId +
+            ", clusterAlias='" + clusterAlias + '\'' +
+            '}';
     }
 }

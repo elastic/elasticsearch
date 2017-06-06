@@ -27,28 +27,28 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
-
-import static org.elasticsearch.action.search.TransportSearchHelper.internalScrollSearchRequest;
+import java.util.function.BiFunction;
 
 final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncAction<ScrollQuerySearchResult> {
 
     private final SearchTask task;
-    private final SearchTransportService searchTransportService;
     private final AtomicArray<FetchSearchResult> fetchResults;
     private final AtomicArray<QuerySearchResult> queryResults;
 
     SearchScrollQueryThenFetchAsyncAction(Logger logger, ClusterService clusterService, SearchTransportService searchTransportService,
                                           SearchPhaseController searchPhaseController, SearchScrollRequest request, SearchTask task,
                                           ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
-        super(scrollId, logger, clusterService.state().nodes(), listener, searchPhaseController, request);
-        this.searchTransportService = searchTransportService;
+        super(scrollId, logger, clusterService.state().nodes(), listener, searchPhaseController, request,
+            searchTransportService);
         this.task = task;
         this.fetchResults = new AtomicArray<>(scrollId.getContext().length);
         this.queryResults = new AtomicArray<>(scrollId.getContext().length);
@@ -59,13 +59,13 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
     }
 
     @Override
-    protected void executeInitialPhase(DiscoveryNode node, InternalScrollSearchRequest internalRequest,
+    protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
                                        SearchActionListener<ScrollQuerySearchResult> searchActionListener) {
-        searchTransportService.sendExecuteScrollQuery(node, internalRequest, task, searchActionListener);
+        searchTransportService.sendExecuteScrollQuery(connection, internalRequest, task, searchActionListener);
     }
 
     @Override
-    protected SearchPhase moveToNextPhase() {
+    protected SearchPhase moveToNextPhase(BiFunction<String, String, DiscoveryNode> clusterNodeLookup) {
         return new SearchPhase("fetch") {
             @Override
             public void run() throws IOException {
@@ -89,8 +89,11 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                         ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[index];
                         ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.getRequestId(), docIds,
                             lastEmittedDoc);
-                        DiscoveryNode node = nodes.get(querySearchResult.getSearchShardTarget().getNodeId());
-                        searchTransportService.sendExecuteFetchScroll(node, shardFetchRequest, task,
+                        SearchShardTarget searchShardTarget = querySearchResult.getSearchShardTarget();
+                        DiscoveryNode node = clusterNodeLookup.apply(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+                        assert node != null : "target node is null in secondary phase";
+                        Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), node);
+                        searchTransportService.sendExecuteFetchScroll(connection, shardFetchRequest, task,
                             new SearchActionListener<FetchSearchResult>(querySearchResult.getSearchShardTarget(), index) {
                                 @Override
                                 protected void innerOnResponse(FetchSearchResult response) {
@@ -102,7 +105,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
 
                                 @Override
                                 public void onFailure(Exception t) {
-                                    onShardFailure(getName(), querySearchResult.getShardIndex(), counter, querySearchResult.getRequestId(),
+                                    onShardFailure(getName(), counter, querySearchResult.getRequestId(),
                                         t, querySearchResult.getSearchShardTarget(),
                                         () -> sendResponsePhase(reducedQueryPhase, fetchResults));
                                 }

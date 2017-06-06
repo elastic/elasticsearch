@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class GroupedActionListener<T> implements ActionListener<T> {
     private final CountDown countDown;
     private final AtomicInteger pos = new AtomicInteger();
-    private final AtomicArray<T> roles;
+    private final AtomicArray<T> results;
     private final ActionListener<Collection<T>> delegate;
     private final Collection<T> defaults;
     private final AtomicReference<Exception> failure = new AtomicReference<>();
@@ -49,7 +49,7 @@ public final class GroupedActionListener<T> implements ActionListener<T> {
      */
     public GroupedActionListener(ActionListener<Collection<T>> delegate, int groupSize,
                                  Collection<T> defaults) {
-        roles = new AtomicArray<>(groupSize);
+        results = new AtomicArray<>(groupSize);
         countDown = new CountDown(groupSize);
         this.delegate = delegate;
         this.defaults = defaults;
@@ -57,12 +57,12 @@ public final class GroupedActionListener<T> implements ActionListener<T> {
 
     @Override
     public void onResponse(T element) {
-        roles.set(pos.incrementAndGet() - 1, element);
+        results.setOnce(pos.incrementAndGet() - 1, element);
         if (countDown.countDown()) {
             if (failure.get() != null) {
                 delegate.onFailure(failure.get());
             } else {
-                List<T> collect = this.roles.asList();
+                List<T> collect = this.results.asList();
                 collect.addAll(defaults);
                 delegate.onResponse(Collections.unmodifiableList(collect));
             }

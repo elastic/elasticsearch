@@ -18,17 +18,12 @@
  */
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchShardIterator;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -40,15 +35,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -59,6 +49,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -344,6 +335,46 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             for (RemoteClusterConnection connection : remoteClusters.values()) {
                 connection.getConnectionInfo(actionListener);
             }
+        }
+    }
+
+    /**
+     * Collects all nodes of the given clusters and returns / passes a (clusterAlias, nodeId) to {@link DiscoveryNode}
+     * function on success.
+     */
+    public void collectNodes(Set<String> clusters, ActionListener<BiFunction<String, String, DiscoveryNode>> listener) {
+        Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
+        for (String cluster : clusters) {
+            if (remoteClusters.containsKey(cluster) == false) {
+                listener.onFailure(new IllegalArgumentException("no such remote cluster: [" + cluster + "]"));
+                return;
+            }
+        }
+
+        final Map<String, Function<String, DiscoveryNode>> clusterMap = new HashMap<>();
+        CountDown countDown = new CountDown(clusters.size());
+        Function<String, DiscoveryNode> nullFunction = s -> null;
+        for (final String cluster : clusters) {
+            RemoteClusterConnection connection = remoteClusters.get(cluster);
+            connection.collectNodes(new ActionListener<Function<String, DiscoveryNode>>() {
+                @Override
+                public void onResponse(Function<String, DiscoveryNode> nodeLookup) {
+                    synchronized (clusterMap) {
+                        clusterMap.put(cluster, nodeLookup);
+                    }
+                    if (countDown.countDown()) {
+                        listener.onResponse((clusterAlias, nodeId)
+                            -> clusterMap.getOrDefault(clusterAlias, nullFunction).apply(nodeId));
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (countDown.fastForward()) {
+                        listener.onFailure(e);
+                    }
+                }
+            });
         }
     }
 }

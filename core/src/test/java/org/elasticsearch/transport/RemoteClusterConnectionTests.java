@@ -55,11 +55,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterConnection;
-import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TransportConnectionListener;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -78,6 +73,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -357,7 +353,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testFetchShards() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
              MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
@@ -780,6 +775,44 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     latch.await();
                     assertTrue(service.nodeConnected(seedNode));
                     assertTrue(service.nodeConnected(discoverableNode));
+                    assertTrue(connection.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
+    public void testCollectNodes() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            knownNodes.add(seedTransport.getLocalDiscoNode());
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
+                    Arrays.asList(seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    if (randomBoolean()) {
+                        updateSeedNodes(connection, Arrays.asList(seedNode));
+                    }
+                    CountDownLatch responseLatch = new CountDownLatch(1);
+                    AtomicReference<Function<String, DiscoveryNode>> reference = new AtomicReference<>();
+                    AtomicReference<Exception> failReference = new AtomicReference<>();
+                    ActionListener<Function<String, DiscoveryNode>> shardsListener = ActionListener.wrap(
+                        x -> {
+                            reference.set(x);
+                            responseLatch.countDown();
+                        },
+                        x -> {
+                            failReference.set(x);
+                            responseLatch.countDown();
+                        });
+                    connection.collectNodes(shardsListener);
+                    responseLatch.await();
+                    assertNull(failReference.get());
+                    assertNotNull(reference.get());
+                    Function<String, DiscoveryNode> function = reference.get();
+                    assertEquals(seedNode, function.apply(seedNode.getId()));
+                    assertNull(function.apply(seedNode.getId() + "foo"));
                     assertTrue(connection.assertNoRunningConnections());
                 }
             }

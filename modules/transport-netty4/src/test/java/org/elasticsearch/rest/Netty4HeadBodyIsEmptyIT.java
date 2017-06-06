@@ -20,4 +20,5 @@
 package org.elasticsearch.rest;
 
 public class Netty4HeadBodyIsEmptyIT extends HeadBodyIsEmptyIntegTestCase {
+
 }

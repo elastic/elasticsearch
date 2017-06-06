@@ -28,6 +28,8 @@ import org.apache.lucene.search.postingshighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.highlight.Snippet;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
@@ -44,13 +46,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+@Deprecated
 public class PostingsHighlighter implements Highlighter {
+    private static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(PostingsHighlighter.class));
 
     private static final String CACHE_KEY = "highlight-postings";
 
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
-
+        deprecationLogger.deprecated("[postings] highlighter is deprecated, please use [unified] instead");
         FieldMapper fieldMapper = highlighterContext.mapper;
         SearchContextHighlight.Field field = highlighterContext.field;
         if (canHighlight(fieldMapper) == false) {

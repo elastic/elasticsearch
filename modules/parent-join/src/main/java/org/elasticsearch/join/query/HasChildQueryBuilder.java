@@ -316,6 +316,14 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     private Query joinFieldDoToQuery(QueryShardContext context) throws IOException {
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
+        if (joinFieldMapper == null) {
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new QueryShardException(context, "[" + NAME + "] no join field has been configured");
+            }
+        }
+
         ParentIdFieldMapper parentIdFieldMapper = joinFieldMapper.getParentIdFieldMapper(type, false);
         if (parentIdFieldMapper != null) {
             Query parentFilter = parentIdFieldMapper.getParentFilter();
@@ -329,7 +337,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(context, "[" + NAME + "] join field has no parent type configured");
+                throw new QueryShardException(context, "[" + NAME + "] join field [" + joinFieldMapper.name() +
+                    "] doesn't hold [" + type + "] as a child");
             }
         }
     }
@@ -513,7 +522,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             InnerHitContextBuilder.extractInnerHits(query, children);
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : type;
             InnerHitContextBuilder innerHitContextBuilder =
-                new HasParentQueryBuilder.ParentChildInnerHitContextBuilder(type, query, innerHitBuilder, children);
+                new ParentChildInnerHitContextBuilder(type, true, query, innerHitBuilder, children);
             innerHits.put(name, innerHitContextBuilder);
         }
     }

@@ -167,7 +167,7 @@ setup:
 ---
 "Non-existent alias on an existing index returns 404":
   - skip:
-      version: " - 5.99.99"
+      version: " - 5.4.99"
       reason: Previous versions did not 404 on missing aliases
 
   - do:
@@ -182,7 +182,7 @@ setup:
 ---
 "Existent and non-existent alias returns 404 and the existing alias":
   - skip:
-      version: " - 5.99.99"
+      version: " - 5.4.99"
       reason: Previous versions did not 404 on missing aliases
 
   - do:
@@ -198,7 +198,7 @@ setup:
 ---
 "Existent and non-existent aliases returns 404 and the existing alias":
   - skip:
-      version: " - 5.99.99"
+      version: " - 5.4.99"
       reason: Previous versions did not 404 on missing aliases
 
   - do:

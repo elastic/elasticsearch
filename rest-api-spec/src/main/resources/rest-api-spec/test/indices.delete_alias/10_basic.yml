@@ -1,7 +1,7 @@
 ---
 "Basic test for delete alias":
   - skip:
-      version: " - 5.99.99"
+      version: " - 5.4.99"
       reason: Previous versions did not 404 on missing aliases
 
   - do:

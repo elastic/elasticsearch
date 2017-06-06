@@ -507,35 +507,21 @@ public final class Settings implements ToXContent {
     }
 
     private Map<String, Settings> getGroupsInternal(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
-        // we don't really care that it might happen twice
-        Map<String, Map<String, String>> map = new LinkedHashMap<>();
-        for (Object o : settings.keySet()) {
-            String setting = (String) o;
-            if (setting.startsWith(settingPrefix)) {
-                String nameValue = setting.substring(settingPrefix.length());
-                int dotIndex = nameValue.indexOf('.');
-                if (dotIndex == -1) {
-                    if (ignoreNonGrouped) {
-                        continue;
-                    }
-                    throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting ["
-                            + setting + "] because of a missing '.'");
+        Settings prefixSettings = getByPrefix(settingPrefix);
+        Map<String, Settings> groups = new HashMap<>();
+        for (String groupName : prefixSettings.names()) {
+            Settings groupSettings = prefixSettings.getByPrefix(groupName + ".");
+            if (groupSettings.isEmpty()) {
+                if (ignoreNonGrouped) {
+                    continue;
                 }
-                String name = nameValue.substring(0, dotIndex);
-                String value = nameValue.substring(dotIndex + 1);
-                Map<String, String> groupSettings = map.get(name);
-                if (groupSettings == null) {
-                    groupSettings = new LinkedHashMap<>();
-                    map.put(name, groupSettings);
-                }
-                groupSettings.put(value, get(setting));
+                throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting ["
+                    + settingPrefix + groupName + "] because of a missing '.'");
             }
+            groups.put(groupName, groupSettings);
         }
-        Map<String, Settings> retVal = new LinkedHashMap<>();
-        for (Map.Entry<String, Map<String, String>> entry : map.entrySet()) {
-            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue()), secureSettings));
-        }
-        return Collections.unmodifiableMap(retVal);
+
+        return Collections.unmodifiableMap(groups);
     }
     /**
      * Returns group settings for the given setting prefix.

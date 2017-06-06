@@ -201,6 +201,19 @@ public class ESTestCaseTests extends ESTestCase {
 
         Map<String, Object> resultMap;
 
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(),
+                insertRandomFields(builder.contentType(), builder.bytes(), null))) {
+            resultMap = parser.map();
+        }
+        assertEquals(5, resultMap.keySet().size());
+        assertEquals(2, ((Map<String, Object>) resultMap.get("foo")).keySet().size());
+        Map<String, Object> foo1 = (Map<String, Object>) resultMap.get("foo1");
+        assertEquals(2, foo1.keySet().size());
+        assertEquals(2, ((Map<String, Object>) foo1.get("foo2")).keySet().size());
+        List<Object> foo4List = (List<Object>) resultMap.get("foo4");
+        assertEquals(1, foo4List.size());
+        assertEquals(2, ((Map<String, Object>) foo4List.get(0)).keySet().size());
+
         Predicate<String> pathsToExclude = path -> path.endsWith("foo1");
         try (XContentParser parser = createParser(XContentType.JSON.xContent(),
                 insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude))) {
@@ -208,10 +221,10 @@ public class ESTestCaseTests extends ESTestCase {
         }
         assertEquals(5, resultMap.keySet().size());
         assertEquals(2, ((Map<String, Object>) resultMap.get("foo")).keySet().size());
-        Map<String, Object> foo1 = (Map<String, Object>) resultMap.get("foo1");
+        foo1 = (Map<String, Object>) resultMap.get("foo1");
         assertEquals(1, foo1.keySet().size());
         assertEquals(2, ((Map<String, Object>) foo1.get("foo2")).keySet().size());
-        List<Object> foo4List = (List<Object>) resultMap.get("foo4");
+        foo4List = (List<Object>) resultMap.get("foo4");
         assertEquals(1, foo4List.size());
         assertEquals(2, ((Map<String, Object>) foo4List.get(0)).keySet().size());
 

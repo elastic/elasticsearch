@@ -129,6 +129,36 @@ public final class XContentTestUtils {
         }
     }
 
+    /**
+     * This utility method takes an XContentParser and walks the xContent structure to find all
+     * possible paths to where a new object or array starts. This can be used in tests that add random
+     * xContent values to test parsing code for errors or to check their robustness against new fields.
+     *
+     * The path uses dot separated fieldnames and numbers for array indices, similar to what we do in
+     * {@link ObjectPath}.
+     *
+     * As an example, the following json xContent:
+     * <pre>
+     *     {
+     *         "foo" : "bar",
+     *         "foo1" : [ 1, { "foo2" : "baz" }, 3, 4]
+     *         "foo3" : {
+     *             "foo4" : {
+     *                  "foo5": "buzz"
+     *             }
+     *         }
+     *     }
+     * </pre>
+     *
+     * Would return the following list:
+     *
+     * <ul>
+     *  <li>"" (the empty string is the path to the root object)</li>
+     *  <li>"foo1.1"</li>
+     *  <li>"foo3</li>
+     *  <li>"foo3.foo4</li>
+     * </ul>
+     */
     public static List<String> getInsertPaths(XContentParser parser) throws IOException{
         if (parser.currentToken() == null) {
             parser.nextToken();

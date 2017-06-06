@@ -953,18 +953,21 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public BytesReference insertRandomFields(XContentType contentType, BytesReference xContent, Predicate<String> excludeFilter)
             throws IOException {
-        List<String> insertPaths = new ArrayList<>();
-        if (excludeFilter == null) {
-            excludeFilter = (path -> false);
-        }
+        List<String> insertPaths;
+
         try (XContentParser parser = createParser(contentType.xContent(), xContent)) {
             List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser);
-            possiblePaths.stream().filter(excludeFilter.negate()).forEach(insertPaths::add);
+            if (excludeFilter == null) {
+                insertPaths = possiblePaths;
+            } else {
+                insertPaths = new ArrayList<>();
+                possiblePaths.stream().filter(excludeFilter.negate()).forEach(insertPaths::add);
+            }
         }
         try (XContentParser parser = createParser(contentType.xContent(), xContent)) {
             Supplier<Object> value = () -> {
                 if (randomBoolean()) {
-                    return randomAlphaOfLength(10);
+                    return RandomObjects.randomStoredFieldValues(random(), contentType);
                 } else {
                     if (randomBoolean()) {
                         return Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10));

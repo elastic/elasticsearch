@@ -31,6 +31,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -198,6 +199,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testDefaultFieldParsing() throws IOException {
+        assumeTrue("5.x behaves differently, so skip on non-6.x indices",
+                indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1));
+
         String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
                 "    \"simple_query_string\" : {\n" +

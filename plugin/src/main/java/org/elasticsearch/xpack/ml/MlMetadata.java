@@ -348,7 +348,7 @@ public class MlMetadata implements MetaData.Custom {
             return new MlMetadata(jobs, datafeeds);
         }
 
-        public void markJobAsDeleted(String jobId, PersistentTasksCustomMetaData tasks) {
+        public void markJobAsDeleted(String jobId, PersistentTasksCustomMetaData tasks, boolean allowDeleteOpenJob) {
             Job job = jobs.get(jobId);
             if (job == null) {
                 throw ExceptionsHelper.missingJobException(jobId);
@@ -357,19 +357,27 @@ public class MlMetadata implements MetaData.Custom {
                 // Job still exists
                 return;
             }
+
+            checkJobHasNoDatafeed(jobId);
+
+            if (allowDeleteOpenJob == false) {
+                PersistentTask<?> jobTask = getJobTask(jobId, tasks);
+                if (jobTask != null) {
+                    throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because the job is "
+                            + ((JobTaskStatus) jobTask.getStatus()).getState());
+                }
+            }
+            Job.Builder jobBuilder = new Job.Builder(job);
+            jobBuilder.setDeleted(true);
+            putJob(jobBuilder.build(), true);
+        }
+
+        public void checkJobHasNoDatafeed(String jobId) {
             Optional<DatafeedConfig> datafeed = getDatafeedByJobId(jobId);
             if (datafeed.isPresent()) {
                 throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because datafeed ["
                         + datafeed.get().getId() + "] refers to it");
             }
-            PersistentTask<?> jobTask = getJobTask(jobId, tasks);
-            if (jobTask != null) {
-                throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because the job is "
-                        + ((JobTaskStatus) jobTask.getStatus()).getState());
-            }
-            Job.Builder jobBuilder = new Job.Builder(job);
-            jobBuilder.setDeleted(true);
-            putJob(jobBuilder.build(), true);
         }
 
     }

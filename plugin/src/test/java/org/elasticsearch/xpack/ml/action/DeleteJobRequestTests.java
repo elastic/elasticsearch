@@ -12,7 +12,9 @@ public class DeleteJobRequestTests extends AbstractStreamableTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLengthBetween(1, 20));
+        Request request = new Request(randomAlphaOfLengthBetween(1, 20));
+        request.setForce(randomBoolean());
+        return request;
     }
 
     @Override

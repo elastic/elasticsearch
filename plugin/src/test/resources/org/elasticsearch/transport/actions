@@ -130,6 +130,7 @@ cluster:admin/xpack/ml/job/model_snapshots/revert
 cluster:admin/xpack/ml/datafeeds/delete
 cluster:admin/xpack/ml/job/data/post
 cluster:admin/xpack/ml/job/close
+cluster:internal/xpack/ml/job/kill/process
 cluster:admin/xpack/ml/filters/put
 cluster:admin/xpack/ml/job/put
 cluster:monitor/xpack/ml/job/get

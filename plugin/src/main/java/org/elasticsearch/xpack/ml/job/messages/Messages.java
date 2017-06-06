@@ -49,6 +49,7 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "Datafeed started in real-time";
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";
     public static final String JOB_AUDIT_DELETED = "Job deleted";
+    public static final String JOB_AUDIT_KILLING = "Killing job";
     public static final String JOB_AUDIT_OLD_RESULTS_DELETED = "Deleted results prior to {1}";
     public static final String JOB_AUDIT_REVERTED = "Job model snapshot reverted to ''{0}''";
     public static final String JOB_AUDIT_SNAPSHOT_DELETED = "Model snapshot [{0}] with description ''{1}'' deleted";

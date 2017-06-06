@@ -363,6 +363,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         verify(persister, never()).commitResultWrites(JOB_ID);
         verify(persister, never()).commitStateWrites(JOB_ID);
         verify(renormalizer, never()).renormalize(any());
+        verify(renormalizer).shutdown();
         verify(renormalizer, never()).waitUntilIdle();
         verify(flushListener, times(1)).clear();
     }

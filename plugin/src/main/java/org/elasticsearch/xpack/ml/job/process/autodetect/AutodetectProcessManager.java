@@ -134,18 +134,30 @@ public class AutodetectProcessManager extends AbstractComponent {
         }
     }
 
+    public void killProcess(JobTask jobTask, boolean awaitCompletion) {
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobTask.getAllocationId());
+        if (communicator != null) {
+            killProcess(communicator, jobTask.getJobId(), awaitCompletion, true);
+        }
+    }
+
     public void killAllProcessesOnThisNode() {
         Iterator<AutodetectCommunicator> iter = autoDetectCommunicatorByJob.values().iterator();
         while (iter.hasNext()) {
             AutodetectCommunicator communicator = iter.next();
-            try {
-                communicator.killProcess();
-                iter.remove();
-            } catch (IOException e) {
-                logger.error("[{}] Failed to kill autodetect process for job", communicator.getJobTask().getJobId());
-            }
+            iter.remove();
+            killProcess(communicator, communicator.getJobTask().getJobId(), false, false);
         }
     }
+
+    private void killProcess(AutodetectCommunicator communicator, String jobId, boolean awaitCompletion, boolean finish) {
+        try {
+            communicator.killProcess(awaitCompletion, finish);
+        } catch (IOException e) {
+            logger.error("[{}] Failed to kill autodetect process for job", jobId);
+        }
+    }
+
 
     /**
      * Passes data to the native process.

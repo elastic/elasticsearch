@@ -314,47 +314,11 @@ public class JobManager extends AbstractComponent {
                 }
             });
 
-        // Step 1. When the job has been marked as deleted then begin deleting the physical storage
-        // -------
-        CheckedConsumer<Boolean, Exception> updateHandler = response -> {
-            // Successfully updated the status to DELETING, begin actually deleting
-            if (response) {
-                logger.info("Job [" + jobId + "] is successfully marked as deleted");
-            } else {
-                logger.warn("Job [" + jobId + "] marked as deleted wan't acknowledged");
-            }
+        // Step 1. Delete the physical storage
 
-            // This task manages the physical deletion of the job (removing the results, then the index)
-            task.delete(jobId, client, clusterService.state(),
-                    deleteJobStateHandler::accept, actionListener::onFailure);
-        };
+        // This task manages the physical deletion of the job state and results
+        task.delete(jobId, client, clusterService.state(), deleteJobStateHandler::accept, actionListener::onFailure);
 
-        // Step 0. Kick off the chain of callbacks with the initial UpdateStatus call
-        // -------
-        clusterService.submitStateUpdateTask("mark-job-as-deleted", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                MlMetadata currentMlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
-                PersistentTasksCustomMetaData tasks = currentState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-                MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
-                builder.markJobAsDeleted(jobId, tasks);
-                return buildNewClusterState(currentState, builder);
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                actionListener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-                try {
-                    updateHandler.accept(true);
-                } catch (Exception e) {
-                    actionListener.onFailure(e);
-                }
-            }
-        });
     }
 
     public void revertSnapshot(RevertModelSnapshotAction.Request request, ActionListener<RevertModelSnapshotAction.Response> actionListener,

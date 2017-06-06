@@ -31,12 +31,16 @@ import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -110,13 +114,26 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         Mockito.verify(process).close();
     }
 
-    public void testKill() throws IOException {
+    public void testKill() throws IOException, TimeoutException {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
-        AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
-        communicator.killProcess();
+        ExecutorService executorService = mock(ExecutorService.class);
+
+        AtomicBoolean finishCalled = new AtomicBoolean(false);
+        AutodetectCommunicator communicator = createAutodetectCommunicator(executorService, process, resultProcessor,
+                e -> finishCalled.set(true));
+        boolean awaitCompletion = randomBoolean();
+        boolean finish = randomBoolean();
+        communicator.killProcess(awaitCompletion, finish);
         Mockito.verify(resultProcessor).setProcessKilled();
         Mockito.verify(process).kill();
+        Mockito.verify(executorService).shutdown();
+        if (awaitCompletion) {
+            Mockito.verify(resultProcessor).awaitCompletion();
+        } else {
+            Mockito.verify(resultProcessor, never()).awaitCompletion();
+        }
+        assertEquals(finish, finishCalled.get());
     }
 
     private Job createJobDetails() {
@@ -140,6 +157,21 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         return process;
     }
 
+    private AutodetectCommunicator createAutodetectCommunicator(ExecutorService executorService, AutodetectProcess autodetectProcess,
+                                                                AutoDetectResultProcessor autoDetectResultProcessor,
+                                                                Consumer<Exception> finishHandler) throws IOException {
+        DataCountsReporter dataCountsReporter = mock(DataCountsReporter.class);
+        doAnswer(invocation -> {
+            ((ActionListener<Boolean>) invocation.getArguments()[0]).onResponse(true);
+            return null;
+        }).when(dataCountsReporter).finishReporting(any());
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        return new AutodetectCommunicator(createJobDetails(), jobTask, autodetectProcess,
+                dataCountsReporter, autoDetectResultProcessor, finishHandler,
+                new NamedXContentRegistry(Collections.emptyList()), executorService);
+    }
+
     private AutodetectCommunicator createAutodetectCommunicator(AutodetectProcess autodetectProcess,
                                                                 AutoDetectResultProcessor autoDetectResultProcessor) throws IOException {
         ExecutorService executorService = mock(ExecutorService.class);
@@ -153,16 +185,8 @@ public class AutodetectCommunicatorTests extends ESTestCase {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).execute(any(Runnable.class));
-        DataCountsReporter dataCountsReporter = mock(DataCountsReporter.class);
-        doAnswer(invocation -> {
-            ((ActionListener<Boolean>) invocation.getArguments()[0]).onResponse(true);
-            return null;
-        }).when(dataCountsReporter).finishReporting(any());
-        JobTask jobTask = mock(JobTask.class);
-        when(jobTask.getJobId()).thenReturn("foo");
-        return new AutodetectCommunicator(createJobDetails(), jobTask, autodetectProcess,
-                dataCountsReporter, autoDetectResultProcessor, e -> {
-                }, new NamedXContentRegistry(Collections.emptyList()), executorService);
+
+        return createAutodetectCommunicator(executorService, autodetectProcess, autoDetectResultProcessor, e -> {});
     }
 
 }

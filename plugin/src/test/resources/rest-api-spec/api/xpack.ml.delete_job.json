@@ -10,6 +10,13 @@
           "required": true,
           "description": "The ID of the job to delete"
         }
+      },
+      "params": {
+        "force": {
+          "type": "boolean",
+          "required": false,
+          "description": "True if the job should be forcefully deleted"
+        }
       }
     },
     "body": null

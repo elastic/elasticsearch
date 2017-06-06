@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -54,6 +53,7 @@ import org.elasticsearch.xpack.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
+import org.elasticsearch.xpack.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PreviewDatafeedAction;
@@ -398,6 +398,7 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(GetFiltersAction.INSTANCE, GetFiltersAction.TransportAction.class),
                 new ActionHandler<>(PutFilterAction.INSTANCE, PutFilterAction.TransportAction.class),
                 new ActionHandler<>(DeleteFilterAction.INSTANCE, DeleteFilterAction.TransportAction.class),
+                new ActionHandler<>(KillProcessAction.INSTANCE, KillProcessAction.TransportAction.class),
                 new ActionHandler<>(GetBucketsAction.INSTANCE, GetBucketsAction.TransportAction.class),
                 new ActionHandler<>(GetInfluencersAction.INSTANCE, GetInfluencersAction.TransportAction.class),
                 new ActionHandler<>(GetRecordsAction.INSTANCE, GetRecordsAction.TransportAction.class),

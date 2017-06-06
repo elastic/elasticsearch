@@ -20,7 +20,8 @@ IMPORTANT:  Deleting a job must be done via this API only. Do not delete the
             privileges are granted to anyone over the `.ml-*` indices.
 
 Before you can delete a job, you must delete the {dfeeds} that are associated
-with it. See <<ml-delete-datafeed,Delete {dfeeds-cap}>>.
+with it. See <<ml-delete-datafeed,Delete {dfeeds-cap}>>. Unless the `force` parameter
+is used the job must be closed before it can be deleted.
 
 It is not currently possible to delete multiple jobs using wildcards or a comma
 separated list.
@@ -29,6 +30,12 @@ separated list.
 
 `job_id` (required)::
   (string) Identifier for the job
+
+===== Query Parameters
+
+`force`::
+  (boolean) Use to forcefully delete an opened job; this method is quicker than
+  closing and deleting the job.
 
 
 ===== Authorization

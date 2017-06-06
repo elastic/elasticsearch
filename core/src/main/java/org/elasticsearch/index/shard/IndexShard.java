@@ -2127,7 +2127,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private static class RefreshMetricUpdater implements ReferenceManager.RefreshListener {
 
         private final MeanMetric refreshMetric;
-        private long time;
+        private long currentRefreshStartTime;
         private Thread callingThread = null;
 
         private RefreshMetricUpdater(MeanMetric refreshMetric) {
@@ -2141,7 +2141,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     " without a corresponding call to afterRefresh";
                 callingThread = Thread.currentThread();
             }
-            time = System.nanoTime();
+            currentRefreshStartTime = System.nanoTime();
         }
 
         @Override
@@ -2152,7 +2152,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     + Thread.currentThread().getName() + "], thread that called beforeRefresh [" + callingThread.getName() + "]";
                 callingThread = null;
             }
-            refreshMetric.inc(System.nanoTime() - time);
+            refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
         }
     }
 }

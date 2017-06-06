@@ -6,6 +6,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
@@ -18,9 +19,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.graph.Graph;
-import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.security.action.SecurityActionModule;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -127,25 +125,16 @@ public class KnownActionsTests extends SecurityIntegTestCase {
     private static Set<String> loadCodeActions() throws IOException, ReflectiveOperationException, URISyntaxException {
         Set<String> actions = new HashSet<>();
 
-        // loading es core actions
-        loadActions(collectSubClasses(Action.class, Action.class), actions);
+        // loading es core actions in org.elasticsearch package
+        loadActions(collectSubClasses(Action.class, Version.class), actions);
 
-        // loading all xpack top level actions
+        // loading all xpack top level actions in org.elasticsearch.xpack package
         loadActions(collectSubClasses(Action.class, XPackPlugin.class), actions);
 
-        // loading security actions
-        loadActions(collectSubClasses(Action.class, SecurityActionModule.class), actions);
-
-        // also loading all actions from the licensing plugin
+        // also loading all actions from the licensing plugin in org.elasticsearch.license package
         loadActions(collectSubClasses(Action.class, Licensing.class), actions);
 
-        // also loading all actions from the graph plugin
-        loadActions(collectSubClasses(Action.class, Graph.class), actions);
-
-        // also loading all actions from the machine learning plugin
-        loadActions(collectSubClasses(Action.class, MachineLearning.class), actions);
-
-        // also load stuff from Reindex
+        // also load stuff from Reindex in org.elasticsearch.index.reindex package
         loadActions(collectSubClasses(Action.class, ReindexPlugin.class), actions);
 
         return unmodifiableSet(actions);

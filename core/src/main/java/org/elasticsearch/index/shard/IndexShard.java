@@ -1844,36 +1844,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
         final IndexShardRecoveryPerformer translogRecoveryPerformer = new IndexShardRecoveryPerformer(shardId, mapperService, logger);
         Sort indexSort = indexSortSupplier.get();
-        List<ReferenceManager.RefreshListener> refreshListenerList = Arrays.asList(refreshListeners,
-            new ReferenceManager.RefreshListener() {
-                private long time;
-                private Thread callingThread = null;
-
-                @Override
-                public void beforeRefresh() throws IOException {
-                    if (Assertions.ENABLED) {
-                        assert callingThread == null : "beforeRefresh was called by " + callingThread.getName() +
-                            " without a corresponding call to afterRefresh";
-                       callingThread = Thread.currentThread();
-                    }
-                    time = System.nanoTime();
-                }
-
-                @Override
-                public void afterRefresh(boolean didRefresh) throws IOException {
-                    if (Assertions.ENABLED) {
-                        assert callingThread != null : "afterRefresh called but not beforeRefresh";
-                        assert callingThread == Thread.currentThread() : "beforeRefreshed called by a different thread. current ["
-                            + Thread.currentThread().getName() + "], thread that called beforeRefresh [" + callingThread.getName() + "]";
-                        callingThread = null;
-                    }
-                    refreshMetric.inc(System.nanoTime() - time);
-                }
-        });
         return new EngineConfig(openMode, shardId,
             threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig,
-            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()), refreshListenerList, indexSort);
+            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
+            Arrays.asList(refreshListeners, new RefreshMetricUpdater(refreshMetric)), indexSort);
     }
 
     /**
@@ -2149,4 +2124,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    private static class RefreshMetricUpdater implements ReferenceManager.RefreshListener {
+
+        private final MeanMetric refreshMetric;
+        private long time;
+        private Thread callingThread = null;
+
+        private RefreshMetricUpdater(MeanMetric refreshMetric) {
+            this.refreshMetric = refreshMetric;
+        }
+
+        @Override
+        public void beforeRefresh() throws IOException {
+            if (Assertions.ENABLED) {
+                assert callingThread == null : "beforeRefresh was called by " + callingThread.getName() +
+                    " without a corresponding call to afterRefresh";
+                callingThread = Thread.currentThread();
+            }
+            time = System.nanoTime();
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) throws IOException {
+            if (Assertions.ENABLED) {
+                assert callingThread != null : "afterRefresh called but not beforeRefresh";
+                assert callingThread == Thread.currentThread() : "beforeRefreshed called by a different thread. current ["
+                    + Thread.currentThread().getName() + "], thread that called beforeRefresh [" + callingThread.getName() + "]";
+                callingThread = null;
+            }
+            refreshMetric.inc(System.nanoTime() - time);
+        }
+    }
 }

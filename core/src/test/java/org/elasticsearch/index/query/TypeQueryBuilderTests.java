@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -28,11 +29,15 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+
+
 public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilder> {
 
     @Override
     protected TypeQueryBuilder doCreateTestQueryBuilder() {
-        return new TypeQueryBuilder(getRandomType());
+        return new TypeQueryBuilder("doc");
     }
 
     @Override
@@ -40,7 +45,11 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
         if (createShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
             assertEquals(new MatchNoDocsQuery(), query);
         } else {
-            assertEquals(new TypeFieldMapper.TypesQuery(new BytesRef(queryBuilder.type())), query);
+            assertThat(query,
+                anyOf(
+                    equalTo(new TypeFieldMapper.TypesQuery(new BytesRef(queryBuilder.type()))),
+                    equalTo(new MatchAllDocsQuery()))
+            );
         }
     }
 

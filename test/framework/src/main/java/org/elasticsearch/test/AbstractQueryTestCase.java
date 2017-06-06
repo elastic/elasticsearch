@@ -152,7 +152,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static ServiceHolder serviceHolder;
     private static int queryNameId = 0;
     private static Settings nodeSettings;
-    private static Settings indexSettings;
     private static Index index;
     private static String[] currentTypes;
     private static String[] randomTypes;
@@ -174,26 +173,25 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     @BeforeClass
     public static void beforeClass() {
-        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        Version indexVersionCreated = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
         nodeSettings = Settings.builder()
                 .put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
-        indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated).build();
-
+        
         index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
 
-        //create some random type with some default field, those types will stick around for all of the subclasses
-        currentTypes = new String[randomIntBetween(0, 5)];
-        for (int i = 0; i < currentTypes.length; i++) {
-            String type = randomAlphaOfLengthBetween(1, 10);
-            currentTypes[i] = type;
-        }
-        //set some random types to be queried as part the search request, before each test
+        // Set a single type in the index
+        currentTypes = new String[] { "doc" };
         randomTypes = getRandomTypes();
+    }
+
+    protected Settings indexSettings() {
+        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
+        Version indexVersionCreated = randomBoolean() ? Version.CURRENT
+            : VersionUtils.randomVersionBetween(random(), null, Version.CURRENT);
+        return Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
+            .build();
     }
 
     @AfterClass
@@ -205,7 +203,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     @Before
     public void beforeTest() throws IOException {
         if (serviceHolder == null) {
-            serviceHolder = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), this);
+            serviceHolder = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), this);
         }
         serviceHolder.clientInvocationHandler.delegate = this;
     }
@@ -855,10 +853,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
         }
         return types;
-    }
-
-    protected static String getRandomType() {
-        return (currentTypes.length == 0) ? MetaData.ALL : randomFrom(currentTypes);
     }
 
     protected static Fuzziness randomFuzziness(String fieldName) {

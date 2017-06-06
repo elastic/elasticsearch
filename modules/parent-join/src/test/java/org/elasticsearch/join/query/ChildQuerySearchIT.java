@@ -77,7 +77,6 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.parentId;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -86,6 +85,7 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
+import static org.elasticsearch.join.query.JoinQueryBuilders.parentId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -1262,27 +1262,31 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testParentIdQuery() throws Exception {
-        if (legacy() == false) {
-            // Fix parent_id query
-            return;
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder()
+                    .put(indexSettings())
+                    .put("index.refresh_interval", -1)
+                )
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder()
+                    .put(indexSettings())
+                    .put("index.refresh_interval", -1)
+                )
+                .addMapping("doc", "join_field", "type=join,parent=child"));
         }
-
-        assertAcked(prepareCreate("test")
-            .setSettings(Settings.builder()
-                .put(indexSettings())
-                .put("index.refresh_interval", -1)
-            )
-            .addMapping("parent")
-            .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
 
-        client().prepareIndex("test", "child", "c1").setSource("{}", XContentType.JSON).setParent("p1").get();
+        createIndexRequest("test", "child", "c1", "p1").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test").setQuery(parentId("child", "p1")).get();
         assertHitCount(response, 1L);
 
-        client().prepareIndex("test", "child", "c2").setSource("{}", XContentType.JSON).setParent("p2").get();
+        createIndexRequest("test", "child", "c2", "p2").get();
         refresh();
 
         response = client().prepareSearch("test")

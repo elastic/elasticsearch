@@ -25,6 +25,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -68,6 +69,14 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singletonList(ParentJoinPlugin.class);
+    }
+
+    @Override
+    protected Settings indexSettings() {
+        return Settings.builder()
+            .put(super.indexSettings())
+            .put("index.mapping.single_type", false)
+            .build();
     }
 
     @Override

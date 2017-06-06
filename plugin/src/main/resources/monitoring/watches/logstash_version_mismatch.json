@@ -2,11 +2,12 @@
   "metadata": {
     "name": "X-Pack Monitoring: Logstash Version Mismatch (${monitoring.watch.cluster_uuid})",
     "xpack": {
-      "alert_index": ".monitoring-alerts-2",
+      "alert_index": ".monitoring-alerts-6",
       "cluster_uuid": "${monitoring.watch.cluster_uuid}",
       "link": "logstash/instances",
       "severity": 1000,
       "type": "monitoring",
+      "version_created": 6000002,
       "watch": "${monitoring.watch.id}"
     }
   },
@@ -23,7 +24,7 @@
             "search": {
               "request": {
                 "indices": [
-                  ".monitoring-logstash-2-*"
+                  ".monitoring-logstash-*"
                 ],
                 "body": {
                   "size": 0,
@@ -43,8 +44,19 @@
                           }
                         },
                         {
-                          "term": {
-                            "_type": "logstash_stats"
+                          "bool": {
+                            "should": [
+                              {
+                                "term": {
+                                  "_type": "logstash_stats"
+                                }
+                              },
+                              {
+                                "term": {
+                                  "type": "logstash_stats"
+                                }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -86,6 +98,7 @@
             "search": {
               "request": {
                 "indices": [
+                  ".monitoring-alerts-6",
                   ".monitoring-alerts-2"
                 ],
                 "body": {
@@ -99,7 +112,10 @@
                         }
                       }
                     }
-                  }
+                  },
+                  "sort": [
+                    { "timestamp": { "order": "desc" } }
+                  ]
                 }
               }
             }
@@ -121,7 +137,7 @@
   "actions": {
     "trigger_alert": {
       "index": {
-        "index": ".monitoring-alerts-2",
+        "index": ".monitoring-alerts-6",
         "doc_type": "doc",
         "doc_id": "${monitoring.watch.unique_id}"
       }

@@ -53,7 +53,6 @@ import java.util.UUID;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<NodeStatsMonitoringDoc, NodeStatsResolver> {
 
@@ -110,6 +109,7 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
                 Sets.newHashSet(
                         "cluster_uuid",
                         "timestamp",
+                        "type",
                         "source_node",
                         "node_stats"), XContentType.JSON);
     }

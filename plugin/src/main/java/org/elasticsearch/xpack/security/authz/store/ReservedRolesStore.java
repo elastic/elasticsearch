@@ -49,7 +49,7 @@ public class ReservedRolesStore {
                 .put("remote_monitoring_agent", new RoleDescriptor("remote_monitoring_agent",
                         new String[] {
                             "manage_index_templates", "manage_ingest_pipelines", "monitor",
-                            "cluster:admin/xpack/watcher/watch/get",
+                            "cluster:monitor/xpack/watcher/watch/get",
                             "cluster:admin/xpack/watcher/watch/put",
                             "cluster:admin/xpack/watcher/watch/delete",
                         },

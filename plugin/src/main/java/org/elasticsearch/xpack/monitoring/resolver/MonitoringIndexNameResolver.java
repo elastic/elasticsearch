@@ -24,7 +24,6 @@ import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -68,6 +67,7 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
                 builder.field(Fields.CLUSTER_UUID, document.getClusterUUID());
                 DateTime timestampDateTime = new DateTime(document.getTimestamp(), DateTimeZone.UTC);
                 builder.field(Fields.TIMESTAMP, timestampDateTime.toString());
+                builder.field(Fields.TYPE, document.getType());
 
                 MonitoringDoc.Node sourceNode = document.getSourceNode();
                 if (sourceNode != null) {
@@ -105,47 +105,8 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
     public static final class Fields {
         public static final String CLUSTER_UUID = "cluster_uuid";
         public static final String TIMESTAMP = "timestamp";
+        public static final String TYPE = "type";
         public static final String SOURCE_NODE = "source_node";
-    }
-
-    /**
-     * Data index name resolvers are used used to index documents in
-     * the monitoring data index (.monitoring-data-{VERSION})
-     */
-    public abstract static class Data<T extends MonitoringDoc> extends MonitoringIndexNameResolver<T> {
-
-        public static final String DATA = "data";
-
-        private final String index;
-
-        public Data() {
-            this(MonitoringTemplateUtils.TEMPLATE_VERSION);
-        }
-
-        // Used in tests
-        protected Data(String version) {
-            this.index = String.join(DELIMITER, PREFIX, DATA, version);
-        }
-
-        @Override
-        public String index(T document) {
-            return index;
-        }
-
-        @Override
-        public String indexPattern() {
-            return index;
-        }
-
-        @Override
-        public String templateName() {
-            return String.format(Locale.ROOT, "%s-%s-%s", PREFIX, DATA, MonitoringTemplateUtils.TEMPLATE_VERSION);
-        }
-
-        @Override
-        public String template() {
-            return MonitoringTemplateUtils.loadTemplate(DATA);
-        }
     }
 
     /**
@@ -189,7 +150,7 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
 
         @Override
         public String templateName() {
-            return String.format(Locale.ROOT, "%s-%s-%s", PREFIX, getId(), MonitoringTemplateUtils.TEMPLATE_VERSION);
+            return MonitoringTemplateUtils.templateName(getId());
         }
 
         @Override

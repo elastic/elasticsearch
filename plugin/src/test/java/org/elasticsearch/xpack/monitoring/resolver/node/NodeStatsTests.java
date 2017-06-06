@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.resolver.node;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -56,7 +57,11 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
 
         awaitMonitoringDocsCountOnPrimary(greaterThan(0L), NodeStatsResolver.TYPE);
 
-        SearchResponse response = client().prepareSearch().setTypes(NodeStatsResolver.TYPE).setPreference("_primary").get();
+        SearchResponse response =
+                client().prepareSearch()
+                        .setQuery(QueryBuilders.termQuery("type", NodeStatsResolver.TYPE))
+                        .setPreference("_primary")
+                        .get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         for (SearchHit searchHit : response.getHits().getHits()) {

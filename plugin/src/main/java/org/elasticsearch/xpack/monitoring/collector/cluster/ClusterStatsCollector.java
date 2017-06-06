@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -50,7 +49,7 @@ public class ClusterStatsCollector extends Collector {
                                  MonitoringSettings monitoringSettings,
                                  XPackLicenseState licenseState, InternalClient client,
                                  LicenseService licenseService) {
-        super(settings, "cluster-stats", clusterService, monitoringSettings, licenseState);
+        super(settings, ClusterStatsMonitoringDoc.TYPE, clusterService, monitoringSettings, licenseState);
         this.client = client;
         this.licenseService = licenseService;
     }
@@ -79,20 +78,11 @@ public class ClusterStatsCollector extends Collector {
         final License license = licenseService.getLicense();
         final List<XPackFeatureSet.Usage> usage = collect(usageSupplier);
 
-        final List<MonitoringDoc> results = new ArrayList<>(1);
-
-        // Adds a cluster info document
-        results.add(new ClusterInfoMonitoringDoc(monitoringId(), monitoringVersion(),
-                clusterUUID, timestamp, sourceNode, clusterName, version, license, usage,
-                clusterStats));
-
         // Adds a cluster stats document
-        if (super.shouldCollect()) {
-            results.add(new ClusterStatsMonitoringDoc(monitoringId(), monitoringVersion(),
-                    clusterUUID, timestamp, sourceNode, clusterStats));
-        }
-
-        return Collections.unmodifiableCollection(results);
+        return Collections.singleton(
+                new ClusterStatsMonitoringDoc(monitoringId(), monitoringVersion(),
+                                              clusterUUID, timestamp, sourceNode, clusterName, version, license, usage,
+                                              clusterStats));
     }
 
     @Nullable

@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.monitoring.resolver.node;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -46,24 +48,20 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         int nodes = 0;
 
         int n = randomIntBetween(1, 2);
-        logger.debug("--> starting {} master only nodes", n);
         internalCluster().startMasterOnlyNodes(n);
         nodes += n;
 
         n = randomIntBetween(2, 3);
-        logger.debug("--> starting {} data only nodes", n);
         internalCluster().startDataOnlyNodes(n);
         nodes += n;
 
         n = randomIntBetween(1, 2);
-        logger.debug("--> starting {} client only nodes", n);
         internalCluster().startNodes(n,
                 Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), false)
                         .put(Node.NODE_INGEST_SETTING.getKey(), false).build());
         nodes += n;
 
         n = randomIntBetween(1, 2);
-        logger.debug("--> starting {} extra nodes", n);
         // starting one by one to allow moving , for example, from a 2 node cluster to a 4 one while updating min_master_nodes
         for (int i=0;i<n;i++) {
             internalCluster().startNode();
@@ -71,7 +69,6 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         nodes += n;
 
         final int nbNodes = nodes;
-        logger.debug("--> waiting for {} nodes to be available", nbNodes);
         assertBusy(() -> {
             assertThat(cluster().size(), equalTo(nbNodes));
             assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nbNodes)).get());
@@ -80,14 +77,13 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         updateMonitoringInterval(3L, TimeUnit.SECONDS);
         waitForMonitoringIndices();
 
-        logger.debug("--> checking that every node correctly reported its own node stats");
         assertBusy(() -> {
             String indices = MONITORING_INDICES_PREFIX + "*";
             flush(indices);
             refresh();
 
             SearchResponse response = client().prepareSearch(indices)
-                    .setTypes(NodeStatsResolver.TYPE)
+                    .setQuery(QueryBuilders.termQuery("type", NodeStatsResolver.TYPE))
                     .setSize(0)
                     .addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id"))
                     .get();

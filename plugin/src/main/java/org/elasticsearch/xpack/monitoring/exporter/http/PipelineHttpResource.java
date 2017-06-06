@@ -13,6 +13,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -46,7 +48,7 @@ public class PipelineHttpResource extends PublishableHttpResource {
      */
     public PipelineHttpResource(final String resourceOwnerName, @Nullable final TimeValue masterTimeout,
                                 final String pipelineName, final Supplier<byte[]> pipeline) {
-        super(resourceOwnerName, masterTimeout, PublishableHttpResource.NO_BODY_PARAMETERS);
+        super(resourceOwnerName, masterTimeout, PublishableHttpResource.RESOURCE_VERSION_PARAMETERS);
 
         this.pipelineName = Objects.requireNonNull(pipelineName);
         this.pipeline = Objects.requireNonNull(pipeline);
@@ -57,9 +59,10 @@ public class PipelineHttpResource extends PublishableHttpResource {
      */
     @Override
     protected CheckResponse doCheck(final RestClient client) {
-        return simpleCheckForResource(client, logger,
-                                      "/_ingest/pipeline", pipelineName, "monitoring pipeline",
-                                      resourceOwnerName, "monitoring cluster");
+        return versionCheckForResource(client, logger,
+                                       "/_ingest/pipeline", pipelineName, "monitoring pipeline",
+                                       resourceOwnerName, "monitoring cluster",
+                                       XContentType.JSON.xContent(), MonitoringTemplateUtils.LAST_UPDATED_VERSION);
     }
 
     /**

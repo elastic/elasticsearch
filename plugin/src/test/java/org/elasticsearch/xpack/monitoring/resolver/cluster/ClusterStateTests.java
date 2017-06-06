@@ -5,38 +5,45 @@
  */
 package org.elasticsearch.xpack.monitoring.resolver.cluster;
 
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateNodeMonitoringDoc;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
+import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateCollector;
+import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateMonitoringDoc;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
-//test is just too slow, please fix it to not be sleep-based
-@LuceneTestCase.BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
-@ClusterScope(scope = Scope.TEST)
 public class ClusterStateTests extends MonitoringIntegTestCase {
 
     private int randomInt = randomInt();
+    private ThreadPool threadPool = null;
+
+    @Before
+    public void setupThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void removeThreadPool() throws InterruptedException {
+        if (threadPool != null) {
+            terminate(threadPool);
+        }
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -48,105 +55,37 @@ public class ClusterStateTests extends MonitoringIntegTestCase {
                 .build();
     }
 
-    @Before
-    public void init() throws Exception {
-        updateMonitoringInterval(3L, TimeUnit.SECONDS);
-        waitForMonitoringIndices();
-    }
-
-    @After
-    public void cleanup() throws Exception {
-        disableMonitoringInterval();
-        wipeMonitoringIndices();
-    }
-
     public void testClusterState() throws Exception {
-        logger.debug("--> waiting for documents to be collected");
-        awaitMonitoringDocsCountOnPrimary(greaterThan(0L), ClusterStateResolver.TYPE);
+        final String masterNodeName = internalCluster().getMasterName();
+        final MonitoringSettings monitoringSettings = new MonitoringSettings(Settings.EMPTY, clusterService().getClusterSettings());
+        final InternalClient client = new InternalClient(Settings.EMPTY, threadPool, internalCluster().client(masterNodeName));
+        final ClusterStateCollector collector =
+                new ClusterStateCollector(Settings.EMPTY,
+                                          internalCluster().clusterService(masterNodeName),
+                                          monitoringSettings, new XPackLicenseState(), client);
 
-        logger.debug("--> searching for monitoring documents of type [{}]", ClusterStateResolver.TYPE);
-        SearchResponse response = client().prepareSearch().setTypes(ClusterStateResolver.TYPE).setPreference("_primary").get();
-        assertThat(response.getHits().getTotalHits(), greaterThan(0L));
+        final Collection<MonitoringDoc> monitoringDocs = collector.collect();
 
-        logger.debug("--> checking that every document contains the expected fields");
-        Set<String> filters = ClusterStateResolver.FILTERS;
-        for (SearchHit searchHit : response.getHits().getHits()) {
-            Map<String, Object> fields = searchHit.getSourceAsMap();
+        // just one cluster state
+        assertThat(monitoringDocs, hasSize(1));
 
-            for (String filter : filters) {
-                assertContains(filter, fields);
-            }
+        // get the cluster state document that we fetched
+        final ClusterStateMonitoringDoc clusterStateDoc = (ClusterStateMonitoringDoc)monitoringDocs.iterator().next();
+
+        assertThat(clusterStateDoc.getClusterState(), notNullValue());
+        assertThat(clusterStateDoc.getStatus(), notNullValue());
+
+        // turn the monitoring doc into JSON
+        final ClusterStateResolver resolver = new ClusterStateResolver(MonitoredSystem.ES, Settings.EMPTY);
+        final BytesReference jsonBytes = resolver.source(clusterStateDoc, XContentType.JSON);
+
+        // parse the JSON to figure out what we just did
+        final Map<String, Object> fields = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, jsonBytes).map();
+
+        // ensure we did what we wanted
+        for (final String filter : ClusterStateResolver.FILTERS) {
+            assertContains(filter, fields);
         }
-
-        logger.debug("--> cluster state successfully collected");
-    }
-
-    /**
-     * This test should fail if the mapping for the 'nodes' attribute
-     * in the 'cluster_state' document is NOT set to 'enable: false'
-     */
-    public void testNoNodesIndexing() throws Exception {
-        logger.debug("--> waiting for documents to be collected");
-        awaitMonitoringDocsCountOnPrimary(greaterThan(0L), ClusterStateResolver.TYPE);
-
-        logger.debug("--> searching for monitoring documents of type [{}]", ClusterStateResolver.TYPE);
-        SearchResponse response = client().prepareSearch().setTypes(ClusterStateResolver.TYPE).setPreference("_primary").get();
-        assertThat(response.getHits().getTotalHits(), greaterThan(0L));
-
-        DiscoveryNodes nodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
-
-        logger.debug("--> ensure that the 'nodes' attributes of the cluster state document is not indexed");
-        assertHitCount(client().prepareSearch().setSize(0).setTypes(ClusterStateResolver.TYPE).setPreference("_primary")
-                .setQuery(matchQuery("cluster_state.nodes." + nodes.getMasterNodeId() + ".name",
-                        nodes.getMasterNode().getName())).get(), 0L);
-    }
-
-    public void testClusterStateNodes() throws Exception {
-        final long nbNodes = internalCluster().size();
-
-        MonitoringIndexNameResolver.Timestamped timestampedResolver =
-                new MockTimestampedIndexNameResolver(MonitoredSystem.ES, Settings.EMPTY, MonitoringTemplateUtils.TEMPLATE_VERSION);
-        assertNotNull(timestampedResolver);
-
-        String timestampedIndex = timestampedResolver.indexPattern();
-        awaitIndexExists(timestampedIndex);
-
-        logger.debug("--> waiting for documents to be collected");
-        awaitMonitoringDocsCountOnPrimary(greaterThanOrEqualTo(nbNodes), ClusterStateNodeMonitoringDoc.TYPE);
-
-        logger.debug("--> searching for monitoring documents of type [{}]", ClusterStateNodeMonitoringDoc.TYPE);
-        SearchResponse response = client().prepareSearch(timestampedIndex).setTypes(ClusterStateNodeMonitoringDoc.TYPE)
-                .setPreference("_primary").get();
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(nbNodes));
-
-        logger.debug("--> checking that every document contains the expected fields");
-        String[] filters = {
-                MonitoringIndexNameResolver.Fields.CLUSTER_UUID,
-                MonitoringIndexNameResolver.Fields.TIMESTAMP,
-                MonitoringIndexNameResolver.Fields.SOURCE_NODE,
-                ClusterStateNodeResolver.Fields.STATE_UUID,
-                ClusterStateNodeResolver.Fields.NODE,
-                ClusterStateNodeResolver.Fields.NODE + "."
-                        + ClusterStateNodeResolver.Fields.ID,
-        };
-
-        for (SearchHit searchHit : response.getHits().getHits()) {
-            Map<String, Object> fields = searchHit.getSourceAsMap();
-
-            for (String filter : filters) {
-                assertContains(filter, fields);
-            }
-        }
-
-        logger.debug("--> check that node attributes are indexed");
-        assertThat(client().prepareSearch().setSize(0)
-                .setIndices(timestampedIndex)
-                .setTypes(ClusterStateNodeMonitoringDoc.TYPE)
-                .setPreference("_primary")
-                .setQuery(QueryBuilders.matchQuery(MonitoringIndexNameResolver.Fields.SOURCE_NODE + ".attributes.custom", randomInt))
-                .get().getHits().getTotalHits(), greaterThan(0L));
-
-        logger.debug("--> cluster state nodes successfully collected");
     }
 
 }

@@ -1,13 +1,14 @@
 {
   "index_patterns": ".monitoring-logstash-${monitoring.template.version}-*",
+  "version": 6000002,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 1,
-    "index.codec": "best_compression",
-    "index.mapping.single_type": false
+    "index.codec": "best_compression"
   },
   "mappings": {
-    "_default_": {
+    "doc": {
+      "dynamic": false,
       "properties": {
         "cluster_uuid": {
           "type": "keyword"
@@ -15,6 +16,9 @@
         "timestamp": {
           "type": "date",
           "format": "date_time"
+        },
+        "type": {
+          "type": "keyword"
         },
         "source_node": {
           "properties": {
@@ -32,27 +36,9 @@
             },
             "name": {
               "type": "keyword"
-            },
-            "attributes": {
-              "dynamic": true,
-              "properties": {
-                "data": {
-                  "type": "boolean"
-                },
-                "master": {
-                  "type": "boolean"
-                },
-                "client": {
-                  "type": "boolean"
-                }
-              }
             }
           }
-        }
-      }
-    },
-    "logstash_stats": {
-      "properties": {
+        },
         "logstash_stats": {
           "type": "object",
           "properties": {
@@ -245,7 +231,9 @@
                 "events_count": {
                   "type": "long"
                 },
-                "type": {"type": "keyword"}
+                "type": {
+                  "type": "keyword"
+                }
               }
             },
             "pipelines": {
@@ -275,35 +263,57 @@
                     "events_count": {
                       "type": "long"
                     },
-                    "type": {"type": "keyword"}
+                    "type": {
+                      "type": "keyword"
+                    }
                   }
                 },
                 "components": {
                   "type": "nested",
                   "properties": {
-                    "id": {"type": "keyword"},
+                    "id": {
+                      "type": "keyword"
+                    },
                     "long_stat": {
                       "type": "nested",
                       "properties": {
-                        "name": {"type": "keyword"},
-                        "value": {"type": "long"},
-                        "metric_type": { "type": "keyword" }
+                        "name": {
+                          "type": "keyword"
+                        },
+                        "value": {
+                          "type": "long"
+                        },
+                        "metric_type": {
+                          "type": "keyword"
+                        }
                       }
                     },
                     "double_stat": {
                       "type": "nested",
                       "properties": {
-                        "name": {"type": "keyword"},
-                        "value": {"type": "double"},
-                        "metric_type": { "type": "keyword" }
+                        "name": {
+                          "type": "keyword"
+                        },
+                        "value": {
+                          "type": "double"
+                        },
+                        "metric_type": {
+                          "type": "keyword"
+                        }
                       }
                     },
                     "string_stat": {
                       "type": "nested",
                       "properties": {
-                        "name": {"type": "keyword"},
-                        "value": {"type": "keyword"},
-                        "metric_type": { "type": "keyword" }
+                        "name": {
+                          "type": "keyword"
+                        },
+                        "value": {
+                          "type": "keyword"
+                        },
+                        "metric_type": {
+                          "type": "keyword"
+                        }
                       }
                     }
                   }
@@ -327,57 +337,54 @@
               "type": "integer"
             }
           }
-        }
-      }
-    },
-    "logstash_state": {
-      "properties": {
-        "timestamp": {
-          "type": "date"
         },
-        "uuid": {
-          "type": "keyword"
-        },
-        "name": {
-          "type": "keyword"
-        },
-        "host": {
-          "type": "keyword"
-        },
-        "http_address": {
-          "type": "keyword"
-        },
-        "version": {
-          "type": "keyword"
-        },
-        "snapshot": {
-          "type": "boolean"
-        },
-        "status": {
-          "type": "keyword"
-        },
-        "pipeline": {
+        "logstash_state": {
           "properties": {
+            "uuid": {
+              "type": "keyword"
+            },
             "name": {
               "type": "keyword"
             },
-            "hash": {
+            "host": {
               "type": "keyword"
             },
-            "workers": {
-              "type": "short"
-            },
-            "batch_size": {
-              "type": "integer"
-            },
-            "format": {
+            "http_address": {
               "type": "keyword"
             },
             "version": {
               "type": "keyword"
             },
-            "representation": {
-              "enabled": false
+            "snapshot": {
+              "type": "boolean"
+            },
+            "status": {
+              "type": "keyword"
+            },
+            "pipeline": {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "hash": {
+                  "type": "keyword"
+                },
+                "workers": {
+                  "type": "short"
+                },
+                "batch_size": {
+                  "type": "integer"
+                },
+                "format": {
+                  "type": "keyword"
+                },
+                "version": {
+                  "type": "keyword"
+                },
+                "representation": {
+                  "enabled": false
+                }
+              }
             }
           }
         }

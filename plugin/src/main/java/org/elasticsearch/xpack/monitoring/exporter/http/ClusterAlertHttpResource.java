@@ -5,16 +5,26 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil.LAST_UPDATED_VERSION;
 
 /**
  * {@code ClusterAlertHttpResource}s allow the checking, uploading, and deleting of Watches to a remote cluster based on the current license
@@ -23,6 +33,12 @@ import java.util.function.Supplier;
 public class ClusterAlertHttpResource extends PublishableHttpResource {
 
     private static final Logger logger = Loggers.getLogger(ClusterAlertHttpResource.class);
+
+    /**
+     * Use this to retrieve the version of Cluster Alert in the Watch's JSON response from a request.
+     */
+    public static final Map<String, String> CLUSTER_ALERT_VERSION_PARAMETERS =
+            Collections.singletonMap("filter_path", "metadata.xpack.version_created");
 
     /**
      * License State is used to determine if we should even be add or delete our watches.
@@ -48,7 +64,7 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
                                     final XPackLicenseState licenseState,
                                     final Supplier<String> watchId, final Supplier<String> watch) {
         // Watcher does not support master_timeout
-        super(resourceOwnerName, null, PublishableHttpResource.NO_BODY_PARAMETERS);
+        super(resourceOwnerName, null, CLUSTER_ALERT_VERSION_PARAMETERS);
 
         this.licenseState = Objects.requireNonNull(licenseState);
         this.watchId = Objects.requireNonNull(watchId);
@@ -62,9 +78,13 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
     protected CheckResponse doCheck(final RestClient client) {
         // if we should be adding, then we need to check for existence
         if (licenseState.isMonitoringClusterAlertsAllowed()) {
-            return simpleCheckForResource(client, logger,
-                                          "/_xpack/watcher/watch", watchId.get(), "monitoring cluster alert",
-                                          resourceOwnerName, "monitoring cluster");
+            final CheckedFunction<Response, Boolean, IOException> watchChecker =
+                    (response) -> shouldReplaceClusterAlert(response, XContentType.JSON.xContent(), LAST_UPDATED_VERSION);
+
+            return versionCheckForResource(client, logger,
+                                           "/_xpack/watcher/watch", watchId.get(), "monitoring cluster alert",
+                                           resourceOwnerName, "monitoring cluster",
+                                           watchChecker);
         }
 
         // if we should be deleting, then just try to delete it (same level of effort as checking)
@@ -92,6 +112,50 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
      */
     HttpEntity watchToHttpEntity() {
         return new StringEntity(watch.get(), ContentType.APPLICATION_JSON);
+    }
+
+    /**
+     * Determine if the {@code response} contains a Watch whose value
+     *
+     * <p>
+     * This expects a response like:
+     * <pre><code>
+     * {
+     *   "metadata": {
+     *     "xpack": {
+     *       "version": 6000002
+     *     }
+     *   }
+     * }
+     * </code></pre>
+     *
+     * @param response The filtered response from the Get Watcher API
+     * @param xContent The XContent parser to use
+     * @param minimumVersion The minimum version allowed without being replaced (expected to be the last updated version).
+     * @return {@code true} represents that it should be replaced. {@code false} that it should be left alone.
+     * @throws IOException if any issue occurs while parsing the {@code xContent} {@code response}.
+     * @throws RuntimeException if the response format is changed.
+     */
+    boolean shouldReplaceClusterAlert(final Response response, final XContent xContent, final int minimumVersion) throws IOException {
+        // no named content used; so EMPTY is fine
+        final Map<String, Object> resources = XContentHelper.convertToMap(xContent, response.getEntity().getContent(), false);
+
+        // if it's empty, then there's no version in the response thanks to filter_path
+        if (resources.isEmpty() == false) {
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> metadata = (Map<String, Object>) resources.get("metadata");
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> xpack = metadata != null ? (Map<String, Object>) metadata.get("xpack") : null;
+            final Object version = xpack != null ? xpack.get("version_created") : null;
+
+            // if we don't have it (perhaps more fields were returned), then we need to replace it
+            if (version instanceof Number) {
+                // the version in the cluster alert is expected to include the alpha/beta/rc codes as well
+                return ((Number) version).intValue() < minimumVersion;
+            }
+        }
+
+        return true;
     }
 
 }

@@ -125,6 +125,10 @@ public class HttpExporter extends Exporter {
      */
     public static final String TEMPLATE_CHECK_TIMEOUT_SETTING = "index.template.master_timeout";
     /**
+     * A boolean setting to enable or disable whether to create placeholders for the old templates.
+     */
+    public static final String TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING = "index.template.create_legacy_templates";
+    /**
      * ES level timeout used when checking and writing pipelines (used to speed up tests)
      */
     public static final String PIPELINE_CHECK_TIMEOUT_SETTING = "index.pipeline.master_timeout";
@@ -136,9 +140,9 @@ public class HttpExporter extends Exporter {
     /**
      * Minimum supported version of the remote monitoring cluster.
      * <p>
-     * We must have support for ingest pipelines, which requires a minimum of 5.0.
+     * We must have support for the latest template syntax (index_patterns), which requires a minimum of 6.0.
      */
-    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_5_0_0_beta1;
+    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_6_0_0_alpha1;
 
     /**
      * The {@link RestClient} automatically pools connections and keeps them alive as necessary.
@@ -514,7 +518,7 @@ public class HttpExporter extends Exporter {
 
         // allow the use of ingest pipelines to be completely optional
         if (settings.getAsBoolean(USE_INGEST_PIPELINE_SETTING, true)) {
-            params.put("pipeline", EXPORT_PIPELINE_NAME);
+            params.put("pipeline", MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION));
         }
 
         // widdle down the response to just what we care to check
@@ -533,15 +537,9 @@ public class HttpExporter extends Exporter {
      */
     private static void configureTemplateResources(final Config config, final ResolversRegistry resolvers, final String resourceOwnerName,
                                                    final List<HttpResource> resources) {
-        final TimeValue templateTimeout = config.settings().getAsTime(TEMPLATE_CHECK_TIMEOUT_SETTING, null);
+        final Settings settings = config.settings();
+        final TimeValue templateTimeout = settings.getAsTime(TEMPLATE_CHECK_TIMEOUT_SETTING, null);
         final Set<String> templateNames = new HashSet<>();
-
-        // add a resource to check the index mappings of the .monitoring-data-# index
-        //  We ensure (and add if it's not) that the kibana type is there for the index for those few customers that upgraded from alphas;
-        //  this step makes it very easy to add logstash in 5.2+ (and eventually beats)
-        for (final String type : MonitoringTemplateUtils.NEW_DATA_TYPES) {
-            resources.add(new DataTypeMappingHttpResource(resourceOwnerName, templateTimeout, type));
-        }
 
         // add templates not managed by resolvers
         for (final String templateId : MonitoringTemplateUtils.TEMPLATE_IDS) {
@@ -560,6 +558,16 @@ public class HttpExporter extends Exporter {
                 resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, resolver::template));
             }
         }
+
+        // add old templates, like ".monitoring-data-2" and ".monitoring-es-2" so that other versions can continue to work
+        if (settings.getAsBoolean(TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING, true)) {
+            for (final String templateId : MonitoringTemplateUtils.OLD_TEMPLATE_IDS) {
+                final String templateName = MonitoringTemplateUtils.oldTemplateName(templateId);
+                final Supplier<String> templateLoader = () -> MonitoringTemplateUtils.createEmptyTemplate(templateId);
+
+                resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, templateLoader));
+            }
+        }
     }
 
     /**
@@ -576,10 +584,16 @@ public class HttpExporter extends Exporter {
         // don't require pipelines if we're not using them
         if (settings.getAsBoolean(USE_INGEST_PIPELINE_SETTING, true)) {
             final TimeValue pipelineTimeout = settings.getAsTime(PIPELINE_CHECK_TIMEOUT_SETTING, null);
-            // lazily load the pipeline
-            final Supplier<byte[]> pipeline = () -> BytesReference.toBytes(emptyPipeline(XContentType.JSON).bytes());
 
-            resources.add(new PipelineHttpResource(resourceOwnerName, pipelineTimeout, EXPORT_PIPELINE_NAME, pipeline));
+            // add all pipelines
+            for (final String pipelineId : MonitoringTemplateUtils.PIPELINE_IDS) {
+                final String pipelineName = MonitoringTemplateUtils.pipelineName(pipelineId);
+                // lazily load the pipeline
+                final Supplier<byte[]> pipeline =
+                        () -> BytesReference.toBytes(MonitoringTemplateUtils.loadPipeline(pipelineId, XContentType.JSON).bytes());
+
+                resources.add(new PipelineHttpResource(resourceOwnerName, pipelineTimeout, pipelineName, pipeline));
+            }
         }
     }
 
@@ -614,8 +628,12 @@ public class HttpExporter extends Exporter {
         }
     }
 
-    @Override
-    public HttpExportBulk openBulk() {
+    /**
+     * Determine if this {@link HttpExporter} is ready to use.
+     *
+     * @return {@code true} if it is ready. {@code false} if not.
+     */
+    boolean isExporterReady() {
         final boolean canUseClusterAlerts = config.licenseState().isMonitoringClusterAlertsAllowed();
 
         // if this changes between updates, then we need to add OR remove the watches
@@ -624,7 +642,13 @@ public class HttpExporter extends Exporter {
         }
 
         // block until all resources are verified to exist
-        if (resource.checkAndPublishIfDirty(client)) {
+        return resource.checkAndPublishIfDirty(client);
+    }
+
+    @Override
+    public HttpExportBulk openBulk() {
+        // block until all resources are verified to exist
+        if (isExporterReady()) {
             return new HttpExportBulk(settingFQN(config), client, defaultParams, resolvers, threadContext);
         }
 

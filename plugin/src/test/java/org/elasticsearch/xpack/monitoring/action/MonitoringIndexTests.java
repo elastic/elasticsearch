@@ -17,13 +17,13 @@ import java.io.IOException;
 public class MonitoringIndexTests extends ESTestCase {
 
     public void testDataMatchesIndexName() {
-        assertTrue(MonitoringIndex.DATA.matchesIndexName("_data"));
-        assertFalse(MonitoringIndex.DATA.matchesIndexName("_DATA"));
-        assertFalse(MonitoringIndex.DATA.matchesIndexName("_dAtA"));
-        assertFalse(MonitoringIndex.DATA.matchesIndexName("_data "));
-        assertFalse(MonitoringIndex.DATA.matchesIndexName(" _data "));
-        assertFalse(MonitoringIndex.DATA.matchesIndexName(""));
-        assertFalse(MonitoringIndex.DATA.matchesIndexName(null));
+        assertFalse(MonitoringIndex.IGNORED_DATA.matchesIndexName("_data"));
+        assertFalse(MonitoringIndex.IGNORED_DATA.matchesIndexName("_DATA"));
+        assertFalse(MonitoringIndex.IGNORED_DATA.matchesIndexName("_dAtA"));
+        assertFalse(MonitoringIndex.IGNORED_DATA.matchesIndexName("_data "));
+        assertFalse(MonitoringIndex.IGNORED_DATA.matchesIndexName(" _data "));
+        assertFalse(MonitoringIndex.IGNORED_DATA.matchesIndexName(""));
+        assertFalse(MonitoringIndex.IGNORED_DATA.matchesIndexName(null));
     }
 
     public void testTimestampMatchesIndexName() {
@@ -34,7 +34,7 @@ public class MonitoringIndexTests extends ESTestCase {
     }
 
     public void testFrom() {
-        assertSame(MonitoringIndex.DATA, MonitoringIndex.from("_data"));
+        assertSame(MonitoringIndex.IGNORED_DATA, MonitoringIndex.from("_data"));
         assertSame(MonitoringIndex.TIMESTAMPED, MonitoringIndex.from(""));
         assertSame(MonitoringIndex.TIMESTAMPED, MonitoringIndex.from(null));
     }

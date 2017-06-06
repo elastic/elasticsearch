@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameRes
 import static org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver.Fields.CLUSTER_UUID;
 import static org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver.Fields.SOURCE_NODE;
 import static org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver.Fields.TIMESTAMP;
+import static org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver.Fields.TYPE;
 import static org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver.PREFIX;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -117,11 +118,6 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
             assertThat(resolver.index(newMonitoringDoc()),
                     startsWith(PREFIX + DELIMITER + timestamped.getId() + DELIMITER + TEMPLATE_VERSION + DELIMITER));
         }
-
-        if (resolver instanceof MonitoringIndexNameResolver.Data) {
-            assertThat(resolver.index(newMonitoringDoc()),
-                    equalTo(PREFIX + DELIMITER + MonitoringIndexNameResolver.Data.DATA + DELIMITER + TEMPLATE_VERSION));
-        }
     }
 
     protected void assertSource(BytesReference source, Set<String> fields, XContentType xContentType) {
@@ -131,9 +127,12 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
         String[] commons = new String[]{
                 CLUSTER_UUID,
                 TIMESTAMP,
+                TYPE,
                 SOURCE_NODE,
         };
-        assertThat("source must contains default fields", sourceFields.keySet(), hasItems(commons));
+        assertThat("source must contain default fields", sourceFields.keySet(), hasItems(commons));
+
+        assertThat("type is set improperly", sourceFields.get(TYPE), equalTo(newMonitoringDoc().getType()));
 
         if (fields != null && fields.isEmpty() == false) {
             for (String field : fields) {

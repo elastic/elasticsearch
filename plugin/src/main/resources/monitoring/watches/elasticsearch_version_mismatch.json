@@ -2,11 +2,12 @@
   "metadata": {
     "name": "X-Pack Monitoring: Elasticsearch Version Mismatch (${monitoring.watch.cluster_uuid})",
     "xpack": {
-      "alert_index": ".monitoring-alerts-2",
+      "alert_index": ".monitoring-alerts-6",
       "cluster_uuid": "${monitoring.watch.cluster_uuid}",
       "link": "elasticsearch/nodes",
       "severity": 1000,
       "type": "monitoring",
+      "version_created": 6000002,
       "watch": "${monitoring.watch.id}"
     }
   },
@@ -23,7 +24,7 @@
             "search": {
               "request": {
                 "indices": [
-                  ".monitoring-es-2-*"
+                  ".monitoring-es-*"
                 ],
                 "body": {
                   "size": 1,
@@ -39,15 +40,26 @@
                           }
                         },
                         {
-                          "term": {
-                            "_type": "cluster_stats"
+                          "bool": {
+                            "should": [
+                              {
+                                "term": {
+                                  "_type": "cluster_stats"
+                                }
+                              },
+                              {
+                                "term": {
+                                  "type": "cluster_stats"
+                                }
+                              }
+                            ]
                           }
                         }
                       ]
                     }
                   },
                   "sort": [
-                    "timestamp"
+                    { "timestamp": { "order": "desc" } }
                   ]
                 }
               }
@@ -59,6 +71,7 @@
             "search": {
               "request": {
                 "indices": [
+                  ".monitoring-alerts-6",
                   ".monitoring-alerts-2"
                 ],
                 "body": {
@@ -72,7 +85,10 @@
                         }
                       }
                     }
-                  }
+                  },
+                  "sort": [
+                    { "timestamp": { "order": "desc" } }
+                  ]
                 }
               }
             }
@@ -94,7 +110,7 @@
   "actions": {
     "trigger_alert": {
       "index": {
-        "index": ".monitoring-alerts-2",
+        "index": ".monitoring-alerts-6",
         "doc_type": "doc",
         "doc_id": "${monitoring.watch.unique_id}"
       }

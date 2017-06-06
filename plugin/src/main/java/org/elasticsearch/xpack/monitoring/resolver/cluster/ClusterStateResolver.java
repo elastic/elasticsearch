@@ -28,6 +28,7 @@ public class ClusterStateResolver extends MonitoringIndexNameResolver.Timestampe
         Set<String> filters = Sets.newHashSet(
                 "cluster_uuid",
                 "timestamp",
+                "type",
                 "source_node",
                 "cluster_state.version",
                 "cluster_state.master_node",

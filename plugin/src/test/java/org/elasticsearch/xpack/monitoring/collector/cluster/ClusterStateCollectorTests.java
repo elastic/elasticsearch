@@ -16,19 +16,14 @@ import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.AbstractCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
@@ -79,7 +74,6 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
             }
         }
 
-        flush();
         refresh();
 
         for (int i = 0; i < nbIndices; i++) {
@@ -124,13 +118,10 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
     }
 
     private void assertMonitoringDocs(Collection<MonitoringDoc> results, final int nbShards) {
-        assertThat("expecting 1 document for cluster state and 1 document per node", results, hasSize(1 + internalCluster().size()));
+        assertThat("expecting 1 document for cluster state", results, hasSize(1));
 
         final ClusterState clusterState = securedClient().admin().cluster().prepareState().get().getState();
         final String clusterUUID = clusterState.getMetaData().clusterUUID();
-        final String stateUUID = clusterState.stateUUID();
-
-        List<ClusterStateNodeMonitoringDoc> clusterStateNodes = new ArrayList<>();
 
         for (MonitoringDoc doc : results) {
             assertThat(doc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
@@ -138,37 +129,16 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
             assertThat(doc.getClusterUUID(), equalTo(clusterUUID));
             assertThat(doc.getTimestamp(), greaterThan(0L));
             assertThat(doc.getSourceNode(), notNullValue());
-            assertThat(doc, anyOf(instanceOf(ClusterStateMonitoringDoc.class), instanceOf(ClusterStateNodeMonitoringDoc.class)));
+            assertThat(doc, instanceOf(ClusterStateMonitoringDoc.class));
 
             if (doc instanceof ClusterStateMonitoringDoc) {
                 ClusterStateMonitoringDoc clusterStateMonitoringDoc = (ClusterStateMonitoringDoc) doc;
                 assertThat(clusterStateMonitoringDoc.getClusterState().getRoutingTable().allShards(), hasSize(nbShards));
                 assertThat(clusterStateMonitoringDoc.getClusterState().getNodes().getSize(), equalTo(internalCluster().size()));
 
-            } else if (doc instanceof ClusterStateNodeMonitoringDoc) {
-                ClusterStateNodeMonitoringDoc clusterStateNodeMonitoringDoc = (ClusterStateNodeMonitoringDoc) doc;
-                assertThat(clusterStateNodeMonitoringDoc.getStateUUID(), equalTo(stateUUID));
-                assertThat(clusterStateNodeMonitoringDoc.getNodeId(), not(isEmptyOrNullString()));
-                clusterStateNodes.add(clusterStateNodeMonitoringDoc);
-
             } else {
                 fail("unknown monitoring document type " + doc);
             }
-        }
-
-        assertThat(clusterStateNodes, hasSize(internalCluster().size()));
-
-        for (final String nodeName : internalCluster().getNodeNames()) {
-            final String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
-
-            boolean found = false;
-            for (ClusterStateNodeMonitoringDoc doc : clusterStateNodes) {
-                if (nodeId.equals(doc.getNodeId())) {
-                    found = true;
-                    break;
-                }
-            }
-            assertTrue("Could not find node name [" + nodeName + "]", found);
         }
     }
 }

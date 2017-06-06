@@ -22,7 +22,6 @@ import java.io.IOException;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterStateResolverTests extends MonitoringIndexNameResolverTestCase<ClusterStateMonitoringDoc, ClusterStateResolver> {
 
@@ -52,6 +51,7 @@ public class ClusterStateResolverTests extends MonitoringIndexNameResolverTestCa
                 Sets.newHashSet(
                         "cluster_uuid",
                         "timestamp",
+                        "type",
                         "source_node",
                         "cluster_state"), XContentType.JSON);
     }

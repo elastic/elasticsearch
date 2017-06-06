@@ -53,6 +53,7 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
                 Sets.newHashSet(
                         "cluster_uuid",
                         "timestamp",
+                        "type",
                         "source_node",
                         "state_uuid",
                         "shard.state",

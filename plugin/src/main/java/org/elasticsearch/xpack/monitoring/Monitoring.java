@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsCollecto
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndicesStatsCollector;
+import org.elasticsearch.xpack.monitoring.collector.ml.JobStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.shards.ShardsCollector;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
@@ -109,9 +110,8 @@ public class Monitoring implements ActionPlugin {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final MonitoringSettings monitoringSettings = new MonitoringSettings(settings, clusterSettings);
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, licenseState);
-
-        // TODO: https://github.com/elastic/x-plugins/issues/3117 (remove dynamic need with static exporters)
         final SSLService dynamicSSLService = sslService.createDynamicSSLService();
+
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
         exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext()));
         exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, cleanerService));
@@ -125,8 +125,9 @@ public class Monitoring implements ActionPlugin {
         collectors.add(new ShardsCollector(settings, clusterService, monitoringSettings, licenseState));
         collectors.add(new NodeStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));
         collectors.add(new IndexRecoveryCollector(settings, clusterService, monitoringSettings, licenseState, client));
-        final MonitoringService monitoringService =
-                new MonitoringService(settings, clusterSettings, threadPool, collectors, exporters);
+        collectors.add(new JobStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));
+
+        final MonitoringService monitoringService = new MonitoringService(settings, clusterSettings, threadPool, collectors, exporters);
 
         return Arrays.asList(monitoringService, monitoringSettings, exporters, cleanerService);
     }

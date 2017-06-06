@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -18,10 +16,8 @@ import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 /**
  * Collector for cluster state.
@@ -47,30 +43,15 @@ public class ClusterStateCollector extends Collector {
 
     @Override
     protected Collection<MonitoringDoc> doCollect() throws Exception {
-        List<MonitoringDoc> results = new ArrayList<>(3);
-
         ClusterState clusterState = clusterService.state();
         String clusterUUID = clusterState.metaData().clusterUUID();
-        String stateUUID = clusterState.stateUUID();
         long timestamp = System.currentTimeMillis();
-        DiscoveryNode sourceNode = localNode();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth()
-                .get(monitoringSettings.clusterStateTimeout());
+        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().get(monitoringSettings.clusterStateTimeout());
 
         // Adds a cluster_state document with associated status
-        results.add(new ClusterStateMonitoringDoc(monitoringId(), monitoringVersion(), clusterUUID,
-                timestamp, sourceNode, clusterState, clusterHealth.getStatus()));
-
-        DiscoveryNodes nodes = clusterState.nodes();
-        if (nodes != null) {
-            for (DiscoveryNode node : nodes) {
-                // Adds a document for every node in the monitoring timestamped index
-                results.add(new ClusterStateNodeMonitoringDoc(monitoringId(), monitoringVersion(),
-                        clusterUUID, timestamp, sourceNode, stateUUID, node.getId()));
-            }
-        }
-
-        return Collections.unmodifiableCollection(results);
+        return Collections.singleton(
+                new ClusterStateMonitoringDoc(monitoringId(), monitoringVersion(), clusterUUID,
+                                              timestamp, localNode(), clusterState, clusterHealth.getStatus()));
     }
 }

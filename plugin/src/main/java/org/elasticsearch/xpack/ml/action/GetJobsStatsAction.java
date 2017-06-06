@@ -168,8 +168,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             @Nullable
             private String assignmentExplanation;
 
-
-            JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobState state,
+            public JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobState state,
                      @Nullable  DiscoveryNode node, @Nullable String assignmentExplanation, @Nullable TimeValue opentime) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
@@ -220,7 +219,15 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                // TODO: Have callers wrap the content with an object as they choose rather than forcing it upon them
                 builder.startObject();
+                {
+                    toUnwrappedXContent(builder);
+                }
+                return builder.endObject();
+            }
+
+            public XContentBuilder toUnwrappedXContent(XContentBuilder builder) throws IOException {
                 builder.field(Job.ID.getPreferredName(), jobId);
                 builder.field(DATA_COUNTS, dataCounts);
                 if (modelSizeStats != null) {
@@ -247,7 +254,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 if (openTime != null) {
                     builder.field("open_time", openTime.getStringRep());
                 }
-                builder.endObject();
                 return builder;
             }
 

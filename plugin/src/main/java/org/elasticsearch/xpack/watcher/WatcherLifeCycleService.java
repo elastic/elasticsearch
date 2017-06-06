@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -35,6 +36,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     private final WatcherService watcherService;
     private final ClusterService clusterService;
     private final ExecutorService executor;
+    private AtomicReference<List<String>> previousAllocationIds = new AtomicReference<>(Collections.emptyList());
     private volatile WatcherMetaData watcherMetaData;
 
     public WatcherLifeCycleService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
@@ -119,11 +121,10 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             if (watcherService.state() == WatcherState.STARTED && event.state().nodes().getLocalNode().isDataNode()) {
                 DiscoveryNode localNode = event.state().nodes().getLocalNode();
                 RoutingNode routingNode = event.state().getRoutingNodes().node(localNode.getId());
-                IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX,
-                        event.state().metaData());
+                IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
                 // no watcher index, time to pause
                 if (watcherIndexMetaData == null) {
-                    executor.execute(watcherService::pauseExecution);
+                    executor.execute(() -> watcherService.pauseExecution("no watcher index found"));
                     return;
                 }
 
@@ -132,30 +133,20 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
 
                 // no local shards, empty out watcher and not waste resources!
                 if (localShards.isEmpty()) {
-                    executor.execute(watcherService::pauseExecution);
+                    executor.execute(() -> watcherService.pauseExecution("no local watcher shards"));
+                    previousAllocationIds.set(Collections.emptyList());
                     return;
                 }
-
-                List<String> previousAllocationIds = event.previousState().getRoutingNodes().node(localNode.getId())
-                        .shardsWithState(watchIndex, RELOCATING, STARTED).stream()
-                        .map(ShardRouting::allocationId)
-                        .map(AllocationId::getId)
-                        .collect(Collectors.toList());
 
                 List<String> currentAllocationIds = localShards.stream()
                         .map(ShardRouting::allocationId)
                         .map(AllocationId::getId)
                         .collect(Collectors.toList());
+                Collections.sort(currentAllocationIds);
 
-                if (previousAllocationIds.size() == currentAllocationIds.size()) {
-                    // make sure we can compare the created list of allocation ids
-                    Collections.sort(previousAllocationIds);
-                    Collections.sort(currentAllocationIds);
-                    if (previousAllocationIds.equals(currentAllocationIds) == false) {
-                        executor.execute(() -> watcherService.reload(event.state()));
-                    }
-                } else {
-                    executor.execute(() -> watcherService.reload(event.state()));
+                if (previousAllocationIds.get().equals(currentAllocationIds) == false) {
+                    previousAllocationIds.set(currentAllocationIds);
+                    executor.execute(() -> watcherService.reload(event.state(), "different shard allocation ids"));
                 }
             } else if (watcherService.state() != WatcherState.STARTED && watcherService.state() != WatcherState.STARTING) {
                 executor.execute(() -> start(event.state(), false));

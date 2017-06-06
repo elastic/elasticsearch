@@ -134,10 +134,14 @@ public class ExecutionService extends AbstractComponent {
         }
     }
 
-    public synchronized void pauseExecution() {
+    /**
+     * Pause the execution of the watcher executor
+     * @return the number of tasks that have been removed
+     */
+    public synchronized int pauseExecution() {
         int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
         this.clearExecutions();
-        logger.debug("paused execution service, cancelled [{}] queued tasks", cancelledTaskCount);
+        return cancelledTaskCount;
     }
 
     public TimeValue defaultThrottlePeriod() {

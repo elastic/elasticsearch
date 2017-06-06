@@ -165,8 +165,8 @@ public class WatcherService extends AbstractComponent {
      * Reload the watcher service, does not switch the state from stopped to started, just keep going
      * @param clusterState cluster state, which is needed to find out about local shards
      */
-    public void reload(ClusterState clusterState) {
-        pauseExecution();
+    public void reload(ClusterState clusterState, String reason) {
+        pauseExecution(reason);
 
         // load watches
         Collection<Watch> watches = loadWatches(clusterState);
@@ -183,9 +183,10 @@ public class WatcherService extends AbstractComponent {
      * Stop execution of watches on this node, do not try to reload anything, but still allow
      * manual watch execution, i.e. via the execute watch API
      */
-    public void pauseExecution() {
-        executionService.pauseExecution();
+    public void pauseExecution(String reason) {
+        int cancelledTaskCount = executionService.pauseExecution();
         triggerService.pauseExecution();
+        logger.debug("paused execution service, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
     }
 
     /**

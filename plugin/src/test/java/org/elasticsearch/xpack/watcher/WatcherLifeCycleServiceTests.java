@@ -40,6 +40,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -187,15 +188,24 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         DiscoveryNodes nodes = new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
                 .add(newNode("node_1")).add(newNode("node_2"))
                 .build();
+        IndexMetaData indexMetaData = IndexMetaData.builder(Watch.INDEX)
+                .settings(Settings.builder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                ).build();
+
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes)
                 .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
+                .metaData(MetaData.builder().put(indexMetaData, false))
+
                 .build();
 
         when(watcherService.state()).thenReturn(WatcherState.STARTED);
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
-        verify(watcherService).pauseExecution();
+        verify(watcherService).pauseExecution(eq("no local watcher shards"));
     }
 
     public void testReplicaWasAddedOrRemoved() throws Exception {
@@ -251,7 +261,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         when(watcherService.state()).thenReturn(WatcherState.STARTED);
         lifeCycleService.clusterChanged(event);
-        verify(watcherService).reload(eq(usedClusterState));
+        verify(watcherService).reload(eq(usedClusterState), anyString());
     }
 
     // make sure that cluster state changes can be processed on nodes that do not hold data
@@ -300,8 +310,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         when(watcherService.state()).thenReturn(WatcherState.STARTED);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", currentState, previousState));
-        verify(watcherService, times(0)).pauseExecution();
-        verify(watcherService, times(0)).reload(any());
+        verify(watcherService, times(0)).pauseExecution(anyObject());
+        verify(watcherService, times(0)).reload(any(), any());
     }
 
     private static DiscoveryNode newNode(String nodeName) {

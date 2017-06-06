@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.termvectors;
 
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +31,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -69,6 +73,48 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request, longs.iterator()::next);
 
         assertThat(response, notNullValue());
-        assertThat(response.getTookInMillis(), equalTo(TimeUnit.NANOSECONDS.toMillis(longs.get(1) - longs.get(0))));
+        assertThat(response.getTook().getMillis(),
+                equalTo(TimeUnit.NANOSECONDS.toMillis(longs.get(1) - longs.get(0))));
+    }
+
+    public void testDocFreqs() throws IOException {
+        XContentBuilder mapping = jsonBuilder()
+            .startObject()
+                .startObject("doc")
+                    .startObject("properties")
+                        .startObject("text")
+                            .field("type", "text")
+                            .field("term_vector", "with_positions_offsets_payloads")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .build();
+        createIndex("test", settings, "doc", mapping);
+        ensureGreen();
+
+        int max = between(3, 10);
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < max; i++) {
+            bulk.add(client().prepareIndex("test", "doc", Integer.toString(i))
+                    .setSource("text", "the quick brown fox jumped over the lazy dog"));
+        }
+        bulk.get();
+
+        TermVectorsRequest request = new TermVectorsRequest("test", "doc", "0").termStatistics(true);
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        IndexShard shard = test.getShardOrNull(0);
+        assertThat(shard, notNullValue());
+        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);
+
+        Terms terms = response.getFields().terms("text");
+        TermsEnum iterator = terms.iterator();
+        while (iterator.next() != null) {
+            assertEquals(max, iterator.docFreq());
+        }
     }
 }

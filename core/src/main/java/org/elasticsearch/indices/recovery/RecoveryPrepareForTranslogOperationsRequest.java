@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,6 @@ import java.io.IOException;
 
 public class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
 
-    private long maxUnsafeAutoIdTimestamp = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
     private long recoveryId;
     private ShardId shardId;
     private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
@@ -37,11 +37,10 @@ public class RecoveryPrepareForTranslogOperationsRequest extends TransportReques
     public RecoveryPrepareForTranslogOperationsRequest() {
     }
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, long maxUnsafeAutoIdTimestamp) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.totalTranslogOps = totalTranslogOps;
-        this.maxUnsafeAutoIdTimestamp = maxUnsafeAutoIdTimestamp;
     }
 
     public long recoveryId() {
@@ -56,17 +55,15 @@ public class RecoveryPrepareForTranslogOperationsRequest extends TransportReques
         return totalTranslogOps;
     }
 
-    public long getMaxUnsafeAutoIdTimestamp() {
-        return maxUnsafeAutoIdTimestamp;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         totalTranslogOps = in.readVInt();
-        maxUnsafeAutoIdTimestamp = in.readLong();
+        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
+            in.readLong(); // maxUnsafeAutoIdTimestamp
+        }
     }
 
     @Override
@@ -75,6 +72,8 @@ public class RecoveryPrepareForTranslogOperationsRequest extends TransportReques
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
-        out.writeLong(maxUnsafeAutoIdTimestamp);
+        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
+            out.writeLong(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP); // maxUnsafeAutoIdTimestamp
+        }
     }
 }

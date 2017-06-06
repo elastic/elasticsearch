@@ -802,7 +802,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
          * in the neighborhood of 300ms and the large phrase limit is in the
          * neighborhood of 8 seconds.
          */
-        assertThat(defaultPhraseLimit.getTookInMillis(), lessThan(largePhraseLimit.getTookInMillis()));
+        assertThat(defaultPhraseLimit.getTook().getMillis(),
+                lessThan(largePhraseLimit.getTook().getMillis()));
     }
 
 
@@ -1433,6 +1434,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testPhrasePrefix() throws IOException {
         Builder builder = Settings.builder()
                 .put(indexSettings())
+                .put("index.mapping.single_type", false)
                 .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
                 .putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
                 .put("index.analysis.filter.synonym.type", "synonym")

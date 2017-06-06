@@ -64,8 +64,8 @@ public class IncludeExclude implements Writeable, ToXContent {
     public static final ParseField PARTITION_FIELD = new ParseField("partition");
     public static final ParseField NUM_PARTITIONS_FIELD = new ParseField("num_partitions");
     // Needed to add this seed for a deterministic term hashing policy
-    // otherwise tests fail to get expected results and worse, shards 
-    // can disagree on which terms hash to the required partition. 
+    // otherwise tests fail to get expected results and worse, shards
+    // can disagree on which terms hash to the required partition.
     private static final int HASH_PARTITIONING_SEED = 31;
 
     // for parsing purposes only
@@ -233,16 +233,14 @@ public class IncludeExclude implements Writeable, ToXContent {
     }
 
     public abstract static class OrdinalsFilter {
-        public abstract LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals)
-                throws IOException;
+        public abstract LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException;
 
     }
 
     class PartitionedOrdinalsFilter extends OrdinalsFilter {
 
         @Override
-        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals)
-                throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException {
             final long numOrds = globalOrdinals.getValueCount();
             final LongBitSet acceptedGlobalOrdinals = new LongBitSet(numOrds);
             final TermsEnum termEnum = globalOrdinals.termsEnum();
@@ -271,8 +269,7 @@ public class IncludeExclude implements Writeable, ToXContent {
          *
          */
         @Override
-        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals)
-                throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
             TermsEnum globalTermsEnum;
             Terms globalTerms = new DocValuesTerms(globalOrdinals);
@@ -297,8 +294,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         }
 
         @Override
-        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals)
-                throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
             if (includeValues != null) {
                 for (BytesRef term : includeValues) {
@@ -427,7 +423,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         } else {
             excludeValues = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
             incNumPartitions = in.readVInt();
             incZeroBasedPartition = in.readVInt();
         } else {
@@ -460,7 +456,7 @@ public class IncludeExclude implements Writeable, ToXContent {
                     out.writeBytesRef(value);
                 }
             }
-            if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
                 out.writeVInt(incNumPartitions);
                 out.writeVInt(incZeroBasedPartition);
             }

@@ -29,18 +29,24 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractCharFilterFactory;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.indices.analysis.AnalysisModuleTests.AppendCharFilter;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.util.List;
 import java.util.Map;
 
@@ -48,8 +54,8 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 
 /**
- * Tests for {@link TransportAnalyzeAction}. See the more "intense" version of this test in the
- * {@code common-analysis} module.
+ * Tests for {@link TransportAnalyzeAction}. See the rest tests in the {@code analysis-common} module for places where this code gets a ton
+ * more exercise.
  */
 public class TransportAnalyzeActionTests extends ESTestCase {
 
@@ -81,50 +87,86 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 }
             }
 
+            class AppendCharFilterFactory extends AbstractCharFilterFactory {
+                AppendCharFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+                    super(indexSettings, name);
+                }
+
+                @Override
+                public Reader create(Reader reader) {
+                    return new AppendCharFilter(reader, "bar");
+                }
+            }
+
+            @Override
+            public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
+                return singletonMap("append", AppendCharFilterFactory::new);
+            }
+
             @Override
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
                 return singletonMap("mock", MockFactory::new);
+            }
+
+            @Override
+            public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
+                return singletonList(PreConfiguredCharFilter.singleton("append_foo", false, reader -> new AppendCharFilter(reader, "foo")));
             }
         };
         registry = new AnalysisModule(environment, singletonList(plugin)).getAnalysisRegistry();
         indexAnalyzers = registry.build(idxSettings);
     }
 
+    /**
+     * Test behavior when the named analysis component isn't defined on the index. In that case we should build with defaults.
+     */
     public void testNoIndexAnalyzers() throws IOException {
+        // Refer to an analyzer by its type so we get its default configuration
         AnalyzeRequest request = new AnalyzeRequest();
-        request.analyzer("standard");
         request.text("the quick brown fox");
+        request.analyzer("standard");
         AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, null, registry, environment);
         List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
 
-        request.analyzer(null);
-        request.tokenizer("whitespace");
-        request.addTokenFilter("lowercase");
-        request.addTokenFilter("word_delimiter");
+        // Refer to a token filter by its type so we get its default configuration
+        request = new AnalyzeRequest();
+        request.text("the qu1ck brown fox");
+        request.tokenizer("standard");
+        request.addTokenFilter("mock");
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry, environment);
+        tokens = analyze.getTokens();
+        assertEquals(3, tokens.size());
+        assertEquals("qu1ck", tokens.get(0).getTerm());
+        assertEquals("brown", tokens.get(1).getTerm());
+        assertEquals("fox", tokens.get(2).getTerm());
+
+        // We can refer to a pre-configured token filter by its name to get it
+        request = new AnalyzeRequest();
+        request.text("the qu1ck brown fox");
+        request.tokenizer("standard");
+        request.addCharFilter("append_foo");
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry, environment);
+        tokens = analyze.getTokens();
+        assertEquals(4, tokens.size());
+        assertEquals("the", tokens.get(0).getTerm());
+        assertEquals("qu1ck", tokens.get(1).getTerm());
+        assertEquals("brown", tokens.get(2).getTerm());
+        assertEquals("foxfoo", tokens.get(3).getTerm());
+
+        // We can refer to a token filter by its type to get its default configuration
+        request = new AnalyzeRequest();
+        request.text("the qu1ck brown fox");
+        request.tokenizer("standard");
+        request.addCharFilter("append");
         request.text("the qu1ck brown fox");
         analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry, environment);
         tokens = analyze.getTokens();
-        assertEquals(6, tokens.size());
-        assertEquals("qu", tokens.get(1).getTerm());
-        assertEquals("1", tokens.get(2).getTerm());
-        assertEquals("ck", tokens.get(3).getTerm());
-
-        request.analyzer(null);
-        request.tokenizer("whitespace");
-        request.addCharFilter("html_strip");
-        request.addTokenFilter("lowercase");
-        request.addTokenFilter("word_delimiter");
-        request.text("<p>the qu1ck brown fox</p>");
-        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry, environment);
-        tokens = analyze.getTokens();
-        assertEquals(6, tokens.size());
+        assertEquals(4, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
-        assertEquals("qu", tokens.get(1).getTerm());
-        assertEquals("1", tokens.get(2).getTerm());
-        assertEquals("ck", tokens.get(3).getTerm());
-        assertEquals("brown", tokens.get(4).getTerm());
-        assertEquals("fox", tokens.get(5).getTerm());
+        assertEquals("qu1ck", tokens.get(1).getTerm());
+        assertEquals("brown", tokens.get(2).getTerm());
+        assertEquals("foxbar", tokens.get(3).getTerm());
     }
 
     public void testFillsAttributes() throws IOException {

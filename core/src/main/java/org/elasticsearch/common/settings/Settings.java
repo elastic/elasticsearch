@@ -219,7 +219,7 @@ public final class Settings implements ToXContent {
      */
     public Settings getByPrefix(String prefix) {
         return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix), secureSettings == null ? null :
-            new PrefixedSecureSettings(secureSettings, s -> prefix + s, s -> s.startsWith(prefix)));
+            new PrefixedSecureSettings(secureSettings, prefix, s -> s.startsWith(prefix)));
     }
 
     /**
@@ -227,7 +227,7 @@ public final class Settings implements ToXContent {
      */
     public Settings filter(Predicate<String> predicate) {
         return new Settings(new FilteredMap(this.settings, predicate, null), secureSettings == null ? null :
-            new PrefixedSecureSettings(secureSettings, UnaryOperator.identity(), predicate));
+            new PrefixedSecureSettings(secureSettings, "", predicate));
     }
 
     /**
@@ -344,7 +344,7 @@ public final class Settings implements ToXContent {
         final String setting,
         final Boolean defaultValue,
         final DeprecationLogger deprecationLogger) {
-        if (indexVersion.before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (indexVersion.before(Version.V_6_0_0_alpha1)) {
             //Only emit a warning if the setting's value is not a proper boolean
             final String value = get(setting, "false");
             if (Booleans.isBoolean(value) == false) {
@@ -719,6 +719,11 @@ public final class Settings implements ToXContent {
          */
         public String get(String key) {
             return map.get(key);
+        }
+
+        /** Return the current secure settings, or {@code null} if none have been set. */
+        public SecureSettings getSecureSettings() {
+            return secureSettings.get();
         }
 
         public Builder setSecureSettings(SecureSettings secureSettings) {
@@ -1276,13 +1281,15 @@ public final class Settings implements ToXContent {
 
     private static class PrefixedSecureSettings implements SecureSettings {
         private final SecureSettings delegate;
-        private final UnaryOperator<String> keyTransform;
+        private final UnaryOperator<String> addPrefix;
+        private final UnaryOperator<String> removePrefix;
         private final Predicate<String> keyPredicate;
         private final SetOnce<Set<String>> settingNames = new SetOnce<>();
 
-        PrefixedSecureSettings(SecureSettings delegate, UnaryOperator<String> keyTransform, Predicate<String> keyPredicate) {
+        PrefixedSecureSettings(SecureSettings delegate, String prefix, Predicate<String> keyPredicate) {
             this.delegate = delegate;
-            this.keyTransform = keyTransform;
+            this.addPrefix = s -> prefix + s;
+            this.removePrefix = s -> s.substring(prefix.length());
             this.keyPredicate = keyPredicate;
         }
 
@@ -1295,7 +1302,8 @@ public final class Settings implements ToXContent {
         public Set<String> getSettingNames() {
             synchronized (settingNames) {
                 if (settingNames.get() == null) {
-                    Set<String> names = delegate.getSettingNames().stream().filter(keyPredicate).collect(Collectors.toSet());
+                    Set<String> names = delegate.getSettingNames().stream()
+                        .filter(keyPredicate).map(removePrefix).collect(Collectors.toSet());
                     settingNames.set(Collections.unmodifiableSet(names));
                 }
             }
@@ -1304,12 +1312,12 @@ public final class Settings implements ToXContent {
 
         @Override
         public SecureString getString(String setting) throws GeneralSecurityException{
-            return delegate.getString(keyTransform.apply(setting));
+            return delegate.getString(addPrefix.apply(setting));
         }
 
         @Override
         public InputStream getFile(String setting) throws GeneralSecurityException{
-            return delegate.getFile(keyTransform.apply(setting));
+            return delegate.getFile(addPrefix.apply(setting));
         }
 
         @Override

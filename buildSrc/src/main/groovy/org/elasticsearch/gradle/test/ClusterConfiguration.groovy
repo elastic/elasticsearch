@@ -46,11 +46,11 @@ class ClusterConfiguration {
     int transportPort = 0
 
     /**
-     * An override of the data directory. This may only be used with a single node.
-     * The value is lazily evaluated at runtime as a String path.
+     * An override of the data directory. Input is the node number and output
+     * is the override data directory.
      */
     @Input
-    Object dataDir = null
+    Closure<String> dataDir = null
 
     /** Optional override of the cluster name. */
     @Input
@@ -75,6 +75,14 @@ class ClusterConfiguration {
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
         " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
         " " + System.getProperty('tests.jvm.argline', '')
+
+    /**
+     * Should the shared environment be cleaned on cluster startup? Defaults
+     * to {@code true} so we run with a clean cluster but some tests wish to
+     * preserve snapshots between clusters so they set this to true.
+     */
+    @Input
+    boolean cleanShared = true
 
     /**
      * A closure to call which returns the unicast host to connect to for cluster formation.

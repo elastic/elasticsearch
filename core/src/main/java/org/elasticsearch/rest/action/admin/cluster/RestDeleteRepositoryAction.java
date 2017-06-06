@@ -42,6 +42,11 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "delete_repository_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteRepositoryRequest deleteRepositoryRequest = deleteRepositoryRequest(request.param("repository"));
         deleteRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRepositoryRequest.masterNodeTimeout()));

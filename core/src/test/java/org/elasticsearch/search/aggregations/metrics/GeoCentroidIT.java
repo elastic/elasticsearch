@@ -59,6 +59,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();
         assertThat(centroid, equalTo(null));
+        assertEquals(0, geoCentroid.count());
     }
 
     public void testUnmapped() throws Exception {
@@ -72,6 +73,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();
         assertThat(centroid, equalTo(null));
+        assertEquals(0, geoCentroid.count());
     }
 
     public void testPartiallyUnmapped() throws Exception {
@@ -86,6 +88,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         GeoPoint centroid = geoCentroid.centroid();
         assertThat(centroid.lat(), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
         assertThat(centroid.lon(), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
+        assertEquals(numDocs, geoCentroid.count());
     }
 
     public void testSingleValuedField() throws Exception {
@@ -101,6 +104,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         GeoPoint centroid = geoCentroid.centroid();
         assertThat(centroid.lat(), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
         assertThat(centroid.lon(), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
+        assertEquals(numDocs, geoCentroid.count());
     }
 
     public void testSingleValueFieldGetProperty() throws Exception {
@@ -130,6 +134,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
                 closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
         assertThat((double) ((InternalAggregation)global).getProperty(aggName + ".lat"), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
         assertThat((double) ((InternalAggregation)global).getProperty(aggName + ".lon"), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));
+        assertEquals(numDocs, (long) ((InternalAggregation) global).getProperty(aggName + ".count"));
     }
 
     public void testMultiValuedField() throws Exception {
@@ -145,6 +150,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         GeoPoint centroid = geoCentroid.centroid();
         assertThat(centroid.lat(), closeTo(multiCentroid.lat(), GEOHASH_TOLERANCE));
         assertThat(centroid.lon(), closeTo(multiCentroid.lon(), GEOHASH_TOLERANCE));
+        assertEquals(2 * numDocs, geoCentroid.count());
     }
 
     public void testSingleValueFieldAsSubAggToGeohashGrid() throws Exception {

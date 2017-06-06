@@ -19,14 +19,6 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.env.Environment;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,6 +29,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.env.Environment;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 
@@ -86,26 +86,22 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, properties);
         Environment environment = new Environment(output.build());
 
-        output = Settings.builder(); // start with a fresh output
-        boolean settingsFileFound = false;
-        Set<String> foundSuffixes = new HashSet<>();
-        for (String allowedSuffix : ALLOWED_SUFFIXES) {
-            Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
-            if (Files.exists(path)) {
-                if (!settingsFileFound) {
-                    try {
-                        output.loadFromPath(path);
-                    } catch (IOException e) {
-                        throw new SettingsException("Failed to load settings from " + path.toString(), e);
-                    }
-                }
-                settingsFileFound = true;
-                foundSuffixes.add(allowedSuffix);
-            }
+        if (Files.exists(environment.configFile().resolve("elasticsearch.yaml"))) {
+            throw new SettingsException("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml");
         }
-        if (foundSuffixes.size() > 1) {
-            throw new SettingsException("multiple settings files found with suffixes: "
-                + Strings.collectionToDelimitedString(foundSuffixes, ","));
+
+        if (Files.exists(environment.configFile().resolve("elasticsearch.json"))) {
+            throw new SettingsException("elasticsearch.json was deprecated in 5.5.0 and must be converted to elasticsearch.yml");
+        }
+
+        output = Settings.builder(); // start with a fresh output
+        Path path = environment.configFile().resolve("elasticsearch.yml");
+        if (Files.exists(path)) {
+            try {
+                output.loadFromPath(path);
+            } catch (IOException e) {
+                throw new SettingsException("Failed to load settings from " + path.toString(), e);
+            }
         }
 
         // re-initialize settings now that the config file has been loaded

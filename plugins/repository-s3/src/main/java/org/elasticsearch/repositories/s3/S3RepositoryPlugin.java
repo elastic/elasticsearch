@@ -79,7 +79,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-
             // named s3 client configuration settings
             S3ClientSettings.ACCESS_KEY_SETTING,
             S3ClientSettings.SECRET_KEY_SETTING,
@@ -90,18 +89,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
             S3ClientSettings.PROXY_USERNAME_SETTING,
             S3ClientSettings.PROXY_PASSWORD_SETTING,
             S3ClientSettings.READ_TIMEOUT_SETTING,
-
-            // Register S3 repositories settings: repositories.s3
-            S3Repository.Repositories.BUCKET_SETTING,
-            S3Repository.Repositories.SERVER_SIDE_ENCRYPTION_SETTING,
-            S3Repository.Repositories.BUFFER_SIZE_SETTING,
-            S3Repository.Repositories.MAX_RETRIES_SETTING,
-            S3Repository.Repositories.CHUNK_SIZE_SETTING,
-            S3Repository.Repositories.COMPRESS_SETTING,
-            S3Repository.Repositories.STORAGE_CLASS_SETTING,
-            S3Repository.Repositories.CANNED_ACL_SETTING,
-            S3Repository.Repositories.BASE_PATH_SETTING,
-            S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING,
-            S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING);
+            S3ClientSettings.MAX_RETRIES_SETTING,
+            S3ClientSettings.USE_THROTTLE_RETRIES_SETTING);
     }
 }

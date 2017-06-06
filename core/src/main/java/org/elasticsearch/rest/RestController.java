@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -72,11 +73,13 @@ public class RestController extends AbstractComponent implements HttpServerTrans
 
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<String> headersToCopy;
+    private UsageService usageService;
 
     public RestController(Settings settings, Set<String> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-                          NodeClient client, CircuitBreakerService circuitBreakerService) {
+            NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
         super(settings);
         this.headersToCopy = headersToCopy;
+        this.usageService = usageService;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -148,6 +151,9 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         PathTrie<RestHandler> handlers = getHandlersForMethod(method);
         if (handlers != null) {
             handlers.insert(path, handler);
+            if (handler instanceof BaseRestHandler) {
+                usageService.addRestHandler((BaseRestHandler) handler);
+            }
         } else {
             throw new IllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");
         }

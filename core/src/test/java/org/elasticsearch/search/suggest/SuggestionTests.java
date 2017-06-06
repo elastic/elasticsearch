@@ -68,8 +68,8 @@ public class SuggestionTests extends ESTestCase {
         String name = randomAlphaOfLengthBetween(5, 10);
         // note: size will not be rendered via "toXContent", only passed on internally on transport layer
         int size = randomInt();
-        Supplier<Entry> entrySupplier = null;
-        Suggestion suggestion = null;
+        Supplier<Entry> entrySupplier;
+        Suggestion suggestion;
         if (type == TermSuggestion.class) {
             suggestion = new TermSuggestion(name, size, randomFrom(SortBy.values()));
             entrySupplier = () -> SuggestionEntryTests.createTestItem(TermSuggestion.Entry.class);
@@ -133,7 +133,7 @@ public class SuggestionTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             ParsingException e = expectThrows(ParsingException.class, () -> Suggestion.fromXContent(parser));
             assertEquals(
-                    "Cannot parse suggestion response without type information. "
+                    "Cannot parse object of class [Suggestion] without type information. "
                     + "Set [typed_keys] parameter on the request to ensure the type information "
                     + "is added to the response output", e.getMessage());
         }

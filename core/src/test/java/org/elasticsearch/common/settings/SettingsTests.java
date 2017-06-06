@@ -155,7 +155,7 @@ public class SettingsTests extends ESTestCase {
         // time to say goodbye?
         assertTrue(
             "It's time to implement #22298. Please delete this test and Settings#getAsBooleanLenientForPreEs6Indices().",
-            Version.CURRENT.minimumCompatibilityVersion().before(Version.V_6_0_0_alpha1_UNRELEASED));
+            Version.CURRENT.minimumCompatibilityVersion().before(Version.V_6_0_0_alpha1));
 
 
         String falsy = randomFrom("false", "off", "no", "0");
@@ -513,6 +513,16 @@ public class SettingsTests extends ESTestCase {
         assertEquals("c", prefixIterator.next());
         assertFalse(prefixIterator.hasNext());
         expectThrows(NoSuchElementException.class, () -> prefixIterator.next());
+    }
+
+    public void testSecureSettingsPrefix() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("test.prefix.foo", "somethingsecure");
+        Settings.Builder builder = Settings.builder();
+        builder.setSecureSettings(secureSettings);
+        Settings settings = builder.build();
+        Settings prefixSettings = settings.getByPrefix("test.prefix.");
+        assertTrue(prefixSettings.names().contains("foo"));
     }
 
     public void testEmptyFilterMap() {

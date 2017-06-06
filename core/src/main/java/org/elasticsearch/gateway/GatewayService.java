@@ -42,7 +42,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,7 +65,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     public static final Setting<Integer> RECOVER_AFTER_MASTER_NODES_SETTING =
         Setting.intSetting("gateway.recover_after_master_nodes", 0, 0, Property.NodeScope);
 
-    public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
+    public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
 
     public static final TimeValue DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET = TimeValue.timeValueMinutes(5);
 
@@ -93,10 +92,10 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     @Inject
     public GatewayService(Settings settings, AllocationService allocationService, ClusterService clusterService,
                           ThreadPool threadPool, GatewayMetaState metaState,
-                          TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
+                          TransportNodesListGatewayMetaState listGatewayMetaState,
                           IndicesService indicesService) {
         super(settings);
-        this.gateway = new Gateway(settings, clusterService, metaState, listGatewayMetaState, discovery,
+        this.gateway = new Gateway(settings, clusterService, metaState, listGatewayMetaState,
             indicesService);
         this.allocationService = allocationService;
         this.clusterService = clusterService;
@@ -122,9 +121,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             // TODO: change me once the minimum_master_nodes is changed too
             recoverAfterMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", -1);
         }
-
-        // Add the not recovered as initial state block, we don't allow anything until
-        this.clusterService.addInitialStateBlock(STATE_NOT_RECOVERED_BLOCK);
     }
 
     @Override
@@ -230,10 +226,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         }
     }
 
-    public Gateway getGateway() {
-        return gateway;
-    }
-
     class GatewayRecoveryListener implements Gateway.GatewayStateRecoveredListener {
 
         @Override
@@ -254,8 +246,13 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                     // automatically generate a UID for the metadata if we need to
                     metaDataBuilder.generateClusterUuidIfNeeded();
 
-                    if (MetaData.SETTING_READ_ONLY_SETTING.get(recoveredState.metaData().settings()) || MetaData.SETTING_READ_ONLY_SETTING.get(currentState.metaData().settings())) {
+                    if (MetaData.SETTING_READ_ONLY_SETTING.get(recoveredState.metaData().settings())
+                        || MetaData.SETTING_READ_ONLY_SETTING.get(currentState.metaData().settings())) {
                         blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
+                    }
+                    if (MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(recoveredState.metaData().settings())
+                        || MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(currentState.metaData().settings())) {
+                        blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
                     }
 
                     for (IndexMetaData indexMetaData : recoveredState.metaData()) {

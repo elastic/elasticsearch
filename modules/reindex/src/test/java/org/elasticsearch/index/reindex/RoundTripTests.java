@@ -20,8 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequest;
-import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -31,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.tasks.TaskId;
@@ -162,7 +159,7 @@ public class RoundTripTests extends ESTestCase {
             assertEquals(request.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
             assertEquals(request.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
             assertEquals(request.getRemoteInfo().getHeaders(), tripped.getRemoteInfo().getHeaders());
-            if (version.onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            if (version.onOrAfter(Version.V_5_2_0)) {
                 assertEquals(request.getRemoteInfo().getSocketTimeout(), tripped.getRemoteInfo().getSocketTimeout());
                 assertEquals(request.getRemoteInfo().getConnectTimeout(), tripped.getRemoteInfo().getConnectTimeout());
             } else {

@@ -1,0 +1,44 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+            mappings:
+              doc:
+                properties:
+                  join_field:
+                    type: join
+                    parent: child
+
+---
+"Parent/child inner hits":
+    - skip:
+        version: " - 5.99.99"
+        reason:  mapping.single_type was added in 6.0
+
+    - do:
+        index:
+          index: test
+          type:  doc
+          id:    1
+          body:  {"foo": "bar", "join_field": {"name" : "parent"} }
+
+    - do:
+        index:
+          index: test
+          type:  doc
+          id:    2
+          routing: 1
+          body:  {"bar": "baz", "join_field": { "name" : "child", "parent": "1"} }
+
+    - do:
+        indices.refresh: {}
+
+    # TODO: re-add inner hits here
+    - do:
+        search:
+          body: { "query" : { "has_child" : { "type" : "child", "query" : { "match_all" : {} } } } }
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._index: "test" }
+    - match: { hits.hits.0._type: "doc" }
+    - match: { hits.hits.0._id: "1" }

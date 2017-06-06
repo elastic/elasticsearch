@@ -31,7 +31,7 @@ import org.elasticsearch.painless.FeatureTest;
 import org.elasticsearch.painless.GenericElasticsearchScript;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ScriptInterface;
+import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.test.ESTestCase;
@@ -240,7 +240,7 @@ public class NodeToStringTests extends ESTestCase {
                 + "}).sum()");
         assertToString(
                   "(SSource (SReturn (PCallInvoke (PCallInvoke (PCallInvoke (EListInit (ENumeric 1) (ENumeric 2) (ENumeric 3)) stream) "
-                + "mapToInt (Args (ELambda (Pair def x)\n"
+                + "mapToInt (Args (ELambda (Pair null x)\n"
                 + "  (SReturn (EBinary (EVariable x) + (ENumeric 1)))))) sum)))",
                   "return [1, 2, 3].stream().mapToInt(x -> x + 1).sum()");
         assertToString(
@@ -250,7 +250,7 @@ public class NodeToStringTests extends ESTestCase {
                 + "  return a.length() - b.length()\n"
                 + "})");
         assertToString(
-                  "(SSource (SReturn (PCallInvoke (EListInit (EString 'a') (EString 'b')) sort (Args (ELambda (Pair def a) (Pair def b)\n"
+                  "(SSource (SReturn (PCallInvoke (EListInit (EString 'a') (EString 'b')) sort (Args (ELambda (Pair null a) (Pair null b)\n"
                 + "  (SReturn (EBinary (PCallInvoke (EVariable a) length) - (PCallInvoke (EVariable b) length))))))))",
                   "return ['a', 'b'].sort((a, b) -> a.length() - b.length())");
         assertToString(
@@ -371,14 +371,14 @@ public class NodeToStringTests extends ESTestCase {
         assertToString(
                   "(SSource\n"
                 + "  (SDeclBlock (SDeclaration int[] a (ENewArray int dims (Args (ENumeric 10)))))\n"
-                + "  (SReturn (PField (EVariable a) length)))", 
+                + "  (SReturn (PField (EVariable a) length)))",
                   "int[] a = new int[10];\n"
                 + "return a.length");
         assertToString(
                 "(SSource\n"
               + "  (SDeclBlock (SDeclaration org.elasticsearch.painless.FeatureTest a (ENewObj org.elasticsearch.painless.FeatureTest)))\n"
               + "  (SExpression (EAssignment (PField (EVariable a) x) = (ENumeric 10)))\n"
-              + "  (SReturn (PField (EVariable a) x)))", 
+              + "  (SReturn (PField (EVariable a) x)))",
                 "org.elasticsearch.painless.FeatureTest a = new org.elasticsearch.painless.FeatureTest();\n"
               + "a.x = 10;\n"
               + "return a.x");
@@ -898,11 +898,11 @@ public class NodeToStringTests extends ESTestCase {
     }
 
     private SSource walk(String code) {
-        ScriptInterface scriptInterface = new ScriptInterface(definition, GenericElasticsearchScript.class);
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(definition, GenericElasticsearchScript.class);
         CompilerSettings compilerSettings = new CompilerSettings();
         compilerSettings.setRegexesEnabled(true);
         try {
-            return Walker.buildPainlessTree(scriptInterface, getTestName(), code, compilerSettings,
+            return Walker.buildPainlessTree(scriptClassInfo, getTestName(), code, compilerSettings,
                     definition, null);
         } catch (Exception e) {
             throw new AssertionError("Failed to compile: " + code, e);

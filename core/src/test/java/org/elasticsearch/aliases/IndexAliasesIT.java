@@ -19,7 +19,6 @@
 
 package org.elasticsearch.aliases;
 
-import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
@@ -63,9 +63,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
@@ -188,7 +185,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         logger.info("--> checking single filtering alias search with sort");
-        searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_uid", SortOrder.ASC).get();
+        searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_index", SortOrder.ASC).get();
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         logger.info("--> checking single filtering alias search with global facets");
@@ -203,7 +200,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> checking single filtering alias search with global facets and sort");
         searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
                 .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
-                .addSort("_uid", SortOrder.ASC).get();
+                .addSort("_index", SortOrder.ASC).get();
         assertSearchResponse(searchResponse);
         global = searchResponse.getAggregations().get("global");
         terms = global.getAggregations().get("test");
@@ -212,7 +209,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> checking single filtering alias search with non-global facets");
         searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
                 .addAggregation(AggregationBuilders.terms("test").field("name"))
-                .addSort("_uid", SortOrder.ASC).get();
+                .addSort("_index", SortOrder.ASC).get();
         assertSearchResponse(searchResponse);
         terms = searchResponse.getAggregations().get("test");
         assertThat(terms.getBuckets().size(), equalTo(2));
@@ -427,6 +424,23 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         AliasesExistResponse response = admin().indices().prepareAliasesExist(aliases).get();
         assertThat(response.exists(), equalTo(false));
+
+        logger.info("--> creating index [foo_foo] and [bar_bar]");
+        assertAcked(prepareCreate("foo_foo"));
+        assertAcked(prepareCreate("bar_bar"));
+        ensureGreen();
+
+        logger.info("--> adding [foo] alias to [foo_foo] and [bar_bar]");
+        assertAcked(admin().indices().prepareAliases().addAlias("foo_foo", "foo"));
+        assertAcked(admin().indices().prepareAliases().addAlias("bar_bar", "foo"));
+
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.remove().index("foo*").alias("foo")).execute().get());
+
+        assertTrue(admin().indices().prepareAliasesExist("foo").get().exists());
+        assertFalse(admin().indices().prepareAliasesExist("foo").setIndices("foo_foo").get().exists());
+        assertTrue(admin().indices().prepareAliasesExist("foo").setIndices("bar_bar").get().exists());
+        expectThrows(IndexNotFoundException.class, () -> admin().indices().prepareAliases()
+                .addAliasAction(AliasActions.remove().index("foo").alias("foo")).execute().actionGet());
     }
 
     public void testWaitForAliasCreationMultipleShards() throws Exception {
@@ -787,6 +801,21 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
+    public void testAliasesCanBeAddedToIndicesOnly() throws Exception {
+        logger.info("--> creating index [2017-05-20]");
+        assertAcked(prepareCreate("2017-05-20"));
+        ensureGreen();
+
+        logger.info("--> adding [week_20] alias to [2017-05-20]");
+        assertAcked(admin().indices().prepareAliases().addAlias("2017-05-20", "week_20"));
+
+        IndexNotFoundException infe = expectThrows(IndexNotFoundException.class, () -> admin().indices().prepareAliases()
+                .addAliasAction(AliasActions.add().index("week_20").alias("tmp")).execute().actionGet());
+        assertEquals("week_20", infe.getIndex().getName());
+
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("2017-05-20").alias("tmp")).execute().get());
+    }
+
     // Before 2.0 alias filters were parsed at alias creation time, in order
     // for filters to work correctly ES required that fields mentioned in those
     // filters exist in the mapping.
@@ -822,26 +851,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 assertHitCount(response, i);
             }
         }
-    }
-
-    public void testAliasesFilterWithHasChildQuery() throws Exception {
-        assertAcked(prepareCreate("my-index")
-                        .addMapping("parent")
-                        .addMapping("child", "_parent", "type=parent")
-        );
-        client().prepareIndex("my-index", "parent", "1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("my-index", "child", "2").setSource("{}", XContentType.JSON).setParent("1").get();
-        refresh();
-
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", hasChildQuery("child", matchAllQuery(), ScoreMode.None)));
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", hasParentQuery("parent", matchAllQuery(), false)));
-
-        SearchResponse response = client().prepareSearch("filter1").get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        response = client().prepareSearch("filter2").get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
     }
 
     public void testAliasesWithBlocks() {
@@ -884,6 +893,26 @@ public class IndexAliasesIT extends ESIntegTestCase {
         } finally {
             disableIndexBlock("test", SETTING_BLOCKS_METADATA);
         }
+    }
+
+    public void testAliasActionRemoveIndex() throws InterruptedException, ExecutionException {
+        assertAcked(prepareCreate("foo_foo"));
+        assertAcked(prepareCreate("bar_bar"));
+        assertAcked(admin().indices().prepareAliases().addAlias("foo_foo", "foo"));
+        assertAcked(admin().indices().prepareAliases().addAlias("bar_bar", "foo"));
+
+        expectThrows(IndexNotFoundException.class,
+                () -> client().admin().indices().prepareAliases().removeIndex("foo").execute().actionGet());
+
+        assertAcked(client().admin().indices().prepareAliases().removeIndex("foo*").execute().get());
+        assertFalse(client().admin().indices().prepareExists("foo_foo").execute().actionGet().isExists());
+        assertTrue(admin().indices().prepareAliasesExist("foo").get().exists());
+        assertTrue(client().admin().indices().prepareExists("bar_bar").execute().actionGet().isExists());
+        assertTrue(admin().indices().prepareAliasesExist("foo").setIndices("bar_bar").get().exists());
+
+        assertAcked(client().admin().indices().prepareAliases().removeIndex("bar_bar"));
+        assertFalse(admin().indices().prepareAliasesExist("foo").get().exists());
+        assertFalse(client().admin().indices().prepareExists("bar_bar").execute().actionGet().isExists());
     }
 
     public void testRemoveIndexAndReplaceWithAlias() throws InterruptedException, ExecutionException {

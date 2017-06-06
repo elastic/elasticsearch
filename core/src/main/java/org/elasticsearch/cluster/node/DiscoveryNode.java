@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -198,7 +197,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
 
     /** extract node roles from the given settings */
     public static Set<Role> getRolesFromSettings(Settings settings) {
-        Set<Role> roles = new HashSet<>();
+        Set<Role> roles = EnumSet.noneOf(Role.class);
         if (Node.NODE_INGEST_SETTING.get(settings)) {
             roles.add(Role.INGEST);
         }
@@ -222,7 +221,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
         this.ephemeralId = in.readString().intern();
         this.hostName = in.readString().intern();
         this.hostAddress = in.readString().intern();
-        if (in.getVersion().onOrAfter(Version.V_5_0_3_UNRELEASED)) {
+        if (in.getVersion().after(Version.V_5_0_2)) {
             this.address = new TransportAddress(in);
         } else {
             // we need to do this to preserve the host information during pinging and joining of a master. Since the version of the
@@ -238,11 +237,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
         int rolesSize = in.readVInt();
         this.roles = EnumSet.noneOf(Role.class);
         for (int i = 0; i < rolesSize; i++) {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= Role.values().length) {
-                throw new IOException("Unknown Role ordinal [" + ordinal + "]");
-            }
-            this.roles.add(Role.values()[ordinal]);
+            this.roles.add(in.readEnum(Role.class));
         }
         this.version = Version.readVersion(in);
     }
@@ -262,7 +257,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
         }
         out.writeVInt(roles.size());
         for (Role role : roles) {
-            out.writeVInt(role.ordinal());
+            out.writeEnum(role);
         }
         Version.writeVersion(version, out);
     }

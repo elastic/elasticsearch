@@ -10,7 +10,12 @@ federated search requests.
 
 Cross cluster search works by configuring a remote cluster in the cluster state and connecting only to a
 limited number of nodes in the remote cluster. Each remote cluster is referenced by a name and a list of seed nodes.
-Those seed nodes are used to discover nodes in the remote cluster which are eligible as _gateway nodes_.
+When a remote cluster is registered, its cluster state is retrieved from one of the seed nodes so that up to 3
+_gateway nodes_ are selected to be connected to as part of upcoming cross cluster search requests.
+Cross cluster search requests consist of uni-directional connections from the coordinating node to the previously
+selected remote nodes only. It is possible to tag which nodes should be selected through
+node attributes (see <<cross-cluster-search-settings>>).
+
 Each node in a cluster that has remote clusters configured connects to one or more _gateway nodes_ and uses
 them to federate search requests to the remote cluster.
 
@@ -105,6 +110,8 @@ POST /cluster_one:twitter/tweet/_search
     "match_all": {}
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:we don't have two clusters set up during docs testing]
 
 In contrast to the `tribe` feature cross cluster search can also search indices with the same name on different
 clusters:
@@ -116,6 +123,8 @@ POST /cluster_one:twitter,twitter/tweet/_search
     "match_all": {}
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:we don't have two clusters set up during docs testing]
 
 Search results are disambiguated the same way as the indices are disambiguated in the request. Even if index names are
 identical these indices will be treated as different indices when results are merged. All results retrieved from a
@@ -124,7 +133,7 @@ will be prefixed with their remote cluster name:
 
 [source,js]
 --------------------------------------------------
- {
+{
   "took" : 89,
   "timed_out" : false,
   "_shards" : {
@@ -162,8 +171,10 @@ will be prefixed with their remote cluster name:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 [float]
+[[cross-cluster-search-settings]]
 === Cross cluster search settings
 
 `search.remote.connections_per_cluster`::
@@ -188,5 +199,3 @@ will be prefixed with their remote cluster name:
   to `false` (defaults to `true`) to prevent certain nodes from connecting to
   remote clusters. Cross-cluster search requests must be sent to a node that
   is allowed to act as a cross-cluster client.
-
-

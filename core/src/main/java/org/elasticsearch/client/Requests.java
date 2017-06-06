@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -385,6 +386,19 @@ public class Requests {
      */
     public static NodesStatsRequest nodesStatsRequest(String... nodesIds) {
         return new NodesStatsRequest(nodesIds);
+    }
+
+    /**
+     * Creates a nodes usage request against one or more nodes. Pass
+     * <tt>null</tt> or an empty array for all nodes.
+     *
+     * @param nodesIds
+     *            The nodes ids to get the usage for
+     * @return The nodes usage request
+     * @see org.elasticsearch.client.ClusterAdminClient#nodesUsage(org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest)
+     */
+    public static NodesUsageRequest nodesUsageRequest(String... nodesIds) {
+        return new NodesUsageRequest(nodesIds);
     }
 
     /**

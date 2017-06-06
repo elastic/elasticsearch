@@ -3,9 +3,14 @@
 # This file is used to test the installation of a RPM package.
 
 # WARNING: This testing file must be executed as root and can
-# dramatically change your system. It removes the 'elasticsearch'
-# user/group and also many directories. Do not execute this file
-# unless you know exactly what you are doing.
+# dramatically change your system. It should only be executed
+# in a throw-away VM like those made by the Vagrantfile at
+# the root of the Elasticsearch source code. This should
+# cause the script to fail if it is executed any other way:
+[ -f /etc/is_vagrant_vm ] || {
+  >&2 echo "must be run on a vagrant VM"
+  exit 1
+}
 
 # The test case can be executed with the Bash Automated
 # Testing System tool available at https://github.com/sstephenson/bats
@@ -86,10 +91,6 @@ setup() {
 }
 
 @test "[RPM] test elasticsearch" {
-    # Install scripts used to test script filters and search templates before
-    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
-    # them.
-    install_elasticsearch_test_scripts
     start_elasticsearch_service
     run_elasticsearch_tests
 }
@@ -157,7 +158,6 @@ setup() {
     echo "# ping" >> "/etc/elasticsearch/elasticsearch.yml"
     echo "# ping" >> "/etc/elasticsearch/jvm.options"
     echo "# ping" >> "/etc/elasticsearch/log4j2.properties"
-    echo "# ping" >> "/etc/elasticsearch/scripts/script"
     rpm -e 'elasticsearch'
 }
 
@@ -187,10 +187,6 @@ setup() {
     assert_file_exist "/etc/elasticsearch/jvm.options.rpmsave"
     assert_file_not_exist "/etc/elasticsearch/log4j2.properties"
     assert_file_exist "/etc/elasticsearch/log4j2.properties.rpmsave"
-    # older versions of rpm behave differently and preserve the
-    # directory but do not append the ".rpmsave" suffix
-    test -e "/etc/elasticsearch/scripts" || test -e "/etc/elasticsearch/scripts.rpmsave"
-    test -e "/etc/elasticsearch/scripts/script" || test -e "/etc/elasticsearch/scripts.rpmsave/script"
 
     assert_file_not_exist "/etc/init.d/elasticsearch"
     assert_file_not_exist "/usr/lib/systemd/system/elasticsearch.service"

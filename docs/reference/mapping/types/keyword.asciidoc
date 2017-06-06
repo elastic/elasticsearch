@@ -48,7 +48,7 @@ The following parameters are accepted by `keyword` fields:
     can later be used for sorting, aggregations, or scripting? Accepts `true`
     (default) or `false`.
 
-<<global-ordinals,`eager_global_ordinals`>>::
+<<eager-global-ordinals,`eager_global_ordinals`>>::
 
     Should global ordinals be loaded eagerly on refresh? Accepts `true` or `false`
     (default). Enabling this is a good idea on fields that are frequently used for
@@ -90,11 +90,6 @@ The following parameters are accepted by `keyword` fields:
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
-
-<<search-analyzer,`search_analyzer`>>::
-
-    The <<analyzer,`analyzer`>> that should be used at search time on
-    <<mapping-index,`analyzed`>> fields. Defaults to the `analyzer` setting.
 
 <<similarity,`similarity`>>::
 

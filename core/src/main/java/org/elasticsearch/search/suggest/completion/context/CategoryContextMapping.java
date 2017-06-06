@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -136,10 +137,14 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
             IndexableField[] fields = document.getFields(fieldName);
             values = new HashSet<>(fields.length);
             for (IndexableField field : fields) {
-                values.add(field.stringValue());
+                if (field.fieldType() instanceof KeywordFieldMapper.KeywordFieldType) {
+                    values.add(field.binaryValue().utf8ToString());
+                } else {
+                    values.add(field.stringValue());
+                }
             }
         }
-        return (values == null) ? Collections.<CharSequence>emptySet() : values;
+        return (values == null) ? Collections.emptySet() : values;
     }
 
     @Override

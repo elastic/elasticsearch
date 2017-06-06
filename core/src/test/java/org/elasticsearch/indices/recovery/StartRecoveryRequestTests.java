@@ -21,6 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -44,6 +45,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final Version targetNodeVersion = randomVersion(random());
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
                 new ShardId("test", "_na_", 0),
+                UUIDs.base64UUID(),
                 new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
                 Store.MetadataSnapshot.EMPTY,
@@ -63,12 +65,13 @@ public class StartRecoveryRequestTests extends ESTestCase {
         inRequest.readFrom(in);
 
         assertThat(outRequest.shardId(), equalTo(inRequest.shardId()));
+        assertThat(outRequest.targetAllocationId(), equalTo(inRequest.targetAllocationId()));
         assertThat(outRequest.sourceNode(), equalTo(inRequest.sourceNode()));
         assertThat(outRequest.targetNode(), equalTo(inRequest.targetNode()));
         assertThat(outRequest.metadataSnapshot().asMap(), equalTo(inRequest.metadataSnapshot().asMap()));
         assertThat(outRequest.isPrimaryRelocation(), equalTo(inRequest.isPrimaryRelocation()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
-        if (targetNodeVersion.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (targetNodeVersion.onOrAfter(Version.V_6_0_0_alpha1)) {
             assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
         } else {
             assertThat(SequenceNumbersService.UNASSIGNED_SEQ_NO, equalTo(inRequest.startingSeqNo()));

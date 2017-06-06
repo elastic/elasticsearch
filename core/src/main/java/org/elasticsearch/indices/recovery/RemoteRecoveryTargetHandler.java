@@ -28,7 +28,10 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.FutureTransportResponseHandler;
+import org.elasticsearch.transport.TransportFuture;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -50,14 +53,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final AtomicLong bytesSinceLastPause = new AtomicLong();
 
     private final Consumer<Long> onSourceThrottle;
-    private String targetAllocationId;
 
-    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, String targetAllocationId, TransportService transportService,
+    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService,
                                        DiscoveryNode targetNode, RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
-        this.targetAllocationId = targetAllocationId;
         this.transportService = transportService;
-
-
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.targetNode = targetNode;
@@ -78,9 +77,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
+    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
-                new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, maxUnsafeAutoIdTimestamp),
+                new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps),
                 TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }
@@ -102,11 +101,16 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
-        final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
-                recoveryId, shardId, operations, totalTranslogOps);
-        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.TRANSLOG_OPS, translogOperationsRequest,
-                translogOpsRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+        final RecoveryTranslogOperationsRequest translogOperationsRequest =
+                new RecoveryTranslogOperationsRequest(recoveryId, shardId, operations, totalTranslogOps);
+        final TransportFuture<RecoveryTranslogOperationsResponse> future = transportService.submitRequest(
+                targetNode,
+                PeerRecoveryTargetService.Actions.TRANSLOG_OPS,
+                translogOperationsRequest,
+                translogOpsRequestOptions,
+                RecoveryTranslogOperationsResponse.HANDLER);
+        return future.txGet().localCheckpoint;
     }
 
     @Override
@@ -164,8 +168,4 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                         throttleTimeInNanos), fileChunkRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }
 
-    @Override
-    public String getTargetAllocationId() {
-        return targetAllocationId;
-    }
 }

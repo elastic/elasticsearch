@@ -55,7 +55,7 @@ public class TypeParsers {
     //TODO 22298: Remove this method and have all call-sites use <code>XContentMapValues.nodeBooleanValue(node)</code> directly.
     public static boolean nodeBooleanValue(String fieldName, String propertyName, Object node,
                                            Mapper.TypeParser.ParserContext parserContext) {
-        if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
             return XContentMapValues.nodeBooleanValue(node, fieldName + "." + propertyName);
         } else {
             return nodeBooleanValueLenient(fieldName, propertyName, node);
@@ -247,7 +247,7 @@ public class TypeParsers {
                 if (parserContext.isWithinMultiField()) {
                     throw new MapperParsingException("include_in_all in multi fields is not allowed. Found the include_in_all in field ["
                         + name + "] which is within a multi field.");
-                } else if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                } else if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
                     throw new MapperParsingException("[include_in_all] is not allowed for indices created on or after version 6.0.0 as " +
                                     "[_all] is deprecated. As a replacement, you can use an [copy_to] on mapping fields to create your " +
                                     "own catch all field.");

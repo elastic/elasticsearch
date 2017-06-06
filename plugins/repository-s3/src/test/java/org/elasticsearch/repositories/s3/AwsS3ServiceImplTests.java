@@ -24,9 +24,12 @@ import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -34,7 +37,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
         S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, "default");
-        AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, clientSettings);
+        AWSCredentialsProvider credentialsProvider =
+            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, clientSettings, Settings.EMPTY);
         assertThat(credentialsProvider, instanceOf(InternalAwsS3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -43,7 +47,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         secureSettings.setString("s3.client.default.access_key", "aws_key");
         secureSettings.setString("s3.client.default.secret_key", "aws_secret");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        launchAWSCredentialsWithElasticsearchSettingsTest(Settings.EMPTY, settings, "aws_key", "aws_secret");
+        assertCredentials(Settings.EMPTY, settings, "aws_key", "aws_secret");
     }
 
     public void testAwsCredsExplicitConfigSettings() {
@@ -54,14 +58,38 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         secureSettings.setString("s3.client.default.access_key", "wrong_key");
         secureSettings.setString("s3.client.default.secret_key", "wrong_secret");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "aws_key", "aws_secret");
+        assertCredentials(repositorySettings, settings, "aws_key", "aws_secret");
     }
 
-    private void launchAWSCredentialsWithElasticsearchSettingsTest(Settings singleRepositorySettings, Settings settings,
-                                                                     String expectedKey, String expectedSecret) {
+    public void testRepositorySettingsCredentialsDisallowed() {
+        Settings repositorySettings = Settings.builder()
+            .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "aws_key")
+            .put(S3Repository.SECRET_KEY_SETTING.getKey(), "aws_secret").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            assertCredentials(repositorySettings, Settings.EMPTY, "aws_key", "aws_secret"));
+        assertThat(e.getMessage(), containsString("Setting [access_key] is insecure"));
+    }
+
+    public void testRepositorySettingsCredentialsMissingKey() {
+        Settings repositorySettings = Settings.builder().put(S3Repository.SECRET_KEY_SETTING.getKey(), "aws_secret").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            assertCredentials(repositorySettings, Settings.EMPTY, "aws_key", "aws_secret"));
+        assertThat(e.getMessage(), containsString("must be accompanied by setting [access_key]"));
+    }
+
+    public void testRepositorySettingsCredentialsMissingSecret() {
+        Settings repositorySettings = Settings.builder().put(S3Repository.ACCESS_KEY_SETTING.getKey(), "aws_key").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            assertCredentials(repositorySettings, Settings.EMPTY, "aws_key", "aws_secret"));
+        assertThat(e.getMessage(), containsString("must be accompanied by setting [secret_key]"));
+    }
+
+    private void assertCredentials(Settings singleRepositorySettings, Settings settings,
+                                   String expectedKey, String expectedSecret) {
         String configName = InternalAwsS3Service.CLIENT_NAME.get(singleRepositorySettings);
         S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName);
-        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, clientSettings).getCredentials();
+        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, deprecationLogger,
+            clientSettings, singleRepositorySettings).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(expectedKey));
         assertThat(credentials.getAWSSecretKey(), is(expectedSecret));
     }
@@ -86,21 +114,20 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             "aws_proxy_password", 3, false, 10000);
     }
 
-    public void testGlobalMaxRetries() {
+    public void testRepositoryMaxRetries() {
         Settings settings = Settings.builder()
-            .put(S3Repository.Repositories.MAX_RETRIES_SETTING.getKey(), 10)
+            .put("s3.client.default.max_retries", 5)
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null,
-            null, 10, false, 50000);
+            null, 5, false, 50000);
     }
 
-    public void testRepositoryMaxRetries() {
-        Settings repositorySettings = generateRepositorySettings(20);
+    public void testRepositoryThrottleRetries() {
         Settings settings = Settings.builder()
-            .put(S3Repository.Repositories.MAX_RETRIES_SETTING.getKey(), 10)
+            .put("s3.client.default.use_throttle_retries", true)
             .build();
-        launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, null, -1, null,
-            null, 20, false, 50000);
+        launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null,
+            null, 3, true, 50000);
     }
 
     private void launchAWSConfigurationTest(Settings settings,
@@ -113,13 +140,9 @@ public class AwsS3ServiceImplTests extends ESTestCase {
                                               Integer expectedMaxRetries,
                                               boolean expectedUseThrottleRetries,
                                               int expectedReadTimeout) {
-        Integer maxRetries = S3Repository.getValue(singleRepositorySettings, settings,
-            S3Repository.Repository.MAX_RETRIES_SETTING, S3Repository.Repositories.MAX_RETRIES_SETTING);
-        Boolean useThrottleRetries = S3Repository.getValue(singleRepositorySettings, settings,
-            S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING, S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING);
 
         S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
-        ClientConfiguration configuration = InternalAwsS3Service.buildConfiguration(clientSettings, maxRetries, useThrottleRetries);
+        ClientConfiguration configuration = InternalAwsS3Service.buildConfiguration(clientSettings, singleRepositorySettings);
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));
@@ -130,14 +153,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(configuration.getMaxErrorRetry(), is(expectedMaxRetries));
         assertThat(configuration.useThrottledRetries(), is(expectedUseThrottleRetries));
         assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout));
-    }
-
-    private static Settings generateRepositorySettings(Integer maxRetries) {
-        Settings.Builder builder = Settings.builder();
-        if (maxRetries != null) {
-            builder.put(S3Repository.Repository.MAX_RETRIES_SETTING.getKey(), maxRetries);
-        }
-        return builder.build();
     }
 
     public void testEndpointSetting() {

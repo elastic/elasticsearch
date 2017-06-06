@@ -206,9 +206,9 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
             // have been upgraded to a version that does not sign scroll ids and instead relies improved scroll
             // authorization. It is important to note that older versions do not actually sign if the system key
             // does not exist so we need to take that into account as well.
-            // TODO update to 5.5 on backport and remove any signing from master!
+            // TODO Remove any signing from master!
             final ClusterState state = clusterService.state();
-            final boolean signingRequired = state.nodes().getMinNodeVersion().before(Version.V_6_0_0_alpha2) &&
+            final boolean signingRequired = state.nodes().getMinNodeVersion().before(Version.V_5_5_0) &&
                     cryptoService.isSystemKeyPresent();
             if (request instanceof SearchScrollRequest) {
                 SearchScrollRequest scrollRequest = (SearchScrollRequest) request;

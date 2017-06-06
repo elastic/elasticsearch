@@ -97,7 +97,7 @@ public class SecurityActionFilterTests extends ESTestCase {
                 .add(new DiscoveryNode("id1",
                         new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(49000, 65500)), Version.CURRENT))
                 .add(new DiscoveryNode("id2",
-                        new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(49000, 65500)), Version.V_5_5_0))
+                        new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(49000, 65500)), Version.V_5_4_0))
                 .build();
         when(state.nodes()).thenReturn(nodes);
 
@@ -341,7 +341,7 @@ public class SecurityActionFilterTests extends ESTestCase {
                 .add(new DiscoveryNode("id1", new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(49000, 65500)),
                         Version.V_6_0_0_alpha2))
                 .add(new DiscoveryNode("id2", new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(49000, 65500)),
-                        Version.V_6_0_0_alpha2))
+                        Version.V_5_5_0))
                 .build();
         when(clusterService.state().nodes()).thenReturn(nodes);
         SearchScrollRequest request = new SearchScrollRequest("unsigned");

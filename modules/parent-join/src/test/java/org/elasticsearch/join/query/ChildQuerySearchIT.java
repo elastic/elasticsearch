@@ -77,7 +77,6 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.parentId;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -86,6 +85,7 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
+import static org.elasticsearch.join.query.JoinQueryBuilders.parentId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;

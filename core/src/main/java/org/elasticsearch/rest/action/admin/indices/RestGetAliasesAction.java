@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -89,7 +90,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 final ImmutableOpenMap<String, List<AliasMetaData>> aliasMap = response.getAliases();
 
                 final Set<String> aliasNames = new HashSet<>();
-                for (final ObjectObjectCursor<String, List<AliasMetaData>> cursor : aliasMap) {
+                for (final ObjectCursor<List<AliasMetaData>> cursor : aliasMap.values()) {
                     for (final AliasMetaData aliasMetaData : cursor.value) {
                         aliasNames.add(aliasMetaData.alias());
                     }

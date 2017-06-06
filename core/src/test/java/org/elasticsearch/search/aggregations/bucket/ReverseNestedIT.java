@@ -23,13 +23,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,18 +61,19 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx")
+        assertAcked(prepareCreate("idx1")
                 .addMapping(
-                        "type1",
+                        "type",
                         jsonBuilder().startObject().startObject("properties")
                                 .startObject("field1").field("type", "keyword").endObject()
                                 .startObject("nested1").field("type", "nested").startObject("properties")
                                     .startObject("field2").field("type", "keyword").endObject()
                                 .endObject().endObject()
                                 .endObject().endObject()
-                )
+                ));
+        assertAcked(prepareCreate("idx2")
                 .addMapping(
-                        "type2",
+                        "type",
                         jsonBuilder().startObject().startObject("properties")
                                 .startObject("nested1").field("type", "nested").startObject("properties")
                                     .startObject("field1").field("type", "keyword").endObject()
@@ -83,31 +85,31 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 )
         );
 
-        insertType1(Arrays.asList("a", "b", "c"), Arrays.asList("1", "2", "3", "4"));
-        insertType1(Arrays.asList("b", "c", "d"), Arrays.asList("4", "5", "6", "7"));
-        insertType1(Arrays.asList("c", "d", "e"), Arrays.asList("7", "8", "9", "1"));
+        insertIdx1(Arrays.asList("a", "b", "c"), Arrays.asList("1", "2", "3", "4"));
+        insertIdx1(Arrays.asList("b", "c", "d"), Arrays.asList("4", "5", "6", "7"));
+        insertIdx1(Arrays.asList("c", "d", "e"), Arrays.asList("7", "8", "9", "1"));
         refresh();
-        insertType1(Arrays.asList("a", "e"), Arrays.asList("7", "4", "1", "1"));
-        insertType1(Arrays.asList("a", "c"), Arrays.asList("2", "1"));
-        insertType1(Arrays.asList("a"), Arrays.asList("3", "4"));
+        insertIdx1(Arrays.asList("a", "e"), Arrays.asList("7", "4", "1", "1"));
+        insertIdx1(Arrays.asList("a", "c"), Arrays.asList("2", "1"));
+        insertIdx1(Arrays.asList("a"), Arrays.asList("3", "4"));
         refresh();
-        insertType1(Arrays.asList("x", "c"), Arrays.asList("1", "8"));
-        insertType1(Arrays.asList("y", "c"), Arrays.asList("6"));
-        insertType1(Arrays.asList("z"), Arrays.asList("5", "9"));
-        refresh();
-
-        insertType2(new String[][]{new String[]{"a", "0", "0", "1", "2"}, new String[]{"b", "0", "1", "1", "2"}, new String[]{"a", "0"}});
-        insertType2(new String[][]{new String[]{"c", "1", "1", "2", "2"}, new String[]{"d", "3", "4"}});
+        insertIdx1(Arrays.asList("x", "c"), Arrays.asList("1", "8"));
+        insertIdx1(Arrays.asList("y", "c"), Arrays.asList("6"));
+        insertIdx1(Arrays.asList("z"), Arrays.asList("5", "9"));
         refresh();
 
-        insertType2(new String[][]{new String[]{"a", "0", "0", "0", "0"}, new String[]{"b", "0", "0", "0", "0"}});
-        insertType2(new String[][]{new String[]{"e", "1", "2"}, new String[]{"f", "3", "4"}});
+        insertIdx2(new String[][]{new String[]{"a", "0", "0", "1", "2"}, new String[]{"b", "0", "1", "1", "2"}, new String[]{"a", "0"}});
+        insertIdx2(new String[][]{new String[]{"c", "1", "1", "2", "2"}, new String[]{"d", "3", "4"}});
+        refresh();
+
+        insertIdx2(new String[][]{new String[]{"a", "0", "0", "0", "0"}, new String[]{"b", "0", "0", "0", "0"}});
+        insertIdx2(new String[][]{new String[]{"e", "1", "2"}, new String[]{"f", "3", "4"}});
         refresh();
 
         ensureSearchable();
     }
 
-    private void insertType1(List<String> values1, List<String> values2) throws Exception {
+    private void insertIdx1(List<String> values1, List<String> values2) throws Exception {
         XContentBuilder source = jsonBuilder()
                 .startObject()
                 .array("field1", values1.toArray())
@@ -116,10 +118,10 @@ public class ReverseNestedIT extends ESIntegTestCase {
             source.startObject().field("field2", value1).endObject();
         }
         source.endArray().endObject();
-        indexRandom(false, client().prepareIndex("idx", "type1").setRouting("1").setSource(source));
+        indexRandom(false, client().prepareIndex("idx1", "type").setRouting("1").setSource(source));
     }
 
-    private void insertType2(String[][] values) throws Exception {
+    private void insertIdx2(String[][] values) throws Exception {
         XContentBuilder source = jsonBuilder()
                 .startObject()
                 .startArray("nested1");
@@ -131,11 +133,11 @@ public class ReverseNestedIT extends ESIntegTestCase {
             source.endArray().endObject();
         }
         source.endArray().endObject();
-        indexRandom(false, client().prepareIndex("idx", "type2").setRouting("1").setSource(source));
+        indexRandom(false, client().prepareIndex("idx2", "type").setRouting("1").setSource(source));
     }
 
     public void testSimpleReverseNestedToRoot() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type1")
+        SearchResponse response = client().prepareSearch("idx1")
                 .addAggregation(nested("nested1", "nested1")
                         .subAggregation(
                                 terms("field2").field("nested1.field2")
@@ -167,9 +169,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(bucket.getKeyAsString(), equalTo("1"));
         assertThat(bucket.getDocCount(), equalTo(6L));
         ReverseNested reverseNested = bucket.getAggregations().get("nested1_to_field1");
-        assertThat(reverseNested.getProperty("_count"), equalTo(5L));
+        assertThat(((InternalAggregation)reverseNested).getProperty("_count"), equalTo(5L));
         Terms tags = reverseNested.getAggregations().get("field1");
-        assertThat(reverseNested.getProperty("field1"), sameInstance(tags));
+        assertThat(((InternalAggregation)reverseNested).getProperty("field1"), sameInstance(tags));
         List<Terms.Bucket> tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(6));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("c"));
@@ -323,7 +325,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
     }
 
     public void testSimpleNested1ToRootToNested2() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type2")
+        SearchResponse response = client().prepareSearch("idx2")
                 .addAggregation(nested("nested1", "nested1")
                                 .subAggregation(
                                         reverseNested("nested1_to_root")
@@ -345,16 +347,16 @@ public class ReverseNestedIT extends ESIntegTestCase {
     }
 
     public void testSimpleReverseNestedToNested1() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type2")
+        SearchResponse response = client().prepareSearch("idx2")
                 .addAggregation(nested("nested1", "nested1.nested2")
                                 .subAggregation(
-                                        terms("field2").field("nested1.nested2.field2").order(Terms.Order.term(true))
+                                        terms("field2").field("nested1.nested2.field2").order(BucketOrder.key(true))
                                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
                                                 .size(10000)
                                                 .subAggregation(
                                                         reverseNested("nested1_to_field1").path("nested1")
                                                                 .subAggregation(
-                                                                        terms("field1").field("nested1.field1").order(Terms.Order.term(true))
+                                                                        terms("field1").field("nested1.field1").order(BucketOrder.key(true))
                                                                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
                                                                 )
                                                 )
@@ -448,7 +450,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     public void testReverseNestedAggWithoutNestedAgg() {
         try {
-            client().prepareSearch("idx")
+            client().prepareSearch("idx2")
                     .addAggregation(terms("field2").field("nested1.nested2.field2")
                             .collectMode(randomFrom(SubAggCollectionMode.values()))
                                     .subAggregation(
@@ -466,7 +468,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
     }
 
     public void testNonExistingNestedField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client().prepareSearch("idx2")
                 .setQuery(matchAllQuery())
                 .addAggregation(nested("nested2", "nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3")))
                 .get();
@@ -479,7 +481,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(reverseNested.getDocCount(), is(0L));
 
         // Test that parsing the reverse_nested agg doesn't fail, because the parent nested agg is unmapped:
-        searchResponse = client().prepareSearch("idx")
+        searchResponse = client().prepareSearch("idx1")
                 .setQuery(matchAllQuery())
                 .addAggregation(nested("incorrect1", "incorrect1").subAggregation(reverseNested("incorrect2").path("incorrect2")))
                 .get();

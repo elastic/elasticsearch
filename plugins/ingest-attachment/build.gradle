@@ -74,9 +74,11 @@ dependencyLicenses {
 }
 
 forbiddenPatterns {
+  exclude '**/*.doc'
   exclude '**/*.docx'
   exclude '**/*.pdf'
   exclude '**/*.epub'
+  exclude '**/*.vsdx'
 }
 
 thirdPartyAudit.excludes = [

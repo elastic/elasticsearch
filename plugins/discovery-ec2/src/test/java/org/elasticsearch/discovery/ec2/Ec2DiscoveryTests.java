@@ -21,8 +21,6 @@ package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.model.Tag;
 import org.elasticsearch.Version;
-import org.elasticsearch.cloud.aws.AwsEc2Service;
-import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -114,7 +112,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
             poorMansDNS.put(AmazonEC2Mock.PREFIX_PRIVATE_IP + (i+1), buildNewFakeTransportAddress());
         }
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_ip")
+                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "private_ip")
                 .build();
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
@@ -133,7 +131,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
             poorMansDNS.put(AmazonEC2Mock.PREFIX_PUBLIC_IP + (i+1), buildNewFakeTransportAddress());
         }
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_ip")
+                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "public_ip")
                 .build();
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
@@ -154,7 +152,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
                 AmazonEC2Mock.SUFFIX_PRIVATE_DNS, buildNewFakeTransportAddress());
         }
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_dns")
+                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "private_dns")
                 .build();
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
@@ -177,7 +175,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
                 + AmazonEC2Mock.SUFFIX_PUBLIC_DNS, buildNewFakeTransportAddress());
         }
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_dns")
+                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "public_dns")
                 .build();
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
@@ -194,7 +192,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     public void testInvalidHostType() throws InterruptedException {
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "does_not_exist")
+                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "does_not_exist")
                 .build();
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
@@ -206,7 +204,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     public void testFilterByTags() throws InterruptedException {
         int nodes = randomIntBetween(5, 10);
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.TAG_SETTING.getKey() + "stage", "prod")
+                .put(AwsEc2Service.TAG_SETTING.getKey() + "stage", "prod")
                 .build();
 
         int prodInstances = 0;
@@ -231,7 +229,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     public void testFilterByMultipleTags() throws InterruptedException {
         int nodes = randomIntBetween(5, 10);
         Settings nodeSettings = Settings.builder()
-                .putArray(DISCOVERY_EC2.TAG_SETTING.getKey() + "stage", "prod", "preprod")
+                .putArray(AwsEc2Service.TAG_SETTING.getKey() + "stage", "prod", "preprod")
                 .build();
 
         int prodInstances = 0;
@@ -270,7 +268,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
         }
 
         Settings nodeSettings = Settings.builder()
-            .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "tag:foo")
+            .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "tag:foo")
             .build();
 
         List<List<Tag>> tagsList = new ArrayList<>();
@@ -316,7 +314,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     public void testGetNodeListCached() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put(DISCOVERY_EC2.NODE_CACHE_TIME_SETTING.getKey(), "500ms");
+                .put(AwsEc2Service.NODE_CACHE_TIME_SETTING.getKey(), "500ms");
         AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(Settings.EMPTY, 1, null);
         DummyEc2HostProvider provider = new DummyEc2HostProvider(builder.build(), transportService, awsEc2Service) {
             @Override

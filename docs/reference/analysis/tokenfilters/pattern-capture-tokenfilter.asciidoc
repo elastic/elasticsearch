@@ -23,14 +23,14 @@ Read more about http://www.regular-expressions.info/catastrophic.html[pathologic
 
 For instance a pattern like :
 
-[source,js]
+[source,text]
 --------------------------------------------------
 "(([a-z]+)(\d*))"
 --------------------------------------------------
 
 when matched against:
 
-[source,js]
+[source,text]
 --------------------------------------------------
 "abc123def456"
 --------------------------------------------------
@@ -74,7 +74,7 @@ PUT test
 
 When used to analyze the text
 
-[source,js]
+[source,java]
 --------------------------------------------------
 import static org.apache.commons.lang.StringEscapeUtils.escapeHtml
 --------------------------------------------------
@@ -117,7 +117,7 @@ PUT test
 
 When the above analyzer is used on an email address like:
 
-[source,js]
+[source,text]
 --------------------------------------------------
 john-smith_123@foo-bar.com
 --------------------------------------------------
@@ -136,14 +136,14 @@ original token will be highlighted, not just the matching subset. For
 instance, querying the above email address for `"smith"` would
 highlight:
 
-[source,js]
+[source,html]
 --------------------------------------------------
   <em>john-smith_123@foo-bar.com</em>
 --------------------------------------------------
 
 not:
 
-[source,js]
+[source,html]
 --------------------------------------------------
   john-<em>smith</em>_123@foo-bar.com
 --------------------------------------------------

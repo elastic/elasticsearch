@@ -41,7 +41,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -245,27 +244,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     /**
      * Adds a framed data in binary format
-     * @deprecated use {@link #add(byte[], int, int, XContentType)}
-     */
-    @Deprecated
-    public BulkRequest add(byte[] data, int from, int length) throws IOException {
-        return add(data, from, length, null, null);
-    }
-
-    /**
-     * Adds a framed data in binary format
      */
     public BulkRequest add(byte[] data, int from, int length, XContentType xContentType) throws IOException {
         return add(data, from, length, null, null, xContentType);
-    }
-
-    /**
-     * Adds a framed data in binary format
-     * @deprecated use {@link #add(byte[], int, int, String, String, XContentType)}
-     */
-    @Deprecated
-    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType) throws IOException {
-        return add(new BytesArray(data, from, length), defaultIndex, defaultType);
     }
 
     /**
@@ -278,16 +259,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     /**
      * Adds a framed data in binary format
-     *
-     * @deprecated use {@link #add(BytesReference, String, String, XContentType)}
-     */
-    @Deprecated
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws IOException {
-        return add(data, defaultIndex, defaultType, null, null, null, null, null, true);
-    }
-
-    /**
-     * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
                            XContentType xContentType) throws IOException {
@@ -296,27 +267,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     /**
      * Adds a framed data in binary format
-     *
-     * @deprecated use {@link #add(BytesReference, String, String, boolean, XContentType)}
-     */
-    @Deprecated
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex) throws IOException {
-        return add(data, defaultIndex, defaultType, null, null, null, null, null, allowExplicitIndex);
-    }
-
-    /**
-     * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex,
                            XContentType xContentType) throws IOException {
         return add(data, defaultIndex, defaultType, null, null, null, null, null, allowExplicitIndex, xContentType);
-    }
-
-    @Deprecated
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSourceContext, @Nullable String defaultPipeline, @Nullable Object payload, boolean allowExplicitIndex) throws IOException {
-        XContentType xContentType = XContentFactory.xContentType(data);
-        return add(data, defaultIndex, defaultType, defaultRouting, defaultFields, defaultFetchSourceContext, defaultPipeline, payload,
-            allowExplicitIndex, xContentType);
     }
 
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String
@@ -345,10 +299,16 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 if (token == null) {
                     continue;
                 }
-                assert token == XContentParser.Token.START_OBJECT;
+                if (token != XContentParser.Token.START_OBJECT) {
+                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
+                        + XContentParser.Token.START_OBJECT + " but found [" + token + "]");
+                }
                 // Move to FIELD_NAME, that's the action
                 token = parser.nextToken();
-                assert token == XContentParser.Token.FIELD_NAME;
+                if (token != XContentParser.Token.FIELD_NAME) {
+                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
+                        + XContentParser.Token.FIELD_NAME + " but found [" + token + "]");
+                }
                 String action = parser.currentName();
 
                 String index = defaultIndex;
@@ -432,7 +392,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                     }
                     line++;
 
-                    // order is important, we set parent after routing, so routing will be set to parent if not set explicitly
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
                     // of index request.
                     if ("index".equals(action)) {

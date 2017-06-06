@@ -77,12 +77,17 @@ public abstract class ArrayLikeObjectTestCase extends ScriptTestCase {
     }
 
     private void expectOutOfBounds(int index, String script, Object val) {
-        IndexOutOfBoundsException e = expectScriptThrows(IndexOutOfBoundsException.class,
-                () -> exec(script, singletonMap("val", val), true));
+        IndexOutOfBoundsException e = expectScriptThrows(IndexOutOfBoundsException.class, () ->
+            exec(script, singletonMap("val", val), true));
         try {
+            /* If this fails you *might* be missing -XX:-OmitStackTraceInFastThrow in the test jvm
+             * In Eclipse you can add this by default by going to Preference->Java->Installed JREs,
+             * clicking on the default JRE, clicking edit, and adding the flag to the
+             * "Default VM Arguments".
+             */
             assertThat(e.getMessage(), outOfBoundsExceptionMessageMatcher(index, 5));
         } catch (AssertionError ae) {
-            ae.addSuppressed(e);   // Mark the exception we are testing as suppressed so we get its stack trace. If it has one :(
+            ae.addSuppressed(e);   // Mark the exception we are testing as suppressed so we get its stack trace.
             throw ae;
         }
     }

@@ -54,10 +54,6 @@ public class RestSearchTemplateAction extends BaseRestHandler {
                         request.setScriptParams(parser.map())
                 , new ParseField("params"), ObjectParser.ValueType.OBJECT);
         PARSER.declareString((request, s) -> {
-            request.setScriptType(ScriptType.FILE);
-            request.setScript(s);
-        }, new ParseField("file"));
-        PARSER.declareString((request, s) -> {
             request.setScriptType(ScriptType.STORED);
             request.setScript(s);
         }, new ParseField("id"));
@@ -66,8 +62,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         PARSER.declareField((parser, request, value) -> {
             request.setScriptType(ScriptType.INLINE);
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
-                    request.setScript(builder.copyCurrentStructure(parser).bytes().utf8ToString());
+                //convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    request.setScript(builder.copyCurrentStructure(parser).string());
                 } catch (IOException e) {
                     throw new ParsingException(parser.getTokenLocation(), "Could not parse inline template", e);
                 }
@@ -89,11 +86,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (request.hasContentOrSourceParam() == false) {
-            throw new ElasticsearchException("request body is required");
-        }
+    public String getName() {
+        return "search_template_action";
+    }
 
+    @Override
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
         RestSearchAction.parseSearchRequest(searchRequest, request, null);

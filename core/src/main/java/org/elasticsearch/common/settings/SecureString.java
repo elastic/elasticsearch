@@ -106,8 +106,39 @@ public final class SecureString implements CharSequence, Closeable {
      */
     @Override
     public synchronized void close() {
-        Arrays.fill(chars, '\0');
-        chars = null;
+        if (chars != null) {
+            Arrays.fill(chars, '\0');
+            chars = null;
+        }
+    }
+
+    /**
+     * Returns a new copy of this object that is backed by its own char array. Closing the new instance has no effect on the instance it
+     * was created from. This is useful for APIs which accept a char array and you want to be safe about the API potentially modifying the
+     * char array. For example:
+     *
+     * <pre>
+     *     try (SecureString copy = secureString.clone()) {
+     *         // pass thee char[] to a external API
+     *         PasswordAuthentication auth = new PasswordAuthentication(username, copy.getChars());
+     *         ...
+     *     }
+     * </pre>
+     */
+    @Override
+    public synchronized SecureString clone() {
+        ensureNotClosed();
+        return new SecureString(Arrays.copyOf(chars, chars.length));
+    }
+
+    /**
+     * Returns the underlying char[]. This is a dangerous operation as the array may be modified while it is being used by other threads
+     * or a consumer may modify the values in the array. For safety, it is preferable to use {@link #clone()} and pass its chars to the
+     * consumer when the chars are needed multiple times.
+     */
+    public synchronized char[] getChars() {
+        ensureNotClosed();
+        return chars;
     }
 
     /** Throw an exception if this string has been closed, indicating something is trying to access the data after being closed. */

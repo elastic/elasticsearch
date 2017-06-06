@@ -34,7 +34,7 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -49,8 +49,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
@@ -82,9 +80,13 @@ public class TermVectorsService  {
     static TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request, LongSupplier nanoTimeSupplier) {
         final long startTime = nanoTimeSupplier.getAsLong();
         final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().getIndex().getName(), request.type(), request.id());
-        final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
-
-        Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), uidTerm).version(request.version()).versionType(request.versionType()));
+        final Term uidTerm = indexShard.mapperService().createUidTerm(request.type(), request.id());
+        if (uidTerm == null) {
+            termVectorsResponse.setExists(false);
+            return termVectorsResponse;
+        }
+        Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), request.type(), request.id(), uidTerm)
+                .version(request.version()).versionType(request.versionType()));
 
         Fields termVectorsByField = null;
         AggregatedDfs dfs = null;
@@ -98,7 +100,7 @@ public class TermVectorsService  {
         final Engine.Searcher searcher = indexShard.acquireSearcher("term_vector");
         try {
             Fields topLevelFields = MultiFields.getFields(get.searcher() != null ? get.searcher().reader() : searcher.reader());
-            Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
+            DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {
                 termVectorsByField = generateTermVectorsFromDoc(indexShard, request);

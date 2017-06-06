@@ -21,7 +21,6 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -47,10 +46,10 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     public QuerySearchRequest() {
     }
 
-    public QuerySearchRequest(SearchRequest request, long id, AggregatedDfs dfs) {
+    public QuerySearchRequest(OriginalIndices originalIndices, long id, AggregatedDfs dfs) {
         this.id = id;
         this.dfs = dfs;
-        this.originalIndices = new OriginalIndices(request);
+        this.originalIndices = originalIndices;
     }
 
     public long id() {

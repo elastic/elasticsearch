@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,14 +86,15 @@ public class Setting<T> extends ToXContentToBytes {
         Filtered,
 
         /**
-         * iff this setting is shared with more than one module ie. can be defined multiple times.
-         */
-        Shared,
-
-        /**
          * iff this setting can be dynamically updateable
          */
         Dynamic,
+
+        /**
+         * mark this setting as final, not updateable even when the context is not dynamic
+         * ie. Setting this property on an index scoped setting will fail update when the index is closed
+         */
+        Final,
 
         /**
          * mark this setting as deprecated
@@ -136,6 +136,9 @@ public class Setting<T> extends ToXContentToBytes {
             this.properties = EMPTY_PROPERTIES;
         } else {
             this.properties = EnumSet.copyOf(Arrays.asList(properties));
+            if (isDynamic() && isFinal()) {
+                throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
+            }
         }
     }
 
@@ -220,6 +223,13 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
+     * Returns <code>true</code> if this setting is final, otherwise <code>false</code>
+     */
+    public final boolean isFinal() {
+        return properties.contains(Property.Final);
+    }
+
+    /**
      * Returns the setting properties
      * @see Property
      */
@@ -253,13 +263,6 @@ public class Setting<T> extends ToXContentToBytes {
      */
     public boolean isDeprecated() {
         return properties.contains(Property.Deprecated);
-    }
-
-    /**
-     * Returns <code>true</code> if this setting is shared with more than one other module or plugin, otherwise <code>false</code>
-     */
-    public boolean isShared() {
-        return properties.contains(Property.Shared);
     }
 
     /**
@@ -377,11 +380,11 @@ public class Setting<T> extends ToXContentToBytes {
         if (exists(primary)) {
             return get(primary);
         }
-        if (fallbackSetting == null) {
-            return get(secondary);
-        }
         if (exists(secondary)) {
             return get(secondary);
+        }
+        if (fallbackSetting == null) {
+            return get(primary);
         }
         if (fallbackSetting.exists(primary)) {
             return fallbackSetting.get(primary);

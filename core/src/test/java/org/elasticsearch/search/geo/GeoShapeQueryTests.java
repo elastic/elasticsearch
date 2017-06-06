@@ -67,7 +67,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .field("type", "geo_shape")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
         client().prepareIndex("test", "type1", "aNullshape").setSource("{\"location\": null}", XContentType.JSON)
@@ -83,7 +83,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -130,7 +130,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
         client().prepareIndex("test", "type1", "blakely").setSource(jsonBuilder().startObject()
@@ -167,7 +167,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         createIndex("shapes");
         ensureGreen();
 
@@ -449,7 +449,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        client().admin().indices().prepareCreate("geo_points_only").addMapping("type1", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("geo_points_only").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
         ShapeBuilder shape = RandomShapeGenerator.createShape(random());

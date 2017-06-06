@@ -130,6 +130,10 @@ specific index module:
     Set to `true` to make the index and index metadata read only, `false` to
     allow writes and metadata changes.
 
+`index.blocks.read_only_allow_delete`::
+    Identical to `index.blocks.read_only` but allows deleting the index to free
+     up resources.
+
 `index.blocks.read`::
 
     Set to `true` to disable read operations against the index.
@@ -204,3 +208,5 @@ include::index-modules/slowlog.asciidoc[]
 include::index-modules/store.asciidoc[]
 
 include::index-modules/translog.asciidoc[]
+
+include::index-modules/index-sorting.asciidoc[]

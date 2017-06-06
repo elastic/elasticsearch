@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -161,8 +162,8 @@ public class MinDocCountIT extends AbstractTermsTestCase {
     // check that terms2 is a subset of terms1
     private void assertSubset(Terms terms1, Terms terms2, long minDocCount, int size, String include) {
         final Matcher matcher = include == null ? null : Pattern.compile(include).matcher("");;
-        final Iterator<Terms.Bucket> it1 = terms1.getBuckets().iterator();
-        final Iterator<Terms.Bucket> it2 = terms2.getBuckets().iterator();
+        final Iterator<? extends Terms.Bucket> it1 = terms1.getBuckets().iterator();
+        final Iterator<? extends Terms.Bucket> it2 = terms2.getBuckets().iterator();
         int size2 = 0;
         while (it1.hasNext()) {
             final Terms.Bucket bucket1 = it1.next();
@@ -170,9 +171,9 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                 if (size2++ == size) {
                     break;
                 }
-                assertTrue(it2.hasNext());
+                assertTrue("minDocCount: " + minDocCount, it2.hasNext());
                 final Terms.Bucket bucket2 = it2.next();
-                assertEquals(bucket1.getDocCount(), bucket2.getDocCount());
+                assertEquals("minDocCount: " + minDocCount, bucket1.getDocCount(), bucket2.getDocCount());
             }
         }
         assertFalse(it2.hasNext());
@@ -190,122 +191,122 @@ public class MinDocCountIT extends AbstractTermsTestCase {
     }
 
     public void testStringTermAsc() throws Exception {
-        testMinDocCountOnTerms("s", Script.NO, Terms.Order.term(true));
+        testMinDocCountOnTerms("s", Script.NO, BucketOrder.key(true));
     }
 
     public void testStringScriptTermAsc() throws Exception {
-        testMinDocCountOnTerms("s", Script.YES, Terms.Order.term(true));
+        testMinDocCountOnTerms("s", Script.YES, BucketOrder.key(true));
     }
 
     public void testStringTermDesc() throws Exception {
-        testMinDocCountOnTerms("s", Script.NO, Terms.Order.term(false));
+        testMinDocCountOnTerms("s", Script.NO, BucketOrder.key(false));
     }
 
     public void testStringScriptTermDesc() throws Exception {
-        testMinDocCountOnTerms("s", Script.YES, Terms.Order.term(false));
+        testMinDocCountOnTerms("s", Script.YES, BucketOrder.key(false));
     }
 
     public void testStringCountAsc() throws Exception {
-        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(true));
+        testMinDocCountOnTerms("s", Script.NO, BucketOrder.count(true));
     }
 
     public void testStringScriptCountAsc() throws Exception {
-        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(true));
+        testMinDocCountOnTerms("s", Script.YES, BucketOrder.count(true));
     }
 
     public void testStringCountDesc() throws Exception {
-        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(false));
+        testMinDocCountOnTerms("s", Script.NO, BucketOrder.count(false));
     }
 
     public void testStringScriptCountDesc() throws Exception {
-        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(false));
+        testMinDocCountOnTerms("s", Script.YES, BucketOrder.count(false));
     }
 
     public void testStringCountAscWithInclude() throws Exception {
-        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(true), ".*a.*", true);
+        testMinDocCountOnTerms("s", Script.NO, BucketOrder.count(true), ".*a.*", true);
     }
 
     public void testStringScriptCountAscWithInclude() throws Exception {
-        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(true), ".*a.*", true);
+        testMinDocCountOnTerms("s", Script.YES, BucketOrder.count(true), ".*a.*", true);
     }
 
     public void testStringCountDescWithInclude() throws Exception {
-        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(false), ".*a.*", true);
+        testMinDocCountOnTerms("s", Script.NO, BucketOrder.count(false), ".*a.*", true);
     }
 
     public void testStringScriptCountDescWithInclude() throws Exception {
-        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(false), ".*a.*", true);
+        testMinDocCountOnTerms("s", Script.YES, BucketOrder.count(false), ".*a.*", true);
     }
 
     public void testLongTermAsc() throws Exception {
-        testMinDocCountOnTerms("l", Script.NO, Terms.Order.term(true));
+        testMinDocCountOnTerms("l", Script.NO, BucketOrder.key(true));
     }
 
     public void testLongScriptTermAsc() throws Exception {
-        testMinDocCountOnTerms("l", Script.YES, Terms.Order.term(true));
+        testMinDocCountOnTerms("l", Script.YES, BucketOrder.key(true));
     }
 
     public void testLongTermDesc() throws Exception {
-        testMinDocCountOnTerms("l", Script.NO, Terms.Order.term(false));
+        testMinDocCountOnTerms("l", Script.NO, BucketOrder.key(false));
     }
 
     public void testLongScriptTermDesc() throws Exception {
-        testMinDocCountOnTerms("l", Script.YES, Terms.Order.term(false));
+        testMinDocCountOnTerms("l", Script.YES, BucketOrder.key(false));
     }
 
     public void testLongCountAsc() throws Exception {
-        testMinDocCountOnTerms("l", Script.NO, Terms.Order.count(true));
+        testMinDocCountOnTerms("l", Script.NO, BucketOrder.count(true));
     }
 
     public void testLongScriptCountAsc() throws Exception {
-        testMinDocCountOnTerms("l", Script.YES, Terms.Order.count(true));
+        testMinDocCountOnTerms("l", Script.YES, BucketOrder.count(true));
     }
 
     public void testLongCountDesc() throws Exception {
-        testMinDocCountOnTerms("l", Script.NO, Terms.Order.count(false));
+        testMinDocCountOnTerms("l", Script.NO, BucketOrder.count(false));
     }
 
     public void testLongScriptCountDesc() throws Exception {
-        testMinDocCountOnTerms("l", Script.YES, Terms.Order.count(false));
+        testMinDocCountOnTerms("l", Script.YES, BucketOrder.count(false));
     }
 
     public void testDoubleTermAsc() throws Exception {
-        testMinDocCountOnTerms("d", Script.NO, Terms.Order.term(true));
+        testMinDocCountOnTerms("d", Script.NO, BucketOrder.key(true));
     }
 
     public void testDoubleScriptTermAsc() throws Exception {
-        testMinDocCountOnTerms("d", Script.YES, Terms.Order.term(true));
+        testMinDocCountOnTerms("d", Script.YES, BucketOrder.key(true));
     }
 
     public void testDoubleTermDesc() throws Exception {
-        testMinDocCountOnTerms("d", Script.NO, Terms.Order.term(false));
+        testMinDocCountOnTerms("d", Script.NO, BucketOrder.key(false));
     }
 
     public void testDoubleScriptTermDesc() throws Exception {
-        testMinDocCountOnTerms("d", Script.YES, Terms.Order.term(false));
+        testMinDocCountOnTerms("d", Script.YES, BucketOrder.key(false));
     }
 
     public void testDoubleCountAsc() throws Exception {
-        testMinDocCountOnTerms("d", Script.NO, Terms.Order.count(true));
+        testMinDocCountOnTerms("d", Script.NO, BucketOrder.count(true));
     }
 
     public void testDoubleScriptCountAsc() throws Exception {
-        testMinDocCountOnTerms("d", Script.YES, Terms.Order.count(true));
+        testMinDocCountOnTerms("d", Script.YES, BucketOrder.count(true));
     }
 
     public void testDoubleCountDesc() throws Exception {
-        testMinDocCountOnTerms("d", Script.NO, Terms.Order.count(false));
+        testMinDocCountOnTerms("d", Script.NO, BucketOrder.count(false));
     }
 
     public void testDoubleScriptCountDesc() throws Exception {
-        testMinDocCountOnTerms("d", Script.YES, Terms.Order.count(false));
+        testMinDocCountOnTerms("d", Script.YES, BucketOrder.count(false));
     }
 
-    private void testMinDocCountOnTerms(String field, Script script, Terms.Order order) throws Exception {
+    private void testMinDocCountOnTerms(String field, Script script, BucketOrder order) throws Exception {
         testMinDocCountOnTerms(field, script, order, null, true);
     }
 
-    private void testMinDocCountOnTerms(String field, Script script, Terms.Order order, String include, boolean retry) throws Exception {
+    private void testMinDocCountOnTerms(String field, Script script, BucketOrder order, String include, boolean retry) throws Exception {
         // all terms
         final SearchResponse allTermsResponse = client().prepareSearch("idx").setTypes("type")
                 .setSize(0)
@@ -336,60 +337,44 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                             .shardSize(cardinality + randomInt(10))
                             .minDocCount(minDocCount)).request();
             final SearchResponse response = client().search(request).get();
-            try {
-                assertAllSuccessful(response);
-                assertSubset(allTerms, (Terms) response.getAggregations().get("terms"), minDocCount, size, include);
-            } catch (AssertionError ae) {
-                if (!retry) {
-                    throw ae;
-                }
-                logger.info("test failed. trying to see if it recovers after 1m.", ae);
-                try {
-                    Thread.sleep(60000);
-                    logger.debug("1m passed. retrying.");
-                    testMinDocCountOnTerms(field, script, order, include, false);
-                } catch (Exception secondFailure) {
-                    secondFailure.addSuppressed(ae);
-                    logger.error("exception on retry (will re-throw the original in a sec)", secondFailure);
-                }
-                throw ae;
-            }
+            assertAllSuccessful(response);
+            assertSubset(allTerms, (Terms) response.getAggregations().get("terms"), minDocCount, size, include);
         }
     }
 
     public void testHistogramCountAsc() throws Exception {
-        testMinDocCountOnHistogram(Histogram.Order.COUNT_ASC);
+        testMinDocCountOnHistogram(BucketOrder.count(true));
     }
 
     public void testHistogramCountDesc() throws Exception {
-        testMinDocCountOnHistogram(Histogram.Order.COUNT_DESC);
+        testMinDocCountOnHistogram(BucketOrder.count(false));
     }
 
     public void testHistogramKeyAsc() throws Exception {
-        testMinDocCountOnHistogram(Histogram.Order.KEY_ASC);
+        testMinDocCountOnHistogram(BucketOrder.key(true));
     }
 
     public void testHistogramKeyDesc() throws Exception {
-        testMinDocCountOnHistogram(Histogram.Order.KEY_DESC);
+        testMinDocCountOnHistogram(BucketOrder.key(false));
     }
 
     public void testDateHistogramCountAsc() throws Exception {
-        testMinDocCountOnDateHistogram(Histogram.Order.COUNT_ASC);
+        testMinDocCountOnDateHistogram(BucketOrder.count(true));
     }
 
     public void testDateHistogramCountDesc() throws Exception {
-        testMinDocCountOnDateHistogram(Histogram.Order.COUNT_DESC);
+        testMinDocCountOnDateHistogram(BucketOrder.count(false));
     }
 
     public void testDateHistogramKeyAsc() throws Exception {
-        testMinDocCountOnDateHistogram(Histogram.Order.KEY_ASC);
+        testMinDocCountOnDateHistogram(BucketOrder.key(true));
     }
 
     public void testDateHistogramKeyDesc() throws Exception {
-        testMinDocCountOnDateHistogram(Histogram.Order.KEY_DESC);
+        testMinDocCountOnDateHistogram(BucketOrder.key(false));
     }
 
-    private void testMinDocCountOnHistogram(Histogram.Order order) throws Exception {
+    private void testMinDocCountOnHistogram(BucketOrder order) throws Exception {
         final int interval = randomIntBetween(1, 3);
         final SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
                 .setSize(0)
@@ -409,7 +394,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         }
     }
 
-    private void testMinDocCountOnDateHistogram(Histogram.Order order) throws Exception {
+    private void testMinDocCountOnDateHistogram(BucketOrder order) throws Exception {
         final SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
                 .setSize(0)
                 .setQuery(QUERY)

@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -173,9 +172,6 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         case STILL_ALLOCATED:
                             // nothing to do
                             break;
-                        case SHARED_FILE_SYSTEM:
-                            // nothing to do
-                            break;
                         default:
                             assert false : "unknown shard deletion check result: " + shardDeletionCheckResult;
                     }
@@ -283,26 +279,20 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 return;
             }
 
-            clusterService.submitStateUpdateTask("indices_store ([" + shardId + "] active fully on other nodes)", new LocalClusterUpdateTask() {
-                @Override
-                public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+            clusterService.getClusterApplierService().runOnApplierThread("indices_store ([" + shardId + "] active fully on other nodes)",
+                currentState -> {
                     if (clusterStateVersion != currentState.getVersion()) {
                         logger.trace("not deleting shard {}, the update task state version[{}] is not equal to cluster state before shard active api call [{}]", shardId, currentState.getVersion(), clusterStateVersion);
-                        return unchanged();
+                        return;
                     }
                     try {
                         indicesService.deleteShardStore("no longer used", shardId, currentState);
                     } catch (Exception ex) {
                         logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} failed to delete unallocated shard, ignoring", shardId), ex);
                     }
-                    return unchanged();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("{} unexpected error during deletion of unallocated shard", shardId), e);
-                }
-            });
+                },
+                (source, e) -> logger.error((Supplier<?>) () -> new ParameterizedMessage("{} unexpected error during deletion of unallocated shard", shardId), e)
+            );
         }
 
     }

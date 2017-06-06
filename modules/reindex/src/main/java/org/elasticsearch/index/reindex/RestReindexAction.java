@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
@@ -99,6 +98,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     public RestReindexAction(Settings settings, RestController controller) {
         super(settings, ReindexAction.INSTANCE);
         controller.registerHandler(POST, "/_reindex", this);
+    }
+
+    @Override
+    public String getName() {
+        return "reindex_action";
     }
 
     @Override

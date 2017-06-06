@@ -36,6 +36,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
@@ -75,9 +76,9 @@ import static org.hamcrest.Matchers.is;
 public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
     private static final List<RequestAndHeaders> requests =  new CopyOnWriteArrayList<>();
     private static final String CUSTOM_HEADER = "SomeCustomHeader";
-    private String randomHeaderValue = randomAsciiOfLength(20);
-    private String queryIndex = "query-" + randomAsciiOfLength(10).toLowerCase(Locale.ROOT);
-    private String lookupIndex = "lookup-" + randomAsciiOfLength(10).toLowerCase(Locale.ROOT);
+    private String randomHeaderValue = randomAlphaOfLength(20);
+    private String queryIndex = "query-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+    private String lookupIndex = "lookup-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -109,9 +110,9 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
             .build();
         assertAcked(transportClient().admin().indices().prepareCreate(lookupIndex)
-            .setSettings(settings).addMapping("type", mapping));
+            .setSettings(settings).addMapping("type", mapping, XContentType.JSON));
         assertAcked(transportClient().admin().indices().prepareCreate(queryIndex)
-            .setSettings(settings).addMapping("type", mapping));
+            .setSettings(settings).addMapping("type", mapping, XContentType.JSON));
         ensureGreen(queryIndex, lookupIndex);
         requests.clear();
     }

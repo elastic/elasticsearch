@@ -25,6 +25,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,12 +42,14 @@ public class RestIndicesStatsActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        action = new RestIndicesStatsAction(Settings.EMPTY, new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null));
+        UsageService usageService = new UsageService(Settings.EMPTY);
+        action = new RestIndicesStatsAction(Settings.EMPTY,
+                new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null, usageService));
     }
 
     public void testUnrecognizedMetric() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
-        final String metric = randomAsciiOfLength(64);
+        final String metric = randomAlphaOfLength(64);
         params.put("metric", metric);
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(

@@ -42,10 +42,6 @@ include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
 
-//////
- include::release-notes.asciidoc[]
-//////
-
-include::painless-api-reference.asciidoc[]
+include::release-notes.asciidoc[]
 
 include::redirects.asciidoc[]

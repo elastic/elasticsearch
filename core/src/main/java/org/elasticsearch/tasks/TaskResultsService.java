@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -82,7 +83,7 @@ public class TaskResultsService extends AbstractComponent {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest();
             createIndexRequest.settings(taskResultIndexSettings());
             createIndexRequest.index(TASK_INDEX);
-            createIndexRequest.mapping(TASK_TYPE, taskResultIndexMapping());
+            createIndexRequest.mapping(TASK_TYPE, taskResultIndexMapping(), XContentType.JSON);
             createIndexRequest.cause("auto(task api)");
 
             createIndexAction.execute(null, createIndexRequest, new ActionListener<CreateIndexResponse>() {
@@ -110,7 +111,8 @@ public class TaskResultsService extends AbstractComponent {
             IndexMetaData metaData = state.getMetaData().index(TASK_INDEX);
             if (metaData.getMappings().containsKey(TASK_TYPE) == false) {
                 // The index already exists but doesn't have our mapping
-                client.admin().indices().preparePutMapping(TASK_INDEX).setType(TASK_TYPE).setSource(taskResultIndexMapping())
+                client.admin().indices().preparePutMapping(TASK_INDEX).setType(TASK_TYPE)
+                    .setSource(taskResultIndexMapping(), XContentType.JSON)
                     .execute(new ActionListener<PutMappingResponse>() {
                                  @Override
                                  public void onResponse(PutMappingResponse putMappingResponse) {

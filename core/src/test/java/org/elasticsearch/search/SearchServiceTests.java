@@ -48,7 +48,6 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -184,13 +183,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             final int rounds = scaledRandomIntBetween(100, 10000);
             for (int i = 0; i < rounds; i++) {
                 try {
-                    QuerySearchResultProvider querySearchResultProvider = service.executeQueryPhase(
-                        new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-                            new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f),
+                    SearchPhaseResult searchPhaseResult = service.executeQueryPhase(
+                            new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                                    new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f),
                         new SearchTask(123L, "", "", "", null));
                     IntArrayList intCursors = new IntArrayList(1);
                     intCursors.add(0);
-                    ShardFetchRequest req = new ShardFetchRequest(querySearchResultProvider.id(), intCursors, null /* not a scroll */);
+                    ShardFetchRequest req = new ShardFetchRequest(searchPhaseResult.getRequestId(), intCursors, null /* not a scroll */);
                     service.executeFetchPhase(req, new SearchTask(123L, "", "", "", null));
                 } catch (AlreadyClosedException ex) {
                     throw ex;
@@ -214,33 +213,44 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
         final SearchContext contextWithDefaultTimeout = service.createContext(
-            new ShardSearchLocalRequest(
-                indexShard.shardId(),
-                1,
-                SearchType.DEFAULT,
-                new SearchSourceBuilder(),
-                new String[0],
-                false,
-                new AliasFilter(null, Strings.EMPTY_ARRAY),
-                1.0f),
-            null);
-        // the search context should inherit the default timeout
-        assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
+                new ShardSearchLocalRequest(
+                        indexShard.shardId(),
+                        1,
+                        SearchType.DEFAULT,
+                        new SearchSourceBuilder(),
+                        new String[0],
+                        false,
+                        new AliasFilter(null, Strings.EMPTY_ARRAY),
+                        1.0f),
+                null);
+        try {
+            // the search context should inherit the default timeout
+            assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
+        } finally {
+            contextWithDefaultTimeout.decRef();
+            service.freeContext(contextWithDefaultTimeout.id());
+        }
 
         final long seconds = randomIntBetween(6, 10);
         final SearchContext context = service.createContext(
-            new ShardSearchLocalRequest(
-                indexShard.shardId(),
-                1,
-                SearchType.DEFAULT,
-                new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(seconds)),
-                new String[0],
-                false,
-                new AliasFilter(null, Strings.EMPTY_ARRAY),
-                1.0f),
+                new ShardSearchLocalRequest(
+                        indexShard.shardId(),
+                        1,
+                        SearchType.DEFAULT,
+                        new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(seconds)),
+                        new String[0],
+                        false,
+                        new AliasFilter(null, Strings.EMPTY_ARRAY),
+                        1.0f),
             null);
-        // the search context should inherit the query timeout
-        assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));
+        try {
+            // the search context should inherit the query timeout
+            assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));
+        } finally {
+            context.decRef();
+            service.freeContext(context.id());
+        }
+
     }
 
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {

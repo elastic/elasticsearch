@@ -35,28 +35,42 @@ import com.google.api.services.storage.StorageScopes;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
-public interface GoogleCloudStorageService {
+interface GoogleCloudStorageService {
+
+    String SETTINGS_PREFIX = "gcs.client.";
+
+    /** A json credentials file loaded from secure settings. */
+    Setting.AffixSetting<InputStream> CREDENTIALS_FILE_SETTING = Setting.affixKeySetting(SETTINGS_PREFIX, "credentials_file",
+        key -> SecureSetting.secureFile(key, null));
 
     /**
      * Creates a client that can be used to manage Google Cloud Storage objects.
      *
-     * @param serviceAccount path to service account file
+     * @param clientName     name of client settings to use from secure settings
      * @param application    name of the application
      * @param connectTimeout connection timeout for HTTP requests
      * @param readTimeout    read timeout for HTTP requests
      * @return a Client instance that can be used to manage objects
      */
-    Storage createClient(String serviceAccount, String application, TimeValue connectTimeout, TimeValue readTimeout) throws Exception;
+    Storage createClient(String clientName, String application,
+                         TimeValue connectTimeout, TimeValue readTimeout) throws Exception;
 
     /**
      * Default implementation
@@ -67,58 +81,45 @@ public interface GoogleCloudStorageService {
 
         private final Environment environment;
 
-        public InternalGoogleCloudStorageService(Environment environment) {
+        /** Credentials identified by client name. */
+        private final Map<String, GoogleCredential> credentials;
+
+        InternalGoogleCloudStorageService(Environment environment, Map<String, GoogleCredential> credentials) {
             super(environment.settings());
             this.environment = environment;
+            this.credentials = credentials;
         }
 
         @Override
-        public Storage createClient(String serviceAccount, String application, TimeValue connectTimeout, TimeValue readTimeout)
-                throws Exception {
+        public Storage createClient(String clientName, String application,
+                                    TimeValue connectTimeout, TimeValue readTimeout) throws Exception {
             try {
-                GoogleCredential credentials = (DEFAULT.equalsIgnoreCase(serviceAccount)) ? loadDefault() : loadCredentials(serviceAccount);
+                GoogleCredential credential = getCredential(clientName);
                 NetHttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
 
                 Storage.Builder storage = new Storage.Builder(httpTransport, JacksonFactory.getDefaultInstance(),
-                        new DefaultHttpRequestInitializer(credentials, connectTimeout, readTimeout));
+                        new DefaultHttpRequestInitializer(credential, connectTimeout, readTimeout));
                 storage.setApplicationName(application);
 
                 logger.debug("initializing client with service account [{}/{}]",
-                        credentials.getServiceAccountId(), credentials.getServiceAccountUser());
+                        credential.getServiceAccountId(), credential.getServiceAccountUser());
                 return storage.build();
             } catch (IOException e) {
                 throw new ElasticsearchException("Error when loading Google Cloud Storage credentials file", e);
             }
         }
 
-        /**
-         * HTTP request initializer that loads credentials from the service account file
-         * and manages authentication for HTTP requests
-         */
-        private GoogleCredential loadCredentials(String serviceAccount) throws IOException {
-            if (serviceAccount == null) {
-                throw new ElasticsearchException("Cannot load Google Cloud Storage service account file from a null path");
+        // pkg private for tests
+        GoogleCredential getCredential(String clientName) throws IOException {
+            GoogleCredential cred = credentials.get(clientName);
+            if (cred != null) {
+                return cred;
             }
-
-            Path account = environment.configFile().resolve(serviceAccount);
-            if (Files.exists(account) == false) {
-                throw new ElasticsearchException("Unable to find service account file [" + serviceAccount
-                        + "] defined for repository");
-            }
-
-            try (InputStream is = Files.newInputStream(account)) {
-                GoogleCredential credential = GoogleCredential.fromStream(is);
-                if (credential.createScopedRequired()) {
-                    credential = credential.createScoped(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
-                }
-                return credential;
-            }
+            return getDefaultCredential();
         }
 
-        /**
-         * HTTP request initializer that loads default credentials when running on Compute Engine
-         */
-        private GoogleCredential loadDefault() throws IOException {
+        // pkg private for tests
+        GoogleCredential getDefaultCredential() throws IOException {
             return GoogleCredential.getApplicationDefault();
         }
 
@@ -171,5 +172,24 @@ public interface GoogleCloudStorageService {
                         .build();
             }
         }
+    }
+
+    /** Load all secure credentials from the settings. */
+    static Map<String, GoogleCredential> loadClientCredentials(Settings settings) {
+        Set<String> clientNames = settings.getGroups(SETTINGS_PREFIX).keySet();
+        Map<String, GoogleCredential> credentials = new HashMap<>();
+        for (String clientName : clientNames) {
+            Setting<InputStream> concreteSetting = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName);
+            try (InputStream credStream = concreteSetting.get(settings)) {
+                GoogleCredential credential = GoogleCredential.fromStream(credStream);
+                if (credential.createScopedRequired()) {
+                    credential = credential.createScoped(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
+                }
+                credentials.put(clientName, credential);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        return credentials;
     }
 }

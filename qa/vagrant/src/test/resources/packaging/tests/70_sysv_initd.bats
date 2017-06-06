@@ -3,9 +3,14 @@
 # This file is used to test the elasticsearch init.d scripts.
 
 # WARNING: This testing file must be executed as root and can
-# dramatically change your system. It removes the 'elasticsearch'
-# user/group and also many directories. Do not execute this file
-# unless you know exactly what you are doing.
+# dramatically change your system. It should only be executed
+# in a throw-away VM like those made by the Vagrantfile at
+# the root of the Elasticsearch source code. This should
+# cause the script to fail if it is executed any other way:
+[ -f /etc/is_vagrant_vm ] || {
+  >&2 echo "must be run on a vagrant VM"
+  exit 1
+}
 
 # The test case can be executed with the Bash Automated
 # Testing System tool available at https://github.com/sstephenson/bats
@@ -60,11 +65,11 @@ setup() {
 @test "[INIT.D] elasticsearch fails if startup script is not executable" {
     local INIT="/etc/init.d/elasticsearch"
     local DAEMON="$ESHOME/bin/elasticsearch"
-    
+
     sudo chmod -x "$DAEMON"
     run "$INIT"
     sudo chmod +x "$DAEMON"
-    
+
     [ "$status" -eq 1 ]
     [[ "$output" == *"The elasticsearch startup script does not exists or it is not executable, tried: $DAEMON"* ]]
 }
@@ -79,10 +84,6 @@ setup() {
 }
 
 @test "[INIT.D] start" {
-    # Install scripts used to test script filters and search templates before
-    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
-    # them.
-    install_elasticsearch_test_scripts
     service elasticsearch start
     wait_for_elasticsearch_status
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
@@ -124,7 +125,11 @@ setup() {
     # set DATA_DIR to DATA_DIR=/tmp/aoeu,/tmp/asdf
     sed -i 's/DATA_DIR=.*/DATA_DIR=\/tmp\/aoeu,\/tmp\/asdf/' /etc/init.d/elasticsearch
     cat /etc/init.d/elasticsearch | grep "DATA_DIR"
-    service elasticsearch start
+    run service elasticsearch start
+    if [ "$status" -ne 0 ]; then
+      cat /var/log/elasticsearch/*
+      fail
+    fi
     wait_for_elasticsearch_status
     assert_file_not_exist /tmp/aoeu,/tmp/asdf
     assert_file_not_exist /tmp/aoeu,
@@ -143,6 +148,10 @@ setup() {
     chown -R elasticsearch:elasticsearch "$temp"
     echo "-Xms512m" >> "$temp/jvm.options"
     echo "-Xmx512m" >> "$temp/jvm.options"
+    # we have to disable Log4j from using JMX lest it will hit a security
+    # manager exception before we have configured logging; this will fail
+    # startup since we detect usages of logging before it is configured
+    echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
     cp $ESENVFILE "$temp/elasticsearch"
     echo "ES_JVM_OPTIONS=\"$temp/jvm.options\"" >> $ESENVFILE
     echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> $ESENVFILE

@@ -1,0 +1,27 @@
+---
+"clear_cache test":
+  - do:
+      indices.clear_cache: {}
+
+---
+"clear_cache with request set to false":
+  - skip:
+      version: " - 5.3.99"
+      reason: this name was added in 5.4
+
+  - do:
+      indices.clear_cache:
+        request: false
+
+---
+"clear_cache with request_cache set to false":
+  - skip:
+      version: " - 5.3.99"
+      reason: request_cache was deprecated in 5.4.0
+      features: "warnings"
+
+  - do:
+      warnings:
+        - 'Deprecated field [request_cache] used, expected [request] instead'
+      indices.clear_cache:
+        request_cache: false

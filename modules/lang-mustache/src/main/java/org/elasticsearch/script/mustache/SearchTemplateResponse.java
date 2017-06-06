@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -81,7 +82,8 @@ public class SearchTemplateResponse  extends ActionResponse implements StatusToX
             response.toXContent(builder, params);
         } else {
             builder.startObject();
-            builder.rawField("template_output", source);
+            //we can assume the template is always json as we convert it before compiling it
+            builder.rawField("template_output", source, XContentType.JSON);
             builder.endObject();
         }
         return builder;

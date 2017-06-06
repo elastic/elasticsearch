@@ -43,6 +43,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -55,7 +56,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.ShardLockObtainFailedException;
-import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.query.QueryShardException;
@@ -293,24 +293,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertNull(ex.shard());
         assertEquals(ex.getMessage(), "hello world");
         assertTrue(ex.getCause() instanceof NullPointerException);
-    }
-
-    public void testAlreadyExpiredException() throws IOException {
-        AlreadyExpiredException alreadyExpiredException = serialize(new AlreadyExpiredException("index", "type", "id", 1, 2, 3));
-        assertEquals("index", alreadyExpiredException.getIndex().getName());
-        assertEquals("type", alreadyExpiredException.type());
-        assertEquals("id", alreadyExpiredException.id());
-        assertEquals(2, alreadyExpiredException.ttl());
-        assertEquals(1, alreadyExpiredException.timestamp());
-        assertEquals(3, alreadyExpiredException.now());
-
-        alreadyExpiredException = serialize(new AlreadyExpiredException(null, null, null, -1, -2, -3));
-        assertNull(alreadyExpiredException.getIndex());
-        assertNull(alreadyExpiredException.type());
-        assertNull(alreadyExpiredException.id());
-        assertEquals(-2, alreadyExpiredException.ttl());
-        assertEquals(-1, alreadyExpiredException.timestamp());
-        assertEquals(-3, alreadyExpiredException.now());
     }
 
     public void testActionNotFoundTransportException() throws IOException {
@@ -645,8 +627,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testNoLongerPrimaryShardException() throws IOException {
-        ShardId shardId = new ShardId(new Index(randomAsciiOfLength(4), randomAsciiOfLength(4)), randomIntBetween(0, Integer.MAX_VALUE));
-        String msg = randomAsciiOfLength(4);
+        ShardId shardId = new ShardId(new Index(randomAlphaOfLength(4), randomAlphaOfLength(4)), randomIntBetween(0, Integer.MAX_VALUE));
+        String msg = randomAlphaOfLength(4);
         ShardStateAction.NoLongerPrimaryShardException ex = serialize(new ShardStateAction.NoLongerPrimaryShardException(shardId, msg));
         assertEquals(shardId, ex.getShardId());
         assertEquals(msg, ex.getMessage());
@@ -680,15 +662,15 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testThatIdsArePositive() {
-        for (ElasticsearchException.ElasticsearchExceptionHandle handle : ElasticsearchException.ElasticsearchExceptionHandle.values()) {
-            assertThat("negative id", handle.id, greaterThanOrEqualTo(0));
+        for (final int id : ElasticsearchException.ids()) {
+            assertThat("negative id", id, greaterThanOrEqualTo(0));
         }
     }
 
     public void testThatIdsAreUnique() {
-        Set<Integer> ids = new HashSet<>();
-        for (ElasticsearchException.ElasticsearchExceptionHandle handle : ElasticsearchException.ElasticsearchExceptionHandle.values()) {
-            assertTrue("duplicate id", ids.add(handle.id));
+        final Set<Integer> ids = new HashSet<>();
+        for (final int id: ElasticsearchException.ids()) {
+            assertTrue("duplicate id", ids.add(id));
         }
     }
 
@@ -779,7 +761,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(82, org.elasticsearch.repositories.RepositoryException.class);
         ids.put(83, org.elasticsearch.transport.ReceiveTimeoutTransportException.class);
         ids.put(84, org.elasticsearch.transport.NodeDisconnectedException.class);
-        ids.put(85, org.elasticsearch.index.AlreadyExpiredException.class);
+        ids.put(85, null);
         ids.put(86, org.elasticsearch.search.aggregations.AggregationExecutionException.class);
         ids.put(88, org.elasticsearch.indices.InvalidIndexTemplateException.class);
         ids.put(90, org.elasticsearch.index.engine.RefreshFailedEngineException.class);
@@ -848,8 +830,9 @@ public class ExceptionSerializationTests extends ESTestCase {
             }
         }
 
-        for (ElasticsearchException.ElasticsearchExceptionHandle handle : ElasticsearchException.ElasticsearchExceptionHandle.values()) {
-            assertEquals((int) reverse.get(handle.exceptionClass), handle.id);
+        for (final Tuple<Integer, Class<? extends ElasticsearchException>> tuple : ElasticsearchException.classes()) {
+            assertNotNull(tuple.v1());
+            assertEquals((int) reverse.get(tuple.v2()), (int)tuple.v1());
         }
 
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
@@ -970,7 +953,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         try (StreamInput in = decoded.streamInput()) {
             //randomize the version across released and unreleased ones
             Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-                    Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+                    Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
             in.setVersion(version);
             ElasticsearchException exception = new ElasticsearchException(in);
             assertEquals("test  message", exception.getMessage());

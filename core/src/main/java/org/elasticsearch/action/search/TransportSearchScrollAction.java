@@ -60,7 +60,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
-            AbstractAsyncAction action;
+            Runnable action;
             switch (scrollId.getType()) {
                 case QUERY_THEN_FETCH_TYPE:
                     action = new SearchScrollQueryThenFetchAsyncAction(logger, clusterService, searchTransportService,
@@ -73,7 +73,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                 default:
                     throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             }
-            action.start();
+            action.run();
         } catch (Exception e) {
             listener.onFailure(e);
         }

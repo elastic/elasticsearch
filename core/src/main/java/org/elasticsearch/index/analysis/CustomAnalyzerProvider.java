@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -56,8 +55,8 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find tokenizer under name [" + tokenizerName + "]");
         }
 
-        List<CharFilterFactory> charFiltersList = new ArrayList<>();
         String[] charFilterNames = analyzerSettings.getAsArray("char_filter");
+        List<CharFilterFactory> charFiltersList = new ArrayList<>(charFilterNames.length);
         for (String charFilterName : charFilterNames) {
             CharFilterFactory charFilter = charFilters.get(charFilterName);
             if (charFilter == null) {
@@ -66,8 +65,8 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             charFiltersList.add(charFilter);
         }
 
-        List<TokenFilterFactory> tokenFilterList = new ArrayList<>();
         String[] tokenFilterNames = analyzerSettings.getAsArray("filter");
+        List<TokenFilterFactory> tokenFilterList = new ArrayList<>(tokenFilterNames.length);
         for (String tokenFilterName : tokenFilterNames) {
             TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
             if (tokenFilter == null) {
@@ -78,23 +77,10 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
 
         int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
 
-        if (analyzerSettings.getAsMap().containsKey("position_offset_gap")){
-            if (indexSettings.getIndexVersionCreated().before(Version.V_2_0_0)){
-                if (analyzerSettings.getAsMap().containsKey("position_increment_gap")){
-                    throw new IllegalArgumentException("Custom Analyzer [" + name() +
-                            "] defined both [position_offset_gap] and [position_increment_gap], use only [position_increment_gap]");
-                }
-                positionIncrementGap = analyzerSettings.getAsInt("position_offset_gap", positionIncrementGap);
-            }else {
-                throw new IllegalArgumentException("Option [position_offset_gap] in Custom Analyzer [" + name() +
-                        "] has been renamed, please use [position_increment_gap] instead.");
-            }
-        }
-
         positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
 
         int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);;
-        this.customAnalyzer = new CustomAnalyzer(tokenizer,
+        this.customAnalyzer = new CustomAnalyzer(tokenizerName, tokenizer,
                 charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                 tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()]),
                 positionIncrementGap,

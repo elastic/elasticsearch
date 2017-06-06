@@ -109,12 +109,12 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     public void testCorsConfig() {
         final Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
         final Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
-        final String suffix = randomBoolean() ? " " : ""; // sometimes have a leading whitespace between comma delimited elements
+        final String prefix = randomBoolean() ? " " : ""; // sometimes have a leading whitespace between comma delimited elements
         final Settings settings = Settings.builder()
                                       .put(SETTING_CORS_ENABLED.getKey(), true)
                                       .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
-                                      .put(SETTING_CORS_ALLOW_METHODS.getKey(), collectionToDelimitedString(methods, ",", suffix, ""))
-                                      .put(SETTING_CORS_ALLOW_HEADERS.getKey(), collectionToDelimitedString(headers, ",", suffix, ""))
+                                      .put(SETTING_CORS_ALLOW_METHODS.getKey(), collectionToDelimitedString(methods, ",", prefix, ""))
+                                      .put(SETTING_CORS_ALLOW_HEADERS.getKey(), collectionToDelimitedString(headers, ",", prefix, ""))
                                       .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
                                       .build();
         final Netty4CorsConfig corsConfig = Netty4HttpServerTransport.buildCorsConfig(settings);
@@ -153,7 +153,6 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      * with a 413 status.
      * @throws InterruptedException if the client communication with the server is interrupted
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/23172")
     public void testExpectContinueHeaderContentLengthTooLong() throws InterruptedException {
         final String key = HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey();
         final int maxContentLength = randomIntBetween(1, 104857600);
@@ -167,7 +166,6 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      * Test that {@link Netty4HttpServerTransport} responds to an unsupported expectation with a 417 status.
      * @throws InterruptedException if the client communication with the server is interrupted
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/23172")
     public void testExpectUnsupportedExpectation() throws InterruptedException {
         runExpectHeaderTest(Settings.EMPTY, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
     }
@@ -282,4 +280,37 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         assertThat(causeReference.get(), instanceOf(TooLongFrameException.class));
     }
 
+    public void testDispatchDoesNotModifyThreadContext() throws InterruptedException {
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                threadContext.putHeader("foo", "bar");
+                threadContext.putTransient("bar", "baz");
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestRequest request,
+                                           final RestChannel channel,
+                                           final ThreadContext threadContext,
+                                           final Throwable cause) {
+                threadContext.putHeader("foo_bad", "bar");
+                threadContext.putTransient("bar_bad", "baz");
+            }
+
+        };
+
+        try (Netty4HttpServerTransport transport =
+                 new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+            transport.start();
+
+            transport.dispatchRequest(null, null);
+            assertNull(threadPool.getThreadContext().getHeader("foo"));
+            assertNull(threadPool.getThreadContext().getTransient("bar"));
+
+            transport.dispatchBadRequest(null, null, null);
+            assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
+            assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
+        }
+    }
 }

@@ -50,10 +50,17 @@ public class RestGetMappingAction extends BaseRestHandler {
     public RestGetMappingAction(final Settings settings, final RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/_mapping", this);
+        controller.registerHandler(GET, "/{index}/_mappings", this);
+        controller.registerHandler(GET, "/{index}/_mapping", this);
         controller.registerHandler(GET, "/{index}/_mappings/{type}", this);
         controller.registerHandler(GET, "/{index}/_mapping/{type}", this);
         controller.registerWithDeprecatedHandler(HEAD, "/{index}/_mapping/{type}", this, HEAD, "/{index}/{type}", deprecationLogger);
         controller.registerHandler(GET, "/_mapping/{type}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "get_mapping_action";
     }
 
     @Override

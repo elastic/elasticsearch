@@ -19,28 +19,25 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 
+import java.util.function.Consumer;
+
 /**
  * This is a simple base class to simplify fan out to shards and collect their results. Each results passed to
- * {@link #onResult(int, SearchPhaseResult, SearchShardTarget)} will be set to the provided result array
+ * {@link #onResult(SearchPhaseResult)} will be set to the provided result array
  * where the given index is used to set the result on the array.
  */
 final class CountedCollector<R extends SearchPhaseResult> {
-    private final AtomicArray<R> resultArray;
+    private final Consumer<R> resultConsumer;
     private final CountDown counter;
     private final Runnable onFinish;
     private final SearchPhaseContext context;
 
-    CountedCollector(AtomicArray<R> resultArray, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
-        if (expectedOps > resultArray.length()) {
-            throw new IllegalStateException("unexpected number of operations. got: " + expectedOps + " but array size is: "
-                + resultArray.length());
-        }
-        this.resultArray = resultArray;
+    CountedCollector(Consumer<R> resultConsumer, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
+        this.resultConsumer = resultConsumer;
         this.counter = new CountDown(expectedOps);
         this.onFinish = onFinish;
         this.context = context;
@@ -60,10 +57,9 @@ final class CountedCollector<R extends SearchPhaseResult> {
     /**
      * Sets the result to the given array index and then runs {@link #countDown()}
      */
-    void onResult(int index, R result, SearchShardTarget target) {
+    void onResult(R result) {
         try {
-            result.shardTarget(target);
-            resultArray.set(index, result);
+            resultConsumer.accept(result);
         } finally {
             countDown();
         }

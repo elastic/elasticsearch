@@ -136,7 +136,11 @@ public class FsProbe extends AbstractComponent {
     }
 
     /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
-    private static long adjustForHugeFilesystems(long bytes) {
+    /**
+     * Take a large value intended to be positive, and if it has overflowed,
+     * return {@code Long.MAX_VALUE} instead of a negative number.
+     */
+    static long adjustForHugeFilesystems(long bytes) {
         if (bytes < 0) {
             return Long.MAX_VALUE;
         }
@@ -151,11 +155,10 @@ public class FsProbe extends AbstractComponent {
         // since recomputing these once per second (default) could be costly,
         // and they should not change:
         fsPath.total = adjustForHugeFilesystems(nodePath.fileStore.getTotalSpace());
-        fsPath.free = nodePath.fileStore.getUnallocatedSpace();
-        fsPath.available = nodePath.fileStore.getUsableSpace();
+        fsPath.free = adjustForHugeFilesystems(nodePath.fileStore.getUnallocatedSpace());
+        fsPath.available = adjustForHugeFilesystems(nodePath.fileStore.getUsableSpace());
         fsPath.type = nodePath.fileStore.type();
         fsPath.mount = nodePath.fileStore.toString();
-        fsPath.spins = nodePath.spins;
         return fsPath;
     }
 

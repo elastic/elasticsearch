@@ -27,6 +27,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -53,7 +54,8 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValues() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+                Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         MapperRegistry mapperRegistry = new MapperRegistry(
@@ -76,11 +78,12 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject().string()
         ));
 
-        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .field("field", "1234")
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
@@ -100,7 +103,8 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+                Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
@@ -136,11 +140,12 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject()
                 .string()));
 
-        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .field("field", "1234")
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
@@ -164,7 +169,8 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+                Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
@@ -204,11 +210,12 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject()
                 .string()));
 
-        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "1234")
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));

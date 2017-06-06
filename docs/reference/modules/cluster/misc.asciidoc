@@ -12,6 +12,11 @@ An entire cluster may be set to read-only with the following _dynamic_ setting:
       operations), metadata is not allowed to be modified (create or delete
       indices).
 
+`cluster.blocks.read_only_allow_delete`::
+
+      Identical to `cluster.blocks.read_only` but allows to delete indices
+      to free up resources.
+
 WARNING: Don't rely on this setting to prevent changes to your cluster. Any
 user with access to the <<cluster-update-settings,cluster-update-settings>>
 API can make the cluster read-write again.

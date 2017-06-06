@@ -95,10 +95,11 @@ public abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAgg
                     states.set(bucket, state);
                 }
 
-                values.setDocument(doc);
-                final int valueCount = values.count();
-                for (int i = 0; i < valueCount; i++) {
-                    state.recordValue(values.valueAt(i));
+                if (values.advanceExact(doc)) {
+                    final int valueCount = values.docValueCount();
+                    for (int i = 0; i < valueCount; i++) {
+                        state.recordValue(values.nextValue());
+                    }
                 }
             }
         };

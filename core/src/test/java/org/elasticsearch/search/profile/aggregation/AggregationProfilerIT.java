@@ -28,8 +28,6 @@ import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregator;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
-import org.elasticsearch.search.profile.aggregation.AggregationTimingType;
 import org.elasticsearch.test.ESIntegTestCase;
 import java.util.ArrayList;
 import java.util.List;
@@ -68,7 +66,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
         String[] randomStrings = new String[randomIntBetween(2, 10)];
         for (int i = 0; i < randomStrings.length; i++) {
-            randomStrings[i] = randomAsciiOfLength(10);
+            randomStrings[i] = randomAlphaOfLength(10);
         }
 
         for (int i = 0; i < 5; i++) {
@@ -156,7 +154,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             ProfileResult termsAggResult = histoAggResult.getProfiledChildren().get(0);
             assertThat(termsAggResult, notNullValue());
-            assertThat(termsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.WithHash.class.getName()));
+            assertThat(termsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getName()));
             assertThat(termsAggResult.getLuceneDescription(), equalTo("terms"));
             assertThat(termsAggResult.getTime(), greaterThan(0L));
             Map<String, Long> termsBreakdown = termsAggResult.getTimeBreakdown();
@@ -226,7 +224,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             ProfileResult termsAggResult = histoAggResult.getProfiledChildren().get(0);
             assertThat(termsAggResult, notNullValue());
-            assertThat(termsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.WithHash.class.getName()));
+            assertThat(termsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getName()));
             assertThat(termsAggResult.getLuceneDescription(), equalTo("terms"));
             assertThat(termsAggResult.getTime(), greaterThan(0L));
             Map<String, Long> termsBreakdown = termsAggResult.getTimeBreakdown();
@@ -357,7 +355,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             ProfileResult tagsAggResult = histoAggResult.getProfiledChildren().get(0);
             assertThat(tagsAggResult, notNullValue());
-            assertThat(tagsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.WithHash.class.getName()));
+            assertThat(tagsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getName()));
             assertThat(tagsAggResult.getLuceneDescription(), equalTo("tags"));
             assertThat(tagsAggResult.getTime(), greaterThan(0L));
             Map<String, Long> tagsBreakdown = tagsAggResult.getTimeBreakdown();
@@ -408,7 +406,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             ProfileResult stringsAggResult = histoAggResult.getProfiledChildren().get(1);
             assertThat(stringsAggResult, notNullValue());
-            assertThat(stringsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.WithHash.class.getName()));
+            assertThat(stringsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getName()));
             assertThat(stringsAggResult.getLuceneDescription(), equalTo("strings"));
             assertThat(stringsAggResult.getTime(), greaterThan(0L));
             Map<String, Long> stringsBreakdown = stringsAggResult.getTimeBreakdown();
@@ -459,7 +457,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
             tagsAggResult = stringsAggResult.getProfiledChildren().get(2);
             assertThat(tagsAggResult, notNullValue());
-            assertThat(tagsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.WithHash.class.getName()));
+            assertThat(tagsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getName()));
             assertThat(tagsAggResult.getLuceneDescription(), equalTo("tags"));
             assertThat(tagsAggResult.getTime(), greaterThan(0L));
             tagsBreakdown = tagsAggResult.getTimeBreakdown();

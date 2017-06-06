@@ -19,23 +19,19 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
-import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestBuilder;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
-import org.elasticsearch.action.bulk.byscroll.BulkIndexByScrollResponseMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.reindex.remote.RemoteInfo;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -74,8 +70,9 @@ public class RetryTests extends ESSingleNodeTestCase {
         for (int i = 0; i < DOC_COUNT; i++) {
             bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
         }
-        Retry retry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.exponentialBackoff());
-        BulkResponse response = retry.withSyncBackoff(client(), bulk.request());
+
+        Retry retry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.exponentialBackoff(), client().threadPool());
+        BulkResponse response = retry.withBackoff(client()::bulk, bulk.request(), client().settings()).actionGet();
         assertFalse(response.buildFailureMessage(), response.hasFailures());
         client().admin().indices().prepareRefresh("source").get();
     }
@@ -134,8 +131,8 @@ public class RetryTests extends ESSingleNodeTestCase {
     }
 
     public void testDeleteByQuery() throws Exception {
-        testCase(DeleteByQueryAction.NAME, DeleteByQueryAction.INSTANCE.newRequestBuilder(client()).source("source"),
-                matcher().deleted(DOC_COUNT));
+        testCase(DeleteByQueryAction.NAME, DeleteByQueryAction.INSTANCE.newRequestBuilder(client()).source("source")
+                .filter(QueryBuilders.matchAllQuery()), matcher().deleted(DOC_COUNT));
     }
 
     private void testCase(String action, AbstractBulkByScrollRequestBuilder<?, ?> request, BulkIndexByScrollResponseMatcher matcher)
@@ -147,7 +144,7 @@ public class RetryTests extends ESSingleNodeTestCase {
         request.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
 
         logger.info("Starting request");
-        ListenableActionFuture<BulkByScrollResponse> responseListener = request.execute();
+        ActionFuture<BulkByScrollResponse> responseListener = request.execute();
 
         try {
             logger.info("Waiting for search rejections on the initial search");

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -33,19 +34,22 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import static java.util.Collections.unmodifiableList;
+import java.util.Objects;
 
 /**
  * Result of the significant terms aggregation.
  */
 public abstract class InternalSignificantTerms<A extends InternalSignificantTerms<A, B>, B extends InternalSignificantTerms.Bucket<B>>
         extends InternalMultiBucketAggregation<A, B> implements SignificantTerms, ToXContent {
+
+    public static final String SCORE = "score";
+    public static final String BG_COUNT = "bg_count";
+
     @SuppressWarnings("PMD.ConstructorCallsOverridableMethod")
-    public abstract static class Bucket<B extends Bucket<B>> extends SignificantTerms.Bucket {
+    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
+            implements SignificantTerms.Bucket {
         /**
          * Reads a bucket. Should be a constructor reference.
          */
@@ -54,14 +58,21 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             B read(StreamInput in, long subsetSize, long supersetSize, DocValueFormat format) throws IOException;
         }
 
+        long subsetDf;
+        long subsetSize;
+        long supersetDf;
+        long supersetSize;
         long bucketOrd;
-        protected InternalAggregations aggregations;
         double score;
+        protected InternalAggregations aggregations;
         final transient DocValueFormat format;
 
         protected Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
                 InternalAggregations aggregations, DocValueFormat format) {
-            super(subsetDf, subsetSize, supersetDf, supersetSize);
+            this.subsetSize = subsetSize;
+            this.supersetSize = supersetSize;
+            this.subsetDf = subsetDf;
+            this.supersetDf = supersetDf;
             this.aggregations = aggregations;
             this.format = format;
         }
@@ -70,7 +81,8 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
          * Read from a stream.
          */
         protected Bucket(StreamInput in, long subsetSize, long supersetSize, DocValueFormat format) {
-            super(in, subsetSize, supersetSize);
+            this.subsetSize = subsetSize;
+            this.supersetSize = supersetSize;
             this.format = format;
         }
 
@@ -94,7 +106,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             return subsetSize;
         }
 
-        public void updateScore(SignificanceHeuristic significanceHeuristic) {
+        void updateScore(SignificanceHeuristic significanceHeuristic) {
             score = significanceHeuristic.getScore(subsetDf, subsetSize, supersetDf, supersetSize);
         }
 
@@ -127,6 +139,41 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         public double getSignificanceScore() {
             return score;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            Bucket<?> that = (Bucket<?>) o;
+            return bucketOrd == that.bucketOrd &&
+                    Double.compare(that.score, score) == 0 &&
+                    Objects.equals(aggregations, that.aggregations) &&
+                    Objects.equals(format, that.format);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClass(), bucketOrd, aggregations, score, format);
+        }
+
+        @Override
+        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            keyToXContent(builder);
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
+            builder.field(SCORE, score);
+            builder.field(BG_COUNT, supersetDf);
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
+            return builder;
+        }
+
+        protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;
     }
 
     protected final int requiredSize;
@@ -157,16 +204,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     protected abstract void writeTermTypeInfoTo(StreamOutput out) throws IOException;
 
     @Override
-    public Iterator<SignificantTerms.Bucket> iterator() {
-        return getBuckets().iterator();
-    }
-
-    @Override
-    public List<SignificantTerms.Bucket> getBuckets() {
-        return unmodifiableList(getBucketsInternal());
-    }
-
-    protected abstract List<B> getBucketsInternal();
+    public abstract List<B> getBuckets();
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
@@ -184,7 +222,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         for (InternalAggregation aggregation : aggregations) {
             @SuppressWarnings("unchecked")
             InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
-            for (B bucket : terms.getBucketsInternal()) {
+            for (B bucket : terms.getBuckets()) {
                 List<B> existingBuckets = buckets.get(bucket.getKeyAsString());
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<>(aggregations.size());
@@ -196,15 +234,14 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
                         bucket.aggregations));
             }
         }
-
         SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
-        final int size = Math.min(requiredSize, buckets.size());
+        final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
         BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size);
         for (Map.Entry<String, List<B>> entry : buckets.entrySet()) {
             List<B> sameTermBuckets = entry.getValue();
             final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
             b.updateScore(heuristic);
-            if ((b.score > 0) && (b.subsetDf >= minDocCount)) {
+            if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
                 ordered.insertWithOverflow(b);
             }
         }
@@ -227,4 +264,16 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     protected abstract long getSupersetSize();
 
     protected abstract SignificanceHeuristic getSignificanceHeuristic();
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(minDocCount, requiredSize);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalSignificantTerms<?, ?> that = (InternalSignificantTerms<?, ?>) obj;
+        return Objects.equals(minDocCount, that.minDocCount)
+                && Objects.equals(requiredSize, that.requiredSize);
+    }
 }

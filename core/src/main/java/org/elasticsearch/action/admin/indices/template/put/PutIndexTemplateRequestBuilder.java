@@ -102,16 +102,6 @@ public class PutIndexTemplateRequestBuilder
 
     /**
      * The settings to crete the index template with (either json or yaml format)
-     * @deprecated use {@link #setSettings(String, XContentType)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequestBuilder setSettings(String source) {
-        request.settings(source);
-        return this;
-    }
-
-    /**
-     * The settings to crete the index template with (either json or yaml format)
      */
     public PutIndexTemplateRequestBuilder setSettings(String source, XContentType xContentType) {
         request.settings(source, xContentType);
@@ -123,19 +113,6 @@ public class PutIndexTemplateRequestBuilder
      */
     public PutIndexTemplateRequestBuilder setSettings(Map<String, Object> source) {
         request.settings(source);
-        return this;
-    }
-
-    /**
-     * Adds mapping that will be added when the index template gets created.
-     *
-     * @param type   The mapping type
-     * @param source The mapping source
-     * @deprecated use {@link #addMapping(String, String, XContentType)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequestBuilder addMapping(String type, String source) {
-        request.mapping(type, source);
         return this;
     }
 
@@ -251,16 +228,6 @@ public class PutIndexTemplateRequestBuilder
 
     /**
      * The template source definition.
-     * @deprecated use {@link #setSource(BytesReference, XContentType)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequestBuilder setSource(String templateSource) {
-        request.source(templateSource);
-        return this;
-    }
-
-    /**
-     * The template source definition.
      */
     public PutIndexTemplateRequestBuilder setSource(BytesReference templateSource, XContentType xContentType) {
         request.source(templateSource, xContentType);
@@ -269,39 +236,9 @@ public class PutIndexTemplateRequestBuilder
 
     /**
      * The template source definition.
-     * @deprecated use {@link #setSource(BytesReference, XContentType)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequestBuilder setSource(BytesReference templateSource) {
-        request.source(templateSource);
-        return this;
-    }
-
-    /**
-     * The template source definition.
-     * @deprecated use {@link #setSource(byte[], XContentType)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource) {
-        request.source(templateSource);
-        return this;
-    }
-
-    /**
-     * The template source definition.
      */
     public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, XContentType xContentType) {
         request.source(templateSource, xContentType);
-        return this;
-    }
-
-    /**
-     * The template source definition.
-     * @deprecated use {@link #setSource(byte[], int, int, XContentType)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, int offset, int length) {
-        request.source(templateSource, offset, length);
         return this;
     }
 

@@ -238,7 +238,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, includeRelocationTargets, ACTIVE_PREDICATE);
     }
 
-    public GroupShardsIterator allAssignedShardsGrouped(String[] indices, boolean includeEmpty) {
+    public GroupShardsIterator<ShardIterator> allAssignedShardsGrouped(String[] indices, boolean includeEmpty) {
         return allAssignedShardsGrouped(indices, includeEmpty, false);
     }
 
@@ -249,14 +249,14 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      * @param includeRelocationTargets if true, an <b>extra</b> shard iterator will be added for relocating shards. The extra
      *                                 iterator contains a single ShardRouting pointing at the relocating target
      */
-    public GroupShardsIterator allAssignedShardsGrouped(String[] indices, boolean includeEmpty, boolean includeRelocationTargets) {
+    public GroupShardsIterator<ShardIterator> allAssignedShardsGrouped(String[] indices, boolean includeEmpty, boolean includeRelocationTargets) {
         return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, includeRelocationTargets, ASSIGNED_PREDICATE);
     }
 
-    private static Predicate<ShardRouting> ACTIVE_PREDICATE = shardRouting -> shardRouting.active();
-    private static Predicate<ShardRouting> ASSIGNED_PREDICATE = shardRouting -> shardRouting.assignedToNode();
+    private static Predicate<ShardRouting> ACTIVE_PREDICATE = ShardRouting::active;
+    private static Predicate<ShardRouting> ASSIGNED_PREDICATE = ShardRouting::assignedToNode;
 
-    private GroupShardsIterator allSatisfyingPredicateShardsGrouped(String[] indices, boolean includeEmpty, boolean includeRelocationTargets, Predicate<ShardRouting> predicate) {
+    private GroupShardsIterator<ShardIterator> allSatisfyingPredicateShardsGrouped(String[] indices, boolean includeEmpty, boolean includeRelocationTargets, Predicate<ShardRouting> predicate) {
         // use list here since we need to maintain identity across shards
         ArrayList<ShardIterator> set = new ArrayList<>();
         for (String index : indices) {
@@ -278,7 +278,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 }
             }
         }
-        return new GroupShardsIterator(set);
+        return new GroupShardsIterator<>(set);
     }
 
     public ShardsIterator allShards(String[] indices) {
@@ -320,9 +320,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      * @param indices The indices to return all the shards (replicas)
      * @return All the primary shards grouped into a single shard element group each
      * @throws IndexNotFoundException If an index passed does not exists
-     * @see IndexRoutingTable#groupByAllIt()
      */
-    public GroupShardsIterator activePrimaryShardsGrouped(String[] indices, boolean includeEmpty) {
+    public GroupShardsIterator<ShardIterator> activePrimaryShardsGrouped(String[] indices, boolean includeEmpty) {
         // use list here since we need to maintain identity across shards
         ArrayList<ShardIterator> set = new ArrayList<>();
         for (String index : indices) {
@@ -339,7 +338,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 }
             }
         }
-        return new GroupShardsIterator(set);
+        return new GroupShardsIterator<>(set);
     }
 
     @Override

@@ -106,6 +106,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -463,24 +464,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                          final int totalShards,
                                          final List<SnapshotShardFailure> shardFailures,
                                          final long repositoryStateId) {
+
+        SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
+            indices.stream().map(IndexId::getName).collect(Collectors.toList()),
+            startTime, failure, System.currentTimeMillis(), totalShards, shardFailures);
         try {
-            SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
-                                                              indices.stream().map(IndexId::getName).collect(Collectors.toList()),
-                                                              startTime,
-                                                              failure,
-                                                              System.currentTimeMillis(),
-                                                              totalShards,
-                                                              shardFailures);
             snapshotFormat.write(blobStoreSnapshot, snapshotsBlobContainer, snapshotId.getUUID());
             final RepositoryData repositoryData = getRepositoryData();
-            List<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-            if (!snapshotIds.contains(snapshotId)) {
-                writeIndexGen(repositoryData.addSnapshot(snapshotId, indices), repositoryStateId);
-            }
-            return blobStoreSnapshot;
+            writeIndexGen(repositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), indices), repositoryStateId);
+        } catch (FileAlreadyExistsException ex) {
+            // if another master was elected and took over finalizing the snapshot, it is possible
+            // that both nodes try to finalize the snapshot and write to the same blobs, so we just
+            // log a warning here and carry on
+            throw new RepositoryException(metadata.name(), "Blob already exists while " +
+                "finalizing snapshot, assume the snapshot has already been saved", ex);
         } catch (IOException ex) {
             throw new RepositoryException(metadata.name(), "failed to update snapshot in repository", ex);
         }
+        return blobStoreSnapshot;
     }
 
     @Override
@@ -490,15 +491,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public SnapshotInfo getSnapshotInfo(final SnapshotId snapshotId) {
-        if (getRepositoryData().getIncompatibleSnapshotIds().contains(snapshotId)) {
-            // an incompatible snapshot - cannot read its snapshot metadata file, just return
-            // a SnapshotInfo indicating its incompatible
-            return SnapshotInfo.incompatible(snapshotId);
-        }
-        return getSnapshotInfoInternal(snapshotId);
-    }
-
-    private SnapshotInfo getSnapshotInfoInternal(final SnapshotId snapshotId) {
         try {
             return snapshotFormat.read(snapshotsBlobContainer, snapshotId.getUUID());
         } catch (NoSuchFileException ex) {
@@ -635,8 +627,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
                 }
             } catch (NoSuchFileException e) {
-                logger.debug("[{}] Incompatible snapshots blob [{}] does not exist, the likely reason is that " +
-                             "there are no incompatible snapshots in the repository", metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
+                if (isReadOnly()) {
+                    logger.debug("[{}] Incompatible snapshots blob [{}] does not exist, the likely " +
+                                 "reason is that there are no incompatible snapshots in the repository",
+                                 metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
+                } else {
+                    // write an empty incompatible-snapshots blob - we do this so that there
+                    // is a blob present, which helps speed up some cloud-based repositories
+                    // (e.g. S3), which retry if a blob is missing with exponential backoff,
+                    // delaying the read of repository data and sometimes causing a timeout
+                    writeIncompatibleSnapshots(RepositoryData.EMPTY);
+                }
             }
             return repositoryData;
         } catch (NoSuchFileException ex) {
@@ -719,6 +720,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             bytes = bStream.bytes();
         }
+        if (snapshotsBlobContainer.blobExists(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
+            snapshotsBlobContainer.deleteBlob(INCOMPATIBLE_SNAPSHOTS_BLOB);
+        }
         // write the incompatible snapshots blob
         writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB, bytes);
     }
@@ -733,22 +737,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     long latestIndexBlobId() throws IOException {
         try {
-            // first, try reading the latest index generation from the index.latest blob
-            return readSnapshotIndexLatestBlob();
-        } catch (IOException ioe) {
-            // we could not find the index.latest blob, this can happen in two scenarios:
-            //  (1) its an empty repository
-            //  (2) when writing the index-latest blob, if the blob already exists,
-            //      we first delete it, then atomically write the new blob.  there is
-            //      a small window in time when the blob is deleted and the new one
-            //      written - if the node crashes during that time, we won't have an
-            //      index-latest blob
-            // lets try to list all index-N blobs to determine the last one, if listing the blobs
-            // is not a supported operation (which is the case for read-only repositories), then
-            // assume its an empty repository.
+            // First, try listing all index-N blobs (there should only be two index-N blobs at any given
+            // time in a repository if cleanup is happening properly) and pick the index-N blob with the
+            // highest N value - this will be the latest index blob for the repository.  Note, we do this
+            // instead of directly reading the index.latest blob to get the current index-N blob because
+            // index.latest is not written atomically and is not immutable - on every index-N change,
+            // we first delete the old index.latest and then write the new one.  If the repository is not
+            // read-only, it is possible that we try deleting the index.latest blob while it is being read
+            // by some other operation (such as the get snapshots operation).  In some file systems, it is
+            // illegal to delete a file while it is being read elsewhere (e.g. Windows).  For read-only
+            // repositories, we read for index.latest, both because listing blob prefixes is often unsupported
+            // and because the index.latest blob will never be deleted and re-written.
+            return listBlobsToGetLatestIndexId();
+        } catch (UnsupportedOperationException e) {
+            // If its a read-only repository, listing blobs by prefix may not be supported (e.g. a URL repository),
+            // in this case, try reading the latest index generation from the index.latest blob
             try {
-                return listBlobsToGetLatestIndexId();
-            } catch (UnsupportedOperationException uoe) {
+                return readSnapshotIndexLatestBlob();
+            } catch (NoSuchFileException nsfe) {
                 return RepositoryData.EMPTY_REPO_GEN;
             }
         }
@@ -765,7 +771,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private long listBlobsToGetLatestIndexId() throws IOException {
         Map<String, BlobMetaData> blobs = snapshotsBlobContainer.listBlobsByPrefix(INDEX_FILE_PREFIX);
-        long latest = -1;
+        long latest = RepositoryData.EMPTY_REPO_GEN;
         if (blobs.isEmpty()) {
             // no snapshot index blobs have been written yet
             return latest;
@@ -799,8 +805,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw ex;
         }
     }
-
-
 
     @Override
     public void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
@@ -952,7 +956,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 return indexShardSnapshotFormat(version).read(blobContainer, snapshotId.getUUID());
             } catch (IOException ex) {
-                throw new IndexShardRestoreFailedException(shardId, "failed to read shard snapshot file", ex);
+                throw new SnapshotException(metadata.name(), snapshotId, "failed to read shard snapshot file for " + shardId, ex);
             }
         }
 

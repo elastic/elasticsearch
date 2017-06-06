@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -35,7 +36,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -49,11 +52,16 @@ import static org.elasticsearch.common.Strings.cleanPath;
 // public+forbidden api!
 public class Environment {
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
-    public static final Setting<String> PATH_CONF_SETTING = Setting.simpleString("path.conf", Property.NodeScope);
-    public static final Setting<String> PATH_SCRIPTS_SETTING = Setting.simpleString("path.scripts", Property.NodeScope);
+    public static final Setting<String> DEFAULT_PATH_CONF_SETTING = Setting.simpleString("default.path.conf", Property.NodeScope);
+    public static final Setting<String> PATH_CONF_SETTING =
+            new Setting<>("path.conf", DEFAULT_PATH_CONF_SETTING, Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> DEFAULT_PATH_DATA_SETTING =
+            Setting.listSetting("default.path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> PATH_DATA_SETTING =
-        Setting.listSetting("path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
-    public static final Setting<String> PATH_LOGS_SETTING = Setting.simpleString("path.logs", Property.NodeScope);
+            Setting.listSetting("path.data", DEFAULT_PATH_DATA_SETTING, Function.identity(), Property.NodeScope);
+    public static final Setting<String> DEFAULT_PATH_LOGS_SETTING = Setting.simpleString("default.path.logs", Property.NodeScope);
+    public static final Setting<String> PATH_LOGS_SETTING =
+            new Setting<>("path.logs", DEFAULT_PATH_LOGS_SETTING, Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> PATH_REPO_SETTING =
         Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
@@ -68,8 +76,6 @@ public class Environment {
     private final Path[] repoFiles;
 
     private final Path configFile;
-
-    private final Path scriptsFile;
 
     private final Path pluginsFile;
 
@@ -91,22 +97,6 @@ public class Environment {
     /** Path to the temporary file directory used by the JDK */
     private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
 
-    /** List of filestores on the system */
-    private static final FileStore[] fileStores;
-
-    /**
-     * We have to do this in clinit instead of init, because ES code is pretty messy,
-     * and makes these environments, throws them away, makes them again, etc.
-     */
-    static {
-        // gather information about filesystems
-        ArrayList<FileStore> allStores = new ArrayList<>();
-        for (FileStore store : PathUtils.getDefaultFileSystem().getFileStores()) {
-            allStores.add(new ESFileStore(store));
-        }
-        fileStores = allStores.toArray(new ESFileStore[allStores.size()]);
-    }
-
     public Environment(Settings settings) {
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
@@ -115,16 +105,11 @@ public class Environment {
             throw new IllegalStateException(PATH_HOME_SETTING.getKey() + " is not configured");
         }
 
-        if (PATH_CONF_SETTING.exists(settings)) {
+        // this is trappy, Setting#get(Settings) will get a fallback setting yet return false for Settings#exists(Settings)
+        if (PATH_CONF_SETTING.exists(settings) || DEFAULT_PATH_CONF_SETTING.exists(settings)) {
             configFile = PathUtils.get(cleanPath(PATH_CONF_SETTING.get(settings)));
         } else {
             configFile = homeFile.resolve("config");
-        }
-
-        if (PATH_SCRIPTS_SETTING.exists(settings)) {
-            scriptsFile = PathUtils.get(cleanPath(PATH_SCRIPTS_SETTING.get(settings)));
-        } else {
-            scriptsFile = configFile.resolve("scripts");
         }
 
         pluginsFile = homeFile.resolve("plugins");
@@ -156,7 +141,9 @@ public class Environment {
         } else {
             repoFiles = new Path[0];
         }
-        if (PATH_LOGS_SETTING.exists(settings)) {
+
+        // this is trappy, Setting#get(Settings) will get a fallback setting yet return false for Settings#exists(Settings)
+        if (PATH_LOGS_SETTING.exists(settings) || DEFAULT_PATH_LOGS_SETTING.exists(settings)) {
             logsFile = PathUtils.get(cleanPath(PATH_LOGS_SETTING.get(settings)));
         } else {
             logsFile = homeFile.resolve("logs");
@@ -174,7 +161,9 @@ public class Environment {
 
         Settings.Builder finalSettings = Settings.builder().put(settings);
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
-        finalSettings.putArray(PATH_DATA_SETTING.getKey(), dataPaths);
+        if (PATH_DATA_SETTING.exists(settings)) {
+            finalSettings.putArray(PATH_DATA_SETTING.getKey(), dataPaths);
+        }
         finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile);
         this.settings = finalSettings.build();
 
@@ -274,18 +263,12 @@ public class Environment {
         }
     }
 
+    // TODO: rename all these "file" methods to "dir"
     /**
-     * The config location.
+     * The config directory.
      */
     public Path configFile() {
         return configFile;
-    }
-
-    /**
-     * Location of on-disk scripts
-     */
-    public Path scriptsFile() {
-        return scriptsFile;
     }
 
     public Path pluginsFile() {
@@ -320,24 +303,8 @@ public class Environment {
         return tmpFile;
     }
 
-    /**
-     * Looks up the filestore associated with a Path.
-     * <p>
-     * This is an enhanced version of {@link Files#getFileStore(Path)}:
-     * <ul>
-     *   <li>On *nix systems, the store returned for the root filesystem will contain
-     *       the actual filesystem type (e.g. {@code ext4}) instead of {@code rootfs}.
-     *   <li>On some systems, the custom attribute {@code lucene:spins} is supported
-     *       via the {@link FileStore#getAttribute(String)} method.
-     *   <li>Only requires the security permissions of {@link Files#getFileStore(Path)},
-     *       no permissions to the actual mount point are required.
-     *   <li>Exception handling has the same semantics as {@link Files#getFileStore(Path)}.
-     *   <li>Works around https://bugs.openjdk.java.net/browse/JDK-8034057.
-     *   <li>Gives a better exception when filestore cannot be retrieved from inside a FreeBSD jail.
-     * </ul>
-     */
-    public static FileStore getFileStore(Path path) throws IOException {
-        return ESFileStore.getMatchingFileStore(path, fileStores);
+    public static FileStore getFileStore(final Path path) throws IOException {
+        return new ESFileStore(Files.getFileStore(path));
     }
 
     /**
@@ -348,7 +315,6 @@ public class Environment {
         assertEquals(actual.dataWithClusterFiles(), expected.dataWithClusterFiles(), "dataWithClusterFiles");
         assertEquals(actual.repoFiles(), expected.repoFiles(), "repoFiles");
         assertEquals(actual.configFile(), expected.configFile(), "configFile");
-        assertEquals(actual.scriptsFile(), expected.scriptsFile(), "scriptsFile");
         assertEquals(actual.pluginsFile(), expected.pluginsFile(), "pluginsFile");
         assertEquals(actual.binFile(), expected.binFile(), "binFile");
         assertEquals(actual.libFile(), expected.libFile(), "libFile");

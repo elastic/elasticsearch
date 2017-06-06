@@ -26,6 +26,8 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
@@ -39,7 +41,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotCompressedException;
-import org.elasticsearch.common.io.ReleasableBytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -99,6 +100,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -295,19 +297,25 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 DiscoveryNode node = entry.getKey();
                 NodeChannels channels = entry.getValue();
                 for (Channel channel : channels.getChannels()) {
-                    try {
-                        sendMessage(channel, pingHeader, successfulPings::inc);
-                    } catch (Exception e) {
-                        if (isOpen(channel)) {
-                            logger.debug(
-                                (Supplier<?>) () -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
-                            failedPings.inc();
-                        } else {
-                            logger.trace(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                    "[{}] failed to send ping transport message (channel closed)", node), e);
+                    internalSendMessage(channel, pingHeader, new NotifyOnceListener<Channel>() {
+                        @Override
+                        public void innerOnResponse(Channel channel) {
+                            successfulPings.inc();
                         }
-                    }
+
+                        @Override
+                        public void innerOnFailure(Exception e) {
+                            if (isOpen(channel)) {
+                                logger.debug(
+                                    (Supplier<?>) () -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
+                                failedPings.inc();
+                            } else {
+                                logger.trace((Supplier<?>) () ->
+                                    new ParameterizedMessage("[{}] failed to send ping transport message (channel closed)", node), e);
+                            }
+
+                        }
+                    });
                 }
             }
         }
@@ -349,8 +357,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         private final DiscoveryNode node;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final Version version;
+        private final Consumer<Connection> onClose;
 
-        public NodeChannels(DiscoveryNode node, Channel[] channels, ConnectionProfile connectionProfile) {
+        public NodeChannels(DiscoveryNode node, Channel[] channels, ConnectionProfile connectionProfile, Consumer<Connection> onClose) {
             this.node = node;
             this.channels = channels;
             assert channels.length == connectionProfile.getNumConnections() : "expected channels size to be == "
@@ -358,9 +367,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             typeMapping = new EnumMap<>(TransportRequestOptions.Type.class);
             for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
                 for (TransportRequestOptions.Type type : handle.getTypes())
-                typeMapping.put(type, handle);
+                    typeMapping.put(type, handle);
             }
             version = node.getVersion();
+            this.onClose = onClose;
         }
 
         NodeChannels(NodeChannels channels, Version handshakeVersion) {
@@ -368,6 +378,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             this.channels = channels.channels;
             this.typeMapping = channels.typeMapping;
             this.version = handshakeVersion;
+            this.onClose = channels.onClose;
         }
 
         @Override
@@ -399,7 +410,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         @Override
         public synchronized void close() throws IOException {
             if (closed.compareAndSet(false, true)) {
-                closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()));
+                try {
+                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()));
+                } finally {
+                    onClose.accept(this);
+                }
             }
         }
 
@@ -415,7 +430,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             Channel channel = channel(options.type());
-            sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), (byte)0);
+            sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), (byte) 0);
         }
     }
 
@@ -511,8 +526,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
                     connectTimeout : connectionProfile.getHandshakeTimeout();
                 final Version version = executeHandshake(node, channel, handshakeTimeout);
-                transportServiceAdapter.onConnectionOpened(node);
-                nodeChannels = new NodeChannels(nodeChannels, version);// clone the channels - we now have the correct version
+                transportServiceAdapter.onConnectionOpened(nodeChannels);
+                nodeChannels = new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
                 success = true;
                 return nodeChannels;
             } catch (ConnectTransportException e) {
@@ -676,14 +691,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         try {
             hostAddresses = networkService.resolveBindHostAddresses(bindHosts);
         } catch (IOException e) {
-            throw new BindTransportException("Failed to resolve host " + Arrays.toString(bindHosts) + "", e);
+            throw new BindTransportException("Failed to resolve host " + Arrays.toString(bindHosts), e);
         }
         if (logger.isDebugEnabled()) {
             String[] addresses = new String[hostAddresses.length];
             for (int i = 0; i < hostAddresses.length; i++) {
                 addresses[i] = NetworkAddress.format(hostAddresses[i]);
             }
-            logger.debug("binding server bootstrap to: {}", (Object)addresses);
+            logger.debug("binding server bootstrap to: {}", (Object) addresses);
         }
 
         assert hostAddresses.length > 0;
@@ -907,7 +922,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    protected void onException(Channel channel, Exception e) throws IOException {
+    protected void onException(Channel channel, Exception e) {
         if (!lifecycle.started()) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             disconnectFromNodeChannel(channel, e);
@@ -940,23 +955,27 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         } else if (e instanceof TcpTransport.HttpOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (isOpen(channel)) {
-                final Runnable closeChannel = () -> {
-                    try {
-                        closeChannels(Collections.singletonList(channel));
-                    } catch (IOException e1) {
-                        logger.debug("failed to close httpOnTransport channel", e1);
+                final NotifyOnceListener<Channel> closeChannel = new NotifyOnceListener<Channel>() {
+                    @Override
+                    public void innerOnResponse(Channel channel) {
+                        try {
+                            closeChannels(Collections.singletonList(channel));
+                        } catch (IOException e1) {
+                            logger.debug("failed to close httpOnTransport channel", e1);
+                        }
+                    }
+
+                    @Override
+                    public void innerOnFailure(Exception e) {
+                        try {
+                            closeChannels(Collections.singletonList(channel));
+                        } catch (IOException e1) {
+                            e.addSuppressed(e1);
+                            logger.debug("failed to close httpOnTransport channel", e1);
+                        }
                     }
                 };
-                boolean success = false;
-                try {
-                    sendMessage(channel, new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)), closeChannel);
-                    success = true;
-                } finally {
-                    if (success == false) {
-                        // it's fine to call this more than once
-                        closeChannel.run();
-                    }
-                }
+                internalSendMessage(channel, new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)), closeChannel);
             }
         } else {
             logger.warn(
@@ -973,7 +992,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     /**
      * Binds to the given {@link InetSocketAddress}
-     * @param name the profile name
+     *
+     * @param name    the profile name
      * @param address the address to bind to
      */
     protected abstract Channel bind(String name, InetSocketAddress address) throws IOException;
@@ -983,8 +1003,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     protected abstract void closeChannels(List<Channel> channel) throws IOException;
 
-
-    protected abstract void sendMessage(Channel channel, BytesReference reference, Runnable sendListener) throws IOException;
+    /**
+     * Sends message to channel. The listener's onResponse method will be called when the send is complete unless an exception
+     * is thrown during the send. If an exception is thrown, the listener's onException method will be called.
+     * @param channel the destination channel
+     * @param reference the byte reference for the message
+     * @param listener the listener to call when the operation has completed
+     */
+    protected abstract void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener);
 
     protected abstract NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException;
 
@@ -997,26 +1023,25 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         return compress && (!(request instanceof BytesTransportRequest));
     }
 
-    private void sendRequestToChannel(DiscoveryNode node, final Channel targetChannel, final long requestId, final String action,
-                                        final TransportRequest request, TransportRequestOptions options, Version channelVersion,
+    private void sendRequestToChannel(final DiscoveryNode node, final Channel targetChannel, final long requestId, final String action,
+                                      final TransportRequest request, TransportRequestOptions options, Version channelVersion,
                                       byte status) throws IOException,
         TransportException {
         if (compress) {
             options = TransportRequestOptions.builder(options).withCompress(true).build();
         }
+
+        // only compress if asked and the request is not bytes. Otherwise only
+        // the header part is compressed, and the "body" can't be extracted as compressed
+        final boolean compressMessage = options.compress() && canCompress(request);
+
         status = TransportStatus.setRequest(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
-        // we wrap this in a release once since if the onRequestSent callback throws an exception
-        // we might release things twice and this should be prevented
-        final Releasable toRelease = Releasables.releaseOnce(() -> Releasables.close(bStream.bytes()));
+        final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compressMessage);
         boolean addedReleaseListener = false;
-        StreamOutput stream = bStream;
         try {
-            // only compress if asked, and, the request is not bytes, since then only
-            // the header part is compressed, and the "body" can't be extracted as compressed
-            if (options.compress() && canCompress(request)) {
+            if (compressMessage) {
                 status = TransportStatus.setCompress(status);
-                stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
             }
 
             // we pick the smallest of the 2, to support both backward and forward compatibility
@@ -1027,45 +1052,36 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
             stream.writeString(action);
-            BytesReference message = buildMessage(requestId, status, node.getVersion(), request, stream, bStream);
+            BytesReference message = buildMessage(requestId, status, node.getVersion(), request, stream);
             final TransportRequestOptions finalOptions = options;
-            Runnable onRequestSent = () -> { // this might be called in a different thread
-                try {
-                    toRelease.close();
-                } finally {
-                    transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
-                }
-            };
-            addedReleaseListener = internalSendMessage(targetChannel, message, onRequestSent);
+            // this might be called in a different thread
+            SendListener onRequestSent = new SendListener(stream,
+                () -> transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions));
+            internalSendMessage(targetChannel, message, onRequestSent);
+            addedReleaseListener = true;
         } finally {
-            IOUtils.close(stream);
             if (!addedReleaseListener) {
-                toRelease.close();
+                IOUtils.close(stream);
             }
         }
     }
 
     /**
-     * sends a message view the given channel, using the given callbacks.
-     *
-     * @return true if the message was successfully sent or false when an error occurred and the error hanlding logic was activated
-     *
+     * sends a message to the given channel, using the given callbacks.
      */
-    private boolean internalSendMessage(Channel targetChannel, BytesReference message, Runnable onRequestSent) throws IOException {
-        boolean success;
+    private void internalSendMessage(Channel targetChannel, BytesReference message, NotifyOnceListener<Channel> listener) {
         try {
-            sendMessage(targetChannel, message, onRequestSent);
-            success = true;
-        } catch (IOException ex) {
-            // passing exception handling to deal with this and raise disconnect events and decide the right logging level
+            sendMessage(targetChannel, message, listener);
+        } catch (Exception ex) {
+            // call listener to ensure that any resources are released
+            listener.onFailure(ex);
             onException(targetChannel, ex);
-            success = false;
         }
-        return success;
     }
 
     /**
      * Sends back an error response to the caller via the given channel
+     *
      * @param nodeVersion the caller node version
      * @param channel the channel to send the response to
      * @param error the error to return
@@ -1085,8 +1101,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             status = TransportStatus.setError(status);
             final BytesReference bytes = stream.bytes();
             final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
-            Runnable onRequestSent = () -> transportServiceAdapter.onResponseSent(requestId, action, error);
-            sendMessage(channel, new CompositeBytesReference(header, bytes), onRequestSent);
+            SendListener onResponseSent = new SendListener(null,
+                () -> transportServiceAdapter.onResponseSent(requestId, action, error));
+            internalSendMessage(channel, new CompositeBytesReference(header, bytes), onResponseSent);
         }
     }
 
@@ -1097,7 +1114,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     public void sendResponse(Version nodeVersion, Channel channel, final TransportResponse response, final long requestId,
                              final String action, TransportResponseOptions options) throws IOException {
-        sendResponse(nodeVersion, channel, response, requestId, action, options, (byte)0);
+        sendResponse(nodeVersion, channel, response, requestId, action, options, (byte) 0);
     }
 
     private void sendResponse(Version nodeVersion, Channel channel, final TransportResponse response, final long requestId,
@@ -1107,39 +1124,26 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
         status = TransportStatus.setResponse(status); // TODO share some code with sendRequest
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
-        // we wrap this in a release once since if the onRequestSent callback throws an exception
-        // we might release things twice and this should be prevented
-        final Releasable toRelease = Releasables.releaseOnce(() -> Releasables.close(bStream.bytes()));
+        CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, options.compress());
         boolean addedReleaseListener = false;
-        StreamOutput stream = bStream;
         try {
             if (options.compress()) {
                 status = TransportStatus.setCompress(status);
-                stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
             }
             threadPool.getThreadContext().writeTo(stream);
             stream.setVersion(nodeVersion);
-            BytesReference reference = buildMessage(requestId, status, nodeVersion, response, stream, bStream);
+            BytesReference reference = buildMessage(requestId, status, nodeVersion, response, stream);
 
             final TransportResponseOptions finalOptions = options;
-            Runnable onRequestSent = () -> { // this might be called in a different thread
-                try {
-                    toRelease.close();
-                } finally {
-                    transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
-                }
-            };
-            addedReleaseListener = internalSendMessage(channel, reference, onRequestSent);
+            // this might be called in a different thread
+            SendListener listener = new SendListener(stream,
+                () -> transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions));
+            internalSendMessage(channel, reference, listener);
+            addedReleaseListener = true;
         } finally {
-            try {
+            if (!addedReleaseListener) {
                 IOUtils.close(stream);
-            } finally {
-                if (!addedReleaseListener) {
-
-                    toRelease.close();
-                }
             }
-
         }
     }
 
@@ -1166,8 +1170,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     /**
      * Serializes the given message into a bytes representation
      */
-    private BytesReference buildMessage(long requestId, byte status, Version nodeVersion, TransportMessage message, StreamOutput stream,
-                                        ReleasableBytesStream writtenBytes) throws IOException {
+    private BytesReference buildMessage(long requestId, byte status, Version nodeVersion, TransportMessage message,
+                                        CompressibleBytesOutputStream stream) throws IOException {
         final BytesReference zeroCopyBuffer;
         if (message instanceof BytesTransportRequest) { // what a shitty optimization - we should use a direct send method instead
             BytesTransportRequest bRequest = (BytesTransportRequest) message;
@@ -1178,12 +1182,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             message.writeTo(stream);
             zeroCopyBuffer = BytesArray.EMPTY;
         }
-        // we have to close the stream here - flush is not enough since we might be compressing the content
-        // and if we do that the close method will write some marker bytes (EOS marker) and otherwise
-        // we barf on the decompressing end when we read past EOF on purpose in the #validateRequest method.
-        // this might be a problem in deflate after all but it's important to close it for now.
-        stream.close();
-        final BytesReference messageBody = writtenBytes.bytes();
+        // we have to call materializeBytes() here before accessing the bytes. A CompressibleBytesOutputStream
+        // might be implementing compression. And materializeBytes() ensures that some marker bytes (EOS marker)
+        // are written. Otherwise we barf on the decompressing end when we read past EOF on purpose in the
+        // #validateRequest method. this might be a problem in deflate after all but it's important to write
+        // the marker bytes.
+        final BytesReference messageBody = stream.materializeBytes();
         final BytesReference header = buildHeader(requestId, status, stream.getVersion(), messageBody.length() + zeroCopyBuffer.length());
         return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);
     }
@@ -1242,7 +1246,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         // safety against too large frames being sent
         if (dataLen > NINETY_PER_HEAP_SIZE) {
             throw new IllegalArgumentException("transport content length received [" + new ByteSizeValue(dataLen) + "] exceeded ["
-                    + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
+                + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
         }
 
         if (buffer.length() < dataLen + sizeHeaderLength) {
@@ -1254,7 +1258,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private static boolean bufferStartsWith(BytesReference buffer, int offset, String method) {
         char[] chars = method.toCharArray();
         for (int i = 0; i < chars.length; i++) {
-            if (buffer.get(offset+ i) != chars[i]) {
+            if (buffer.get(offset + i) != chars[i]) {
                 return false;
             }
         }
@@ -1277,7 +1281,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             return RestStatus.BAD_REQUEST;
         }
 
-        public HttpOnTransportException(StreamInput in) throws IOException{
+        public HttpOnTransportException(StreamInput in) throws IOException {
             super(in);
         }
     }
@@ -1317,10 +1321,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 }
                 streamIn = compressor.streamInput(streamIn);
             }
-            if (version.isCompatible(getCurrentVersion()) == false) {
-                throw new IllegalStateException("Received message from unsupported version: [" + version
-                    + "] minimal compatible version is: [" + getCurrentVersion().minimumCompatibilityVersion() + "]");
-            }
+            final boolean isHandshake = TransportStatus.isHandshake(status);
+            ensureVersionCompatibility(version, getCurrentVersion(), isHandshake);
             streamIn = new NamedWriteableAwareStreamInput(streamIn, namedWriteableRegistry);
             streamIn.setVersion(version);
             threadPool.getThreadContext().readHeaders(streamIn);
@@ -1328,7 +1330,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 handleRequest(channel, profileName, streamIn, requestId, messageLengthBytes, version, remoteAddress, status);
             } else {
                 final TransportResponseHandler<?> handler;
-                if (TransportStatus.isHandshake(status)) {
+                if (isHandshake) {
                     handler = pendingHandshakes.remove(requestId);
                 } else {
                     TransportResponseHandler theHandler = transportServiceAdapter.onResponseReceived(requestId);
@@ -1364,6 +1366,19 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
+    static void ensureVersionCompatibility(Version version, Version currentVersion, boolean isHandshake) {
+        // for handshakes we are compatible with N-2 since otherwise we can't figure out our initial version
+        // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
+        // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
+        // once the connection is established
+        final Version compatibilityVersion = isHandshake ? currentVersion.minimumCompatibilityVersion() : currentVersion;
+        if (version.isCompatible(compatibilityVersion) == false) {
+            final Version minCompatibilityVersion = isHandshake ? compatibilityVersion : compatibilityVersion.minimumCompatibilityVersion();
+            String msg = "Received " + (isHandshake? "handshake " : "") + "message from unsupported version: [";
+            throw new IllegalStateException(msg + version + "] minimal compatible version is: [" + minCompatibilityVersion + "]");
+        }
+    }
+
     private void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream, final TransportResponseHandler handler) {
         final TransportResponse response = handler.newInstance();
         response.remoteAddress(new TransportAddress(remoteAddress));
@@ -1383,7 +1398,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             @Override
             protected void doRun() throws Exception {
                 handler.handleResponse(response);
-            }});
+            }
+        });
 
     }
 
@@ -1423,7 +1439,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             if (TransportStatus.isHandshake(status)) {
                 final VersionHandshakeResponse response = new VersionHandshakeResponse(getCurrentVersion());
                 sendResponse(version, channel, response, requestId, HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY,
-                    TransportStatus.setHandshake((byte)0));
+                    TransportStatus.setHandshake((byte) 0));
             } else {
                 final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
                 if (reg == null) {
@@ -1552,7 +1568,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             // to as the payload.
             final Version minCompatVersion = getCurrentVersion().minimumCompatibilityVersion();
             sendRequestToChannel(node, channel, requestId, HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE,
-                TransportRequestOptions.EMPTY, minCompatVersion, TransportStatus.setHandshake((byte)0));
+                TransportRequestOptions.EMPTY, minCompatVersion, TransportStatus.setHandshake((byte) 0));
             if (handler.latch.await(timeout.millis(), TimeUnit.MILLISECONDS) == false) {
                 throw new ConnectTransportException(node, "handshake_timeout[" + timeout + "]");
             }
@@ -1594,7 +1610,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final void onChannelClosed(Channel channel) {
         final Optional<Long> first = pendingHandshakes.entrySet().stream()
             .filter((entry) -> entry.getValue().channel == channel).map((e) -> e.getKey()).findFirst();
-        if(first.isPresent()) {
+        if (first.isPresent()) {
             final Long requestId = first.get();
             final HandshakeResponseHandler handler = pendingHandshakes.remove(requestId);
             if (handler != null) {
@@ -1607,11 +1623,36 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     /**
      * Ensures this transport is still started / open
+     *
      * @throws IllegalStateException if the transport is not started / open
      */
     protected final void ensureOpen() {
         if (lifecycle.started() == false) {
             throw new IllegalStateException("transport has been stopped");
+        }
+    }
+
+    private final class SendListener extends NotifyOnceListener<Channel> {
+        private final Releasable optionalReleasable;
+        private final Runnable transportAdaptorCallback;
+
+        private SendListener(Releasable optionalReleasable, Runnable transportAdaptorCallback) {
+            this.optionalReleasable = optionalReleasable;
+            this.transportAdaptorCallback = transportAdaptorCallback;
+        }
+
+        @Override
+        public void innerOnResponse(Channel channel) {
+            release();
+        }
+
+        @Override
+        public void innerOnFailure(Exception e) {
+            release();
+        }
+
+        private void release() {
+            Releasables.close(optionalReleasable, transportAdaptorCallback::run);
         }
     }
 }

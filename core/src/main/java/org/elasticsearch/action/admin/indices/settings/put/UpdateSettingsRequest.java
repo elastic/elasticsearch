@@ -122,16 +122,6 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     /**
      * Sets the settings to be updated (either json or yaml format)
-     * @deprecated use {@link #settings(String, XContentType)} to avoid content type detection
-     */
-    @Deprecated
-    public UpdateSettingsRequest settings(String source) {
-        this.settings = Settings.builder().loadFromSource(source).build();
-        return this;
-    }
-
-    /**
-     * Sets the settings to be updated (either json or yaml format)
      */
     public UpdateSettingsRequest settings(String source, XContentType xContentType) {
         this.settings = Settings.builder().loadFromSource(source, xContentType).build();

@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -35,21 +37,21 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 public class ShardSearchFailureTests extends ESTestCase {
 
     public static ShardSearchFailure createTestItem() {
-        String randomMessage = randomAsciiOfLengthBetween(3, 20);
+        String randomMessage = randomAlphaOfLengthBetween(3, 20);
         Exception ex = new ParsingException(0, 0, randomMessage , new IllegalArgumentException("some bad argument"));
-        String nodeId = randomAsciiOfLengthBetween(5, 10);
-        String indexName = randomAsciiOfLengthBetween(5, 10);
-        String indexUuid = randomAsciiOfLengthBetween(5, 10);
+        String nodeId = randomAlphaOfLengthBetween(5, 10);
+        String indexName = randomAlphaOfLengthBetween(5, 10);
+        String indexUuid = randomAlphaOfLengthBetween(5, 10);
         int shardId = randomInt();
         return new ShardSearchFailure(ex,
-                new SearchShardTarget(nodeId, new ShardId(new Index(indexName, indexUuid), shardId)));
+                new SearchShardTarget(nodeId, new ShardId(new Index(indexName, indexUuid), shardId), null, null));
     }
 
     public void testFromXContent() throws IOException {
         ShardSearchFailure response = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(response, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         ShardSearchFailure parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -73,7 +75,7 @@ public class ShardSearchFailureTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(0, 0, "some message", null),
-                new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123)));
+                new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), null, OriginalIndices.NONE));
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
                 "{\"shard\":123,"

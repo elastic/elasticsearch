@@ -57,4 +57,52 @@ public class SequenceNumbers {
         return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
     }
 
+    /**
+     * Compute the minimum of the given current minimum sequence number and the specified sequence number, accounting for the fact that the
+     * current minimum sequence number could be {@link SequenceNumbersService#NO_OPS_PERFORMED} or
+     * {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}. When the current minimum sequence number is not
+     * {@link SequenceNumbersService#NO_OPS_PERFORMED} nor {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}, the specified sequence number
+     * must not be {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
+     *
+     * @param minSeqNo the current minimum sequence number
+     * @param seqNo the specified sequence number
+     * @return the new minimum sequence number
+     */
+    public static long min(final long minSeqNo, final long seqNo) {
+        if (minSeqNo == SequenceNumbersService.NO_OPS_PERFORMED) {
+            return seqNo;
+        } else if (minSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+            return seqNo;
+        } else {
+            if (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                throw new IllegalArgumentException("sequence number must be assigned");
+            }
+            return Math.min(minSeqNo, seqNo);
+        }
+    }
+
+    /**
+     * Compute the maximum of the given current maximum sequence number and the specified sequence number, accounting for the fact that the
+     * current maximum sequence number could be {@link SequenceNumbersService#NO_OPS_PERFORMED} or
+     * {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}. When the current maximum sequence number is not
+     * {@link SequenceNumbersService#NO_OPS_PERFORMED} nor {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}, the specified sequence number
+     * must not be {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
+     *
+     * @param maxSeqNo the current maximum sequence number
+     * @param seqNo the specified sequence number
+     * @return the new maximum sequence number
+     */
+    public static long max(final long maxSeqNo, final long seqNo) {
+        if (maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED) {
+            return seqNo;
+        } else if (maxSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+            return seqNo;
+        } else {
+            if (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                throw new IllegalArgumentException("sequence number must be assigned");
+            }
+            return Math.max(maxSeqNo, seqNo);
+        }
+    }
+
 }

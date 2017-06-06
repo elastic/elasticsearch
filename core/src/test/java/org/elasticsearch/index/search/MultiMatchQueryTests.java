@@ -110,7 +110,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         ft2.setName("bar");
         Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
         float[] boosts = new float[] {2, 3};
-        Query expected = BlendedTermQuery.booleanBlendedQuery(terms, boosts, false);
+        Query expected = BlendedTermQuery.booleanBlendedQuery(terms, boosts);
         Query actual = MultiMatchQuery.blendTerm(
                 indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }),
                 new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
@@ -126,7 +126,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         ft2.setBoost(10);
         Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
         float[] boosts = new float[] {200, 30};
-        Query expected = BlendedTermQuery.booleanBlendedQuery(terms, boosts, false);
+        Query expected = BlendedTermQuery.booleanBlendedQuery(terms, boosts);
         Query actual = MultiMatchQuery.blendTerm(
                 indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }),
                 new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
@@ -145,7 +145,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         ft2.setName("bar");
         Term[] terms = new Term[] { new Term("foo", "baz") };
         float[] boosts = new float[] {2};
-        Query expected = BlendedTermQuery.booleanBlendedQuery(terms, boosts, false);
+        Query expected = BlendedTermQuery.booleanBlendedQuery(terms, boosts);
         Query actual = MultiMatchQuery.blendTerm(
                 indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }),
                 new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
@@ -164,9 +164,9 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         ft2.setName("bar");
         Term[] terms = new Term[] { new Term("foo", "baz") };
         float[] boosts = new float[] {2};
-        Query expectedClause1 = BlendedTermQuery.booleanBlendedQuery(terms, boosts, false);
+        Query expectedClause1 = BlendedTermQuery.booleanBlendedQuery(terms, boosts);
         Query expectedClause2 = new BoostQuery(new MatchAllDocsQuery(), 3);
-        Query expected = new BooleanQuery.Builder().setDisableCoord(true)
+        Query expected = new BooleanQuery.Builder()
                 .add(expectedClause1, Occur.SHOULD)
                 .add(expectedClause2, Occur.SHOULD)
                 .build();

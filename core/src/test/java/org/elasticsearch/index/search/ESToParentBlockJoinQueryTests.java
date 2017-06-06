@@ -79,13 +79,11 @@ public class ESToParentBlockJoinQueryTests extends ESTestCase {
                 new PhraseQuery("body", "term"), // rewrites to a TermQuery
                 new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
                 ScoreMode.Avg, "nested");
-        assertEquals(q, q.rewrite(new MultiReader()));
-        // do this once LUCENE-7685 is addressed
-        // Query expected = new ESToParentBlockJoinQuery(
-        //         new TermQuery(new Term("body", "term")),
-        //         new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
-        //         ScoreMode.Avg, "nested");
-        // Query rewritten = q.rewrite(new MultiReader());
-        // assertEquals(expected, rewritten);
+        Query expected = new ESToParentBlockJoinQuery(
+                 new TermQuery(new Term("body", "term")),
+                 new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
+                 ScoreMode.Avg, "nested");
+         Query rewritten = q.rewrite(new MultiReader());
+         assertEquals(expected, rewritten);
     }
 }

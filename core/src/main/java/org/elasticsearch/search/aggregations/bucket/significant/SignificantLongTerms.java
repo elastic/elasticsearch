@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Result of the running the significant terms aggregation on a numeric field.
@@ -76,11 +77,6 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
         }
 
         @Override
-        int compareTerm(SignificantTerms.Bucket other) {
-            return Long.compare(term, ((Number) other.getKey()).longValue());
-        }
-
-        @Override
         public String getKeyAsString() {
             return format.format(term);
         }
@@ -96,18 +92,22 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CommonFields.KEY, term);
+        protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+            builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING, format.format(term));
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term));
             }
-            builder.field(CommonFields.DOC_COUNT, getDocCount());
-            builder.field("score", score);
-            builder.field("bg_count", supersetDf);
-            aggregations.toXContentInternal(builder, params);
-            builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return super.equals(obj) && Objects.equals(term, ((Bucket) obj).term);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), term);
         }
     }
 
@@ -146,17 +146,6 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
     protected SignificantLongTerms create(long subsetSize, long supersetSize, List<Bucket> buckets) {
         return new SignificantLongTerms(getName(), requiredSize, minDocCount, pipelineAggregators(), getMetaData(), format, subsetSize,
                 supersetSize, significanceHeuristic, buckets);
-    }
-
-    @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field("doc_count", subsetSize);
-        builder.startArray(CommonFields.BUCKETS);
-        for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
     }
 
     @Override

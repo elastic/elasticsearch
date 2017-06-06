@@ -28,13 +28,13 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.ParsingException;
@@ -56,13 +56,11 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
-import org.elasticsearch.index.query.HasChildQueryBuilder;
-import org.elasticsearch.index.query.HasParentQueryBuilder;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 
 import java.io.IOException;
@@ -284,7 +282,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         );
         verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
-        queryBuilder = queryBuilder.rewrite(queryShardContext);
+        queryBuilder = QueryBuilder.rewriteQuery(queryBuilder, queryShardContext);
 
         try (XContentBuilder builder = XContentFactory.contentBuilder(QUERY_BUILDER_CONTENT_TYPE)) {
             queryBuilder.toXContent(builder, new MapParams(Collections.emptyMap()));
@@ -372,32 +370,16 @@ public class PercolatorFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
+
     /**
      * Fails if a percolator contains an unsupported query. The following queries are not supported:
-     * 1) a range query with a date range based on current time
-     * 2) a has_child query
-     * 3) a has_parent query
+     * 1) a has_child query
+     * 2) a has_parent query
      */
     static void verifyQuery(QueryBuilder queryBuilder) {
-        if (queryBuilder instanceof RangeQueryBuilder) {
-            RangeQueryBuilder rangeQueryBuilder = (RangeQueryBuilder) queryBuilder;
-            if (rangeQueryBuilder.from() instanceof String) {
-                String from = (String) rangeQueryBuilder.from();
-                if (from.contains("now")) {
-                    throw new IllegalArgumentException("percolator queries containing time range queries based on the " +
-                            "current time is unsupported");
-                }
-            }
-            if (rangeQueryBuilder.to() instanceof String) {
-                String to = (String) rangeQueryBuilder.to();
-                if (to.contains("now")) {
-                    throw new IllegalArgumentException("percolator queries containing time range queries based on the " +
-                        "current time is unsupported");
-                }
-            }
-        } else if (queryBuilder instanceof HasChildQueryBuilder) {
+        if (queryBuilder.getName().equals("has_child")) {
             throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
-        } else if (queryBuilder instanceof HasParentQueryBuilder) {
+        } else if (queryBuilder.getName().equals("has_parent")) {
             throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
         } else if (queryBuilder instanceof BoolQueryBuilder) {
             BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
@@ -416,6 +398,11 @@ public class PercolatorFieldMapper extends FieldMapper {
         } else if (queryBuilder instanceof BoostingQueryBuilder) {
             verifyQuery(((BoostingQueryBuilder) queryBuilder).negativeQuery());
             verifyQuery(((BoostingQueryBuilder) queryBuilder).positiveQuery());
+        } else if (queryBuilder instanceof DisMaxQueryBuilder) {
+            DisMaxQueryBuilder disMaxQueryBuilder = (DisMaxQueryBuilder) queryBuilder;
+            for (QueryBuilder innerQueryBuilder : disMaxQueryBuilder.innerQueries()) {
+                verifyQuery(innerQueryBuilder);
+            }
         }
     }
 

@@ -37,11 +37,12 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
@@ -59,18 +60,27 @@ import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NOD
 public class AllocationService extends AbstractComponent {
 
     private final AllocationDeciders allocationDeciders;
-    private final GatewayAllocator gatewayAllocator;
+    private GatewayAllocator gatewayAllocator;
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
 
-    @Inject
-    public AllocationService(Settings settings, AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
+    public AllocationService(Settings settings, AllocationDeciders allocationDeciders,
+                             GatewayAllocator gatewayAllocator,
+                             ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
+        this(settings, allocationDeciders, shardsAllocator, clusterInfoService);
+        setGatewayAllocator(gatewayAllocator);
+    }
+
+    public AllocationService(Settings settings, AllocationDeciders allocationDeciders,
                              ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
         super(settings);
         this.allocationDeciders = allocationDeciders;
-        this.gatewayAllocator = gatewayAllocator;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
+    }
+
+    public void setGatewayAllocator(GatewayAllocator gatewayAllocator) {
+        this.gatewayAllocator = gatewayAllocator;
     }
 
     /**
@@ -88,6 +98,9 @@ public class AllocationService extends AbstractComponent {
         routingNodes.unassigned().shuffle();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
             clusterInfoService.getClusterInfo(), currentNanoTime(), false);
+        // as starting a primary relocation target can reinitialize replica shards, start replicas first
+        startedShards = new ArrayList<>(startedShards);
+        Collections.sort(startedShards, Comparator.comparing(ShardRouting::primary));
         applyStartedShards(allocation, startedShards);
         gatewayAllocator.applyStartedShards(allocation, startedShards);
         reroute(allocation);

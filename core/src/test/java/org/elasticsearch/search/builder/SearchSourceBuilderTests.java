@@ -63,7 +63,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertParseSearchSource(testSearchSourceBuilder, createParser(builder));
     }
 
-    private void assertParseSearchSource(SearchSourceBuilder testBuilder, XContentParser parser) throws IOException {
+    private static void assertParseSearchSource(SearchSourceBuilder testBuilder, XContentParser parser) throws IOException {
         QueryParseContext parseContext = new QueryParseContext(parser);
         if (randomBoolean()) {
             parser.nextToken(); // sometimes we move it on the START_OBJECT to
@@ -358,6 +358,11 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
             assertIndicesBoostParseErrorMessage(restContent, "Expected [VALUE_NUMBER] in [indices_boost] but found [START_OBJECT]");
         }
+    }
+
+    public void testNegativeFromErrors() {
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(-2));
+        assertEquals("[from] parameter cannot be negative", expected.getMessage());
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {

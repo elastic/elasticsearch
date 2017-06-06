@@ -23,6 +23,8 @@ import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexModule;
@@ -36,9 +38,9 @@ import java.util.Map;
 
 public final class SimilarityService extends AbstractIndexComponent {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(SimilarityService.class));
     public static final String DEFAULT_SIMILARITY = "BM25";
     private final Similarity defaultSimilarity;
-    private final Similarity baseSimilarity;
     private final Map<String, SimilarityProvider> similarities;
     private static final Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> DEFAULTS;
     public static final Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> BUILT_IN;
@@ -47,6 +49,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> buildIn = new HashMap<>();
         defaults.put("classic", ClassicSimilarityProvider::new);
         defaults.put("BM25", BM25SimilarityProvider::new);
+        defaults.put("boolean", BooleanSimilarityProvider::new);
         buildIn.put("classic", ClassicSimilarityProvider::new);
         buildIn.put("BM25", BM25SimilarityProvider::new);
         buildIn.put("DFR", DFRSimilarityProvider::new);
@@ -94,14 +97,14 @@ public final class SimilarityService extends AbstractIndexComponent {
         this.similarities = providers;
         defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
                                                               : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
-        // Expert users can configure the base type as being different to default, but out-of-box we use default.
-        baseSimilarity = (providers.get("base") != null) ? providers.get("base").get() :
-                defaultSimilarity;
+        if (providers.get("base") != null) {
+            DEPRECATION_LOGGER.deprecated("The [base] similarity is ignored since query normalization and coords have been removed");
+        }
     }
 
     public Similarity similarity(MapperService mapperService) {
         // TODO we can maybe factor out MapperService here entirely by introducing an interface for the lookup?
-        return (mapperService != null) ? new PerFieldSimilarity(defaultSimilarity, baseSimilarity, mapperService) :
+        return (mapperService != null) ? new PerFieldSimilarity(defaultSimilarity, mapperService) :
                 defaultSimilarity;
     }
 
@@ -133,8 +136,8 @@ public final class SimilarityService extends AbstractIndexComponent {
         private final Similarity defaultSimilarity;
         private final MapperService mapperService;
 
-        PerFieldSimilarity(Similarity defaultSimilarity, Similarity baseSimilarity, MapperService mapperService) {
-            super(baseSimilarity);
+        PerFieldSimilarity(Similarity defaultSimilarity, MapperService mapperService) {
+            super();
             this.defaultSimilarity = defaultSimilarity;
             this.mapperService = mapperService;
         }

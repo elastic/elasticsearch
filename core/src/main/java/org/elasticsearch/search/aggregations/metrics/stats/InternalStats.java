@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalStats extends InternalNumericMetricsAggregation.MultiValue implements Stats {
     enum Metrics {
@@ -112,11 +113,6 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public String getCountAsString() {
-        return valueAsString(Metrics.count.name());
-    }
-
-    @Override
     public String getMinAsString() {
         return valueAsString(Metrics.min.name());
     }
@@ -181,21 +177,42 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(Fields.COUNT, count);
-        builder.field(Fields.MIN, count != 0 ? min : null);
-        builder.field(Fields.MAX, count != 0 ? max : null);
-        builder.field(Fields.AVG, count != 0 ? getAvg() : null);
-        builder.field(Fields.SUM, count != 0 ? sum : null);
-        if (count != 0 && format != DocValueFormat.RAW) {
-            builder.field(Fields.MIN_AS_STRING, format.format(min));
-            builder.field(Fields.MAX_AS_STRING, format.format(max));
-            builder.field(Fields.AVG_AS_STRING, format.format(getAvg()));
-            builder.field(Fields.SUM_AS_STRING, format.format(sum));
+        if (count != 0) {
+            builder.field(Fields.MIN, min);
+            builder.field(Fields.MAX, max);
+            builder.field(Fields.AVG, getAvg());
+            builder.field(Fields.SUM, sum);
+            if (format != DocValueFormat.RAW) {
+                builder.field(Fields.MIN_AS_STRING, format.format(min));
+                builder.field(Fields.MAX_AS_STRING, format.format(max));
+                builder.field(Fields.AVG_AS_STRING, format.format(getAvg()));
+                builder.field(Fields.SUM_AS_STRING, format.format(sum));
+            }
+        } else {
+            builder.nullField(Fields.MIN);
+            builder.nullField(Fields.MAX);
+            builder.nullField(Fields.AVG);
+            builder.nullField(Fields.SUM);
         }
-        otherStatsToXCotent(builder, params);
+        otherStatsToXContent(builder, params);
         return builder;
     }
 
-    protected XContentBuilder otherStatsToXCotent(XContentBuilder builder, Params params) throws IOException {
+    protected XContentBuilder otherStatsToXContent(XContentBuilder builder, Params params) throws IOException {
         return builder;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(count, min, max, sum);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalStats other = (InternalStats) obj;
+        return count == other.count &&
+            min == other.min &&
+            max == other.max &&
+            Double.compare(count, other.count) == 0;
     }
 }

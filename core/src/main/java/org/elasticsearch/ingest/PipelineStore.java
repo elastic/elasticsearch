@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 
@@ -51,6 +52,7 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
 
     private final Pipeline.Factory factory = new Pipeline.Factory();
     private final Map<String, Processor.Factory> processorFactories;
+    private volatile boolean newIngestDateFormat;
 
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -58,9 +60,15 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     volatile Map<String, Pipeline> pipelines = new HashMap<>();
 
-    public PipelineStore(Settings settings, Map<String, Processor.Factory> processorFactories) {
+    public PipelineStore(ClusterSettings clusterSettings, Settings settings, Map<String, Processor.Factory> processorFactories) {
         super(settings);
         this.processorFactories = processorFactories;
+        this.newIngestDateFormat = IngestService.NEW_INGEST_DATE_FORMAT.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(IngestService.NEW_INGEST_DATE_FORMAT, this::setNewIngestDateFormat);
+    }
+
+    private void setNewIngestDateFormat(Boolean newIngestDateFormat) {
+        this.newIngestDateFormat = newIngestDateFormat;
     }
 
     @Override
@@ -164,12 +172,12 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
 
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
         Pipeline pipeline = factory.create(request.getId(), pipelineConfig, processorFactories);
-        List<IllegalArgumentException> exceptions = new ArrayList<>();
+        List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
                 if (entry.getValue().containsProcessor(processor.getType()) == false) {
                     String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
-                    exceptions.add(new IllegalArgumentException(message));
+                    exceptions.add(ConfigurationUtils.newConfigurationException(processor.getType(), processor.getTag(), null, message));
                 }
             }
         }
@@ -202,6 +210,10 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
 
     public Map<String, Processor.Factory> getProcessorFactories() {
         return processorFactories;
+    }
+
+    public boolean isNewIngestDateFormat() {
+        return newIngestDateFormat;
     }
 
     /**

@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -493,7 +494,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
 
     public static void declareInnerHitsParseFields(ObjectParser<Map<String, Object>, Void> parser) {
         declareMetaDataFields(parser);
-        parser.declareString((map, value) -> map.put(Fields._TYPE, value), new ParseField(Fields._TYPE));
+        parser.declareString((map, value) -> map.put(Fields._TYPE, new Text(value)), new ParseField(Fields._TYPE));
         parser.declareString((map, value) -> map.put(Fields._INDEX, value), new ParseField(Fields._INDEX));
         parser.declareString((map, value) -> map.put(Fields._ID, value), new ParseField(Fields._ID));
         parser.declareString((map, value) -> map.put(Fields._NODE, value), new ParseField(Fields._NODE));
@@ -524,11 +525,11 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
 
     public static SearchHit createFromMap(Map<String, Object> values) {
         String id = get(Fields._ID, values, null);
-        String type = get(Fields._TYPE, values, null);
+        Text type = get(Fields._TYPE, values, null);
         NestedIdentity nestedIdentity = get(NestedIdentity._NESTED, values, null);
         Map<String, SearchHitField> fields = get(Fields.FIELDS, values, null);
 
-        SearchHit searchHit = new SearchHit(-1, id, new Text(type), nestedIdentity, fields);
+        SearchHit searchHit = new SearchHit(-1, id, type, nestedIdentity, fields);
         searchHit.index = get(Fields._INDEX, values, null);
         searchHit.score(get(Fields._SCORE, values, DEFAULT_SCORE));
         searchHit.version(get(Fields._VERSION, values, -1L));
@@ -544,7 +545,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
         ShardId shardId = get(Fields._SHARD, values, null);
         String nodeId = get(Fields._NODE, values, null);
         if (shardId != null && nodeId != null) {
-            searchHit.shard(new SearchShardTarget(nodeId, shardId));
+            searchHit.shard(new SearchShardTarget(nodeId, shardId, null, OriginalIndices.NONE));
         }
         searchHit.fields(fields);
         return searchHit;

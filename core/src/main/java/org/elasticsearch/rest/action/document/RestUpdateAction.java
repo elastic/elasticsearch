@@ -49,6 +49,11 @@ public class RestUpdateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "document_update_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
         updateRequest.routing(request.param("routing"));
@@ -83,7 +88,7 @@ public class RestUpdateAction extends BaseRestHandler {
             IndexRequest upsertRequest = updateRequest.upsertRequest();
             if (upsertRequest != null) {
                 upsertRequest.routing(request.param("routing"));
-                upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                upsertRequest.parent(request.param("parent"));
                 upsertRequest.version(RestActions.parseVersion(request));
                 upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
             }

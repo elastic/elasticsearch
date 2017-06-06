@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.script.mustache;
 
+import java.io.IOException;
+
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,8 +29,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.script.Script;
-
-import java.io.IOException;
+import org.elasticsearch.script.TemplateScript;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -43,11 +44,17 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "put_search_template_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
-        BytesReference content = request.content();
+        BytesReference content = request.requiredContent();
 
-        PutStoredScriptRequest put = new PutStoredScriptRequest(id, Script.DEFAULT_TEMPLATE_LANG, content, request.getXContentType());
+        PutStoredScriptRequest put = new PutStoredScriptRequest(id, Script.DEFAULT_TEMPLATE_LANG, TemplateScript.CONTEXT.name,
+            content, request.getXContentType());
         return channel -> client.admin().cluster().putStoredScript(put, new AcknowledgedRestListener<>(channel));
     }
 }

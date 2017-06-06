@@ -37,10 +37,10 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
@@ -102,27 +102,28 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         final OpType opType = OpType.fromString(currentFieldName);
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
 
-        DocWriteResponse.DocWriteResponseBuilder builder = null;
+        DocWriteResponse.Builder builder = null;
         CheckedConsumer<XContentParser, IOException> itemParser = null;
 
         if (opType == OpType.INDEX || opType == OpType.CREATE) {
-            final IndexResponse.IndexResponseBuilder indexResponseBuilder = new IndexResponse.IndexResponseBuilder();
+            final IndexResponse.Builder indexResponseBuilder = new IndexResponse.Builder();
             builder = indexResponseBuilder;
             itemParser = (indexParser) -> IndexResponse.parseXContentFields(indexParser, indexResponseBuilder);
 
         } else if (opType == OpType.UPDATE) {
-            final UpdateResponse.UpdateResponseBuilder updateResponseBuilder = new UpdateResponse.UpdateResponseBuilder();
+            final UpdateResponse.Builder updateResponseBuilder = new UpdateResponse.Builder();
             builder = updateResponseBuilder;
             itemParser = (updateParser) -> UpdateResponse.parseXContentFields(updateParser, updateResponseBuilder);
 
         } else if (opType == OpType.DELETE) {
-            final DeleteResponse.DeleteResponseBuilder deleteResponseBuilder = new DeleteResponse.DeleteResponseBuilder();
+            final DeleteResponse.Builder deleteResponseBuilder = new DeleteResponse.Builder();
             builder = deleteResponseBuilder;
             itemParser = (deleteParser) -> DeleteResponse.parseXContentFields(deleteParser, deleteResponseBuilder);
         } else {
             throwUnknownField(currentFieldName, parser.getTokenLocation());
         }
 
+        RestStatus status = null;
         ElasticsearchException exception = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -133,7 +134,11 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
                 if (token == XContentParser.Token.START_OBJECT) {
                     exception = ElasticsearchException.fromXContent(parser);
                 }
-            } else if (STATUS.equals(currentFieldName) == false) {
+            } else if (STATUS.equals(currentFieldName)) {
+                if (token == XContentParser.Token.VALUE_NUMBER) {
+                    status = RestStatus.fromCode(parser.intValue());
+                }
+            } else {
                 itemParser.accept(parser);
             }
         }
@@ -144,7 +149,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
 
         BulkItemResponse bulkItemResponse;
         if (exception != null) {
-            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getType(), builder.getId(), exception);
+            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getType(), builder.getId(), exception, status);
             bulkItemResponse = new BulkItemResponse(id, opType, failure);
         } else {
             bulkItemResponse = new BulkItemResponse(id, opType, builder.build());
@@ -167,13 +172,34 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         private final String id;
         private final Exception cause;
         private final RestStatus status;
+        private final long seqNo;
 
+        /**
+         * For write failures before operation was assigned a sequence number.
+         *
+         * use @{link {@link #Failure(String, String, String, Exception, long)}}
+         * to record operation sequence no with failure
+         */
         public Failure(String index, String type, String id, Exception cause) {
+            this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        }
+
+        public Failure(String index, String type, String id, Exception cause, RestStatus status) {
+            this(index, type, id, cause, status, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        }
+
+        /** For write failures after operation was assigned a sequence number. */
+        public Failure(String index, String type, String id, Exception cause, long seqNo) {
+            this(index, type, id, cause, ExceptionsHelper.status(cause), seqNo);
+        }
+
+        public Failure(String index, String type, String id, Exception cause, RestStatus status, long seqNo) {
             this.index = index;
             this.type = type;
             this.id = id;
             this.cause = cause;
-            this.status = ExceptionsHelper.status(cause);
+            this.status = status;
+            this.seqNo = seqNo;
         }
 
         /**
@@ -185,6 +211,11 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             id = in.readOptionalString();
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
+            if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+                seqNo = in.readZLong();
+            } else {
+                seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            }
         }
 
         @Override
@@ -193,6 +224,9 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             out.writeString(getType());
             out.writeOptionalString(getId());
             out.writeException(getCause());
+            if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+                out.writeZLong(getSeqNo());
+            }
         }
 
 
@@ -236,6 +270,15 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
          */
         public Exception getCause() {
             return cause;
+        }
+
+        /**
+         * The operation sequence number generated by primary
+         * NOTE: {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
+         * indicates sequence number was not generated by primary
+         */
+        public long getSeqNo() {
+            return seqNo;
         }
 
         @Override
@@ -377,7 +420,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             opType = OpType.fromId(in.readByte());
         } else {
             opType = OpType.fromString(in.readString());
@@ -404,7 +447,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeByte(opType.getId());
         } else {
             out.writeString(opType.getLowercase());

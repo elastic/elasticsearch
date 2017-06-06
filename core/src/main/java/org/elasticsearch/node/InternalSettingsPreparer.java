@@ -29,8 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
 
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
@@ -45,9 +43,6 @@ import static org.elasticsearch.common.Strings.cleanPath;
 public class InternalSettingsPreparer {
 
     private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json"};
-    private static final String PROPERTY_DEFAULTS_PREFIX = "default.";
-    private static final Predicate<String> PROPERTY_DEFAULTS_PREDICATE = key -> key.startsWith(PROPERTY_DEFAULTS_PREFIX);
-    private static final UnaryOperator<String> STRIP_PROPERTY_DEFAULTS_PREFIX = key -> key.substring(PROPERTY_DEFAULTS_PREFIX.length());
 
     public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
     public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
@@ -91,26 +86,22 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, properties);
         Environment environment = new Environment(output.build());
 
-        output = Settings.builder(); // start with a fresh output
-        boolean settingsFileFound = false;
-        Set<String> foundSuffixes = new HashSet<>();
-        for (String allowedSuffix : ALLOWED_SUFFIXES) {
-            Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
-            if (Files.exists(path)) {
-                if (!settingsFileFound) {
-                    try {
-                        output.loadFromPath(path);
-                    } catch (IOException e) {
-                        throw new SettingsException("Failed to load settings from " + path.toString(), e);
-                    }
-                }
-                settingsFileFound = true;
-                foundSuffixes.add(allowedSuffix);
-            }
+        if (Files.exists(environment.configFile().resolve("elasticsearch.yaml"))) {
+            throw new SettingsException("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml");
         }
-        if (foundSuffixes.size() > 1) {
-            throw new SettingsException("multiple settings files found with suffixes: "
-                + Strings.collectionToDelimitedString(foundSuffixes, ","));
+
+        if (Files.exists(environment.configFile().resolve("elasticsearch.json"))) {
+            throw new SettingsException("elasticsearch.json was deprecated in 5.5.0 and must be converted to elasticsearch.yml");
+        }
+
+        output = Settings.builder(); // start with a fresh output
+        Path path = environment.configFile().resolve("elasticsearch.yml");
+        if (Files.exists(path)) {
+            try {
+                output.loadFromPath(path);
+            } catch (IOException e) {
+                throw new SettingsException("Failed to load settings from " + path.toString(), e);
+            }
         }
 
         // re-initialize settings now that the config file has been loaded
@@ -125,15 +116,16 @@ public class InternalSettingsPreparer {
     }
 
     /**
-     * Initializes the builder with the given input settings, and loads system properties settings if allowed.
-     * If loadDefaults is true, system property default settings are loaded.
+     * Initializes the builder with the given input settings, and applies settings from the specified map (these settings typically come
+     * from the command line).
+     *
+     * @param output the settings builder to apply the input and default settings to
+     * @param input the input settings
+     * @param esSettings a map from which to apply settings
      */
-    private static void initializeSettings(Settings.Builder output, Settings input, Map<String, String> esSettings) {
+    static void initializeSettings(final Settings.Builder output, final Settings input, final Map<String, String> esSettings) {
         output.put(input);
-        output.putProperties(esSettings,
-            PROPERTY_DEFAULTS_PREDICATE.and(key -> output.get(STRIP_PROPERTY_DEFAULTS_PREFIX.apply(key)) == null),
-            STRIP_PROPERTY_DEFAULTS_PREFIX);
-        output.putProperties(esSettings, PROPERTY_DEFAULTS_PREDICATE.negate(), Function.identity());
+        output.putProperties(esSettings, Function.identity());
         output.replacePropertyPlaceholders();
     }
 

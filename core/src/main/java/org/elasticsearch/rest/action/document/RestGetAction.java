@@ -49,11 +49,16 @@ public class RestGetAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "docuemnt_get_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
-        getRequest.routing(request.param("routing"));  // order is important, set it after routing, so it will set the routing
+        getRequest.routing(request.param("routing"));
         getRequest.parent(request.param("parent"));
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", getRequest.realtime()));

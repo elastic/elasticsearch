@@ -120,6 +120,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "5", "6");
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/23966")
     public void testSimpleQueryStringMinimumShouldMatch() throws Exception {
         createIndex("test");
         ensureGreen("test");
@@ -313,7 +314,8 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().string();
 
-        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1").addMapping("type1", mapping);
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1")
+            .addMapping("type1", mapping, XContentType.JSON);
         mappingRequest.execute().actionGet();
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("location", "Köln"));
         refresh();
@@ -364,7 +366,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices()
                 .prepareCreate("test1")
-                .addMapping("type1", mapping);
+                .addMapping("type1", mapping, XContentType.JSON);
         mappingRequest.execute().actionGet();
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("body", "Some Text"));
         refresh();
@@ -377,7 +379,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testBasicAllQuery() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody).get();
+        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -405,7 +407,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testWithDate() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody).get();
+        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -432,7 +434,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testWithLotsOfTypes() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody).get();
+        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -465,7 +467,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testDocWithAllTypes() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody).get();
+        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -515,7 +517,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testKeywordWithWhitespace() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody).get();
+        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -536,7 +538,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     public void testExplicitAllFieldsRequested() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index-with-all.json");
         prepareCreate("test")
-                .setSource(indexBody)
+                .setSource(indexBody, XContentType.JSON)
                 // .setSettings(Settings.builder().put("index.version.created", Version.V_5_0_0.id)).get();
                 .get();
         ensureGreen("test");
@@ -564,7 +566,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     @LuceneTestCase.AwaitsFix(bugUrl="currently can't perform phrase queries on fields that don't support positions")
     public void testPhraseQueryOnFieldWithNoPositions() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody).get();
+        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -579,7 +581,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testAllFieldsWithSpecifiedLeniency() throws IOException {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody).get();
+        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
         Exception e = expectThrows(Exception.class, () ->

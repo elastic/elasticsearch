@@ -19,14 +19,12 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -37,8 +35,6 @@ import java.io.IOException;
  */
 public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>> extends ReplicationRequest<R> implements WriteRequest<R> {
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
-
-    private long seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
 
     /**
      * Constructor for deserialization.
@@ -66,32 +62,11 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         refreshPolicy = RefreshPolicy.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED))  {
-            seqNo = in.readZLong();
-        } else {
-            seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         refreshPolicy.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            out.writeZLong(seqNo);
-        }
-    }
-
-    /**
-     * Returns the sequence number for this operation. The sequence number is assigned while the operation
-     * is performed on the primary shard.
-     */
-    public long getSeqNo() {
-        return seqNo;
-    }
-
-    /** sets the sequence number for this operation. should only be called on the primary shard */
-    public void setSeqNo(long seqNo) {
-        this.seqNo = seqNo;
     }
 }

@@ -4,37 +4,8 @@
 The GCS repository plugin adds support for using the https://cloud.google.com/storage/[Google Cloud Storage]
 service as a repository for {ref}/modules-snapshots.html[Snapshot/Restore].
 
-[[repository-gcs-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install repository-gcs
-----------------------------------------------------------------
-
-NOTE: The plugin requires new permission to be installed in order to work
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/repository-gcs/repository-gcs-{version}.zip.
-
-[[repository-gcs-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove repository-gcs
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: repository-gcs
+include::install_remove.asciidoc[]
 
 [[repository-gcs-usage]]
 ==== Getting started
@@ -70,34 +41,19 @@ The bucket should now be created.
 
 The plugin supports two authentication modes:
 
-* the built-in <<repository-gcs-using-compute-engine, Compute Engine authentication>>. This mode is
+* The built-in <<repository-gcs-using-compute-engine, Compute Engine authentication>>. This mode is
 recommended if your elasticsearch node is running on a Compute Engine virtual machine.
 
-* the <<repository-gcs-using-service-account, Service Account>> authentication mode.
+* Specifying <<repository-gcs-using-service-account, Service Account>> credentials.
 
 [[repository-gcs-using-compute-engine]]
 ===== Using Compute Engine
-When running on Compute Engine, the plugin use the Google's built-in authentication mechanism to
+When running on Compute Engine, the plugin use Google's built-in authentication mechanism to
 authenticate on the Storage service. Compute Engine virtual machines are usually associated to a
 default service account. This service account can be found in the VM instance details in the
 https://console.cloud.google.com/compute/[Compute Engine console].
 
-To indicate that a repository should use the built-in authentication,
-the repository `service_account` setting must be set to `_default_`:
-
-[source,js]
-----
-PUT _snapshot/my_gcs_repository_on_compute_engine
-{
-  "type": "gcs",
-  "settings": {
-    "bucket": "my_bucket",
-    "service_account": "_default_"
-  }
-}
-----
-// CONSOLE
-// TEST[skip:we don't have gcs setup while testing this]
+This is the default authentication mode and requires no configuration.
 
 NOTE: The Compute Engine VM must be allowed to use the Storage service. This can be done only at VM
 creation time, when "Storage" access can be configured to "Read/Write" permission. Check your
@@ -105,7 +61,7 @@ instance details at the section "Cloud API access scopes".
 
 [[repository-gcs-using-service-account]]
 ===== Using a Service Account
-If your elasticsearch node is not running on Compute Engine, or if you don't want to use Google
+If your elasticsearch node is not running on Compute Engine, or if you don't want to use Google's
 built-in authentication mechanism, you can authenticate on the Storage service using a
 https://cloud.google.com/iam/docs/overview#service_account[Service Account] file.
 
@@ -136,10 +92,14 @@ A service account file looks like this:
 ----
 // NOTCONSOLE
 
-This file must be copied in the `config` directory of the elasticsearch installation and on
-every node of the cluster.
+This file must be stored in the {ref}/secure-settings.html[elasticsearch keystore], under a setting name
+of the form `gcs.client.NAME.credentials_file`, where `NAME` is the name of the client congiguration.
+The default client name is `default`, but a different client name can be specified in repository
+settings using `client`.
 
-To indicate that a repository should use a service account file:
+For example, if specifying the credentials file in the keystore under
+`gcs.client.my_alternate_client.credentials_file`, you can configure a repository to use these
+credentials like this:
 
 [source,js]
 ----
@@ -148,7 +108,7 @@ PUT _snapshot/my_gcs_repository
   "type": "gcs",
   "settings": {
     "bucket": "my_bucket",
-    "service_account": "service_account.json"
+    "client": "my_alternate_client"
   }
 }
 ----
@@ -179,8 +139,7 @@ PUT _snapshot/my_gcs_repository
 {
   "type": "gcs",
   "settings": {
-    "bucket": "my_bucket",
-    "service_account": "service_account.json"
+    "bucket": "my_bucket"
   }
 }
 ----
@@ -193,10 +152,10 @@ The following settings are supported:
 
     The name of the bucket to be used for snapshots. (Mandatory)
 
-`service_account`::
+`client`::
 
-    The service account to use. It can be a relative path to a service account JSON file
-    or the value `_default_` that indicate to use built-in Compute Engine service account.
+    The client congfiguration to use. This controls which credentials are used to connect
+    to Compute Engine.
 
 `base_path`::
 

@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -132,7 +133,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
         headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             metadata.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
         } else {
             for (Iterator<Map.Entry<String, List<String>>> iterator = headers.entrySet().iterator(); iterator.hasNext(); ) {
@@ -283,7 +284,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         out.writeOptionalString(this.getMessage());
         out.writeException(this.getCause());
         writeStackTraces(this, out);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
             out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
         } else {
@@ -712,7 +713,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * in id order below. If you want to remove an exception leave a tombstone comment and mark the id as null in
      * ExceptionSerializationTests.testIds.ids.
      */
-    enum ElasticsearchExceptionHandle {
+    private enum ElasticsearchExceptionHandle {
         INDEX_SHARD_SNAPSHOT_FAILED_EXCEPTION(org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException.class,
                 org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException::new, 0, UNKNOWN_VERSION_ADDED),
         DFS_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.dfs.DfsPhaseExecutionException.class,
@@ -876,8 +877,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.transport.ReceiveTimeoutTransportException::new, 83, UNKNOWN_VERSION_ADDED),
         NODE_DISCONNECTED_EXCEPTION(org.elasticsearch.transport.NodeDisconnectedException.class,
                 org.elasticsearch.transport.NodeDisconnectedException::new, 84, UNKNOWN_VERSION_ADDED),
-        ALREADY_EXPIRED_EXCEPTION(org.elasticsearch.index.AlreadyExpiredException.class,
-                org.elasticsearch.index.AlreadyExpiredException::new, 85, UNKNOWN_VERSION_ADDED),
+        // 85 used to be for AlreadyExpiredException
         AGGREGATION_EXECUTION_EXCEPTION(org.elasticsearch.search.aggregations.AggregationExecutionException.class,
                 org.elasticsearch.search.aggregations.AggregationExecutionException::new, 86, UNKNOWN_VERSION_ADDED),
         // 87 used to be for MergeMappingException
@@ -984,11 +984,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         STATUS_EXCEPTION(org.elasticsearch.ElasticsearchStatusException.class, org.elasticsearch.ElasticsearchStatusException::new, 145,
             UNKNOWN_VERSION_ADDED),
         TASK_CANCELLED_EXCEPTION(org.elasticsearch.tasks.TaskCancelledException.class,
-            org.elasticsearch.tasks.TaskCancelledException::new, 146, Version.V_5_1_1_UNRELEASED),
+            org.elasticsearch.tasks.TaskCancelledException::new, 146, Version.V_5_1_1),
         SHARD_LOCK_OBTAIN_FAILED_EXCEPTION(org.elasticsearch.env.ShardLockObtainFailedException.class,
                                            org.elasticsearch.env.ShardLockObtainFailedException::new, 147, Version.V_5_0_2),
         UNKNOWN_NAMED_OBJECT_EXCEPTION(org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException.class,
-                org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException::new, 148, Version.V_5_2_0_UNRELEASED);
+                org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException::new, 148, Version.V_5_2_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;
@@ -1004,6 +1004,30 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             this.versionAdded = versionAdded;
             this.id = id;
         }
+    }
+
+    /**
+     * Returns an array of all registered handle IDs. These are the IDs for every registered
+     * exception.
+     *
+     * @return an array of all registered handle IDs
+     */
+    static int[] ids() {
+        return Arrays.stream(ElasticsearchExceptionHandle.values()).mapToInt(h -> h.id).toArray();
+    }
+
+    /**
+     * Returns an array of all registered pairs of handle IDs and exception classes. These pairs are
+     * provided for every registered exception.
+     *
+     * @return an array of all registered pairs of handle IDs and exception classes
+     */
+    static Tuple<Integer, Class<? extends ElasticsearchException>>[] classes() {
+        @SuppressWarnings("unchecked")
+        final Tuple<Integer, Class<? extends ElasticsearchException>>[] ts =
+                Arrays.stream(ElasticsearchExceptionHandle.values())
+                        .map(h -> Tuple.tuple(h.id, h.exceptionClass)).toArray(Tuple[]::new);
+        return ts;
     }
 
     static {

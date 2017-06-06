@@ -126,17 +126,6 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         }
     }
 
-    /**
-     * Cancel all ongoing recoveries for the given shard.
-     *
-     * @param reason  reason for cancellation
-     * @param shardId shard ID for which to cancel recoveries
-     * @return {@code true} if a recovery was cancelled
-     */
-    public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
-        return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason);
-    }
-
     public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
@@ -297,13 +286,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      */
     private Store.MetadataSnapshot getStoreMetadataSnapshot(final RecoveryTarget recoveryTarget) {
         try {
-            if (recoveryTarget.indexShard().indexSettings().isOnSharedFilesystem()) {
-                // we are not going to copy any files, so don't bother listing files, potentially running into concurrency issues with the
-                // primary changing files underneath us
-                return Store.MetadataSnapshot.EMPTY;
-            } else {
-                return recoveryTarget.indexShard().snapshotStoreMetadata();
-            }
+            return recoveryTarget.indexShard().snapshotStoreMetadata();
         } catch (final org.apache.lucene.index.IndexNotFoundException e) {
             // happens on an empty folder. no need to log
             logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
@@ -346,6 +329,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         request = new StartRecoveryRequest(
             recoveryTarget.shardId(),
+            recoveryTarget.indexShard().routingEntry().allocationId().getId(),
             recoveryTarget.sourceNode(),
             clusterService.localNode(),
             metadataSnapshot,
@@ -364,20 +348,24 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      */
     public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
         try {
-            final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.indexShard().shardPath().resolveTranslog());
+            final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation());
             final SeqNoStats seqNoStats = recoveryTarget.store().loadSeqNoStats(globalCheckpoint);
             if (seqNoStats.getMaxSeqNo() <= seqNoStats.getGlobalCheckpoint()) {
-                // commit point is good for seq no based recovery as the maximum seq# including in it
-                // is below the global checkpoint (i.e., it excludes any ops thay may not be on the primary)
-                // Recovery will start at the first op after the local check point stored in the commit.
+                /*
+                 * Commit point is good for sequence-number based recovery as the maximum sequence number included in it is below the global
+                 * checkpoint (i.e., it excludes any operations that may not be on the primary). Recovery will start at the first operation
+                 * after the local checkpoint stored in the commit.
+                 */
                 return seqNoStats.getLocalCheckpoint() + 1;
             } else {
                 return SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }
         } catch (final IOException e) {
-            // this can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the
-            // translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and
-            // proceeds to attempt a sequence-number-based recovery
+            /*
+             * This can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the
+             * translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and
+             * proceeds to attempt a sequence-number-based recovery.
+             */
             return SequenceNumbersService.UNASSIGNED_SEQ_NO;
         }
     }
@@ -394,7 +382,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.target().prepareForTranslogOperations(request.totalTranslogOps(), request.getMaxUnsafeAutoIdTimestamp());
+                recoveryRef.target().prepareForTranslogOperations(request.totalTranslogOps());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -434,7 +422,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
                 try {
                     recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps());
-                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                    channel.sendResponse(new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint()));
                 } catch (TranslogRecoveryPerformer.BatchOperationException exception) {
                     MapperException mapperException = (MapperException) ExceptionsHelper.unwrap(exception, MapperException.class);
                     if (mapperException == null) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,10 +33,14 @@ import java.io.IOException;
 /**
  * The target that the search request was executed on.
  */
-public class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
+public final class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
 
     private final Text nodeId;
     private final ShardId shardId;
+    //original indices and cluster alias are only needed in the coordinating node throughout the search request execution.
+    //no need to serialize them as part of SearchShardTarget.
+    private final transient OriginalIndices originalIndices;
+    private final transient String clusterAlias;
 
     public SearchShardTarget(StreamInput in) throws IOException {
         if (in.readBoolean()) {
@@ -44,15 +49,20 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
             nodeId = null;
         }
         shardId = ShardId.readShardId(in);
+        this.originalIndices = null;
+        this.clusterAlias = null;
     }
 
-    public SearchShardTarget(String nodeId, ShardId shardId) {
+    public SearchShardTarget(String nodeId, ShardId shardId, String clusterAlias, OriginalIndices originalIndices) {
         this.nodeId = nodeId == null ? null : new Text(nodeId);
         this.shardId = shardId;
+        this.originalIndices = originalIndices;
+        this.clusterAlias = clusterAlias;
     }
 
+    //this constructor is only used in tests
     public SearchShardTarget(String nodeId, Index index, int shardId) {
-        this(nodeId,  new ShardId(index, shardId));
+        this(nodeId,  new ShardId(index, shardId), null, OriginalIndices.NONE);
     }
 
     @Nullable
@@ -70,6 +80,14 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
 
     public ShardId getShardId() {
         return shardId;
+    }
+
+    public OriginalIndices getOriginalIndices() {
+        return originalIndices;
+    }
+
+    public String getClusterAlias() {
+        return clusterAlias;
     }
 
     @Override

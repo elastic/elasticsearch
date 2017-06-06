@@ -61,7 +61,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
-            "_size", "_timestamp", "_ttl"
+            "_size", "_timestamp", "_ttl", "_field_names"
     );
 
     private String[] indices;
@@ -272,15 +272,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     /**
      * The mapping source definition.
-     * @deprecated use {@link #source(String, XContentType)}
-     */
-    @Deprecated
-    public PutMappingRequest source(String mappingSource) {
-        return source(mappingSource, XContentFactory.xContentType(mappingSource));
-    }
-
-    /**
-     * The mapping source definition.
      */
     public PutMappingRequest source(String mappingSource, XContentType xContentType) {
         return source(new BytesArray(mappingSource), xContentType);
@@ -317,7 +308,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
         source = in.readString();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO change to V_5_3 once backported
+        if (in.getVersion().before(Version.V_5_3_0)) {
             // we do not know the format from earlier versions so convert if necessary
             source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
         }

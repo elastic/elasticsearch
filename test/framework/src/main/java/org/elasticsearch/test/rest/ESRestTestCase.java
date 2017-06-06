@@ -40,7 +40,6 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -55,6 +54,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.sort;
@@ -125,6 +126,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     @After
     public final void cleanUpCluster() throws Exception {
         wipeCluster();
+        waitForClusterStateUpdatesToFinish();
         logIfThereAreRunningTasks();
     }
 
@@ -251,6 +253,28 @@ public abstract class ESRestTestCase extends ESTestCase {
          * could determine that some tasks are run by the user we'd fail the tests if those tasks were running and ignore any background
          * tasks.
          */
+    }
+
+    /**
+     * Waits for the cluster state updates to have been processed, so that no cluster
+     * state updates are still in-progress when the next test starts.
+     */
+    private void waitForClusterStateUpdatesToFinish() throws Exception {
+        assertBusy(() -> {
+            try {
+                Response response = adminClient().performRequest("GET", "_cluster/pending_tasks");
+                List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
+                if (false == tasks.isEmpty()) {
+                    StringBuilder message = new StringBuilder("there are still running tasks:");
+                    for (Object task: tasks) {
+                        message.append('\n').append(task.toString());
+                    }
+                    fail(message.toString());
+                }
+            } catch (IOException e) {
+                fail("cannot get cluster's pending tasks: " + e.getMessage());
+            }
+        });
     }
 
     /**

@@ -83,6 +83,9 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<FunctionScoreQueryBuilder> {
 
+    private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[] {Script.PARAMS_PARSE_FIELD.getPreferredName(),
+        ExponentialDecayFunctionBuilder.NAME, LinearDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder.NAME};
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singleton(TestPlugin.class);
@@ -104,6 +107,12 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             functionScoreQueryBuilder.setMinScore(randomFloat());
         }
         return functionScoreQueryBuilder;
+    }
+
+    @Override
+    protected String[] shuffleProtectedFields() {
+        // do not shuffle fields that may contain arbitrary content
+        return SHUFFLE_PROTECTED_FIELDS;
     }
 
     @Override
@@ -180,7 +189,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 } else if (randomBoolean()) {
                     randomScoreFunctionBuilder.seed(randomInt());
                 } else {
-                    randomScoreFunctionBuilder.seed(randomAsciiOfLengthBetween(1, 10));
+                    randomScoreFunctionBuilder.seed(randomAlphaOfLengthBetween(1, 10));
                 }
             }
             functionBuilder = randomScoreFunctionBuilder;
@@ -218,7 +227,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             break;
         case DATE_FIELD_NAME:
             origin = new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString();
-            scale = randomPositiveTimeValue();
+            scale = randomTimeValue(1, 1000, new String[]{"d", "h", "ms", "s", "m"});
             offset = randomPositiveTimeValue();
             break;
         default:

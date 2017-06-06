@@ -32,17 +32,18 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -69,7 +70,7 @@ import java.util.Objects;
  *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
-public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable {
+public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable, ToXContentObject {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(SearchSourceBuilder.class));
 
@@ -220,7 +221,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         profile = in.readBoolean();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             collapse = in.readOptionalWriteable(CollapseBuilder::new);
         }
     }
@@ -271,7 +272,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeOptionalWriteable(collapse);
         }
     }
@@ -314,6 +315,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * From index to start the search from. Defaults to <tt>0</tt>.
      */
     public SearchSourceBuilder from(int from) {
+        if (from < 0) {
+            throw new IllegalArgumentException("[from] parameter cannot be negative");
+        }
         this.from = from;
         return this;
     }
@@ -1095,12 +1099,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (from != -1) {
             builder.field(FROM_FIELD.getPreferredName(), from);
         }
@@ -1196,7 +1194,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         if (aggregations != null) {
             builder.field(AGGREGATIONS_FIELD.getPreferredName(), aggregations);
-            }
+        }
 
         if (highlightBuilder != null) {
             builder.field(HIGHLIGHT_FIELD.getPreferredName(), highlightBuilder);
@@ -1229,6 +1227,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (collapse != null) {
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
+        builder.endObject();
+        return builder;
     }
 
     public static class IndexBoost implements Writeable, ToXContent {

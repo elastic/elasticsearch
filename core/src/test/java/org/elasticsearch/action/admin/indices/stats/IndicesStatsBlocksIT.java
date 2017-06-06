@@ -29,6 +29,7 @@ import java.util.Arrays;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class IndicesStatsBlocksIT extends ESIntegTestCase {
@@ -37,7 +38,8 @@ public class IndicesStatsBlocksIT extends ESIntegTestCase {
         ensureGreen("ro");
 
         // Request is not blocked
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
+        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY,
+            SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("ro", blockSetting);
                 IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("ro").execute().actionGet();

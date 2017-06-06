@@ -39,6 +39,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
@@ -46,10 +47,11 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -114,7 +116,8 @@ public class TopHitsIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", TERMS_AGGS_FIELD, "type=keyword", "group", "type=keyword"));
+        assertAcked(prepareCreate("idx").addMapping("type", TERMS_AGGS_FIELD, "type=keyword"));
+        assertAcked(prepareCreate("field-collapsing").addMapping("type", "group", "type=keyword"));
         createIndex("empty");
         assertAcked(prepareCreate("articles").addMapping("article", jsonBuilder().startObject().startObject("article").startObject("properties")
                 .startObject(TERMS_AGGS_FIELD)
@@ -159,49 +162,49 @@ public class TopHitsIT extends ESIntegTestCase {
                     .endObject()));
         }
 
-        builders.add(client().prepareIndex("idx", "field-collapsing", "1").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing", "type", "1").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "a")
                 .field("text", "term x y z b")
                 .endObject()));
-        builders.add(client().prepareIndex("idx", "field-collapsing", "2").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing", "type", "2").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "a")
                 .field("text", "term x y z n rare")
                 .field("value", 1)
                 .endObject()));
-        builders.add(client().prepareIndex("idx", "field-collapsing", "3").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing", "type", "3").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "b")
                 .field("text", "x y z term")
                 .endObject()));
-        builders.add(client().prepareIndex("idx", "field-collapsing", "4").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing", "type", "4").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "b")
                 .field("text", "x y term")
                 .endObject()));
-        builders.add(client().prepareIndex("idx", "field-collapsing", "5").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing", "type", "5").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "b")
                 .field("text", "x term")
                 .endObject()));
-        builders.add(client().prepareIndex("idx", "field-collapsing", "6").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing", "type", "6").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "b")
                 .field("text", "term rare")
                 .field("value", 3)
                 .endObject()));
-        builders.add(client().prepareIndex("idx", "field-collapsing", "7").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing", "type", "7").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "c")
                 .field("text", "x y z term")
                 .endObject()));
-        builders.add(client().prepareIndex("idx", "field-collapsing", "8").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing", "type", "8").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "c")
                 .field("text", "x y term b")
                 .endObject()));
-        builders.add(client().prepareIndex("idx", "field-collapsing", "9").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing", "type", "9").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "c")
                 .field("text", "rare x term")
@@ -269,7 +272,6 @@ public class TopHitsIT extends ESIntegTestCase {
     public void testBasics() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(TERMS_AGGS_FIELD)
@@ -308,8 +310,7 @@ public class TopHitsIT extends ESIntegTestCase {
     public void testIssue11119() throws Exception {
         // Test that top_hits aggregation is fed scores if query results size=0
         SearchResponse response = client()
-                .prepareSearch("idx")
-                .setTypes("field-collapsing")
+                .prepareSearch("field-collapsing")
                 .setSize(0)
                 .setQuery(matchQuery("text", "x y z"))
                 .addAggregation(terms("terms").executionHint(randomExecutionHint()).field("group").subAggregation(topHits("hits")))
@@ -343,8 +344,7 @@ public class TopHitsIT extends ESIntegTestCase {
         // tied up with the need to feed scores into the agg tree even when
         // users don't want ranked set of query results.)
         response = client()
-                .prepareSearch("idx")
-                .setTypes("field-collapsing")
+                .prepareSearch("field-collapsing")
                 .setSize(0)
                 .setMinScore(0.0001f)
                 .setQuery(matchQuery("text", "x y z"))
@@ -364,7 +364,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
 
     public void testBreadthFirstWithScoreNeeded() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .collectMode(SubAggCollectionMode.BREADTH_FIRST)
@@ -394,12 +394,12 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testBreadthFirstWithAggOrderAndScoreNeeded() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
             .addAggregation(terms("terms")
                 .executionHint(randomExecutionHint())
                 .collectMode(SubAggCollectionMode.BREADTH_FIRST)
                 .field(TERMS_AGGS_FIELD)
-                .order(Terms.Order.aggregation("max", false))
+                .order(BucketOrder.aggregation("max", false))
                 .subAggregation(max("max").field(SORT_FIELD))
                 .subAggregation(topHits("hits").size(3))
             ).get();
@@ -421,7 +421,7 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(hits.getHits().length, equalTo(3));
 
             assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(4));
-            id --;
+            id--;
         }
     }
 
@@ -440,19 +440,20 @@ public class TopHitsIT extends ESIntegTestCase {
         TopHits topHits = global.getAggregations().get("hits");
         assertThat(topHits, notNullValue());
         assertThat(topHits.getName(), equalTo("hits"));
-        assertThat((TopHits) global.getProperty("hits"), sameInstance(topHits));
+        assertThat((TopHits) ((InternalAggregation)global).getProperty("hits"), sameInstance(topHits));
 
     }
 
     public void testPagination() throws Exception {
         int size = randomIntBetween(1, 10);
         int from = randomIntBetween(0, 10);
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                                 .executionHint(randomExecutionHint())
                                 .field(TERMS_AGGS_FIELD)
                                 .subAggregation(
-                                        topHits("hits").sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                                        topHits("hits")
+                                            .sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
                                                 .from(from)
                                                 .size(size)
                                 )
@@ -461,7 +462,6 @@ public class TopHitsIT extends ESIntegTestCase {
         assertSearchResponse(response);
 
         SearchResponse control = client().prepareSearch("idx")
-                .setTypes("type")
                 .setFrom(from)
                 .setSize(size)
                 .setPostFilter(QueryBuilders.termQuery(TERMS_AGGS_FIELD, "val0"))
@@ -483,18 +483,19 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(hits.getTotalHits(), equalTo(controlHits.getTotalHits()));
         assertThat(hits.getHits().length, equalTo(controlHits.getHits().length));
         for (int i = 0; i < hits.getHits().length; i++) {
-            logger.info("{}: top_hits: [{}][{}] control: [{}][{}]", i, hits.getAt(i).getId(), hits.getAt(i).getSortValues()[0], controlHits.getAt(i).getId(), controlHits.getAt(i).getSortValues()[0]);
+            logger.info("{}: top_hits: [{}][{}] control: [{}][{}]", i, hits.getAt(i).getId(), hits.getAt(i).getSortValues()[0],
+                controlHits.getAt(i).getId(), controlHits.getAt(i).getSortValues()[0]);
             assertThat(hits.getAt(i).getId(), equalTo(controlHits.getAt(i).getId()));
             assertThat(hits.getAt(i).getSortValues()[0], equalTo(controlHits.getAt(i).getSortValues()[0]));
         }
     }
 
     public void testSortByBucket() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                                 .executionHint(randomExecutionHint())
                                 .field(TERMS_AGGS_FIELD)
-                                .order(Terms.Order.aggregation("max_sort", false))
+                                .order(BucketOrder.aggregation("max_sort", false))
                                 .subAggregation(
                                         topHits("hits").sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)).trackScores(true)
                                 )
@@ -519,9 +520,9 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchHits hits = topHits.getHits();
             assertThat(hits.getTotalHits(), equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
-            assertThat((Long) hits.getAt(0).getSortValues()[0], equalTo(higestSortValue));
-            assertThat((Long) hits.getAt(1).getSortValues()[0], equalTo(higestSortValue - 1));
-            assertThat((Long) hits.getAt(2).getSortValues()[0], equalTo(higestSortValue - 2));
+            assertThat(hits.getAt(0).getSortValues()[0], equalTo(higestSortValue));
+            assertThat(hits.getAt(1).getSortValues()[0], equalTo(higestSortValue - 1));
+            assertThat(hits.getAt(2).getSortValues()[0], equalTo(higestSortValue - 2));
             Max max = bucket.getAggregations().get("max_sort");
             assertThat(max.getValue(), equalTo(((Long) higestSortValue).doubleValue()));
             higestSortValue -= 10;
@@ -530,13 +531,12 @@ public class TopHitsIT extends ESIntegTestCase {
 
     public void testFieldCollapsing() throws Exception {
         SearchResponse response = client()
-                .prepareSearch("idx")
-                .setTypes("field-collapsing")
+                .prepareSearch("field-collapsing")
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setQuery(matchQuery("text", "term rare"))
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field("group")
-                                .order(Terms.Order.aggregation("max_score", false)).subAggregation(topHits("hits").size(1))
+                                .order(BucketOrder.aggregation("max_score", false)).subAggregation(topHits("hits").size(1))
                                 .subAggregation(max("max_score").field("value"))).get();
         assertSearchResponse(response);
 
@@ -545,7 +545,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(3));
 
-        Iterator<Terms.Bucket> bucketIterator = terms.getBuckets().iterator();
+        Iterator<? extends Terms.Bucket> bucketIterator = terms.getBuckets().iterator();
         Terms.Bucket bucket = bucketIterator.next();
         assertThat(key(bucket), equalTo("b"));
         TopHits topHits = bucket.getAggregations().get("hits");
@@ -572,7 +572,7 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testFetchFeatures() {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .setQuery(matchQuery("text", "text").queryName("test"))
                 .addAggregation(terms("terms")
                                 .executionHint(randomExecutionHint())
@@ -630,7 +630,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
     public void testInvalidSortField() throws Exception {
         try {
-            client().prepareSearch("idx").setTypes("type")
+            client().prepareSearch("idx")
                     .addAggregation(terms("terms")
                                     .executionHint(randomExecutionHint())
                                     .field(TERMS_AGGS_FIELD)
@@ -645,7 +645,7 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testEmptyIndex() throws Exception {
-        SearchResponse response = client().prepareSearch("empty").setTypes("type")
+        SearchResponse response = client().prepareSearch("empty")
                 .addAggregation(topHits("hits"))
                 .get();
         assertSearchResponse(response);
@@ -660,7 +660,7 @@ public class TopHitsIT extends ESIntegTestCase {
         boolean[] trackScores = new boolean[]{true, false};
         for (boolean trackScore : trackScores) {
             logger.info("Track score={}", trackScore);
-            SearchResponse response = client().prepareSearch("idx").setTypes("field-collapsing")
+            SearchResponse response = client().prepareSearch("field-collapsing")
                     .setQuery(matchQuery("text", "term rare"))
                     .addAggregation(terms("terms")
                                     .field("group")
@@ -668,7 +668,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                             topHits("hits")
                                                     .trackScores(trackScore)
                                                     .size(1)
-                                                    .sort("_uid", SortOrder.DESC)
+                                                    .sort("_index", SortOrder.DESC)
                                     )
                     )
                     .get();
@@ -909,7 +909,6 @@ public class TopHitsIT extends ESIntegTestCase {
                         histogram("dates")
                                 .field("date")
                                 .interval(5)
-                                .order(Histogram.Order.aggregation("to-comments", true))
                                 .subAggregation(
                                         nested("to-comments", "comments")
                                                 .subAggregation(topHits("comments")
@@ -946,7 +945,6 @@ public class TopHitsIT extends ESIntegTestCase {
     public void testDontExplode() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(terms("terms")
                                 .executionHint(randomExecutionHint())
                                 .field(TERMS_AGGS_FIELD)
@@ -961,7 +959,6 @@ public class TopHitsIT extends ESIntegTestCase {
     public void testNoStoredFields() throws Exception {
         SearchResponse response = client()
             .prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(terms("terms")
                 .executionHint(randomExecutionHint())
                 .field(TERMS_AGGS_FIELD)
@@ -1000,51 +997,55 @@ public class TopHitsIT extends ESIntegTestCase {
      * not using a script does get cached.
      */
     public void testDontCacheScripts() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+        try {
+            assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
+            indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
                 client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
 
-        // Make sure we are starting with a clear cache
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            // Make sure we are starting with a clear cache
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // Test that a request using a script field does not get cached
-        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
+            // Test that a request using a script field does not get cached
+            SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(topHits("foo").scriptField("bar",
                     new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()))).get();
-        assertSearchResponse(r);
+            assertSearchResponse(r);
 
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // Test that a request using a script sort does not get cached
-        r = client().prepareSearch("cache_test_idx").setSize(0)
+            // Test that a request using a script sort does not get cached
+            r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(topHits("foo").sort(
-                        SortBuilders.scriptSort(
-                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()), ScriptSortType.STRING)))
+                    SortBuilders.scriptSort(
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()), ScriptSortType.STRING)))
                 .get();
-        assertSearchResponse(r);
+            assertSearchResponse(r);
 
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // To make sure that the cache is working test that a request not using
-        // a script is cached
-        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(topHits("foo")).get();
-        assertSearchResponse(r);
+            // To make sure that the cache is working test that a request not using
+            // a script is cached
+            r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(topHits("foo")).get();
+            assertSearchResponse(r);
 
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
+        } finally {
+            assertAcked(client().admin().indices().prepareDelete("cache_test_idx")); // delete this - if we use tests.iters it would fail
+        }
     }
 
     public void testWithRescore() {
@@ -1055,7 +1056,6 @@ public class TopHitsIT extends ESIntegTestCase {
                 .addRescorer(
                     RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
                 )
-                .setTypes("type")
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
                     .subAggregation(
@@ -1078,7 +1078,6 @@ public class TopHitsIT extends ESIntegTestCase {
                 .addRescorer(
                     RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
                 )
-                .setTypes("type")
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
                     .subAggregation(
@@ -1102,7 +1101,6 @@ public class TopHitsIT extends ESIntegTestCase {
                 .addRescorer(
                     RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
                 )
-                .setTypes("type")
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
                     .subAggregation(
@@ -1125,7 +1123,6 @@ public class TopHitsIT extends ESIntegTestCase {
                 .addRescorer(
                     RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
                 )
-                .setTypes("type")
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
                     .subAggregation(

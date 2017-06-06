@@ -51,6 +51,8 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
@@ -87,9 +89,9 @@ import java.util.Map;
 import java.util.Objects;
 
 public class Lucene {
-    public static final String LATEST_DOC_VALUES_FORMAT = "Lucene54";
+    public static final String LATEST_DOC_VALUES_FORMAT = "Lucene70";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = "Lucene62";
+    public static final String LATEST_CODEC = "Lucene70";
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
@@ -552,7 +554,22 @@ public class Lucene {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
             newSortField.setMissingValue(sortField.getMissingValue());
             sortField = newSortField;
+        } else if (sortField.getClass() == SortedSetSortField.class) {
+            // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
+            // It works because the sort field is only used to merge results from different shards.
+            SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
+            newSortField.setMissingValue(sortField.getMissingValue());
+            sortField = newSortField;
+        } else if (sortField.getClass() == SortedNumericSortField.class) {
+            // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
+            // It works because the sort field is only used to merge results from different shards.
+            SortField newSortField = new SortField(sortField.getField(),
+                ((SortedNumericSortField) sortField).getNumericType(),
+                sortField.getReverse());
+            newSortField.setMissingValue(sortField.getMissingValue());
+            sortField = newSortField;
         }
+
         if (sortField.getClass() != SortField.class) {
             throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
         }

@@ -318,21 +318,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
-     * @return this request
-     * @deprecated use {@link #settings(String, XContentType)} to avoid content type detection
-     */
-    @Deprecated
-    public RestoreSnapshotRequest settings(String source) {
-        this.settings = Settings.builder().loadFromSource(source).build();
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings in JSON or YAML format
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
      * @param xContentType the content type of the source
      * @return this request
      */
@@ -447,16 +432,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      */
     public RestoreSnapshotRequest indexSettings(Settings.Builder settings) {
         this.indexSettings = settings.build();
-        return this;
-    }
-
-    /**
-     * Sets settings that should be added/changed in all restored indices
-     * @deprecated use {@link #indexSettings(String, XContentType)} to avoid content type detection
-     */
-    @Deprecated
-    public RestoreSnapshotRequest indexSettings(String source) {
-        this.indexSettings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 

@@ -135,11 +135,7 @@ PUT my_index
       }
    }
 }
---------------------------------------------------
-// CONSOLE
 
-[source,js]
---------------------------------------------------
 PUT my_index/my_type/1
 {
    "title":"The Quick Brown Fox"
@@ -159,6 +155,7 @@ GET my_index/my_type/_search
    }
 }
 --------------------------------------------------
+// CONSOLE
 <1> `my_analyzer` analyzer which tokens all terms including stop words
 <2> `my_stop_analyzer` analyzer which removes stop words
 <3> `analyzer` setting that points to the `my_analyzer` analyzer which will be used at index time

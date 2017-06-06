@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -72,7 +73,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         for (int i = 0; i < nodes.length; i++) {
             nodes[i] = new DiscoveryNode(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             int size = in.readVInt();
             indicesAndFilters = new HashMap<>();
             for (int i = 0; i < size; i++) {
@@ -94,7 +95,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         for (DiscoveryNode node : nodes) {
             node.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             out.writeVInt(indicesAndFilters.size());
             for (Map.Entry<String, AliasFilter> entry : indicesAndFilters.entrySet()) {
                 out.writeString(entry.getKey());
@@ -117,10 +118,14 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
                 String index = entry.getKey();
                 builder.startObject(index);
                 AliasFilter aliasFilter = entry.getValue();
-                if (aliasFilter.getAliases().length > 0) {
-                    builder.array("aliases", aliasFilter.getAliases());
-                    builder.field("filter");
-                    aliasFilter.getQueryBuilder().toXContent(builder, params);
+                String[] aliases = aliasFilter.getAliases();
+                if (aliases.length > 0) {
+                    Arrays.sort(aliases); // we want consistent ordering here and these values might be generated from a set / map
+                    builder.array("aliases", aliases);
+                    if (aliasFilter.getQueryBuilder() != null) { // might be null if we include non-filtering aliases
+                        builder.field("filter");
+                        aliasFilter.getQueryBuilder().toXContent(builder, params);
+                    }
                 }
                 builder.endObject();
             }

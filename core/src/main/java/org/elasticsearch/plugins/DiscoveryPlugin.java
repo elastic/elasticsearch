@@ -23,13 +23,15 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -57,12 +59,18 @@ public interface DiscoveryPlugin {
      *
      * @param threadPool Use to schedule ping actions
      * @param transportService Use to communicate with other nodes
-     * @param clusterService Use to find current nodes in the cluster
+     * @param masterService Use to submit cluster state update tasks
+     * @param clusterApplier Use to locally apply cluster state updates
+     * @param clusterSettings Use to get cluster settings
      * @param hostsProvider Use to find configured hosts which should be pinged for initial discovery
      */
     default Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
                                                                NamedWriteableRegistry namedWriteableRegistry,
-                                                               ClusterService clusterService, UnicastHostsProvider hostsProvider) {
+                                                               MasterService masterService,
+                                                               ClusterApplier clusterApplier,
+                                                               ClusterSettings clusterSettings,
+                                                               UnicastHostsProvider hostsProvider,
+                                                               AllocationService allocationService) {
         return Collections.emptyMap();
     }
 

@@ -27,17 +27,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.RootObjectMapper;
-import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TokenCountFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -62,7 +54,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     private void testMultiField(String mapping) throws Exception {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
+        Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -140,13 +132,12 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         ), indexService.mapperService()).build(indexService.mapperService());
 
         String builtMapping = builderDocMapper.mappingSource().string();
-//        System.out.println(builtMapping);
         // reparse it
         DocumentMapper docMapper = indexService.mapperService().documentMapperParser().parse("person", new CompressedXContent(builtMapping));
 
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
+        Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -173,7 +164,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     public void testMultiFieldsInConsistentOrder() throws Exception {
         String[] multiFieldNames = new String[randomIntBetween(2, 10)];
         for (int i = 0; i < multiFieldNames.length; i++) {
-            multiFieldNames[i] = randomAsciiOfLength(4);
+            multiFieldNames[i] = randomAlphaOfLength(4);
         }
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")

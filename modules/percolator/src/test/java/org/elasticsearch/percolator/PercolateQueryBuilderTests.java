@@ -85,8 +85,8 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        queryField = randomAsciiOfLength(4);
-        docType = randomAsciiOfLength(4);
+        queryField = randomAlphaOfLength(4);
+        docType = randomAlphaOfLength(4);
         mapperService.merge("query_type", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("query_type",
                 queryField, "type=percolator"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
@@ -103,11 +103,11 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     private PercolateQueryBuilder doCreateTestQueryBuilder(boolean indexedDocument) {
         documentSource = randomSource();
         if (indexedDocument) {
-            indexedDocumentIndex = randomAsciiOfLength(4);
-            indexedDocumentType = randomAsciiOfLength(4);
-            indexedDocumentId = randomAsciiOfLength(4);
-            indexedDocumentRouting = randomAsciiOfLength(4);
-            indexedDocumentPreference = randomAsciiOfLength(4);
+            indexedDocumentIndex = randomAlphaOfLength(4);
+            indexedDocumentType = randomAlphaOfLength(4);
+            indexedDocumentId = randomAlphaOfLength(4);
+            indexedDocumentRouting = randomAlphaOfLength(4);
+            indexedDocumentPreference = randomAlphaOfLength(4);
             indexedDocumentVersion = (long) randomIntBetween(0, Integer.MAX_VALUE);
             return new PercolateQueryBuilder(queryField, docType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
                     indexedDocumentRouting, indexedDocumentPreference, indexedDocumentVersion);
@@ -250,7 +250,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     public void testSerializationBwc() throws IOException {
         final byte[] data = Base64.getDecoder().decode("P4AAAAAFZmllbGQEdHlwZQAAAAAAAA57ImZvbyI6ImJhciJ9AAAAAA==");
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
         try (StreamInput in = StreamInput.wrap(data)) {
             in.setVersion(version);
             PercolateQueryBuilder queryBuilder = new PercolateQueryBuilder(in);
@@ -279,6 +279,11 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     @Override
     protected boolean isCachable(PercolateQueryBuilder queryBuilder) {
+        return false;
+    }
+
+    @Override
+    protected boolean builderGeneratesCacheableQueries() {
         return false;
     }
 }

@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -24,6 +26,8 @@ group = 'org.elasticsearch.client'
 dependencies {
   compile "org.elasticsearch:elasticsearch:${version}"
   compile "org.elasticsearch.client:rest:${version}"
+  compile "org.elasticsearch.plugin:parent-join-client:${version}"
+  compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
 
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "org.elasticsearch.test:framework:${version}"
@@ -38,4 +42,10 @@ dependencyLicenses {
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false
   }
+}
+
+forbiddenApisMain {
+  // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
+  // specified
+  signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
 }

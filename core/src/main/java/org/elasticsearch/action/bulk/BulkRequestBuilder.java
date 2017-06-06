@@ -98,29 +98,9 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
 
     /**
      * Adds a framed data in binary format
-     * @deprecated use {@link #add(byte[], int, int, XContentType)}
-     */
-    @Deprecated
-    public BulkRequestBuilder add(byte[] data, int from, int length) throws Exception {
-        request.add(data, from, length, null, null);
-        return this;
-    }
-
-    /**
-     * Adds a framed data in binary format
      */
     public BulkRequestBuilder add(byte[] data, int from, int length, XContentType xContentType) throws Exception {
         request.add(data, from, length, null, null, xContentType);
-        return this;
-    }
-
-    /**
-     * Adds a framed data in binary format
-     * @deprecated use {@link #add(byte[], int, int, String, String, XContentType)}
-     */
-    @Deprecated
-    public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        request.add(data, from, length, defaultIndex, defaultType);
         return this;
     }
 

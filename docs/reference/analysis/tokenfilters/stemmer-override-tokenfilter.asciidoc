@@ -20,15 +20,60 @@ Here is an example:
 
 [source,js]
 --------------------------------------------------
-index :
-    analysis :
-        analyzer :
-            myAnalyzer :
-                type : custom
-                tokenizer : standard
-                filter : [lowercase, custom_stems, porter_stem]    
-        filter:
-            custom_stems:
-                type: stemmer_override
-                rules_path : analysis/custom_stems.txt
+PUT /my_index
+{
+    "settings": {
+        "analysis" : {
+            "analyzer" : {
+                "my_analyzer" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["lowercase", "custom_stems", "porter_stem"]
+                }
+            },
+            "filter" : {
+                "custom_stems" : {
+                    "type" : "stemmer_override",
+                    "rules_path" : "analysis/stemmer_override.txt"
+                }
+            }
+        }
+    }
+}
 --------------------------------------------------
+// CONSOLE
+
+Where the file looks like:
+
+[source,stemmer_override]
+--------------------------------------------------
+include::{docdir}/../src/test/cluster/config/analysis/stemmer_override.txt[]
+--------------------------------------------------
+
+You can also define the overrides rules inline:
+
+[source,js]
+--------------------------------------------------
+PUT /my_index
+{
+    "settings": {
+        "analysis" : {
+            "analyzer" : {
+                "my_analyzer" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["lowercase", "custom_stems", "porter_stem"]
+                }
+            },
+            "filter" : {
+                "custom_stems" : {
+                    "type" : "stemmer_override",
+                    "rules" : [
+                        "running => run",
+                        "stemmer => stemmer"
+                    ]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE

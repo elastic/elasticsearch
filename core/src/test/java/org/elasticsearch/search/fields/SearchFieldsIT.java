@@ -165,7 +165,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .startObject("field3").field("type", "text").field("store", true).endObject()
                 .endObject().endObject().endObject().string();
 
-        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -255,7 +255,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .startObject("num1").field("type", "double").field("store", true).endObject()
                 .endObject().endObject().endObject().string();
 
-        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject()
@@ -560,7 +560,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
                 .string();
 
-        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("byte_field", (byte) 1)
@@ -639,7 +639,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
-                .setSettings(Settings.builder().put("index.refresh_interval", -1))
+                .setSettings("index.refresh_interval", -1)
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("my-type2", jsonBuilder()
                         .startObject()
                             .startObject("my-type2")
@@ -776,7 +777,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
                 .string();
 
-        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
         ReadableDateTime date = new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC);
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -871,6 +872,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     public void testLoadMetadata() throws Exception {
         assertAcked(prepareCreate("test")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("parent")
                 .addMapping("my-type1", "_parent", "type=parent"));
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -30,6 +29,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
@@ -73,7 +74,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testTypes() throws Exception {
-        IndexService indexService1 = createIndex("index1");
+        IndexService indexService1 = createIndex("index1", Settings.builder().put("index.mapping.single_type", false).build());
         MapperService mapperService = indexService1.mapperService();
         assertEquals(Collections.emptySet(), mapperService.types());
 
@@ -189,8 +190,24 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
     }
 
+    public void testMergeParentTypesSame() {
+        // Verifies that a merge (absent a DocumentMapper change)
+        // doesn't change the parentTypes reference.
+        // The collection was being rewrapped with each merge
+        // in v5.2 resulting in eventual StackOverflowErrors.
+        // https://github.com/elastic/elasticsearch/issues/23604
+
+        IndexService indexService1 = createIndex("index1");
+        MapperService mapperService = indexService1.mapperService();
+        Set<String> parentTypes = mapperService.getParentTypes();
+
+        Map<String, Map<String, Object>> mappings = new HashMap<>();
+        mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false);
+        assertSame(parentTypes, mapperService.getParentTypes());
+    }
+
     public void testOtherDocumentMappersOnlyUpdatedWhenChangingFieldType() throws IOException {
-        IndexService indexService = createIndex("test");
+        IndexService indexService = createIndex("test", Settings.builder().put("index.mapping.single_type", false).build());
 
         CompressedXContent simpleMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
@@ -241,7 +258,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         // partitioned index must have routing
          IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate("test-index")
-                    .addMapping("type", "{\"type\":{}}")
+                    .addMapping("type", "{\"type\":{}}", XContentType.JSON)
                     .setSettings(Settings.builder()
                         .put("index.number_of_shards", 4)
                         .put("index.routing_partition_size", 2))
@@ -252,8 +269,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         // partitioned index cannot have parent/child relationships
         IllegalArgumentException parentException = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate("test-index")
-                    .addMapping("parent", "{\"parent\":{\"_routing\":{\"required\":true}}}")
-                    .addMapping("child", "{\"child\": {\"_routing\":{\"required\":true}, \"_parent\": {\"type\": \"parent\"}}}")
+                    .addMapping("parent", "{\"parent\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+                    .addMapping("child", "{\"child\": {\"_routing\":{\"required\":true}, \"_parent\": {\"type\": \"parent\"}}}",
+                        XContentType.JSON)
                     .setSettings(Settings.builder()
                         .put("index.number_of_shards", 4)
                         .put("index.routing_partition_size", 2))
@@ -263,10 +281,43 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
         // valid partitioned index
         assertTrue(client().admin().indices().prepareCreate("test-index")
-            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}")
+            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
             .setSettings(Settings.builder()
                 .put("index.number_of_shards", 4)
                 .put("index.routing_partition_size", 2))
             .execute().actionGet().isAcknowledged());
+    }
+
+    public void testIndexSortWithNestedFields() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.sort.field", "foo")
+            .build();
+        IllegalArgumentException invalidNestedException = expectThrows(IllegalArgumentException.class,
+           () -> createIndex("test", settings, "t", "nested_field", "type=nested", "foo", "type=keyword"));
+        assertThat(invalidNestedException.getMessage(),
+            containsString("cannot have nested fields when index sort is activated"));
+        IndexService indexService =  createIndex("test", settings, "t", "foo", "type=keyword");
+        CompressedXContent nestedFieldMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("nested_field")
+            .field("type", "nested")
+            .endObject()
+            .endObject().endObject().bytes());
+        invalidNestedException = expectThrows(IllegalArgumentException.class,
+            () -> indexService.mapperService().merge("t", nestedFieldMapping,
+                MergeReason.MAPPING_UPDATE, true));
+        assertThat(invalidNestedException.getMessage(),
+            containsString("cannot have nested fields when index sort is activated"));
+    }
+
+    public void testForbidMultipleTypes() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
+
+        String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject().string();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> mapperService.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, randomBoolean()));
+        assertThat(e.getMessage(), Matchers.startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
     }
 }

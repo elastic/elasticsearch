@@ -28,7 +28,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
-import org.apache.lucene.store.SleepingLockWrapper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -74,9 +73,6 @@ public class FsDirectoryService extends DirectoryService {
         Set<String> preLoadExtensions = new HashSet<>(
                 indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
         wrapped = setPreload(wrapped, location, lockFactory, preLoadExtensions);
-        if (indexSettings.isOnSharedFilesystem()) {
-            wrapped = new SleepingLockWrapper(wrapped, 5000);
-        }
         return wrapped;
     }
 

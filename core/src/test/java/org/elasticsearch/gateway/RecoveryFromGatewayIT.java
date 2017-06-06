@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -86,7 +87,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("appAccountIds").field("type", "text").endObject().endObject()
             .endObject().endObject().string();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
 
         client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
             .startArray("appAccountIds").value(14).value(179).endArray().endObject()).execute().actionGet();
@@ -160,7 +161,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(
             SETTING_NUMBER_OF_SHARDS, numberOfShards(),
             SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1)
-        ).addMapping("type1", mapping));
+        ).addMapping("type1", mapping, XContentType.JSON));
 
         int value1Docs;
         int value2Docs;
@@ -317,6 +318,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         // clean two nodes
         internalCluster().startNodes(2, Settings.builder().put("gateway.recover_after_nodes", 2).build());
 
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings("index.mapping.single_type", false));
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         client().admin().indices().prepareFlush().execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();

@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -55,6 +54,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 
 /**
  * Service responsible for submitting update index settings requests
@@ -165,10 +166,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         indexScopedSettings.validate(normalizedSettings);
         // never allow to change the number of shards
         for (Map.Entry<String, String> entry : normalizedSettings.getAsMap().entrySet()) {
-            if (entry.getKey().equals(IndexMetaData.SETTING_NUMBER_OF_SHARDS)) {
-                listener.onFailure(new IllegalArgumentException("can't change the number of shards for an index"));
-                return;
-            }
             Setting setting = indexScopedSettings.get(entry.getKey());
             assert setting != null; // we already validated the normalized settings
             settingsForClosedIndices.put(entry.getKey(), entry.getValue());
@@ -184,7 +181,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         final boolean preserveExisting = request.isPreserveExisting();
 
         clusterService.submitStateUpdateTask("update-settings",
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, wrapPreservingContext(listener)) {
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
+                    wrapPreservingContext(listener, threadPool.getThreadContext())) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -232,6 +230,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_BLOCK, IndexMetaData.INDEX_READ_ONLY_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK, IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING, openSettings);
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_METADATA_BLOCK, IndexMetaData.INDEX_BLOCKS_METADATA_SETTING, openSettings);
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_WRITE_BLOCK, IndexMetaData.INDEX_BLOCKS_WRITE_SETTING, openSettings);
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_BLOCK, IndexMetaData.INDEX_BLOCKS_READ_SETTING, openSettings);
@@ -278,7 +277,11 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     for (Index index : closeIndices) {
                         final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
                         final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        // Verifies that the current index settings can be updated with the updated dynamic settings.
                         indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData);
+                        // Now check that we can create the index with the updated settings (dynamic and non-dynamic).
+                        // This step is mandatory since we allow to update non-dynamic settings on closed indices.
+                        indicesService.verifyIndexMetadata(updatedMetaData, updatedMetaData);
                     }
                 } catch (IOException ex) {
                     throw ExceptionsHelper.convertToElastic(ex);
@@ -286,10 +289,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 return updatedState;
             }
         });
-    }
-
-    private ContextPreservingActionListener<ClusterStateUpdateResponse> wrapPreservingContext(ActionListener<ClusterStateUpdateResponse> listener) {
-        return new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), listener);
     }
 
     /**
@@ -311,7 +310,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("update-index-compatibility-versions",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, wrapPreservingContext(listener)) {
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
+                wrapPreservingContext(listener, threadPool.getThreadContext())) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -329,7 +329,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             // No reason to pollute the settings, we didn't really upgrade anything
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData)
                                             .settings(Settings.builder().put(indexMetaData.getSettings())
-                                                            .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE, entry.getValue().v2())
                                                             .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1())
                                             )
                             );

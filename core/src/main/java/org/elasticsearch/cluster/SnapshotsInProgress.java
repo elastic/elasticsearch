@@ -51,7 +51,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     // a snapshot in progress from a pre 5.2.x node
     public static final long UNDEFINED_REPOSITORY_STATE_ID = -2L;
     // the version where repository state ids were introduced
-    private static final Version REPOSITORY_ID_INTRODUCED_VERSION = Version.V_5_2_0_UNRELEASED;
+    private static final Version REPOSITORY_ID_INTRODUCED_VERSION = Version.V_5_2_0;
 
     @Override
     public boolean equals(Object o) {
@@ -68,6 +68,18 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     @Override
     public int hashCode() {
         return entries.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("SnapshotsInProgress[");
+        for (int i = 0; i < entries.size(); i++) {
+            builder.append(entries.get(i).snapshot().getSnapshotId().getName());
+            if (i + 1 < entries.size()) {
+                builder.append(",");
+            }
+        }
+        return builder.append("]").toString();
     }
 
     public static class Entry {
@@ -183,14 +195,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return snapshot.toString();
         }
 
-        private ImmutableOpenMap<String, List<ShardId>> findWaitingIndices(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+        // package private for testing
+        ImmutableOpenMap<String, List<ShardId>> findWaitingIndices(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             Map<String, List<ShardId>> waitingIndicesMap = new HashMap<>();
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> entry : shards) {
                 if (entry.value.state() == State.WAITING) {
-                    List<ShardId> waitingShards = waitingIndicesMap.get(entry.key.getIndex());
+                    final String indexName = entry.key.getIndexName();
+                    List<ShardId> waitingShards = waitingIndicesMap.get(indexName);
                     if (waitingShards == null) {
                         waitingShards = new ArrayList<>();
-                        waitingIndicesMap.put(entry.key.getIndexName(), waitingShards);
+                        waitingIndicesMap.put(indexName, waitingShards);
                     }
                     waitingShards.add(entry.key);
                 }
@@ -204,7 +218,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             return waitingIndicesBuilder.build();
         }
-
     }
 
     /**

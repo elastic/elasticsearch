@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetField;
@@ -43,7 +44,7 @@ import java.util.Map;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.action.DocWriteResponse.Result.NOT_FOUND;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
 
 public class UpdateResponseTests extends ESTestCase {
 
@@ -56,10 +57,10 @@ public class UpdateResponseTests extends ESTestCase {
         }
         {
             UpdateResponse updateResponse = new UpdateResponse(new ReplicationResponse.ShardInfo(10, 6),
-                    new ShardId("index", "index_uuid", 1), "type", "id", 3, 1, DELETED);
+                    new ShardId("index", "index_uuid", 1), "type", "id", 3, 17, 1, DELETED);
             String output = Strings.toString(updateResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"result\":\"deleted\"," +
-                    "\"_shards\":{\"total\":10,\"successful\":6,\"failed\":0},\"_seq_no\":3}", output);
+                    "\"_shards\":{\"total\":10,\"successful\":6,\"failed\":0},\"_seq_no\":3,\"_primary_term\":17}", output);
         }
         {
             BytesReference source = new BytesArray("{\"title\":\"Book title\",\"isbn\":\"ABC-123\"}");
@@ -68,12 +69,12 @@ public class UpdateResponseTests extends ESTestCase {
             fields.put("isbn", new GetField("isbn", Collections.singletonList("ABC-123")));
 
             UpdateResponse updateResponse = new UpdateResponse(new ReplicationResponse.ShardInfo(3, 2),
-                    new ShardId("books", "books_uuid", 2), "book", "1", 7, 2, UPDATED);
+                    new ShardId("books", "books_uuid", 2), "book", "1", 7, 17, 2, UPDATED);
             updateResponse.setGetResult(new GetResult("books", "book", "1", 2, true, source, fields));
 
             String output = Strings.toString(updateResponse);
             assertEquals("{\"_index\":\"books\",\"_type\":\"book\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\"," +
-                    "\"_shards\":{\"total\":3,\"successful\":2,\"failed\":0},\"_seq_no\":7,\"get\":{\"found\":true," +
+                    "\"_shards\":{\"total\":3,\"successful\":2,\"failed\":0},\"_seq_no\":7,\"_primary_term\":17,\"get\":{\"found\":true," +
                     "\"_source\":{\"title\":\"Book title\",\"isbn\":\"ABC-123\"},\"fields\":{\"isbn\":[\"ABC-123\"],\"title\":[\"Book " +
                     "title\"]}}}", output);
         }
@@ -82,59 +83,65 @@ public class UpdateResponseTests extends ESTestCase {
     public void testToAndFromXContent() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
         final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse(xContentType);
+        UpdateResponse updateResponse = tuple.v1();
+        UpdateResponse expectedUpdateResponse = tuple.v2();
+
         boolean humanReadable = randomBoolean();
+        BytesReference updateResponseBytes = toShuffledXContent(updateResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
-        BytesReference updateResponseBytes = toXContent(tuple.v1(), xContentType, humanReadable);
-
-        // Shuffle the XContent fields
-        if (randomBoolean()) {
-            try (XContentParser parser = createParser(xContentType.xContent(), updateResponseBytes)) {
-                updateResponseBytes = shuffleXContent(parser, randomBoolean()).bytes();
-            }
-        }
-
-        // Parse the XContent bytes to obtain a parsed UpdateResponse
         UpdateResponse parsedUpdateResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), updateResponseBytes)) {
             parsedUpdateResponse = UpdateResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
 
-        final UpdateResponse expectedUpdateResponse = tuple.v2();
-        try (XContentParser parser = createParser(xContentType.xContent(), toXContent(parsedUpdateResponse, xContentType, humanReadable))) {
-            assertUpdateResponse(expectedUpdateResponse, parsedUpdateResponse, parser.map());
-        }
+        // We can't use equals() to compare the original and the parsed delete response
+        // because the random delete response can contain shard failures with exceptions,
+        // and those exceptions are not parsed back with the same types.
+        assertUpdateResponse(expectedUpdateResponse, parsedUpdateResponse);
     }
 
-    public static void assertUpdateResponse(UpdateResponse expected, UpdateResponse parsed, Map<String, Object> actual) throws IOException {
+    public static void assertUpdateResponse(UpdateResponse expected, UpdateResponse actual) {
         IndexResponseTests.assertDocWriteResponse(expected, actual);
-        assertEquals(expected.getGetResult(), parsed.getGetResult());
+        assertEquals(expected.getGetResult(), actual.getGetResult());
     }
 
+    /**
+     * Returns a tuple of {@link UpdateResponse}s.
+     * <p>
+     * The left element is the actual {@link UpdateResponse} to serialize while the right element is the
+     * expected {@link UpdateResponse} after parsing.
+     */
     public static Tuple<UpdateResponse, UpdateResponse> randomUpdateResponse(XContentType xContentType) {
         Tuple<GetResult, GetResult> getResults = GetResultTests.randomGetResult(xContentType);
         GetResult actualGetResult = getResults.v1();
         GetResult expectedGetResult = getResults.v2();
 
-        ShardId shardId = new ShardId(actualGetResult.getIndex(), randomAsciiOfLength(5), randomIntBetween(0, 5));
+        String index = actualGetResult.getIndex();
         String type = actualGetResult.getType();
         String id = actualGetResult.getId();
         long version = actualGetResult.getVersion();
         DocWriteResponse.Result result = actualGetResult.isExists() ? DocWriteResponse.Result.UPDATED : DocWriteResponse.Result.NOT_FOUND;
+        String indexUUid = randomAlphaOfLength(5);
+        int shardId = randomIntBetween(0, 5);
 
         // We also want small number values (randomNonNegativeLong() tend to generate high numbers)
         // in order to catch some conversion error that happen between int/long after parsing.
         Long seqNo = randomFrom(randomNonNegativeLong(), (long) randomIntBetween(0, 10_000), null);
+        long primaryTerm = seqNo == null ? 0 : randomIntBetween(1, 16);
+
+        ShardId actualShardId = new ShardId(index, indexUUid, shardId);
+        ShardId expectedShardId = new ShardId(index, INDEX_UUID_NA_VALUE, -1);
 
         UpdateResponse actual, expected;
         if (seqNo != null) {
-            ReplicationResponse.ShardInfo shardInfo = RandomObjects.randomShardInfo(random(), true);
-            actual = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
-            expected = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
+            Tuple<ReplicationResponse.ShardInfo, ReplicationResponse.ShardInfo> shardInfos = RandomObjects.randomShardInfo(random());
 
+            actual = new UpdateResponse(shardInfos.v1(), actualShardId, type, id, seqNo, primaryTerm, version, result);
+            expected = new UpdateResponse(shardInfos.v2(), expectedShardId, type, id, seqNo, primaryTerm, version, result);
         } else {
-            actual = new UpdateResponse(shardId, type, id, version, result);
-            expected = new UpdateResponse(shardId, type, id, version, result);
+            actual = new UpdateResponse(actualShardId, type, id, version, result);
+            expected = new UpdateResponse(expectedShardId, type, id, version, result);
         }
 
         if (actualGetResult.isExists()) {
@@ -142,8 +149,7 @@ public class UpdateResponseTests extends ESTestCase {
         }
 
         if (expectedGetResult.isExists()) {
-            expected.setGetResult(new GetResult(shardId.getIndexName(), type, id, version,
-                    expectedGetResult.isExists(), expectedGetResult.internalSourceRef(), expectedGetResult.getFields()));
+            expected.setGetResult(expectedGetResult);
         }
 
         boolean forcedRefresh = randomBoolean();

@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.List;
@@ -28,54 +26,46 @@ import java.util.List;
  * An aggregation that collects significant terms in comparison to a background set.
  */
 public interface SignificantTerms extends MultiBucketsAggregation, Iterable<SignificantTerms.Bucket> {
-    abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
 
-        long subsetDf;
-        long subsetSize;
-        long supersetDf;
-        long supersetSize;
-
-        Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize) {
-            this.subsetSize = subsetSize;
-            this.supersetSize = supersetSize;
-            this.subsetDf = subsetDf;
-            this.supersetDf = supersetDf;
-        }
+    interface Bucket extends MultiBucketsAggregation.Bucket {
 
         /**
-         * Read from a stream.
+         * @return The significant score for the subset
          */
-        protected Bucket(StreamInput in, long subsetSize, long supersetSize) {
-            this.subsetSize = subsetSize;
-            this.supersetSize = supersetSize;
-        }
+        double getSignificanceScore();
 
-        abstract int compareTerm(SignificantTerms.Bucket other);
+        /**
+         * @return The number of docs in the subset containing a particular term.
+         * This number is equal to the document count of the bucket.
+         */
+        long getSubsetDf();
 
-        public abstract double getSignificanceScore();
+        /**
+         * @return The numbers of docs in the subset (also known as "foreground set").
+         * This number is equal to the document count of the containing aggregation.
+         */
+        long getSubsetSize();
 
-        abstract Number getKeyAsNumber();
+        /**
+         * @return The number of docs in the superset containing a particular term (also
+         * known as the "background count" of the bucket)
+         */
+        long getSupersetDf();
 
-        public long getSubsetDf() {
-            return subsetDf;
-        }
+        /**
+         * @return The numbers of docs in the superset (ordinarily the background count
+         * of the containing aggregation).
+         */
+        long getSupersetSize();
 
-        public long getSupersetDf() {
-            return supersetDf;
-        }
-
-        public long getSupersetSize() {
-            return supersetSize;
-        }
-
-        public long getSubsetSize() {
-            return subsetSize;
-        }
-
+        /**
+         * @return The key, expressed as a number
+         */
+        Number getKeyAsNumber();
     }
 
     @Override
-    List<Bucket> getBuckets();
+    List<? extends Bucket> getBuckets();
 
     /**
      * Get the bucket for the given term, or null if there is no such bucket.

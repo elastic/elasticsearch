@@ -22,9 +22,7 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -44,23 +42,20 @@ public class RestClearScrollAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "clear_scroll_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String scrollIds = request.param("scroll_id");
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
-        request.withContentOrSourceParamParserOrNullLenient((xContentParser -> {
-            if (xContentParser == null) {
-                if (request.hasContent()) {
-                    // TODO: why do we accept this plain text value? maybe we can just use the scroll params?
-                    BytesReference body = request.content();
-                    String bodyScrollIds = body.utf8ToString();
-                    clearRequest.setScrollIds(Arrays.asList(splitScrollIds(bodyScrollIds)));
-                }
-            } else {
-                // NOTE: if rest request with xcontent body has request parameters, these parameters does not override xcontent value
-                clearRequest.setScrollIds(null);
+        request.withContentOrSourceParamParserOrNull((xContentParser -> {
+            if (xContentParser != null) {
+                // NOTE: if rest request with xcontent body has request parameters, values parsed from request body have the precedence
                 try {
-                    buildFromContent(xContentParser, clearRequest);
+                    clearRequest.fromXContent(xContentParser);
                 } catch (IOException e) {
                     throw new IllegalArgumentException("Failed to parse request body", e);
                 }
@@ -70,40 +65,10 @@ public class RestClearScrollAction extends BaseRestHandler {
         return channel -> client.clearScroll(clearRequest, new RestStatusToXContentListener<>(channel));
     }
 
-    @Override
-    public boolean supportsPlainText() {
-        return true;
-    }
-
     private static String[] splitScrollIds(String scrollIds) {
         if (scrollIds == null) {
             return Strings.EMPTY_ARRAY;
         }
         return Strings.splitStringByCommaToArray(scrollIds);
     }
-
-    public static void buildFromContent(XContentParser parser, ClearScrollRequest clearScrollRequest) throws IOException {
-        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-            throw new IllegalArgumentException("Malformed content, must start with an object");
-        } else {
-            XContentParser.Token token;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if ("scroll_id".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token.isValue() == false) {
-                            throw new IllegalArgumentException("scroll_id array element should only contain scroll_id");
-                        }
-                        clearScrollRequest.addScrollId(parser.text());
-                    }
-                } else {
-                    throw new IllegalArgumentException("Unknown parameter [" + currentFieldName
-                            + "] in request body or parameter is of the wrong type[" + token + "] ");
-                }
-            }
-        }
-    }
-
 }

@@ -9,22 +9,18 @@ to match with the stored queries.
 [float]
 === Sample Usage
 
-Create an index with two mappings:
+Create an index with two fields:
 
 [source,js]
 --------------------------------------------------
 PUT /my-index
 {
     "mappings": {
-        "doctype": {
+        "doc": {
             "properties": {
                 "message": {
                     "type": "text"
-                }
-            }
-        },
-        "queries": {
-            "properties": {
+                },
                 "query": {
                     "type": "percolator"
                 }
@@ -35,23 +31,20 @@ PUT /my-index
 --------------------------------------------------
 // CONSOLE
 
-The `doctype` mapping is the mapping used to preprocess
-the document defined in the `percolator` query before it
-gets indexed into a temporary index.
+The `message` field is the field used to preprocess the document defined in
+the `percolator` query before it gets indexed into a temporary index.
 
-The `queries` mapping is the mapping used for indexing
-the query documents. The `query` field will hold a json
-object that represents an actual Elasticsearch query. The
-`query` field has been configured to use the
-<<percolator,percolator field type>>. This field type understands
-the query dsl and stored the query in such a way that it
-can be used later on to match documents defined on the `percolate` query.
+The `query` field is used for indexing the query documents. It will hold a
+json object that represents an actual Elasticsearch query. The `query` field
+has been configured to use the <<percolator,percolator field type>>. This field
+type understands the query dsl and stored the query in such a way that it can be
+used later on to match documents defined on the `percolate` query.
 
 Register a query in the percolator:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/queries/1?refresh
+PUT /my-index/doc/1?refresh
 {
     "query" : {
         "match" : {
@@ -72,7 +65,7 @@ GET /my-index/_search
     "query" : {
         "percolate" : {
             "field" : "query",
-            "document_type" : "doctype",
+            "document_type" : "doc",
             "document" : {
                 "message" : "A new bonsai tree in the office"
             }
@@ -101,7 +94,7 @@ The above request will yield the following response:
     "hits": [
       { <1>
         "_index": "my-index",
-        "_type": "queries",
+        "_type": "doc",
         "_id": "1",
         "_score": 0.5716521,
         "_source": {
@@ -159,7 +152,7 @@ Index the document we want to percolate:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/message/1
+PUT /my-index/doc/2
 {
   "message" : "A new bonsai tree in the office"
 }
@@ -172,8 +165,8 @@ Index response:
 --------------------------------------------------
 {
   "_index": "my-index",
-  "_type": "message",
-  "_id": "1",
+  "_type": "doc",
+  "_id": "2",
   "_version": 1,
   "_shards": {
     "total": 2,
@@ -182,7 +175,8 @@ Index response:
   },
   "created": true,
   "result": "created",
-  "_seq_no" : 1
+  "_seq_no" : 0,
+  "_primary_term" : 1
 }
 --------------------------------------------------
 // TESTRESPONSE
@@ -196,10 +190,10 @@ GET /my-index/_search
     "query" : {
         "percolate" : {
             "field": "query",
-            "document_type" : "doctype",
+            "document_type" : "doc",
             "index" : "my-index",
-            "type" : "message",
-            "id" : "1",
+            "type" : "doc",
+            "id" : "2",
             "version" : 1 <1>
         }
     }
@@ -230,7 +224,7 @@ Save a query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/queries/1?refresh
+PUT /my-index/doc/3?refresh
 {
     "query" : {
         "match" : {
@@ -246,7 +240,7 @@ Save another query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/queries/2?refresh
+PUT /my-index/doc/4?refresh
 {
     "query" : {
         "match" : {
@@ -267,7 +261,7 @@ GET /my-index/_search
     "query" : {
         "percolate" : {
             "field": "query",
-            "document_type" : "doctype",
+            "document_type" : "doc",
             "document" : {
                 "message" : "The quick brown fox jumps over the lazy dog"
             }
@@ -301,8 +295,8 @@ This will yield the following response.
     "hits": [
       {
         "_index": "my-index",
-        "_type": "queries",
-        "_id": "2",
+        "_type": "doc",
+        "_id": "4",
         "_score": 0.5446649,
         "_source": {
           "query": {
@@ -319,8 +313,8 @@ This will yield the following response.
       },
       {
         "_index": "my-index",
-        "_type": "queries",
-        "_id": "1",
+        "_type": "doc",
+        "_id": "3",
         "_score": 0.5446649,
         "_source": {
           "query": {

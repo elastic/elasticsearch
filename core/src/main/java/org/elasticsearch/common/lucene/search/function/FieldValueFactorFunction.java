@@ -62,7 +62,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
         final SortedNumericDoubleValues values;
         if(indexFieldData == null) {
-            values = FieldData.emptySortedNumericDoubles(ctx.reader().maxDoc());
+            values = FieldData.emptySortedNumericDoubles();
         } else {
             values = this.indexFieldData.load(ctx).getDoubleValues();
         }
@@ -70,16 +70,16 @@ public class FieldValueFactorFunction extends ScoreFunction {
         return new LeafScoreFunction() {
 
             @Override
-            public double score(int docId, float subQueryScore) {
-                values.setDocument(docId);
-                final int numValues = values.count();
+            public double score(int docId, float subQueryScore) throws IOException {
                 double value;
-                if (numValues > 0) {
-                    value = values.valueAt(0);
-                } else if (missing != null) {
-                    value = missing;
+                if (values.advanceExact(docId)) {
+                    value = values.nextValue();
                 } else {
-                    throw new ElasticsearchException("Missing value for field [" + field + "]");
+                    if (missing != null) {
+                        value = missing;
+                    } else {
+                        throw new ElasticsearchException("Missing value for field [" + field + "]");
+                    }
                 }
                 double val = value * boostFactor;
                 double result = modifier.apply(val);
@@ -91,7 +91,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
             }
 
             @Override
-            public Explanation explainScore(int docId, Explanation subQueryScore) {
+            public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 String modifierStr = modifier != null ? modifier.toString() : "";
                 String defaultStr = missing != null ? "?:" + missing : "";
                 double score = score(docId, subQueryScore.getValue());
@@ -191,15 +191,11 @@ public class FieldValueFactorFunction extends ScoreFunction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.ordinal());
+            out.writeEnum(this);
         }
 
         public static Modifier readFromStream(StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown Modifier ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(Modifier.class);
         }
 
         @Override

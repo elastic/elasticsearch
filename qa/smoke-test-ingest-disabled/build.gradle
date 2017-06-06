@@ -24,8 +24,6 @@ dependencies {
     testCompile project(path: ':modules:ingest-common', configuration: 'runtime')
 }
 
-integTest {
-    cluster {
-        setting 'node.ingest', 'false'
-    }
+integTestCluster {
+    setting 'node.ingest', 'false'
 }

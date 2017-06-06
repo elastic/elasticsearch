@@ -42,8 +42,8 @@ public class DeleteResponse extends DocWriteResponse {
     public DeleteResponse() {
     }
 
-    public DeleteResponse(ShardId shardId, String type, String id, long seqNo, long version, boolean found) {
-        super(shardId, type, id, seqNo, version, found ? Result.DELETED : Result.NOT_FOUND);
+    public DeleteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, boolean found) {
+        super(shardId, type, id, seqNo, primaryTerm, version, found ? Result.DELETED : Result.NOT_FOUND);
     }
 
     @Override
@@ -74,7 +74,7 @@ public class DeleteResponse extends DocWriteResponse {
     public static DeleteResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
-        DeleteResponseBuilder context = new DeleteResponseBuilder();
+        Builder context = new Builder();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             parseXContentFields(parser, context);
         }
@@ -84,7 +84,7 @@ public class DeleteResponse extends DocWriteResponse {
     /**
      * Parse the current token and update the parsing context appropriately.
      */
-    public static void parseXContentFields(XContentParser parser, DeleteResponseBuilder context) throws IOException {
+    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = parser.currentName();
 
@@ -97,7 +97,12 @@ public class DeleteResponse extends DocWriteResponse {
         }
     }
 
-    public static class DeleteResponseBuilder extends DocWriteResponse.DocWriteResponseBuilder {
+    /**
+     * Builder class for {@link DeleteResponse}. This builder is usually used during xcontent parsing to
+     * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
+     * instantiate the {@link DeleteResponse}.
+     */
+    public static class Builder extends DocWriteResponse.Builder {
 
         private boolean found = false;
 
@@ -107,7 +112,7 @@ public class DeleteResponse extends DocWriteResponse {
 
         @Override
         public DeleteResponse build() {
-            DeleteResponse deleteResponse = new DeleteResponse(shardId, type, id, seqNo, version, found);
+            DeleteResponse deleteResponse = new DeleteResponse(shardId, type, id, seqNo, primaryTerm, version, found);
             deleteResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 deleteResponse.setShardInfo(shardInfo);

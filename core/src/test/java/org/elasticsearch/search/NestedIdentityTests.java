@@ -40,7 +40,7 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 public class NestedIdentityTests extends ESTestCase {
 
     public static NestedIdentity createTestItem(int depth) {
-        String field = frequently() ? randomAsciiOfLengthBetween(1, 20) : randomRealisticUnicodeOfCodepointLengthBetween(1, 20);
+        String field = frequently() ? randomAlphaOfLengthBetween(1, 20) : randomRealisticUnicodeOfCodepointLengthBetween(1, 20);
         int offset = randomInt(10);
         NestedIdentity child = null;
         if (depth > 0) {

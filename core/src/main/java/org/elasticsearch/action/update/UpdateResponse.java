@@ -47,11 +47,12 @@ public class UpdateResponse extends DocWriteResponse {
      * For example: update script with operation set to none
      */
     public UpdateResponse(ShardId shardId, String type, String id, long version, Result result) {
-        this(new ShardInfo(0, 0), shardId, type, id, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, result);
+        this(new ShardInfo(0, 0), shardId, type, id, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, version, result);
     }
 
-    public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String type, String id, long seqNo, long version, Result result) {
-        super(shardId, type, id, seqNo, version, result);
+    public UpdateResponse(
+            ShardInfo shardInfo, ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
+        super(shardId, type, id, seqNo, primaryTerm, version, result);
         setShardInfo(shardInfo);
     }
 
@@ -106,6 +107,8 @@ public class UpdateResponse extends DocWriteResponse {
         builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
+        builder.append(",seqNo=").append(getSeqNo());
+        builder.append(",primaryTerm=").append(getPrimaryTerm());
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
@@ -114,7 +117,7 @@ public class UpdateResponse extends DocWriteResponse {
     public static UpdateResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
-        UpdateResponseBuilder context = new UpdateResponseBuilder();
+        Builder context = new Builder();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             parseXContentFields(parser, context);
         }
@@ -124,7 +127,7 @@ public class UpdateResponse extends DocWriteResponse {
     /**
      * Parse the current token and update the parsing context appropriately.
      */
-    public static void parseXContentFields(XContentParser parser, UpdateResponseBuilder context) throws IOException {
+    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = parser.currentName();
 
@@ -137,7 +140,12 @@ public class UpdateResponse extends DocWriteResponse {
         }
     }
 
-    public static class UpdateResponseBuilder extends DocWriteResponse.DocWriteResponseBuilder {
+    /**
+     * Builder class for {@link UpdateResponse}. This builder is usually used during xcontent parsing to
+     * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
+     * instantiate the {@link UpdateResponse}.
+     */
+    public static class Builder extends DocWriteResponse.Builder {
 
         private GetResult getResult = null;
 
@@ -149,7 +157,7 @@ public class UpdateResponse extends DocWriteResponse {
         public UpdateResponse build() {
             UpdateResponse update;
             if (shardInfo != null && seqNo != null) {
-                update = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
+                update = new UpdateResponse(shardInfo, shardId, type, id, seqNo, primaryTerm, version, result);
             } else {
                 update = new UpdateResponse(shardId, type, id, version, result);
             }

@@ -28,10 +28,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -47,7 +47,7 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
     private int maxDocsPerValue;
     private BytesRefHash bucketOrds;
 
-    public DiversifiedMapSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
+    DiversifiedMapSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
             SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
             ValuesSource valuesSource, int maxDocsPerValue) throws IOException {
         super(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
@@ -104,25 +104,38 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
                 } catch (IOException e) {
                     throw new ElasticsearchException("Error reading values", e);
                 }
-                return new NumericDocValues() {
+                return new AbstractNumericDocValues() {
+
+                    private int docID = -1;
+
                     @Override
-                    public long get(int doc) {
-
-                        values.setDocument(doc);
-                        final int valuesCount = values.count();
-                        if (valuesCount > 1) {
-                            throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
-                        }
-                        if (valuesCount == 1) {
-                            final BytesRef bytes = values.valueAt(0);
-
-                            long bucketOrdinal = bucketOrds.add(bytes);
-                            if (bucketOrdinal < 0) { // already seen
-                                bucketOrdinal = -1 - bucketOrdinal;
+                    public boolean advanceExact(int target) throws IOException {
+                        docID = target;
+                        if (values.advanceExact(target)) {
+                            if (values.docValueCount() > 1) {
+                                throw new IllegalArgumentException(
+                                        "Sample diversifying key must be a single valued-field");
                             }
-                            return bucketOrdinal;
+                            return true;
+                        } else {
+                            return false;
                         }
-                        return 0;
+                    }
+
+                    @Override
+                    public int docID() {
+                        return docID;
+                    }
+
+                    @Override
+                    public long longValue() throws IOException {
+                        final BytesRef bytes = values.nextValue();
+
+                        long bucketOrdinal = bucketOrds.add(bytes);
+                        if (bucketOrdinal < 0) { // already seen
+                            bucketOrdinal = -1 - bucketOrdinal;
+                        }
+                        return bucketOrdinal;
                     }
                 };
             }

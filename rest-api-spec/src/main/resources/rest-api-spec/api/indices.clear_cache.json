@@ -50,6 +50,10 @@
           "type" : "boolean",
           "description" : "Clear the recycler cache"
         },
+        "request_cache": {
+          "type" : "boolean",
+          "description" : "Clear request cache"
+        },
         "request": {
           "type" : "boolean",
           "description" : "Clear request cache"

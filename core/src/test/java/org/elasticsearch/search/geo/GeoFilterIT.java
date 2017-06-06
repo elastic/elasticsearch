@@ -215,7 +215,8 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().string();
 
-        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes").addMapping("polygon", mapping);
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes")
+            .addMapping("polygon", mapping, XContentType.JSON);
         mappingRequest.execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -366,7 +367,8 @@ public class GeoFilterIT extends ESIntegTestCase {
 
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+                Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .startObject()
@@ -384,7 +386,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject();
 
         client().admin().indices().prepareCreate("countries").setSettings(settings)
-                .addMapping("country", xContentBuilder.string()).execute().actionGet();
+                .addMapping("country", xContentBuilder).execute().actionGet();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {

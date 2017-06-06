@@ -23,6 +23,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -44,7 +45,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         AtomicInteger preDelete = new AtomicInteger();
         AtomicInteger postDelete = new AtomicInteger();
         AtomicInteger postDeleteException = new AtomicInteger();
-        ShardId randomShardId = new ShardId(new Index(randomAsciiOfLength(10), randomAsciiOfLength(10)), randomIntBetween(1, 10));
+        ShardId randomShardId = new ShardId(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)), randomIntBetween(1, 10));
         IndexingOperationListener listener = new IndexingOperationListener() {
             @Override
             public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
@@ -134,9 +135,9 @@ public class IndexingOperationListenerTests extends ESTestCase{
         Collections.shuffle(indexingOperationListeners, random());
         IndexingOperationListener.CompositeListener compositeListener =
             new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
-        ParsedDocument doc = InternalEngineTests.createParsedDoc("1", "test", null);
-        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", doc.uid()));
-        Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
+        ParsedDocument doc = InternalEngineTests.createParsedDoc("1", null);
+        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())));
+        Engine.Index index = new Engine.Index(new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())), doc);
         compositeListener.postDelete(randomShardId, delete, new Engine.DeleteResult(1, SequenceNumbersService.UNASSIGNED_SEQ_NO, true));
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());

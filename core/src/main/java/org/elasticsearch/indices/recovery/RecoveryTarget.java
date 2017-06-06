@@ -36,7 +36,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
@@ -49,7 +48,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -58,8 +57,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -73,7 +70,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private static final AtomicLong idGenerator = new AtomicLong();
 
-    private final String RECOVERY_PREFIX = "recovery.";
+    private static final String RECOVERY_PREFIX = "recovery.";
 
     private final ShardId shardId;
     private final long recoveryId;
@@ -360,9 +357,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
+    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        indexShard().skipTranslogRecovery(maxUnsafeAutoIdTimestamp);
+        indexShard().skipTranslogRecovery();
     }
 
     @Override
@@ -373,22 +370,18 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public String getTargetAllocationId() {
-        return indexShard().routingEntry().allocationId().getId();
-    }
-
-    @Override
     public void ensureClusterStateVersion(long clusterStateVersion) {
         ensureClusterStateVersionCallback.handle(clusterStateVersion);
     }
 
     @Override
-    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer
-            .BatchOperationException {
+    public long indexTranslogOperations(
+            List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer.BatchOperationException {
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
         indexShard().performBatchRecovery(operations);
+        return indexShard().getLocalCheckpoint();
     }
 
     @Override
@@ -479,4 +472,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished
         }
     }
+
+    Path translogLocation() {
+        return indexShard().shardPath().resolveTranslog();
+    }
+
 }

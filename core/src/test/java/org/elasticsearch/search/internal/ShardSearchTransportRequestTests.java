@@ -20,6 +20,7 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -87,7 +88,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
 
     private ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
-        ShardId shardId = new ShardId(randomAsciiOfLengthBetween(2, 10), randomAsciiOfLengthBetween(2, 10), randomInt());
+        ShardId shardId = new ShardId(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10), randomInt());
         final AliasFilter filteringAliases;
         if (randomBoolean()) {
             String[] strings = generateRandomStringArray(10, 10, false, false);
@@ -95,7 +96,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         } else {
             filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
         }
-        return new ShardSearchTransportRequest(searchRequest, shardId,
+        return new ShardSearchTransportRequest(new OriginalIndices(searchRequest), searchRequest, shardId,
                 randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(), Math.abs(randomLong()));
     }
 

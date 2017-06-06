@@ -46,9 +46,19 @@ public class RestIndexAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
 
+    @Override
+    public String getName() {
+        return "document_index_action";
+    }
+
     final class CreateHandler extends BaseRestHandler {
         protected CreateHandler(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        public String getName() {
+            return "document_create_action";
         }
 
         @Override
@@ -62,9 +72,9 @@ public class RestIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.routing(request.param("routing"));
-        indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+        indexRequest.parent(request.param("parent"));
         indexRequest.setPipeline(request.param("pipeline"));
-        indexRequest.source(request.content(), request.getXContentType());
+        indexRequest.source(request.requiredContent(), request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));

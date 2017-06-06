@@ -24,14 +24,12 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.gcs.GoogleCloudStorageBlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugin.repository.gcs.GoogleCloudStoragePlugin;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -44,31 +42,30 @@ import static org.elasticsearch.common.settings.Setting.simpleString;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
-public class GoogleCloudStorageRepository extends BlobStoreRepository {
+class GoogleCloudStorageRepository extends BlobStoreRepository {
 
     // package private for testing
     static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
     static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(100, ByteSizeUnit.MB);
 
-    public static final String TYPE = "gcs";
+    static final String TYPE = "gcs";
 
-    public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
+    static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
 
-    public static final Setting<String> BUCKET =
+    static final Setting<String> BUCKET =
             simpleString("bucket", Property.NodeScope, Property.Dynamic);
-    public static final Setting<String> BASE_PATH =
+    static final Setting<String> BASE_PATH =
             simpleString("base_path", Property.NodeScope, Property.Dynamic);
-    public static final Setting<Boolean> COMPRESS =
+    static final Setting<Boolean> COMPRESS =
             boolSetting("compress", false, Property.NodeScope, Property.Dynamic);
-    public static final Setting<ByteSizeValue> CHUNK_SIZE =
+    static final Setting<ByteSizeValue> CHUNK_SIZE =
             byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope, Property.Dynamic);
-    public static final Setting<String> APPLICATION_NAME =
+    static final Setting<String> APPLICATION_NAME =
             new Setting<>("application_name", GoogleCloudStoragePlugin.NAME, Function.identity(), Property.NodeScope, Property.Dynamic);
-    public static final Setting<String> SERVICE_ACCOUNT =
-            simpleString("service_account", Property.NodeScope, Property.Dynamic);
-    public static final Setting<TimeValue> HTTP_READ_TIMEOUT =
+    static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
+    static final Setting<TimeValue> HTTP_READ_TIMEOUT =
             timeSetting("http.read_timeout", NO_TIMEOUT, Property.NodeScope, Property.Dynamic);
-    public static final Setting<TimeValue> HTTP_CONNECT_TIMEOUT =
+    static final Setting<TimeValue> HTTP_CONNECT_TIMEOUT =
             timeSetting("http.connect_timeout", NO_TIMEOUT, Property.NodeScope, Property.Dynamic);
 
     private final ByteSizeValue chunkSize;
@@ -76,14 +73,14 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
     private final BlobPath basePath;
     private final GoogleCloudStorageBlobStore blobStore;
 
-    public GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
+    GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
                                         NamedXContentRegistry namedXContentRegistry,
                                         GoogleCloudStorageService storageService) throws Exception {
         super(metadata, environment.settings(), namedXContentRegistry);
 
         String bucket = getSetting(BUCKET, metadata);
         String application = getSetting(APPLICATION_NAME, metadata);
-        String serviceAccount = getSetting(SERVICE_ACCOUNT, metadata);
+        String clientName = CLIENT_NAME.get(metadata.settings());
 
         String basePath = BASE_PATH.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
@@ -115,7 +112,7 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}], application [{}]",
                 bucket, basePath, chunkSize, compress, application);
 
-        Storage client = storageService.createClient(serviceAccount, application, connectTimeout, readTimeout);
+        Storage client = storageService.createClient(clientName, application, connectTimeout, readTimeout);
         this.blobStore = new GoogleCloudStorageBlobStore(settings, bucket, client);
     }
 

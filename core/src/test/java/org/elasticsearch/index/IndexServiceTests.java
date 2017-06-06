@@ -47,36 +47,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 
 /** Unit test(s) for IndexService */
 public class IndexServiceTests extends ESSingleNodeTestCase {
-    public void testDetermineShadowEngineShouldBeUsed() {
-        IndexSettings regularSettings = new IndexSettings(
-            IndexMetaData
-                .builder("regular")
-                .settings(Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 2)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .build())
-                .build(),
-            Settings.EMPTY);
-
-        IndexSettings shadowSettings = new IndexSettings(
-            IndexMetaData
-                .builder("shadow")
-                .settings(Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 2)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .build())
-                .build(),
-            Settings.EMPTY);
-
-        assertFalse("no shadow replicas for normal settings", IndexService.useShadowEngine(true, regularSettings));
-        assertFalse("no shadow replicas for normal settings", IndexService.useShadowEngine(false, regularSettings));
-        assertFalse("no shadow replicas for primary shard with shadow settings", IndexService.useShadowEngine(true, shadowSettings));
-        assertTrue("shadow replicas for replica shards with shadow settings",IndexService.useShadowEngine(false, shadowSettings));
-    }
-
     public static CompressedXContent filter(QueryBuilder filterBuilder) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -209,20 +179,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertNull(indexService.getFsyncTask());
     }
 
-    public void testGlobalCheckpointTaskIsRunning() throws IOException {
-        IndexService indexService = createIndex("test", Settings.EMPTY);
-        IndexService.AsyncGlobalCheckpointTask task = indexService.getGlobalCheckpointTask();
-        assertNotNull(task);
-        assertEquals(IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getDefault(Settings.EMPTY), task.getInterval());
-        assertTrue(task.mustReschedule());
-        assertTrue(task.isScheduled());
-
-        indexService.close("simon says", false);
-        assertFalse(task.isScheduled());
-        assertTrue(task.isClosed());
-    }
-
-
     public void testRefreshActuallyWorks() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
         ensureGreen("test");
@@ -268,31 +224,43 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRescheduleAsyncFsync() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "100ms") // very often :)
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+        final Settings settings = Settings.builder()
+                .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
             .build();
-        IndexService indexService = createIndex("test", settings);
+        final IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
         assertNull(indexService.getFsyncTask());
-        IndexMetaData metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)).build();
-        indexService.updateMetaData(metaData);
-        assertNotNull(indexService.getFsyncTask());
-        assertTrue(indexService.getRefreshTask().mustReschedule());
-        client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
-        IndexShard shard = indexService.getShard(0);
-        assertBusy(() -> {
-            assertFalse(shard.getTranslog().syncNeeded());
-        });
 
-        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)).build();
-        indexService.updateMetaData(metaData);
+        client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC))
+                .get();
+
+        assertNotNull(indexService.getFsyncTask());
+        assertTrue(indexService.getFsyncTask().mustReschedule());
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        assertNotNull(indexService.getFsyncTask());
+        final IndexShard shard = indexService.getShard(0);
+        assertBusy(() -> assertFalse(shard.getTranslog().syncNeeded()));
+
+        client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
+                .get();
         assertNull(indexService.getFsyncTask());
 
-        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)).build();
-        indexService.updateMetaData(metaData);
+        client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC))
+                .get();
         assertNotNull(indexService.getFsyncTask());
-
     }
 
     public void testIllegalFsyncInterval() {

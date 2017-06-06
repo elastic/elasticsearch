@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -76,7 +77,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
             .endObject().endObject().endObject().string();
         assertAcked(
             client().admin().indices().prepareCreate("test-idx")
-                .addMapping("doc", mapping)
+                .addMapping("doc", mapping, XContentType.JSON)
         );
         client().prepareIndex("test-idx", "doc", "1")
             .setSource("foo", "bar")

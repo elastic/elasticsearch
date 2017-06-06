@@ -131,51 +131,48 @@ public final class MethodWriter extends GeneratorAdapter {
 
     public void writeCast(final Cast cast) {
         if (cast != null) {
-            final Type from = cast.from;
-            final Type to = cast.to;
-
-            if (from.sort == Sort.CHAR && to.sort == Sort.STRING) {
+            if (cast.from.sort == Sort.CHAR && cast.to.sort == Sort.STRING) {
                 invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
-            } else if (from.sort == Sort.STRING && to.sort == Sort.CHAR) {
+            } else if (cast.from.sort == Sort.STRING && cast.to.sort == Sort.CHAR) {
                 invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);
-            } else if (cast.unboxFrom) {
-                if (from.sort == Sort.DEF) {
+            } else if (cast.unboxFrom != null) {
+                unbox(cast.unboxFrom.type);
+                writeCast(cast.from, cast.to);
+            } else if (cast.unboxTo != null) {
+                if (cast.from.sort == Sort.DEF) {
                     if (cast.explicit) {
-                        if      (to.sort == Sort.BOOL)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (to.sort == Sort.BYTE)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT);
-                        else if (to.sort == Sort.SHORT)  invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT);
-                        else if (to.sort == Sort.CHAR)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT);
-                        else if (to.sort == Sort.INT)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT);
-                        else if (to.sort == Sort.LONG)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT);
-                        else if (to.sort == Sort.FLOAT)  invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT);
-                        else if (to.sort == Sort.DOUBLE) invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT);
+                        if (cast.to.sort == Sort.BOOL_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
+                        else if (cast.to.sort == Sort.BYTE_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT);
+                        else if (cast.to.sort == Sort.SHORT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT);
+                        else if (cast.to.sort == Sort.CHAR_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT);
+                        else if (cast.to.sort == Sort.INT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT);
+                        else if (cast.to.sort == Sort.LONG_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT);
+                        else if (cast.to.sort == Sort.FLOAT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT);
+                        else if (cast.to.sort == Sort.DOUBLE_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT);
                         else throw new IllegalStateException("Illegal tree structure.");
                     } else {
-                        if      (to.sort == Sort.BOOL)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (to.sort == Sort.BYTE)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT);
-                        else if (to.sort == Sort.SHORT)  invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT);
-                        else if (to.sort == Sort.CHAR)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT);
-                        else if (to.sort == Sort.INT)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT);
-                        else if (to.sort == Sort.LONG)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT);
-                        else if (to.sort == Sort.FLOAT)  invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT);
-                        else if (to.sort == Sort.DOUBLE) invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT);
+                        if (cast.to.sort == Sort.BOOL_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
+                        else if (cast.to.sort == Sort.BYTE_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT);
+                        else if (cast.to.sort == Sort.SHORT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT);
+                        else if (cast.to.sort == Sort.CHAR_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT);
+                        else if (cast.to.sort == Sort.INT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT);
+                        else if (cast.to.sort == Sort.LONG_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT);
+                        else if (cast.to.sort == Sort.FLOAT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT);
+                        else if (cast.to.sort == Sort.DOUBLE_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT);
                         else throw new IllegalStateException("Illegal tree structure.");
                     }
                 } else {
-                    unbox(from.type);
-                    writeCast(from, to);
+                    writeCast(cast.from, cast.to);
+                    unbox(cast.unboxTo.type);
                 }
-            } else if (cast.unboxTo) {
-                writeCast(from, to);
-                unbox(to.type);
-            } else if (cast.boxFrom) {
-                box(from.type);
-                writeCast(from, to);
-            } else if (cast.boxTo) {
-                writeCast(from, to);
-                box(to.type);
+            } else if (cast.boxFrom != null) {
+                box(cast.boxFrom.type);
+                writeCast(cast.from, cast.to);
+            } else if (cast.boxTo != null) {
+                writeCast(cast.from, cast.to);
+                box(cast.boxTo.type);
             } else {
-                writeCast(from, to);
+                writeCast(cast.from, cast.to);
             }
         }
     }
@@ -269,19 +266,19 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     /** Writes a dynamic binary instruction: returnType, lhs, and rhs can be different */
-    public void writeDynamicBinaryInstruction(Location location, Type returnType, Type lhs, Type rhs, 
+    public void writeDynamicBinaryInstruction(Location location, Type returnType, Type lhs, Type rhs,
                                               Operation operation, int flags) {
         org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(returnType.type, lhs.type, rhs.type);
-        
+
         switch (operation) {
             case MUL:
-                invokeDefCall("mul", methodType, DefBootstrap.BINARY_OPERATOR, flags); 
+                invokeDefCall("mul", methodType, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             case DIV:
-                invokeDefCall("div", methodType, DefBootstrap.BINARY_OPERATOR, flags); 
+                invokeDefCall("div", methodType, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             case REM:
-                invokeDefCall("rem", methodType, DefBootstrap.BINARY_OPERATOR, flags); 
+                invokeDefCall("rem", methodType, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             case ADD:
                 // if either side is primitive, then the + operator should always throw NPE on null,
@@ -294,31 +291,31 @@ public final class MethodWriter extends GeneratorAdapter {
                 invokeDefCall("add", methodType, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             case SUB:
-                invokeDefCall("sub", methodType, DefBootstrap.BINARY_OPERATOR, flags); 
+                invokeDefCall("sub", methodType, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             case LSH:
                 invokeDefCall("lsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
                 break;
             case USH:
-                invokeDefCall("ush", methodType, DefBootstrap.SHIFT_OPERATOR, flags); 
+                invokeDefCall("ush", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
                 break;
             case RSH:
-                invokeDefCall("rsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags); 
+                invokeDefCall("rsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
                 break;
-            case BWAND: 
+            case BWAND:
                 invokeDefCall("and", methodType, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
-            case XOR:   
+            case XOR:
                 invokeDefCall("xor", methodType, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
-            case BWOR:  
+            case BWOR:
                 invokeDefCall("or", methodType, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             default:
                 throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
     }
-    
+
     /** Writes a static binary instruction */
     public void writeBinaryInstruction(Location location, Type type, Operation operation) {
         final Sort sort = type.sort;

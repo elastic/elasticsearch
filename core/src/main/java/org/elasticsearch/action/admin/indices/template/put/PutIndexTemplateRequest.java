@@ -182,16 +182,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     /**
      * The settings to create the index template with (either json/yaml format).
-     * @deprecated use {@link #settings(String, XContentType)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequest settings(String source) {
-        this.settings = Settings.builder().loadFromSource(source).build();
-        return this;
-    }
-
-    /**
-     * The settings to create the index template with (either json/yaml format).
      */
     public PutIndexTemplateRequest settings(String source, XContentType xContentType) {
         this.settings = Settings.builder().loadFromSource(source, xContentType).build();
@@ -214,19 +204,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     public Settings settings() {
         return this.settings;
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param type   The mapping type
-     * @param source The mapping source
-     * @deprecated use {@link #mapping(String, String, XContentType)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequest mapping(String type, String source) {
-        XContentType xContentType = XContentFactory.xContentType(source);
-        return mapping(type, source, xContentType);
     }
 
     /**
@@ -387,27 +364,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     /**
      * The template source definition.
-     * @deprecated use {@link #source(String, XContentType)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequest source(String templateSource) {
-        return source(XContentHelper.convertToMap(XContentFactory.xContent(templateSource), templateSource, true));
-    }
-
-    /**
-     * The template source definition.
      */
     public PutIndexTemplateRequest source(String templateSource, XContentType xContentType) {
         return source(XContentHelper.convertToMap(xContentType.xContent(), templateSource, true));
-    }
-
-    /**
-     * The template source definition.
-     * @deprecated use {@link #source(byte[], XContentType)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequest source(byte[] source) {
-        return source(source, 0, source.length);
     }
 
     /**
@@ -419,27 +378,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     /**
      * The template source definition.
-     * @deprecated use {@link #source(byte[], int, int, XContentType)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequest source(byte[] source, int offset, int length) {
-        return source(new BytesArray(source, offset, length));
-    }
-
-    /**
-     * The template source definition.
      */
     public PutIndexTemplateRequest source(byte[] source, int offset, int length, XContentType xContentType) {
         return source(new BytesArray(source, offset, length), xContentType);
-    }
-
-    /**
-     * The template source definition.
-     * @deprecated use {@link #source(BytesReference, XContentType)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequest source(BytesReference source) {
-        return source(XContentHelper.convertToMap(source, true).v2());
     }
 
     /**
@@ -534,7 +475,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         cause = in.readString();
         name = in.readString();
 
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             indexPatterns = in.readList(StreamInput::readString);
         } else {
             indexPatterns = Collections.singletonList(in.readString());
@@ -546,7 +487,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         for (int i = 0; i < size; i++) {
             final String type = in.readString();
             String mappingSource = in.readString();
-            if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO change to V_5_3_0 once backported
+            if (in.getVersion().before(Version.V_5_3_0)) {
                 // we do not know the incoming type so convert it if needed
                 mappingSource =
                     XContentHelper.convertToJson(new BytesArray(mappingSource), false, false, XContentFactory.xContentType(mappingSource));
@@ -571,7 +512,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         super.writeTo(out);
         out.writeString(cause);
         out.writeString(name);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             out.writeStringList(indexPatterns);
         } else {
             out.writeString(indexPatterns.size() > 0 ? indexPatterns.get(0) : "");

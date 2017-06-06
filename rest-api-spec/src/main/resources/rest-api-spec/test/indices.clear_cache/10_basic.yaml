@@ -1,4 +1,0 @@
----
-"clear_cache test":
-  - do:
-      indices.clear_cache: {}

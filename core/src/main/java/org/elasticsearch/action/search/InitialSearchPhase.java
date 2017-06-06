@@ -21,19 +21,20 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 /**
  * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
@@ -45,12 +46,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends SearchPhase {
     private final SearchRequest request;
-    private final GroupShardsIterator shardsIts;
+    private final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final Logger logger;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
 
-    InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator shardsIts, Logger logger) {
+    InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts, Logger logger) {
         super(name);
         this.request = request;
         this.shardsIts = shardsIts;
@@ -63,10 +64,11 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     }
 
     private void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
-                                final ShardIterator shardIt, Exception e) {
+                                final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
-        SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId());
+        SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId(), shardIt.getClusterAlias(),
+            shardIt.getOriginalIndices());
         onShardFailure(shardIndex, shardTarget, e);
 
         if (totalOps.incrementAndGet() == expectedTotalOps) {
@@ -123,7 +125,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     @Override
     public final void run() throws IOException {
         int shardIndex = -1;
-        for (final ShardIterator shardIt : shardsIts) {
+        for (final SearchShardIterator shardIt : shardsIts) {
             shardIndex++;
             final ShardRouting shard = shardIt.nextOrNull();
             if (shard != null) {
@@ -135,17 +137,18 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-    private void performPhaseOnShard(final int shardIndex, final ShardIterator shardIt, final ShardRouting shard) {
+    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final ShardRouting shard) {
         if (shard == null) {
             // TODO upgrade this to an assert...
             // no more active shards... (we should not really get here, but just for safety)
             onShardFailure(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
         } else {
             try {
-                executePhaseOnShard(shardIt, shard, new ActionListener<FirstResult>() {
+                executePhaseOnShard(shardIt, shard, new SearchActionListener<FirstResult>(new SearchShardTarget(shard.currentNodeId(),
+                    shardIt.shardId(), shardIt.getClusterAlias(), shardIt.getOriginalIndices()), shardIndex) {
                     @Override
-                    public void onResponse(FirstResult result) {
-                        onShardResult(shardIndex, shard.currentNodeId(), result, shardIt);
+                    public void innerOnResponse(FirstResult result) {
+                        onShardResult(result, shardIt);
                     }
 
                     @Override
@@ -162,9 +165,10 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-    private void onShardResult(int shardIndex, String nodeId, FirstResult result, ShardIterator shardIt) {
-        result.shardTarget(new SearchShardTarget(nodeId, shardIt.shardId()));
-        onShardSuccess(shardIndex, result);
+    private void onShardResult(FirstResult result, ShardIterator shardIt) {
+        assert result.getShardIndex() != -1 : "shard index is not set";
+        assert result.getSearchShardTarget() != null : "search shard target must not be null";
+        onShardSuccess(result);
         // we need to increment successful ops first before we compare the exit condition otherwise if we
         // are fast we could concurrently update totalOps but then preempt one of the threads which can
         // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
@@ -183,7 +187,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     /**
      * Executed once all shard results have been received and processed
      * @see #onShardFailure(int, SearchShardTarget, Exception)
-     * @see #onShardSuccess(int, SearchPhaseResult)
+     * @see #onShardSuccess(SearchPhaseResult)
      */
     abstract void onPhaseDone(); // as a tribute to @kimchy aka. finishHim()
 
@@ -199,12 +203,10 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
 
     /**
      * Executed once for every successful shard level request.
-     * @param shardIndex the internal index for this shard. Each shard has an index / ordinal assigned that is used to reference
-     *                   it's results
      * @param result the result returned form the shard
      *
      */
-    abstract void onShardSuccess(int shardIndex, FirstResult result);
+    abstract void onShardSuccess(FirstResult result);
 
     /**
      * Sends the request to the actual shard.
@@ -212,5 +214,54 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
      * @param shard the shard routing to send the request for
      * @param listener the listener to notify on response
      */
-    protected abstract void executePhaseOnShard(ShardIterator shardIt, ShardRouting shard, ActionListener<FirstResult> listener);
+    protected abstract void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
+                                                SearchActionListener<FirstResult> listener);
+
+    /**
+     * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing
+     */
+    static class SearchPhaseResults<Result extends SearchPhaseResult> {
+        final AtomicArray<Result> results;
+
+        SearchPhaseResults(int size) {
+            results = new AtomicArray<>(size);
+        }
+
+        /**
+         * Returns the number of expected results this class should collect
+         */
+        final int getNumShards() {
+            return results.length();
+        }
+
+        /**
+         * A stream of all non-null (successful) shard results
+         */
+        final Stream<Result> getSuccessfulResults() {
+            return results.asList().stream();
+        }
+
+        /**
+         * Consumes a single shard result
+         * @param result the shards result
+         */
+        void consumeResult(Result result) {
+            assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
+            results.set(result.getShardIndex(), result);
+        }
+
+        /**
+         * Returns <code>true</code> iff a result if present for the given shard ID.
+         */
+        final boolean hasResult(int shardIndex) {
+            return results.get(shardIndex) != null;
+        }
+
+        /**
+         * Reduces the collected results
+         */
+        SearchPhaseController.ReducedQueryPhase reduce() {
+            throw new UnsupportedOperationException("reduce is not supported");
+        }
+    }
 }

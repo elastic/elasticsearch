@@ -43,8 +43,8 @@ public class IndexResponse extends DocWriteResponse {
     public IndexResponse() {
     }
 
-    public IndexResponse(ShardId shardId, String type, String id, long seqNo, long version, boolean created) {
-        super(shardId, type, id, seqNo, version, created ? Result.CREATED : Result.UPDATED);
+    public IndexResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, boolean created) {
+        super(shardId, type, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
     }
 
     @Override
@@ -62,6 +62,7 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",version=").append(getVersion());
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",seqNo=").append(getSeqNo());
+        builder.append(",primaryTerm=").append(getPrimaryTerm());
         builder.append(",shards=").append(Strings.toString(getShardInfo()));
         return builder.append("]").toString();
     }
@@ -76,7 +77,7 @@ public class IndexResponse extends DocWriteResponse {
     public static IndexResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
-        IndexResponseBuilder context = new IndexResponseBuilder();
+        Builder context = new Builder();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             parseXContentFields(parser, context);
         }
@@ -86,7 +87,7 @@ public class IndexResponse extends DocWriteResponse {
     /**
      * Parse the current token and update the parsing context appropriately.
      */
-    public static void parseXContentFields(XContentParser parser, IndexResponseBuilder context) throws IOException {
+    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = parser.currentName();
 
@@ -99,7 +100,12 @@ public class IndexResponse extends DocWriteResponse {
         }
     }
 
-    public static class IndexResponseBuilder extends DocWriteResponse.DocWriteResponseBuilder {
+    /**
+     * Builder class for {@link IndexResponse}. This builder is usually used during xcontent parsing to
+     * temporarily store the parsed values, then the {@link Builder#build()} method is called to
+     * instantiate the {@link IndexResponse}.
+     */
+    public static class Builder extends DocWriteResponse.Builder {
 
         private boolean created = false;
 
@@ -109,7 +115,7 @@ public class IndexResponse extends DocWriteResponse {
 
         @Override
         public IndexResponse build() {
-            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, version, created);
+            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, primaryTerm, version, created);
             indexResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 indexResponse.setShardInfo(shardInfo);

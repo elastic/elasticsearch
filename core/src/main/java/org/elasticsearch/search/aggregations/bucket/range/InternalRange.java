@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalRange<B extends InternalRange.Bucket, R extends InternalRange<B, R>> extends InternalMultiBucketAggregation<R, B>
         implements Range {
@@ -141,21 +142,21 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 builder.startObject(key);
             } else {
                 builder.startObject();
-                builder.field(CommonFields.KEY, key);
+                builder.field(CommonFields.KEY.getPreferredName(), key);
             }
             if (!Double.isInfinite(from)) {
-                builder.field(CommonFields.FROM, from);
+                builder.field(CommonFields.FROM.getPreferredName(), from);
                 if (format != DocValueFormat.RAW) {
-                    builder.field(CommonFields.FROM_AS_STRING, format.format(from));
+                    builder.field(CommonFields.FROM_AS_STRING.getPreferredName(), format.format(from));
                 }
             }
             if (!Double.isInfinite(to)) {
-                builder.field(CommonFields.TO, to);
+                builder.field(CommonFields.TO.getPreferredName(), to);
                 if (format != DocValueFormat.RAW) {
-                    builder.field(CommonFields.TO_AS_STRING, format.format(to));
+                    builder.field(CommonFields.TO_AS_STRING.getPreferredName(), format.format(to));
                 }
             }
-            builder.field(CommonFields.DOC_COUNT, docCount);
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
@@ -171,6 +172,27 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+            Bucket that = (Bucket) other;
+            return Objects.equals(from, that.from)
+                    && Objects.equals(to, that.to)
+                    && Objects.equals(docCount, that.docCount)
+                    && Objects.equals(aggregations, that.aggregations)
+                    && Objects.equals(key, that.key);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClass(), from, to, docCount, aggregations, key);
         }
     }
 
@@ -245,8 +267,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         out.writeVInt(ranges.size());
         for (B bucket : ranges) {
             out.writeOptionalString(((Bucket) bucket).key);
-            out.writeDouble(((Bucket) bucket).from);
-            out.writeDouble(((Bucket) bucket).to);
+            out.writeDouble(bucket.from);
+            out.writeDouble(bucket.to);
             out.writeVLong(((Bucket) bucket).docCount);
             bucket.aggregations.writeTo(out);
         }
@@ -302,9 +324,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
-            builder.startObject(CommonFields.BUCKETS);
+            builder.startObject(CommonFields.BUCKETS.getPreferredName());
         } else {
-            builder.startArray(CommonFields.BUCKETS);
+            builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
         for (B range : ranges) {
             range.toXContent(builder, params);
@@ -317,4 +339,16 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         return builder;
     }
 
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(ranges, format, keyed);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalRange<?,?> that = (InternalRange<?,?>) obj;
+        return Objects.equals(ranges, that.ranges)
+                && Objects.equals(format, that.format)
+                && Objects.equals(keyed, that.keyed);
+    }
 }

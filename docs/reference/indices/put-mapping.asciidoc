@@ -8,6 +8,9 @@ fields to an existing type:
 --------------------------------------------------
 PUT twitter <1>
 {
+  "settings": {
+    "mapping.single_type": false
+  },
   "mappings": {
     "tweet": {
       "properties": {
@@ -49,17 +52,26 @@ More information on how to define type mappings can be found in the
 === Multi-index
 
 The PUT mapping API can be applied to multiple indices with a single request.
-It has the following format:
+For example, we can update the `twitter-1` and `twitter-2` mappings at the same time:
 
 [source,js]
 --------------------------------------------------
-PUT /{index}/_mapping/{type}
-{ body }
---------------------------------------------------
+# Create the two indices
+PUT twitter-1
+PUT twitter-2
 
-* `{index}` accepts <<multi-index,multiple index names>> and wildcards.
-* `{type}` is the name of the type to update.
-* `{body}` contains the mapping changes that should be applied.
+# Update both mappings
+PUT /twitter-1,twitter-2/_mapping/my_type <1>
+{
+  "properties": {
+    "user_name": {
+      "type": "text"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+<1> Note that the indices specified (`twitter-1,twitter-2`) follows <<multi-index,multiple index names>> and wildcard format.
 
 
 NOTE: When updating the `_default_` mapping with the
@@ -76,7 +88,6 @@ exceptions to this rule. For instance:
 
 * new <<properties>> can be added to <<object>> fields.
 * new <<multi-fields,multi-fields>> can be added to existing fields.
-* <<doc-values>> can be disabled, but not enabled.
 * the <<ignore-above>> parameter can be updated.
 
 For example:
@@ -148,6 +159,9 @@ For example, this fails:
 -----------------------------------
 PUT my_index
 {
+  "settings": {
+    "mapping.single_type": false
+  },
   "mappings": {
     "type_one": {
       "properties": {

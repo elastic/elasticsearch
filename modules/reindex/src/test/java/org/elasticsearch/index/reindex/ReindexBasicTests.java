@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 
 import java.util.ArrayList;
@@ -40,24 +39,25 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("source").setSize(0).get(), 4);
 
         // Copy all the docs
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "all").refresh(true);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true);
         assertThat(copy.get(), matcher().created(4));
-        assertHitCount(client().prepareSearch("dest").setTypes("all").setSize(0).get(), 4);
+        assertHitCount(client().prepareSearch("dest").setSize(0).get(), 4);
 
         // Now none of them
-        copy = reindex().source("source").destination("all", "none").filter(termQuery("foo", "no_match")).refresh(true);
+        createIndex("none");
+        copy = reindex().source("source").destination("none", "type").filter(termQuery("foo", "no_match")).refresh(true);
         assertThat(copy.get(), matcher().created(0));
-        assertHitCount(client().prepareSearch("dest").setTypes("none").setSize(0).get(), 0);
+        assertHitCount(client().prepareSearch("none").setSize(0).get(), 0);
 
         // Now half of them
-        copy = reindex().source("source").destination("dest", "half").filter(termQuery("foo", "a")).refresh(true);
+        copy = reindex().source("source").destination("dest_half", "type").filter(termQuery("foo", "a")).refresh(true);
         assertThat(copy.get(), matcher().created(2));
-        assertHitCount(client().prepareSearch("dest").setTypes("half").setSize(0).get(), 2);
+        assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), 2);
 
         // Limit with size
-        copy = reindex().source("source").destination("dest", "size_one").size(1).refresh(true);
+        copy = reindex().source("source").destination("dest_size_one", "type").size(1).refresh(true);
         assertThat(copy.get(), matcher().created(1));
-        assertHitCount(client().prepareSearch("dest").setTypes("size_one").setSize(0).get(), 1);
+        assertHitCount(client().prepareSearch("dest_size_one").setSize(0).get(), 1);
     }
 
     public void testCopyMany() throws Exception {
@@ -71,20 +71,20 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
 
         // Copy all the docs
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "all").refresh(true);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(max, 5));
-        assertHitCount(client().prepareSearch("dest").setTypes("all").setSize(0).get(), max);
+        assertHitCount(client().prepareSearch("dest").setSize(0).get(), max);
 
         // Copy some of the docs
         int half = max / 2;
-        copy = reindex().source("source").destination("dest", "half").refresh(true);
+        copy = reindex().source("source").destination("dest_half", "type").refresh(true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         copy.size(half); // The real "size" of the request.
         assertThat(copy.get(), matcher().created(half).batches(half, 5));
-        assertHitCount(client().prepareSearch("dest").setTypes("half").setSize(0).get(), half);
+        assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), half);
     }
 
     public void testCopyManyWithSlices() throws Exception {
@@ -100,20 +100,20 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
 
         // Copy all the docs
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "all").refresh(true).setSlices(workers);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true).setSlices(workers);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(workers)));
-        assertHitCount(client().prepareSearch("dest").setTypes("all").setSize(0).get(), max);
+        assertHitCount(client().prepareSearch("dest").setTypes("type").setSize(0).get(), max);
 
         // Copy some of the docs
         int half = max / 2;
-        copy = reindex().source("source").destination("dest", "half").refresh(true).setSlices(workers);
+        copy = reindex().source("source").destination("dest_half", "type").refresh(true).setSlices(workers);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         copy.size(half); // The real "size" of the request.
         BulkByScrollResponse response = copy.get();
         assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(workers)));
-        assertHitCount(client().prepareSearch("dest").setTypes("half").setSize(0).get(), response.getCreated());
+        assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), response.getCreated());
     }
 }

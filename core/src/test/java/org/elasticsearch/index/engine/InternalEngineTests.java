@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -147,6 +148,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -746,7 +748,10 @@ public class InternalEngineTests extends ESTestCase {
         engine.index(indexForDoc(doc));
 
         final AtomicReference<Engine.GetResult> latestGetResult = new AtomicReference<>();
-        latestGetResult.set(engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc))));
+        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+        final AtomicBoolean refreshed = new AtomicBoolean(false);
+        latestGetResult.set(engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), searcherFactory, refreshTook -> refreshed.set(true)));
+        assertTrue("failed to refresh", refreshed.get());
         final AtomicBoolean flushFinished = new AtomicBoolean(false);
         final CyclicBarrier barrier = new CyclicBarrier(2);
         Thread getThread = new Thread(() -> {
@@ -760,7 +765,7 @@ public class InternalEngineTests extends ESTestCase {
                 if (previousGetResult != null) {
                     previousGetResult.release();
                 }
-                latestGetResult.set(engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc))));
+                latestGetResult.set(engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), searcherFactory, (onRefresh) -> fail("shouldn't have refreshed cause a flush is just done")));
                 if (latestGetResult.get().exists() == false) {
                     break;
                 }
@@ -780,6 +785,9 @@ public class InternalEngineTests extends ESTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         searchResult.close();
 
+        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+        final AtomicBoolean refreshed = new AtomicBoolean(false);
+
         // create a document
         Document document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
@@ -793,12 +801,13 @@ public class InternalEngineTests extends ESTestCase {
         searchResult.close();
 
         // but, not there non realtime
-        Engine.GetResult getResult = engine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)));
+        Engine.GetResult getResult = engine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)), searcherFactory, (onRefresh) -> fail("shouldn't have a refresh"));
         assertThat(getResult.exists(), equalTo(false));
         getResult.release();
 
         // but, we can still get it (in realtime)
-        getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)));
+        getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), searcherFactory, (onRefresh) -> refreshed.set(true));
+        assertTrue("failed to refresh", refreshed.getAndSet(false));
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -813,7 +822,7 @@ public class InternalEngineTests extends ESTestCase {
         searchResult.close();
 
         // also in non realtime
-        getResult = engine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)));
+        getResult = engine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)), searcherFactory, (onRefresh) -> fail("shouldn't have a refresh"));
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -833,7 +842,8 @@ public class InternalEngineTests extends ESTestCase {
         searchResult.close();
 
         // but, we can still get it (in realtime)
-        getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)));
+        getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), searcherFactory, (onRefresh) -> refreshed.set(true));
+        assertTrue("failed to refresh", refreshed.get());
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -858,7 +868,7 @@ public class InternalEngineTests extends ESTestCase {
         searchResult.close();
 
         // but, get should not see it (in realtime)
-        getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)));
+        getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), searcherFactory, (onRefresh) -> fail("shouldn't have refreshed cause the document is deleted"));
         assertThat(getResult.exists(), equalTo(false));
         getResult.release();
 
@@ -898,7 +908,7 @@ public class InternalEngineTests extends ESTestCase {
         engine.flush();
 
         // and, verify get (in real time)
-        getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)));
+        getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), searcherFactory, (onRefresh) -> fail("shouldn't have refreshed cause a flush is just done"));
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -1644,6 +1654,8 @@ public class InternalEngineTests extends ESTestCase {
         ParsedDocument doc = testParsedDocument("1", "test", null, System.currentTimeMillis(), -1L, testDocument(), bytesArray(""), null);
         final Term uidTerm = newUid(doc);
         engine.index(indexForDoc(doc));
+        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+        final AtomicBoolean refreshed = new AtomicBoolean(false);
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
@@ -1653,7 +1665,7 @@ public class InternalEngineTests extends ESTestCase {
                     throw new AssertionError(e);
                 }
                 for (int op = 0; op < opsPerThread; op++) {
-                    try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), uidTerm))) {
+                    try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), uidTerm), searcherFactory, (onRefresh) -> refreshed.set(true))) {
                         FieldsVisitor visitor = new FieldsVisitor(true);
                         get.docIdAndVersion().context.reader().document(get.docIdAndVersion().docId, visitor);
                         List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(visitor.source().utf8ToString()));
@@ -1680,6 +1692,7 @@ public class InternalEngineTests extends ESTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i].join();
         }
+        assertTrue("failed to refresh", refreshed.getAndSet(false));
         List<OpAndVersion> sortedHistory = new ArrayList<>(history);
         sortedHistory.sort(Comparator.comparing(o -> o.version));
         Set<String> currentValues = new HashSet<>();
@@ -1694,7 +1707,8 @@ public class InternalEngineTests extends ESTestCase {
             assertTrue(op.added + " should not exist", exists);
         }
 
-        try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), uidTerm))) {
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), uidTerm), searcherFactory, (onRefresh) -> refreshed.set(true))) {
+            assertTrue("failed to refresh", refreshed.get());
             FieldsVisitor visitor = new FieldsVisitor(true);
             get.docIdAndVersion().context.reader().document(get.docIdAndVersion().docId, visitor);
             List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
@@ -1830,6 +1844,8 @@ public class InternalEngineTests extends ESTestCase {
             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
             engine.config().setEnableGcDeletes(false);
 
+            final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+
             // Add document
             Document document = testDocument();
             document.add(new TextField("value", "test1", Field.Store.YES));
@@ -1841,7 +1857,7 @@ public class InternalEngineTests extends ESTestCase {
             engine.delete(new Engine.Delete("test", "1", newUid(doc), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
 
             // Get should not find the document
-            Engine.GetResult getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)));
+            Engine.GetResult getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), searcherFactory, (onRefresh) -> fail("shouldn't have refreshed cause the document is deleted"));
             assertThat(getResult.exists(), equalTo(false));
 
             // Give the gc pruning logic a chance to kick in
@@ -1856,7 +1872,7 @@ public class InternalEngineTests extends ESTestCase {
             engine.delete(new Engine.Delete("test", "2", newUid(doc2), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
 
             // Get should not find the document (we never indexed uid=2):
-            getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc2)));
+            getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc2)), searcherFactory, (onRefresh) -> fail("shouldn't have refreshed cause document doesn't exists"));
             assertThat(getResult.exists(), equalTo(false));
 
             // Try to index uid=1 with a too-old version, should fail:
@@ -1865,7 +1881,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
 
             // Get should still not find the document
-            getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)));
+            getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), searcherFactory, (onRefresh) -> fail("shouldn't have refreshed cause document doesn't exists"));
             assertThat(getResult.exists(), equalTo(false));
 
             // Try to index uid=2 with a too-old version, should fail:
@@ -1874,7 +1890,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
 
             // Get should not find the document
-            getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)));
+            getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), searcherFactory, (onRefresh) -> fail("shouldn't have refreshed cause document doesn't exists"));
             assertThat(getResult.exists(), equalTo(false));
         }
     }

@@ -612,7 +612,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
-        return getEngine().get(get, this::acquireSearcher);
+        return getEngine().get(get, this::acquireSearcher, (timeElapsed) -> refreshMetric.inc(timeElapsed));
     }
 
     /**

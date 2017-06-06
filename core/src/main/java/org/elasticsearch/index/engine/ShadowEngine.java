@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 /**
  * ShadowEngine is a specialized engine that only allows read-only operations
@@ -52,8 +53,8 @@ import java.util.function.Function;
  * regular primary (which uses {@link org.elasticsearch.index.engine.InternalEngine})
  *
  * Notice that since this Engine does not deal with the translog, any
- * {@link #get(Get get)} request goes directly to the searcher, meaning it is
- * non-realtime.
+ * {@link #get(Get, Function, LongConsumer)} request goes directly to the searcher,
+ * meaning it is non-realtime.
  */
 public class ShadowEngine extends Engine {
 
@@ -160,8 +161,9 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, Function<String, Searcher> searcherFacotry) throws EngineException {
+    public GetResult get(Get get, Function<String, Searcher> searcherFacotry, LongConsumer onRefresh) throws EngineException {
         // There is no translog, so we can get it directly from the searcher
+        // Since we never refresh we just drop the onRefresh parameter on the floor
         return getFromSearcher(get, searcherFacotry);
     }
 

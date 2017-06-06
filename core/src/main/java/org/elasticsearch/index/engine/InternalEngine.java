@@ -86,6 +86,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 public class InternalEngine extends Engine {
     /**
@@ -346,7 +347,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
+    public GetResult get(Get get, Function<String, Searcher> searcherFactory, LongConsumer onRefresh) throws EngineException {
         assert Objects.equals(get.uid().field(), uidField) : get.uid().field();
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
@@ -360,7 +361,9 @@ public class InternalEngine extends Engine {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                             get.versionType().explainConflictForReads(versionValue.getVersion(), get.version()));
                     }
+                    long time = System.nanoTime();
                     refresh("realtime_get");
+                    onRefresh.accept(System.nanoTime() - time);
                 }
             }
 

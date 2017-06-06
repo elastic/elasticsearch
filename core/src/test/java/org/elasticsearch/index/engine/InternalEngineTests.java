@@ -2276,8 +2276,6 @@ public class InternalEngineTests extends ESTestCase {
 
             final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
 
-            final AtomicBoolean refreshed = new AtomicBoolean(false);
-
             // Add document
             Document document = testDocument();
             document.add(new TextField("value", "test1", Field.Store.YES));

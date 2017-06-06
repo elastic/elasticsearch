@@ -24,10 +24,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.join.aggregations.Children;
+import org.elasticsearch.join.aggregations.JoinAggregationBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.join.aggregations.JoinAggregationBuilders;
-import org.elasticsearch.join.aggregations.Children;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -37,12 +39,12 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.join.ParentJoinPlugin;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -634,7 +636,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(termsAgg.getBuckets().size(), equalTo(0));
     }
 
-    public void testParentChild() {
+    public void testParentChild_parentField() {
         assertAcked(prepareCreate("test")
                 .setSettings("mapping.single_type", false)
                 .addMapping("parent")
@@ -647,7 +649,35 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         client().prepareIndex("test", "child", "c2").setSource("field2", "value2").setParent("p1").get();
         client().prepareIndex("test", "child", "c3").setSource("field3", "value3").setParent("p1").get();
         refresh();
+        verifyParentChild();
+    }
 
+    public void testParentChild_joinField() {
+        assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child", "field1", "type=text", "field2", "type=text",
+                        "field3", "type=text"));
+        ensureGreen();
+
+        // index simple data
+        client().prepareIndex("test", "doc", "p1").setSource("join_field", "parent", "field1", "value1").get();
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("field2", "value2");
+        Map<String, Object> joinField = new HashMap<>();
+        joinField.put("name", "child");
+        joinField.put("parent", "p1");
+        source.put("join_field", joinField);
+        client().prepareIndex("test", "doc", "c1").setSource(source).setRouting("p1").get();
+        client().prepareIndex("test", "doc", "c2").setSource(source).setRouting("p1").get();
+        source = new HashMap<>();
+        source.put("field3", "value3");
+        source.put("join_field", joinField);
+        client().prepareIndex("test", "doc", "c3").setSource(source).setRouting("p1").get();
+        refresh();
+        verifyParentChild();
+    }
+
+    private void verifyParentChild() {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
                 .get();

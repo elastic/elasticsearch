@@ -125,7 +125,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
                             message = String.format(Locale.ROOT, "aliases [%s] missing", toNamesString(difference.toArray(new String[0])));
                         }
                         builder.field("error", message);
-                        builder.field("status", RestStatus.NOT_FOUND.getStatus());
+                        builder.field("status", status.getStatus());
                     } else {
                         status = RestStatus.OK;
                     }

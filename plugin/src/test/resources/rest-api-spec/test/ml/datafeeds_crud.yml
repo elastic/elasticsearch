@@ -300,3 +300,22 @@ setup:
       xpack.ml.delete_datafeed:
         datafeed_id: test-datafeed-1
   - match: { acknowledged: true }
+
+---
+"Test force delete datafeed":
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"],
+            "types":["type-bar"]
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+
+  - do:
+      xpack.ml.delete_datafeed:
+        datafeed_id: test-datafeed-1
+        force: true
+  - match: { acknowledged: true }

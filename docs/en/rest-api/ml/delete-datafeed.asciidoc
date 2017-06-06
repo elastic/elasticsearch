@@ -12,7 +12,7 @@ The delete {dfeed} API enables you to delete an existing {dfeed}.
 
 ===== Description
 
-NOTE: You must stop the {dfeed} before you can delete it.
+NOTE: Unless the `force` parameter is used, the {dfeed} must be stopped before it can be deleted.
 
 
 ===== Path Parameters
@@ -20,6 +20,12 @@ NOTE: You must stop the {dfeed} before you can delete it.
 `feed_id` (required)::
   (string) Identifier for the {dfeed}
 
+
+===== Query Parameters
+
+`force`::
+  (boolean) Use to forcefully delete a started {dfeed}; this method is quicker than
+  stopping and deleting the {dfeed}.
 
 ===== Authorization
 

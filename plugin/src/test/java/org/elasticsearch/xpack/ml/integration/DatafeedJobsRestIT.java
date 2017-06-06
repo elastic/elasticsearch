@@ -403,6 +403,34 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
     }
 
+    public void testForceDeleteWhileDatafeedIsRunning() throws Exception {
+        String jobId = "job-realtime-2";
+        createJob(jobId);
+        String datafeedId = jobId + "-datafeed";
+        new DatafeedBuilder(datafeedId, jobId, "airline-data", "response").build();
+        openJob(client(), jobId);
+
+        Response response = client().performRequest("post",
+                MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start?start=2016-06-01T00:00:00Z");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(responseEntityToString(response), equalTo("{\"started\":true}"));
+
+        ResponseException e = expectThrows(ResponseException.class,
+                () -> client().performRequest("delete", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId));
+        response = e.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(responseEntityToString(response), containsString("Cannot delete datafeed [" + datafeedId
+                + "] while its status is started"));
+
+        response = client().performRequest("delete",
+                MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "?force=true");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
+
+        expectThrows(ResponseException.class,
+                () -> client().performRequest("get", "/_xpack/ml/datafeeds/" + datafeedId));
+    }
+
     private class LookbackOnlyTestHelper {
         private String jobId;
         private String dataIndex;

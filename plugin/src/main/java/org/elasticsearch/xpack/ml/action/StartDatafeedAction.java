@@ -398,7 +398,15 @@ public class StartDatafeedAction
         }
 
         public void stop(String reason, TimeValue timeout) {
-            datafeedManager.stopDatafeed(this, reason, timeout);
+            if (datafeedManager != null) {
+                datafeedManager.stopDatafeed(this, reason, timeout);
+            }
+        }
+
+        public void isolate() {
+            if (datafeedManager != null) {
+                datafeedManager.isolateDatafeed(getAllocationId());
+            }
         }
     }
 

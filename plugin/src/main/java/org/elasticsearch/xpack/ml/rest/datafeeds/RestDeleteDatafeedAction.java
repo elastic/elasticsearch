@@ -12,6 +12,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 
@@ -33,8 +34,10 @@ public class RestDeleteDatafeedAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
-        DeleteDatafeedAction.Request deleteDatafeedRequest = new DeleteDatafeedAction.Request(datafeedId);
-        return channel -> client.execute(DeleteDatafeedAction.INSTANCE, deleteDatafeedRequest, new AcknowledgedRestListener<>(channel));
+        DeleteDatafeedAction.Request request = new DeleteDatafeedAction.Request(datafeedId);
+        if (restRequest.hasParam(DeleteDatafeedAction.Request.FORCE.getPreferredName())) {
+            request.setForce(restRequest.paramAsBoolean(CloseJobAction.Request.FORCE.getPreferredName(), request.isForce()));
+        }
+        return channel -> client.execute(DeleteDatafeedAction.INSTANCE, request, new AcknowledgedRestListener<>(channel));
     }
-
 }

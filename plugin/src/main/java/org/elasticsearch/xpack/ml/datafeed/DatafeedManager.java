@@ -152,9 +152,15 @@ public class DatafeedManager extends AbstractComponent {
         isolated = true;
         Iterator<Holder> iter = runningDatafeedsOnThisNode.values().iterator();
         while (iter.hasNext()) {
-            iter.next().isolateDatafeed();
+            Holder next = iter.next();
+            next.isolateDatafeed();
+            next.setRelocating();
             iter.remove();
         }
+    }
+
+    public void isolateDatafeed(long allocationId) {
+        runningDatafeedsOnThisNode.get(allocationId).isolateDatafeed();
     }
 
     // Important: Holder must be created and assigned to DatafeedTask before setting state to started,
@@ -219,7 +225,7 @@ public class DatafeedManager extends AbstractComponent {
     }
 
     void doDatafeedRealtime(long delayInMsSinceEpoch, String jobId, Holder holder) {
-        if (holder.isRunning()) {
+        if (holder.isRunning() && !holder.isIsolated()) {
             TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
             logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
             holder.future = threadPool.schedule(delay, MachineLearning.DATAFEED_THREAD_POOL_NAME, new AbstractRunnable() {
@@ -343,6 +349,7 @@ public class DatafeedManager extends AbstractComponent {
         private final ProblemTracker problemTracker;
         private final Consumer<Exception> handler;
         volatile Future<?> future;
+        private volatile boolean isRelocating;
 
         Holder(String taskId, long allocationId, DatafeedConfig datafeed, DatafeedJob datafeedJob, boolean autoCloseJob,
                ProblemTracker problemTracker, Consumer<Exception> handler) {
@@ -363,7 +370,15 @@ public class DatafeedManager extends AbstractComponent {
             return datafeedJob.isRunning();
         }
 
+        boolean isIsolated() {
+            return datafeedJob.isIsolated();
+        }
+
         public void stop(String source, TimeValue timeout, Exception e) {
+            if (isRelocating) {
+                return;
+            }
+
             logger.info("[{}] attempt to stop datafeed [{}] for job [{}]", source, datafeed.getId(), datafeed.getJobId());
             if (datafeedJob.stop()) {
                 boolean acquired = false;
@@ -403,10 +418,14 @@ public class DatafeedManager extends AbstractComponent {
             datafeedJob.isolate();
         }
 
+        public void setRelocating() {
+            isRelocating = true;
+        }
+
         private Long executeLoopBack(long startTime, Long endTime) throws Exception {
             datafeedJobLock.lock();
             try {
-                if (isRunning()) {
+                if (isRunning() && !isIsolated()) {
                     return datafeedJob.runLookBack(startTime, endTime);
                 } else {
                     return null;
@@ -419,7 +438,7 @@ public class DatafeedManager extends AbstractComponent {
         private long executeRealTime() throws Exception {
             datafeedJobLock.lock();
             try {
-                if (isRunning()) {
+                if (isRunning() && !isIsolated()) {
                     return datafeedJob.runRealtime();
                 } else {
                     return -1L;

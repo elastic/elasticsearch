@@ -102,9 +102,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertNull(datafeedJob.runLookBack(0L, null));
 
         verify(dataExtractorFactory).newExtractor(0L, 1500L);
-        FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
-        flushRequest.setCalcInterim(true);
-        verify(client, never()).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
     }
 
     public void testLookBackRunWithNoEndTime() throws Exception {

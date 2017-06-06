@@ -44,7 +44,7 @@ public final class RemoveProcessor extends AbstractProcessor {
         this.fields = new ArrayList<>(fields);
     }
 
-    public List<TemplateService.Template> getField() {
+    public List<TemplateService.Template> getFields() {
         return fields;
     }
 

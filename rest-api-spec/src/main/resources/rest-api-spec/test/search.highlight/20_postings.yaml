@@ -1,0 +1,42 @@
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            mappings:
+              unified:
+                "properties":
+                  "text":
+                     "type": "text"
+                     "index_options": "offsets"
+  - do:
+      index:
+        index: test
+        type:  unified
+        id:    1
+        body:
+            "text" : "The quick brown fox is brown."
+  - do:
+      indices.refresh: {}
+
+---
+"Postings highlighter should have deprecation warning":
+  - skip:
+      features: 'warnings'
+      version: ' - 5.4.99'
+      reason: deprecated in 5.5
+  - do:
+      warnings:
+        - "[postings] highlighter is deprecated, please use [unified] instead"
+      search:
+        body: { "query" : {"match" : { "text" : "quick brown fox" } }, "highlight" : { "fields" : { "*" : {} } } }
+
+  - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
+
+  - do:
+      warnings:
+        - "[postings] highlighter is deprecated, please use [unified] instead"
+      search:
+        body: { "query" : {"match" : { "text" : "quick brown fox" } }, "highlight" : { "type" : "postings", "fields" : { "*" : {} } } }
+
+  - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}

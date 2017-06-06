@@ -149,17 +149,19 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testParseNullValue() throws Exception {
         DocumentMapper mapper = createIndexWithTokenCountField();
-
         ParseContext.Document doc = parseDocument(mapper, createDocument(null));
+        assertNull(doc.getField("test.tc"));
+    }
 
+    public void testParseEmptyValue() throws Exception {
+        DocumentMapper mapper = createIndexWithTokenCountField();
+        ParseContext.Document doc = parseDocument(mapper, createDocument(""));
         assertEquals(0, doc.getField("test.tc").numericValue());
     }
 
     public void testParseNotNullValue() throws Exception {
         DocumentMapper mapper = createIndexWithTokenCountField();
-
         ParseContext.Document doc = parseDocument(mapper, createDocument("three tokens string"));
-
         assertEquals(3, doc.getField("test.tc").numericValue());
     }
 

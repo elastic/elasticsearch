@@ -41,7 +41,6 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.engine.InternalEngineTests.TranslogHandler;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -116,12 +115,11 @@ public class RefreshListenersTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), shardId.getIndexName(), Settings.EMPTY, logger);
         EngineConfig config = new EngineConfig(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, shardId, threadPool, indexSettings, null,
                 store, newMergePolicy(), iwc.getAnalyzer(),
-                iwc.getSimilarity(), new CodecService(null, logger), eventListener, translogHandler,
+                iwc.getSimilarity(), new CodecService(null, logger), eventListener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), null);
+                TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), null, null);
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());
     }

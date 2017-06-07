@@ -333,7 +333,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     replica,
                     (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
                         @Override
-                        public long indexTranslogOperations(final List<Translog.Operation> operations, final int totalTranslogOps) {
+                        public long indexTranslogOperations(final List<Translog.Operation> operations, final int totalTranslogOps)
+                             throws IOException {
                             // index a doc which is not part of the snapshot, but also does not complete on replica
                             replicaEngineFactory.latchIndexers();
                             threadPool.generic().submit(() -> {
@@ -445,7 +446,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+        public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
             if (hasBlocked() == false) {
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }

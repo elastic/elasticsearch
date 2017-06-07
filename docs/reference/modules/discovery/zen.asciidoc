@@ -92,7 +92,8 @@ are alive. And on the other end, each node pings to master to verify if
 its still alive or an election process needs to be initiated.
 
 The following settings control the fault detection process using the
-`discovery.zen.fd` prefix:
+`discovery.zen.fd` prefix. They are static settings and therefore require
+a restart to take effect.
 
 [cols="<,<",options="header",]
 |=======================================================================

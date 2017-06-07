@@ -162,6 +162,15 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         }
     }
 
+    /**
+     * Generates a factory class that will return script instances.
+     * Uses the newInstance method from a {@link ScriptContext#factoryClazz} to define the factory method
+     * to create new instances of the {@link ScriptContext#instanceClazz}.
+     * @param loader The {@link ClassLoader} that is used to define the factory class and script class.
+     * @param context The {@link ScriptContext}'s semantics are used to define the factory class.
+     * @param <T> The factory class.
+     * @return A factory class that will return script instances.
+     */
     private <T> T generateFactory(Loader loader, ScriptContext<T> context) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER| Opcodes.ACC_FINAL;

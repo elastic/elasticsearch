@@ -84,7 +84,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 
-        if (fieldName.equals(STRING_FIELD_NAME) && randomBoolean()) {
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME) ) {
             matchQuery.fuzziness(randomFuzziness(fieldName));
         }
 
@@ -355,15 +355,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 () -> query.toQuery(context));
         assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
                 e.getMessage());
-        query.analyzer("keyword"); // triggers a different code path
-        e = expectThrows(IllegalArgumentException.class,
-                () -> query.toQuery(context));
-        assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
-                e.getMessage());
-
         query.lenient(true);
-        query.toQuery(context); // no exception
-        query.analyzer(null);
         query.toQuery(context); // no exception
     }
 
@@ -377,7 +369,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         query.toQuery(context); // no exception
     }
 
-    public void testParseFailsWithMultipleFields() throws IOException {
+    public void testParseFailsWithMultipleFields() {
         String json = "{\n" +
                 "  \"match\" : {\n" +
                 "    \"message1\" : {\n" +
@@ -456,6 +448,24 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             Query query = builder.toQuery(context);
             assertThat(query, instanceOf(MultiPhrasePrefixQuery.class));
         }
+    }
 
+    /**
+     * Setting an analyzer only makes sense on string fields, otherwise we throw an error
+     */
+    public void testAnalyzerOnNumericField() throws Exception {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> new MatchQueryBuilder(DOUBLE_FIELD_NAME, 6.075210893508043E-4)
+                        .analyzer("simple"));
+        assertEquals(
+                "Setting analyzers is only allowed for string values but was"
+                + " [class java.lang.Double]", exception.getMessage());
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> new MatchQueryBuilder(DOUBLE_FIELD_NAME, true)
+                        .analyzer("simple"));
+        assertEquals(
+                "Setting analyzers is only allowed for string values but was"
+                + " [class java.lang.Boolean]", exception.getMessage());
     }
 }

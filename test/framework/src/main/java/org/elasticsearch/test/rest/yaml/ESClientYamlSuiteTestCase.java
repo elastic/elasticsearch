@@ -139,6 +139,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
         // admin context must be available for @After always, regardless of whether the test was blacklisted
         adminExecutionContext.clear();
+
+        restTestExecutionContext.clear();
     }
 
     @Override
@@ -295,8 +297,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
                 .isSuffixMatch(testPath));
         }
-
-        restTestExecutionContext.clear();
 
         //skip test if the whole suite (yaml file) is disabled
         assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),

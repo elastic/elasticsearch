@@ -1,8 +1,8 @@
 ---
 "IDs":
   - skip:
-      version: " - 5.99.99"
-      reason:  mapping.single_type was added in 6.0
+        version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+        reason:  mapping.single_type can not be changed on 6.x indices onwards
 
   - do:
         indices.create:

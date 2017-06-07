@@ -64,7 +64,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
             lang = null;
         }
 
-        BytesReference content = request.content();
+        BytesReference content = request.requiredContent();
 
         if (lang != null) {
             deprecationLogger.deprecated(

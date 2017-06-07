@@ -430,7 +430,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("t_boost", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("t_boost",
+        mapperService.merge("doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("doc",
             "string_boost", "type=text,boost=4").string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 

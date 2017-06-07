@@ -210,3 +210,16 @@
       catch: missing
       indices.get_template:
         name: "my_template"
+
+---
+"missing body":
+
+  - skip:
+      version: " - 5.4.99"
+      reason: NPE caused by missing body fixed in 5.5.0
+      
+  - do:
+      catch: /request body is required/
+      raw:
+        method: PUT
+        path: _template/my_template

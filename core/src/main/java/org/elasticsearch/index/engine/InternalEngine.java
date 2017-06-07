@@ -34,6 +34,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.TermQuery;
@@ -211,8 +212,8 @@ public class InternalEngine extends Engine {
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
-            if (engineConfig.getRefreshListeners() != null) {
-                searcherManager.addListener(engineConfig.getRefreshListeners());
+            for (ReferenceManager.RefreshListener listener: engineConfig.getRefreshListeners()) {
+                searcherManager.addListener(listener);
             }
             success = true;
         } finally {

@@ -16,16 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.join.query;
 
-package org.elasticsearch.template;
+public class LegacyInnerHitsIT extends InnerHitsIT {
 
-import java.util.Map;
+    @Override
+    protected boolean legacy() {
+        return true;
+    }
 
-/**
- * A template that may be executed.
- */
-public interface CompiledTemplate {
-
-    /** Run a template and return the resulting string, encoded in utf8 bytes. */
-    String run(Map<String, Object> params);
 }

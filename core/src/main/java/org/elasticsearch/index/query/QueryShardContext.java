@@ -368,6 +368,11 @@ public class QueryShardContext extends QueryRewriteContext {
         return factory::newInstance;
     }
 
+    /** Return the script service to allow compiling scripts. */
+    public final ScriptService getScriptService() {
+        return scriptService;
+    }
+
     /**
      * if this method is called the query context will throw exception if methods are accessed
      * that could yield different results across executions like {@link #getTemplateBytes(Script)}

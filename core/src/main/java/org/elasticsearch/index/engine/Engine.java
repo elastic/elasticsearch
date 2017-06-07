@@ -485,10 +485,6 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public final GetResult get(Get get) throws EngineException {
-        return get(get, this::acquireSearcher);
-    }
-
     public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException;
 
     /**

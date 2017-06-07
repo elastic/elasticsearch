@@ -157,3 +157,15 @@ setup:
   - match:  { responses.1.hits.total:     1  }
   - match:  { responses.2.hits.total:     1  }
 
+---
+"missing body":
+
+  - skip:
+      version: " - 5.99.99"
+      reason: NPE caused by missing body fixed in 6.0.0
+      
+  - do:
+      catch: /request body or source parameter is required/
+      raw:
+        method: POST
+        path: _msearch/template

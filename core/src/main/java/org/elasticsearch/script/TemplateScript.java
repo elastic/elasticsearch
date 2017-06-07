@@ -17,10 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.common.util;
+package org.elasticsearch.script;
 
-public interface Callback<T> {
+import java.util.Map;
 
-    void handle(T t);
+/**
+ * A string template rendered as a script.
+ */
+public interface TemplateScript {
 
+    /** Run a template and return the resulting string, encoded in utf8 bytes. */
+    String execute();
+
+    interface Factory {
+        TemplateScript newInstance(Map<String, Object> params);
+    }
+
+    ScriptContext<Factory> CONTEXT = new ScriptContext<>("template", Factory.class);
 }

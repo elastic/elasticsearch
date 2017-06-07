@@ -92,10 +92,6 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (request.hasContentOrSourceParam() == false) {
-            throw new ElasticsearchException("request body is required");
-        }
-
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
         RestSearchAction.parseSearchRequest(searchRequest, request, null);

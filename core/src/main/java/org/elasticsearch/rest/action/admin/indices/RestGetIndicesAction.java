@@ -67,7 +67,6 @@ public class RestGetIndicesAction extends BaseRestHandler {
         this.indexScopedSettings = indexScopedSettings;
         controller.registerHandler(GET, "/{index}", this);
         controller.registerHandler(HEAD, "/{index}", this);
-        controller.registerHandler(GET, "/{index}/{type}", this);
         this.settingsFilter = settingsFilter;
     }
 
@@ -79,18 +78,8 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        String[] featureParams = request.paramAsStringArray("type", null);
-        // Work out if the indices is a list of features
-        if (featureParams == null && indices.length > 0 && indices[0] != null && indices[0].startsWith("_") && !"_all".equals(indices[0])) {
-            featureParams = indices;
-            indices = new String[]{"_all"};
-        }
         final GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(indices);
-        if (featureParams != null) {
-            Feature[] features = Feature.convertToFeatures(featureParams);
-            getIndexRequest.features(features);
-        }
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
         getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));

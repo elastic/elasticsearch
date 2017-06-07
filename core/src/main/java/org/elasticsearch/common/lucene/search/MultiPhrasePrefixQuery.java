@@ -164,6 +164,11 @@ public class MultiPhrasePrefixQuery extends Query {
             }
         }
         if (terms.isEmpty()) {
+            if (sizeMinus1 == 0) {
+                // no prefix and the phrase query is empty
+                return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
+            }
+
             // if the terms does not exist we could return a MatchNoDocsQuery but this would break the unified highlighter
             // which rewrites query with an empty reader.
             return new BooleanQuery.Builder()

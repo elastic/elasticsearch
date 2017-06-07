@@ -42,40 +42,28 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import org.mockito.ArgumentCaptor;
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+
 public class TransportRolloverActionTests extends ESTestCase {
 
-    public void testEvaluateMaxDocsConditionsSatisfied() throws Exception {
-        long maxDocs = 100;
+    public void testDocStatsSelectionFromPrimariesOnly() throws Exception {
         long docsInPrimaryShards = 100;
         long docsInShards = 200;
 
-        final Condition.Result result = evaluateConditions(
-            Sets.newHashSet(new MaxDocsCondition(maxDocs)),
-            createMetaData(),
-            createIndecesStatResponse(docsInShards, docsInPrimaryShards)
-        ).iterator().next();
+        final Condition condition = createTestCondition();
+        evaluateConditions(Sets.newHashSet(condition), createMetaData(), createIndecesStatResponse(docsInShards, docsInPrimaryShards));
+        final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
+        verify(condition).evaluate(argument.capture());
 
-        assertTrue(result.matched);
-    }
-
-    public void testEvaluateMaxDocsConditionsNotSatisfied() throws Exception {
-        long maxDocs = 100;
-        long docsInPrimaryShards = 50;
-        long docsInShards = 100;
-
-        final Condition.Result result = evaluateConditions(
-            Sets.newHashSet(new MaxDocsCondition(maxDocs)),
-            createMetaData(),
-            createIndecesStatResponse(docsInShards, docsInPrimaryShards)
-        ).iterator().next();
-
-        assertFalse(result.matched);
+        assertEquals(docsInPrimaryShards, argument.getValue().numDocs);
     }
 
     public void testEvaluateConditions() throws Exception {
@@ -248,5 +236,11 @@ public class TransportRolloverActionTests extends ESTestCase {
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();
+    }
+
+    private Condition createTestCondition() {
+        final Condition condition = mock(Condition.class);
+        when(condition.evaluate(any())).thenReturn(new Condition.Result(condition, true));
+        return condition;
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -47,6 +48,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Tests for the {@link ClusterChangedEvent} class.
@@ -215,7 +217,12 @@ public class ClusterChangedEventTests extends ESTestCase {
         newState = createState(numNodesInCluster, randomBoolean(), initialIndices);
         event = new ClusterChangedEvent("_na_", originalState, newState);
         assertTrue("routing tables should not be the same object", event.routingTableChanged());
-        assertTrue("index routing table should not be the same object", event.indexRoutingTableChanged(initialIndices.get(0).getName()));
+
+        // find out if the index routing table has changed
+        IndexRoutingTable originalIndexRoutingTable = originalState.routingTable().index(initialIndices.get(0));
+        IndexRoutingTable newIndexRoutingTable = newState.routingTable().index(initialIndices.get(0));
+        boolean routingTablesDiffer = originalIndexRoutingTable.equals(newIndexRoutingTable) == false;
+        assertThat(event.indexRoutingTableChanged(initialIndices.get(0).getName()), is(routingTablesDiffer));
 
         // index routing tables are different because they don't exist
         newState = createState(numNodesInCluster, randomBoolean(), initialIndices.subList(1, initialIndices.size()));

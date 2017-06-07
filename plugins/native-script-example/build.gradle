@@ -1,0 +1,15 @@
+esplugin {
+    description 'Demonstrates writtting elasticsearch plugins with native scripts'
+    classname 'org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin'
+}
+
+compileJava.options.compilerArgs << "-Xlint:-deprecation"
+
+// uncomment to disable 3rd party audit
+// thirdPartyAudit.enabled = false
+
+// uncomment to disable forbidden patterns checks
+// forbiddenPatterns.enabled = false
+
+// uncomment to disable license headers checks
+// licenseHeaders.enabled = false

@@ -1,0 +1,38 @@
+[[analysis-smartcn]]
+== Smart Chinese Analysis for Elasticsearch
+
+The Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.
+
+[analysis-smartcn-install]
+=== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+bin/plugin install elasticsearch-analysis-smartcn
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[analysis-smartcn-remove]
+=== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+bin/plugin remove elasticsearch-analysis-smartcn
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[analysis-smartcn-usage]
+=== Usage
+
+
+The plugin includes the `smartcn` analyzer and `smartcn_tokenizer` tokenizer.
+
+Note that `smartcn_word` token filter and `smartcn_sentence` have been deprecated.
+

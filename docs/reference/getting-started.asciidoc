@@ -686,7 +686,7 @@ Here is the same exact search above using the alternative request body method:
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": { "match_all": {} },
   "sort": [
@@ -750,7 +750,7 @@ Going back to our last example, we executed this query:
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": { "match_all": {} }
 }
@@ -766,7 +766,7 @@ influence the search results. In the example in the section above we passed in
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": { "match_all": {} },
   "size": 1
@@ -781,7 +781,7 @@ This example does a `match_all` and returns documents 11 through 20:
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": { "match_all": {} },
   "from": 10,
@@ -797,7 +797,7 @@ This example does a `match_all` and sorts the results by account balance in desc
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": { "match_all": {} },
   "sort": { "balance": { "order": "desc" } }
@@ -814,7 +814,7 @@ This example shows how to return two fields, `account_number` and `balance` (ins
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": { "match_all": {} },
   "_source": ["account_number", "balance"]
@@ -833,7 +833,7 @@ This example returns the account numbered 20:
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": { "match": { "account_number": 20 } }
 }
@@ -845,7 +845,7 @@ This example returns all accounts containing the term "mill" in the address:
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": { "match": { "address": "mill" } }
 }
@@ -857,7 +857,7 @@ This example returns all accounts containing the term "mill" or "lane" in the ad
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": { "match": { "address": "mill lane" } }
 }
@@ -869,7 +869,7 @@ This example is a variant of `match` (`match_phrase`) that returns all accounts 
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": { "match_phrase": { "address": "mill lane" } }
 }
@@ -883,7 +883,7 @@ This example composes two `match` queries and returns all accounts containing "m
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": {
     "bool": {
@@ -904,7 +904,7 @@ In contrast, this example composes two `match` queries and returns all accounts 
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": {
     "bool": {
@@ -925,7 +925,7 @@ This example composes two `match` queries and returns all accounts that contain 
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": {
     "bool": {
@@ -948,7 +948,7 @@ This example returns all accounts of anybody who is 40 years old but doesn't liv
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": {
     "bool": {
@@ -977,7 +977,7 @@ This example uses a bool query to return all accounts with balances between 2000
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": {
     "bool": {
@@ -1009,7 +1009,7 @@ To start with, this example groups all the accounts by state, and then returns t
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "size": 0,
   "aggs": {
@@ -1098,7 +1098,7 @@ Building on the previous aggregation, this example calculates the average accoun
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "size": 0,
   "aggs": {
@@ -1126,7 +1126,7 @@ Building on the previous aggregation, let's now sort on the average balance in d
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "size": 0,
   "aggs": {
@@ -1155,7 +1155,7 @@ This example demonstrates how we can group by age brackets (ages 20-29, 30-39, a
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "size": 0,
   "aggs": {

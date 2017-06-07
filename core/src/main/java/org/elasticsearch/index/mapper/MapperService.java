@@ -110,7 +110,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
-            "_size", "_timestamp", "_ttl"
+            "_size", "_timestamp", "_ttl", "_field_names"
     );
 
     private final IndexAnalyzers indexAnalyzers;

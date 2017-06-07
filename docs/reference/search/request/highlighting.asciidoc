@@ -60,7 +60,7 @@ This is repeated for every field and every document that needs highlighting. If 
 [[postings-highlighter]]
 ==== Postings highlighter
 
-deprecated[5.5.0,This highlighter type is deprecated and will be removed. Please use the `unified` highlighter instead. ]
+deprecated[5.5.0,This highlighter type is deprecated and will be removed in 6.0. Please use the `unified` highlighter instead. ]
 
 
 If `index_options` is set to `offsets` in the mapping the postings highlighter

@@ -71,6 +71,8 @@ import org.elasticsearch.index.analysis.ScandinavianFoldingFilterFactory;
 import org.elasticsearch.index.analysis.ScandinavianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.SerbianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
+import org.elasticsearch.index.analysis.SimplePatternSplitTokenizerFactory;
+import org.elasticsearch.index.analysis.SimplePatternTokenizerFactory;
 import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
@@ -129,25 +131,23 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<String,Class<?>> KNOWN_TOKENIZERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
-        .put("classic",       ClassicTokenizerFactory.class)
-        .put("edgengram",     EdgeNGramTokenizerFactory.class)
-        .put("keyword",       KeywordTokenizerFactory.class)
-        .put("letter",        LetterTokenizerFactory.class)
-        .put("lowercase",     LowerCaseTokenizerFactory.class)
-        .put("ngram",         NGramTokenizerFactory.class)
-        .put("pathhierarchy", PathHierarchyTokenizerFactory.class)
-        .put("pattern",       PatternTokenizerFactory.class)
-        .put("standard",      StandardTokenizerFactory.class)
-        .put("thai",          ThaiTokenizerFactory.class)
-        .put("uax29urlemail", UAX29URLEmailTokenizerFactory.class)
-        .put("whitespace",    WhitespaceTokenizerFactory.class)
+        .put("classic",            ClassicTokenizerFactory.class)
+        .put("edgengram",          EdgeNGramTokenizerFactory.class)
+        .put("keyword",            KeywordTokenizerFactory.class)
+        .put("letter",             LetterTokenizerFactory.class)
+        .put("lowercase",          LowerCaseTokenizerFactory.class)
+        .put("ngram",              NGramTokenizerFactory.class)
+        .put("pathhierarchy",      PathHierarchyTokenizerFactory.class)
+        .put("pattern",            PatternTokenizerFactory.class)
+        .put("simplepattern",      SimplePatternTokenizerFactory.class)
+        .put("simplepatternsplit", SimplePatternSplitTokenizerFactory.class)
+        .put("standard",           StandardTokenizerFactory.class)
+        .put("thai",               ThaiTokenizerFactory.class)
+        .put("uax29urlemail",      UAX29URLEmailTokenizerFactory.class)
+        .put("whitespace",         WhitespaceTokenizerFactory.class)
 
         // this one "seems to mess up offsets". probably shouldn't be a tokenizer...
         .put("wikipedia",     Void.class)
-
-        // TODO: expose these
-        .put("simplepattern",    Void.class)
-        .put("simplepatternsplit",    Void.class)
         .immutableMap();
 
     static final Map<String,Class<?>> KNOWN_TOKENFILTERS = new MapBuilder<String,Class<?>>()

@@ -11,14 +11,6 @@ There are different file system implementations or _storage types_. By default,
 elasticsearch will pick the best implementation based on the operating
 environment.
 
-This can be overridden for all indices by adding this to the
-`config/elasticsearch.yml` file:
-
-[source,yaml]
----------------------------------
-index.store.type: niofs
----------------------------------
-
 It is a _static_ setting that can be set on a per-index basis at index
 creation time:
 

@@ -205,6 +205,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
             //create index service for parsing and validating "mappings"
             Settings dummySettings = Settings.builder()
+                .put(request.settings)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(request.settings)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, dummyShards)

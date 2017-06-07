@@ -29,8 +29,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -158,6 +160,30 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.get(0).getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
     }
 
+
+    public void testLargeNumberOfFields() throws Exception {
+        final long fields =
+            MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(Settings.EMPTY) +
+            scaledRandomIntBetween(1, 128);
+        PutRequest request = new PutRequest("api", "blank_mapping");
+        request.patterns(Collections.singletonList("te*"));
+        request.settings(Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
+                fields + MapperService.getAllMetaFields().length + 1)
+            .build());
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject().startObject("type1").startObject("properties");
+        for (long i = 0; i < fields; i++) {
+            builder.startObject("field" + i)
+                .field("type", "text")
+                .endObject();
+        }
+        builder.endObject().endObject().endObject();
+        request.putMapping("type1", builder.string());
+
+        List<Throwable> errors = putTemplateDetail(request);
+        assertTrue(errors.isEmpty());
+    }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(

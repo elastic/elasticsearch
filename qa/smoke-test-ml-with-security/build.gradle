@@ -35,6 +35,7 @@ integTestRunner {
     'ml/jobs_crud/Test cannot create job with existing result document',
     'ml/jobs_crud/Test get job API with non existing job id',
     'ml/jobs_crud/Test put job with inconsistent body/param ids',
+    'ml/jobs_crud/Test cannot create job with model snapshot id set',
     'ml/jobs_get/Test get job given missing job_id',
     'ml/jobs_get_result_buckets/Test mutually-exclusive params',
     'ml/jobs_get_result_buckets/Test mutually-exclusive params via body',
@@ -53,6 +54,7 @@ integTestRunner {
     'ml/update_model_snapshot/Test without description',
     'ml/validate/Test invalid job config',
     'ml/validate/Test job config that is invalid only because of the job ID',
+    'ml/validate/Test job config is invalid because model snapshot id set',
     'ml/validate_detector/Test invalid detector'
   ].join(',')
 }

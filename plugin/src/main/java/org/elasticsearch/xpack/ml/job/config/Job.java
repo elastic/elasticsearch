@@ -751,6 +751,29 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             return this;
         }
 
+        /**
+         * Return the list of fields that have been set and are invalid to
+         * be set when the job is created e.g. model snapshot Id should not
+         * be set at job creation.
+         * @return List of fields set fields that should not be.
+         */
+        public List<String> invalidCreateTimeSettings() {
+            List<String> invalidCreateValues = new ArrayList<>();
+            if (modelSnapshotId != null) {
+                invalidCreateValues.add(MODEL_SNAPSHOT_ID.getPreferredName());
+            }
+            if (lastDataTime != null) {
+                invalidCreateValues.add(LAST_DATA_TIME.getPreferredName());
+            }
+            if (finishedTime != null) {
+                invalidCreateValues.add(FINISHED_TIME.getPreferredName());
+            }
+            if (createTime != null) {
+                invalidCreateValues.add(CREATE_TIME.getPreferredName());
+            }
+            return invalidCreateValues;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(id);
@@ -953,7 +976,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             validateInputFields();
 
             // Creation time is NOT required in user input, hence validated only on build
-            Date createTime = ExceptionsHelper.requireNonNull(this.createTime, CREATE_TIME.getPreferredName());
+            ExceptionsHelper.requireNonNull(createTime, CREATE_TIME.getPreferredName());
 
             if (Strings.isNullOrEmpty(resultsIndexName)) {
                 resultsIndexName = AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
@@ -967,10 +990,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
             return new Job(
                     id, jobType, jobVersion, description, createTime, finishedTime, lastDataTime,
-                    analysisConfig, analysisLimits,
-                    dataDescription, modelPlotConfig, renormalizationWindowDays, backgroundPersistInterval,
-                    modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
-                    resultsIndexName, deleted);
+                    analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
+                    backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
+                    modelSnapshotId, resultsIndexName, deleted);
         }
 
         private void checkValidBackgroundPersistInterval() {

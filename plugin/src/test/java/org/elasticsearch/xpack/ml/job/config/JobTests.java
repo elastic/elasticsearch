@@ -23,8 +23,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -403,6 +405,24 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertThat(Job.getCompatibleJobTypes(Version.V_5_4_0).size(), equalTo(1));
         assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
         assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0).size(), equalTo(1));
+    }
+
+    public void testInvalidCreateTimeSettings() {
+        Job.Builder builder = new Job.Builder("invalid-settings");
+        builder.setModelSnapshotId("snapshot-foo");
+        assertEquals(Collections.singletonList(Job.MODEL_SNAPSHOT_ID.getPreferredName()), builder.invalidCreateTimeSettings());
+
+        builder.setCreateTime(new Date());
+        builder.setFinishedTime(new Date());
+        builder.setLastDataTime(new Date());
+
+        Set<String> expected = new HashSet();
+        expected.add(Job.CREATE_TIME.getPreferredName());
+        expected.add(Job.FINISHED_TIME.getPreferredName());
+        expected.add(Job.LAST_DATA_TIME.getPreferredName());
+        expected.add(Job.MODEL_SNAPSHOT_ID.getPreferredName());
+
+        assertEquals(expected, new HashSet<>(builder.invalidCreateTimeSettings()));
     }
 
     public static Job.Builder buildJobBuilder(String id, Date date) {

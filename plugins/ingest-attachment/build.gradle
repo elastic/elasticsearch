@@ -59,7 +59,6 @@ dependencies {
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile 'org.apache.xmlbeans:xmlbeans:2.6.0'
   compile 'org.apache.commons:commons-collections4:4.1'
-  compile 'com.github.virtuald:curvesapi:1.04'
   // MS Office
   compile "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
@@ -136,6 +135,12 @@ thirdPartyAudit.excludes = [
   'com.googlecode.mp4parser.boxes.apple.AppleTrackNumberBox',
   'com.googlecode.mp4parser.boxes.apple.Utf8AppleDataBox',
   'com.googlecode.mp4parser.util.CastUtils',
+  'com.graphbuilder.curve.ControlPath',
+  'com.graphbuilder.curve.GroupIterator',
+  'com.graphbuilder.curve.NURBSpline',
+  'com.graphbuilder.curve.ShapeMultiPath',
+  'com.graphbuilder.curve.ValueVector',
+  'com.graphbuilder.geom.PointFactory',
   'com.healthmarketscience.jackcess.Column',
   'com.healthmarketscience.jackcess.CryptCodecProvider',
   'com.healthmarketscience.jackcess.DataType',

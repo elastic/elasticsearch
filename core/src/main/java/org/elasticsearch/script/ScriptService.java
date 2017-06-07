@@ -45,7 +45,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.template.CompiledTemplate;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -328,12 +327,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             return context.factoryClazz.cast(compiledScript);
         }
-    }
-
-    /** Compiles a template. Note this will be moved to a separate TemplateService in the future. */
-    public CompiledTemplate compileTemplate(Script script, ScriptContext<ExecutableScript.Factory> scriptContext) {
-        ExecutableScript.Factory factory = compile(script, scriptContext);
-        return params -> (String) factory.newInstance(params).run();
     }
 
     /**

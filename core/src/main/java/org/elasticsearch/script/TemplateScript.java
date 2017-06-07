@@ -17,15 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.template;
+package org.elasticsearch.script;
 
 import java.util.Map;
 
 /**
- * A template that may be executed.
+ * A string template rendered as a script.
  */
-public interface CompiledTemplate {
+public interface TemplateScript {
 
     /** Run a template and return the resulting string, encoded in utf8 bytes. */
-    String run(Map<String, Object> params);
+    String execute();
+
+    interface Factory {
+        TemplateScript newInstance(Map<String, Object> params);
+    }
+
+    ScriptContext<Factory> CONTEXT = new ScriptContext<>("template", Factory.class);
 }

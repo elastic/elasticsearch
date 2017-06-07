@@ -25,6 +25,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -71,7 +72,17 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     }
 
     @Override
+    protected Settings indexSettings() {
+        return Settings.builder()
+            .put(super.indexSettings())
+            .put("index.mapping.single_type", false)
+            .build();
+    }
+
+    @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        // TODO: use a single type when inner hits have been changed to work with join field,
+        // this test randomly generates queries with inner hits
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",

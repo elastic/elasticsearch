@@ -298,7 +298,8 @@ public class RefreshListenersTests extends ESTestCase {
                         listener.assertNoError();
 
                         Engine.Get get = new Engine.Get(false, "test", threadId, new Term(IdFieldMapper.NAME, threadId));
-                        try (Engine.GetResult getResult = engine.get(get)) {
+                        try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher,
+                                onRefresh -> fail("shouldn't have a refresh"))) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
                             SingleFieldsVisitor visitor = new SingleFieldsVisitor("test");

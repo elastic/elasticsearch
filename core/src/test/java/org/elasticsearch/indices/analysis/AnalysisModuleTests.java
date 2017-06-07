@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
@@ -56,6 +58,7 @@ import org.hamcrest.MatcherAssert;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -251,6 +254,50 @@ public class AnalysisModuleTests extends ESTestCase {
     }
 
     /**
+     * Tests that plugins can register pre-configured char filters that vary in behavior based on Elasticsearch version, Lucene version,
+     * and that do not vary based on version at all.
+     */
+    public void testPluginPreConfiguredCharFilters() throws IOException {
+        boolean noVersionSupportsMultiTerm = randomBoolean();
+        boolean luceneVersionSupportsMultiTerm = randomBoolean();
+        boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
+        AnalysisRegistry registry = new AnalysisModule(new Environment(emptyNodeSettings), singletonList(new AnalysisPlugin() {
+            @Override
+            public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
+                return Arrays.asList(
+                        PreConfiguredCharFilter.singleton("no_version", noVersionSupportsMultiTerm,
+                                tokenStream -> new AppendCharFilter(tokenStream, "no_version")),
+                        PreConfiguredCharFilter.luceneVersion("lucene_version", luceneVersionSupportsMultiTerm,
+                                (tokenStream, luceneVersion) -> new AppendCharFilter(tokenStream, luceneVersion.toString())),
+                        PreConfiguredCharFilter.elasticsearchVersion("elasticsearch_version", elasticsearchVersionSupportsMultiTerm,
+                                (tokenStream, esVersion) -> new AppendCharFilter(tokenStream, esVersion.toString()))
+                        );
+            }
+        })).getAnalysisRegistry();
+
+        Version version = VersionUtils.randomVersion(random());
+        IndexAnalyzers analyzers = getIndexAnalyzers(registry, Settings.builder()
+                .put("index.analysis.analyzer.no_version.tokenizer", "keyword")
+                .put("index.analysis.analyzer.no_version.char_filter", "no_version")
+                .put("index.analysis.analyzer.lucene_version.tokenizer", "keyword")
+                .put("index.analysis.analyzer.lucene_version.char_filter", "lucene_version")
+                .put("index.analysis.analyzer.elasticsearch_version.tokenizer", "keyword")
+                .put("index.analysis.analyzer.elasticsearch_version.char_filter", "elasticsearch_version")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .build());
+        assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] {"testno_version"});
+        assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] {"test" + version.luceneVersion});
+        assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] {"test" + version});
+
+        assertEquals("test" + (noVersionSupportsMultiTerm ? "no_version" : ""),
+                analyzers.get("no_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
+                analyzers.get("lucene_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
+                analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString());
+    }
+
+    /**
      * Tests that plugins can register pre-configured token filters that vary in behavior based on Elasticsearch version, Lucene version,
      * and that do not vary based on version at all.
      */
@@ -389,6 +436,44 @@ public class AnalysisModuleTests extends ESTestCase {
             }
         }));
         assertSame(dictionary, module.getHunspellService().getDictionary("foo"));
+    }
+
+    // Simple char filter that appends text to the term
+    public static class AppendCharFilter extends CharFilter {
+        private final char[] appendMe;
+        private int offsetInAppendMe = -1;
+
+        public AppendCharFilter(Reader input, String appendMe) {
+            super(input);
+            this.appendMe = appendMe.toCharArray();
+        }
+
+        @Override
+        protected int correct(int currentOff) {
+            return currentOff;
+        }
+
+        @Override
+        public int read(char[] cbuf, int off, int len) throws IOException {
+            if (offsetInAppendMe < 0) {
+                int read = input.read(cbuf, off, len);
+                if (read == len) {
+                    return read;
+                }
+                off += read;
+                len -= read;
+                int allowedLen = Math.min(len, appendMe.length);
+                System.arraycopy(appendMe, 0, cbuf, off, allowedLen);
+                offsetInAppendMe = allowedLen;
+                return read + allowedLen;
+            }
+            if (offsetInAppendMe >= appendMe.length) {
+                return -1;
+            }
+            int allowedLen = Math.max(len, appendMe.length - offsetInAppendMe);
+            System.arraycopy(appendMe, offsetInAppendMe, cbuf, off, allowedLen);
+            return allowedLen;
+        }
     }
 
     // Simple token filter that appends text to the term

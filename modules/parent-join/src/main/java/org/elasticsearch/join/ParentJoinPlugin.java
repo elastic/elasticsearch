@@ -27,6 +27,7 @@ import org.elasticsearch.join.fetch.ParentJoinFieldSubFetchPhase;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.join.query.HasChildQueryBuilder;
 import org.elasticsearch.join.query.HasParentQueryBuilder;
+import org.elasticsearch.join.query.ParentIdQueryBuilder;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -44,7 +45,8 @@ public class ParentJoinPlugin extends Plugin implements SearchPlugin, MapperPlug
     public List<QuerySpec<?>> getQueries() {
         return Arrays.asList(
             new QuerySpec<>(HasChildQueryBuilder.NAME, HasChildQueryBuilder::new, HasChildQueryBuilder::fromXContent),
-            new QuerySpec<>(HasParentQueryBuilder.NAME, HasParentQueryBuilder::new, HasParentQueryBuilder::fromXContent)
+            new QuerySpec<>(HasParentQueryBuilder.NAME, HasParentQueryBuilder::new, HasParentQueryBuilder::fromXContent),
+            new QuerySpec<>(ParentIdQueryBuilder.NAME, ParentIdQueryBuilder::new, ParentIdQueryBuilder::fromXContent)
         );
     }
 

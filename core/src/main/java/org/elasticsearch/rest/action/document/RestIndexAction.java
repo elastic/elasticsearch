@@ -74,7 +74,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.routing(request.param("routing"));
         indexRequest.parent(request.param("parent"));
         indexRequest.setPipeline(request.param("pipeline"));
-        indexRequest.source(request.content(), request.getXContentType());
+        indexRequest.source(request.requiredContent(), request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));

@@ -25,7 +25,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -84,15 +83,58 @@ public class ChildrenIT extends ESIntegTestCase {
         return nodePlugins();
     }
 
+    protected boolean legacy() {
+        return false;
+    }
+
+    private IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, Object... fields) {
+        String name = type;
+        if (legacy() == false) {
+            type = "doc";
+        }
+
+        IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index, type, id);
+        if (legacy()) {
+            if (parentId != null) {
+                indexRequestBuilder.setParent(parentId);
+            }
+            indexRequestBuilder.setSource(fields);
+        } else {
+            Map<String, Object> source = new HashMap<>();
+            for (int i = 0; i < fields.length; i += 2) {
+                source.put((String) fields[i], fields[i + 1]);
+            }
+            Map<String, Object> joinField = new HashMap<>();
+            if (parentId != null) {
+                joinField.put("name", name);
+                joinField.put("parent", parentId);
+                indexRequestBuilder.setRouting(parentId);
+            } else {
+                joinField.put("name", name);
+            }
+            source.put("join_field", joinField);
+            indexRequestBuilder.setSource(source);
+        }
+        indexRequestBuilder.setCreate(true);
+        return indexRequestBuilder;
+    }
+
     @Before
     public void setupCluster() throws Exception {
         categoryToControl.clear();
-        assertAcked(
+        if (legacy()) {
+            assertAcked(
                 prepareCreate("test")
-                    .setSettings("index.mapping.single_type", false)
                     .addMapping("article", "category", "type=keyword")
                     .addMapping("comment", "_parent", "type=article", "commenter", "type=keyword")
-        );
+            );
+        } else {
+            assertAcked(
+                prepareCreate("test")
+                    .addMapping("doc", "category", "type=keyword", "join_field", "type=join,article=comment",
+                        "commenter", "type=keyword")
+            );
+        }
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         String[] uniqueCategories = new String[randomIntBetween(1, 25)];
@@ -103,7 +145,7 @@ public class ChildrenIT extends ESIntegTestCase {
 
         int numParentDocs = randomIntBetween(uniqueCategories.length, uniqueCategories.length * 5);
         for (int i = 0; i < numParentDocs; i++) {
-            String id = Integer.toString(i);
+            String id = "article-" + i;
 
             // TODO: this array is always of length 1, and testChildrenAggs fails if this is changed
             String[] categories = new String[randomIntBetween(1,1)];
@@ -116,8 +158,7 @@ public class ChildrenIT extends ESIntegTestCase {
                 control.articleIds.add(id);
             }
 
-            requests.add(client()
-                .prepareIndex("test", "article", id).setCreate(true).setSource("category", categories, "randomized", true));
+            requests.add(createIndexRequest("test", "article", id, null, "category", categories, "randomized", true));
         }
 
         String[] commenters = new String[randomIntBetween(5, 50)];
@@ -131,31 +172,24 @@ public class ChildrenIT extends ESIntegTestCase {
                 int numChildDocsPerParent = randomIntBetween(0, 5);
                 for (int i = 0; i < numChildDocsPerParent; i++) {
                     String commenter = commenters[id % commenters.length];
-                    String idValue = Integer.toString(id++);
+                    String idValue = "comment-" + id++;
                     control.commentIds.add(idValue);
                     Set<String> ids = control.commenterToCommentId.get(commenter);
                     if (ids == null) {
                         control.commenterToCommentId.put(commenter, ids = new HashSet<>());
                     }
                     ids.add(idValue);
-                    requests.add(client().prepareIndex("test", "comment", idValue)
-                        .setCreate(true).setParent(articleId).setSource("commenter", commenter));
+                    requests.add(createIndexRequest("test", "comment", idValue, articleId, "commenter", commenter));
                 }
             }
         }
 
-        requests.add(client().prepareIndex("test", "article", "a")
-            .setSource("category", new String[]{"a"}, "randomized", false));
-        requests.add(client().prepareIndex("test", "article", "b")
-            .setSource("category", new String[]{"a", "b"}, "randomized", false));
-        requests.add(client().prepareIndex("test", "article", "c")
-            .setSource("category", new String[]{"a", "b", "c"}, "randomized", false));
-        requests.add(client().prepareIndex("test", "article", "d")
-            .setSource("category", new String[]{"c"}, "randomized", false));
-        requests.add(client().prepareIndex("test", "comment", "a")
-            .setParent("a").setSource("{}", XContentType.JSON));
-        requests.add(client().prepareIndex("test", "comment", "c")
-            .setParent("c").setSource("{}", XContentType.JSON));
+        requests.add(createIndexRequest("test", "article", "a", null, "category", new String[]{"a"}, "randomized", false));
+        requests.add(createIndexRequest("test", "article", "b", null, "category", new String[]{"a", "b"}, "randomized", false));
+        requests.add(createIndexRequest("test", "article", "c", null, "category", new String[]{"a", "b", "c"}, "randomized", false));
+        requests.add(createIndexRequest("test", "article", "d", null, "category", new String[]{"c"}, "randomized", false));
+        requests.add(createIndexRequest("test", "comment", "e", "a"));
+        requests.add(createIndexRequest("test", "comment", "f", "c"));
 
         indexRandom(true, requests);
         ensureSearchable("test");
@@ -184,11 +218,11 @@ public class ChildrenIT extends ESIntegTestCase {
             Children childrenBucket = categoryBucket.getAggregations().get("to_comment");
             assertThat(childrenBucket.getName(), equalTo("to_comment"));
             assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
-            assertThat((long) ((InternalAggregation)childrenBucket).getProperty("_count"),
+            assertThat(((InternalAggregation)childrenBucket).getProperty("_count"),
                 equalTo((long) entry1.getValue().commentIds.size()));
 
             Terms commentersTerms = childrenBucket.getAggregations().get("commenters");
-            assertThat((Terms) ((InternalAggregation)childrenBucket).getProperty("commenters"), sameInstance(commentersTerms));
+            assertThat(((InternalAggregation)childrenBucket).getProperty("commenters"), sameInstance(commentersTerms));
             assertThat(commentersTerms.getBuckets().size(), equalTo(entry1.getValue().commenterToCommentId.size()));
             for (Map.Entry<String, Set<String>> entry2 : entry1.getValue().commenterToCommentId.entrySet()) {
                 Terms.Bucket commentBucket = commentersTerms.getBucketByKey(entry2.getKey());
@@ -235,10 +269,8 @@ public class ChildrenIT extends ESIntegTestCase {
         assertThat(childrenBucket.getDocCount(), equalTo(2L));
         TopHits topHits = childrenBucket.getAggregations().get("top_comments");
         assertThat(topHits.getHits().getTotalHits(), equalTo(2L));
-        assertThat(topHits.getHits().getAt(0).getId(), equalTo("a"));
-        assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
-        assertThat(topHits.getHits().getAt(1).getId(), equalTo("c"));
-        assertThat(topHits.getHits().getAt(1).getType(), equalTo("comment"));
+        assertThat(topHits.getHits().getAt(0).getId(), equalTo("e"));
+        assertThat(topHits.getHits().getAt(1).getId(), equalTo("f"));
 
         categoryBucket = categoryTerms.getBucketByKey("b");
         assertThat(categoryBucket.getKeyAsString(), equalTo("b"));
@@ -249,8 +281,7 @@ public class ChildrenIT extends ESIntegTestCase {
         assertThat(childrenBucket.getDocCount(), equalTo(1L));
         topHits = childrenBucket.getAggregations().get("top_comments");
         assertThat(topHits.getHits().getTotalHits(), equalTo(1L));
-        assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
-        assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
+        assertThat(topHits.getHits().getAt(0).getId(), equalTo("f"));
 
         categoryBucket = categoryTerms.getBucketByKey("c");
         assertThat(categoryBucket.getKeyAsString(), equalTo("c"));
@@ -261,25 +292,30 @@ public class ChildrenIT extends ESIntegTestCase {
         assertThat(childrenBucket.getDocCount(), equalTo(1L));
         topHits = childrenBucket.getAggregations().get("top_comments");
         assertThat(topHits.getHits().getTotalHits(), equalTo(1L));
-        assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
-        assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
+        assertThat(topHits.getHits().getAt(0).getId(), equalTo("f"));
     }
 
     public void testWithDeletes() throws Exception {
         String indexName = "xyz";
-        assertAcked(
-                prepareCreate(indexName)
-                        .setSettings("index.mapping.single_type", false)
-                        .addMapping("parent")
-                        .addMapping("child", "_parent", "type=parent", "count", "type=long")
-        );
+        if (legacy()) {
+            assertAcked(
+                    prepareCreate(indexName)
+                            .addMapping("parent")
+                            .addMapping("child", "_parent", "type=parent", "count", "type=long")
+            );
+        } else {
+            assertAcked(
+                    prepareCreate(indexName)
+                            .addMapping("doc", "join_field", "type=join,parent=child", "count", "type=long")
+            );
+        }
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex(indexName, "parent", "1").setSource("{}", XContentType.JSON));
-        requests.add(client().prepareIndex(indexName, "child", "0").setParent("1").setSource("count", 1));
-        requests.add(client().prepareIndex(indexName, "child", "1").setParent("1").setSource("count", 1));
-        requests.add(client().prepareIndex(indexName, "child", "2").setParent("1").setSource("count", 1));
-        requests.add(client().prepareIndex(indexName, "child", "3").setParent("1").setSource("count", 1));
+        requests.add(createIndexRequest(indexName, "parent", "1", null));
+        requests.add(createIndexRequest(indexName, "child", "2", "1", "count", 1));
+        requests.add(createIndexRequest(indexName, "child", "3", "1", "count", 1));
+        requests.add(createIndexRequest(indexName, "child", "4", "1", "count", 1));
+        requests.add(createIndexRequest(indexName, "child", "5", "1", "count", 1));
         indexRandom(true, requests);
 
         for (int i = 0; i < 10; i++) {
@@ -294,17 +330,26 @@ public class ChildrenIT extends ESIntegTestCase {
             Sum count = children.getAggregations().get("counts");
             assertThat(count.getValue(), equalTo(4.));
 
-            String idToUpdate = Integer.toString(randomInt(3));
+            String idToUpdate = Integer.toString(2 + randomInt(3));
             /*
              * The whole point of this test is to test these things with deleted
              * docs in the index so we turn off detect_noop to make sure that
              * the updates cause that.
              */
-            UpdateResponse updateResponse = client().prepareUpdate(indexName, "child", idToUpdate)
-                    .setParent("1")
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
-                    .setDetectNoop(false)
-                    .get();
+            UpdateResponse updateResponse;
+            if (legacy()) {
+                updateResponse = client().prepareUpdate(indexName, "child", idToUpdate)
+                        .setParent("1")
+                        .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
+                        .setDetectNoop(false)
+                        .get();
+            } else {
+                updateResponse = client().prepareUpdate(indexName, "doc", idToUpdate)
+                        .setRouting("1")
+                        .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
+                        .setDetectNoop(false)
+                        .get();
+            }
             assertThat(updateResponse.getVersion(), greaterThan(1L));
             refresh();
         }
@@ -326,35 +371,47 @@ public class ChildrenIT extends ESIntegTestCase {
         String indexName = "prodcatalog";
         String masterType = "masterprod";
         String childType = "variantsku";
-        assertAcked(
-                prepareCreate(indexName)
-                        .setSettings("index.mapping.single_type", false)
-                        .addMapping(masterType, "brand", "type=text", "name", "type=keyword", "material", "type=text")
-                        .addMapping(childType, "_parent", "type=masterprod", "color", "type=keyword", "size", "type=keyword")
-        );
+        if (legacy()) {
+            assertAcked(
+                    prepareCreate(indexName)
+                            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put("index.mapping.single_type", false))
+                            .addMapping(masterType, "brand", "type=text", "name", "type=keyword", "material", "type=text")
+                            .addMapping(childType, "_parent", "type=masterprod", "color", "type=keyword", "size", "type=keyword")
+            );
+        } else {
+            assertAcked(
+                    prepareCreate(indexName)
+                            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                            .addMapping("doc", "join_field", "type=join," + masterType + "=" + childType, "brand", "type=text",
+                                    "name", "type=keyword", "material", "type=text", "color", "type=keyword", "size", "type=keyword")
+            );
+        }
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex(indexName, masterType, "1")
-            .setSource("brand", "Levis", "name", "Style 501", "material", "Denim"));
-        requests.add(client().prepareIndex(indexName, childType, "0").setParent("1").setSource("color", "blue", "size", "32"));
-        requests.add(client().prepareIndex(indexName, childType, "1").setParent("1").setSource("color", "blue", "size", "34"));
-        requests.add(client().prepareIndex(indexName, childType, "2").setParent("1").setSource("color", "blue", "size", "36"));
-        requests.add(client().prepareIndex(indexName, childType, "3").setParent("1").setSource("color", "black", "size", "38"));
-        requests.add(client().prepareIndex(indexName, childType, "4").setParent("1").setSource("color", "black", "size", "40"));
-        requests.add(client().prepareIndex(indexName, childType, "5").setParent("1").setSource("color", "gray", "size", "36"));
+        requests.add(createIndexRequest(indexName, masterType, "1", null, "brand", "Levis", "name",
+                "Style 501", "material", "Denim"));
+        requests.add(createIndexRequest(indexName, childType, "3", "1", "color", "blue", "size", "32"));
+        requests.add(createIndexRequest(indexName, childType, "4", "1", "color", "blue", "size", "34"));
+        requests.add(createIndexRequest(indexName, childType, "5", "1", "color", "blue", "size", "36"));
+        requests.add(createIndexRequest(indexName, childType, "6", "1", "color", "black", "size", "38"));
+        requests.add(createIndexRequest(indexName, childType, "7", "1", "color", "black", "size", "40"));
+        requests.add(createIndexRequest(indexName, childType, "8", "1", "color", "gray", "size", "36"));
 
-        requests.add(client().prepareIndex(indexName, masterType, "2")
-            .setSource("brand", "Wrangler", "name", "Regular Cut", "material", "Leather"));
-        requests.add(client().prepareIndex(indexName, childType, "6").setParent("2").setSource("color", "blue", "size", "32"));
-        requests.add(client().prepareIndex(indexName, childType, "7").setParent("2").setSource("color", "blue", "size", "34"));
-        requests.add(client().prepareIndex(indexName, childType, "8").setParent("2").setSource("color", "black", "size", "36"));
-        requests.add(client().prepareIndex(indexName, childType, "9").setParent("2").setSource("color", "black", "size", "38"));
-        requests.add(client().prepareIndex(indexName, childType, "10").setParent("2").setSource("color", "black", "size", "40"));
-        requests.add(client().prepareIndex(indexName, childType, "11").setParent("2").setSource("color", "orange", "size", "36"));
-        requests.add(client().prepareIndex(indexName, childType, "12").setParent("2").setSource("color", "green", "size", "44"));
+        requests.add(createIndexRequest(indexName, masterType, "2", null, "brand", "Wrangler", "name",
+                "Regular Cut", "material", "Leather"));
+        requests.add(createIndexRequest(indexName, childType, "9", "2", "color", "blue", "size", "32"));
+        requests.add(createIndexRequest(indexName, childType, "10", "2", "color", "blue", "size", "34"));
+        requests.add(createIndexRequest(indexName, childType, "12", "2", "color", "black", "size", "36"));
+        requests.add(createIndexRequest(indexName, childType, "13", "2", "color", "black", "size", "38"));
+        requests.add(createIndexRequest(indexName, childType, "14", "2", "color", "black", "size", "40"));
+        requests.add(createIndexRequest(indexName, childType, "15", "2", "color", "orange", "size", "36"));
+        requests.add(createIndexRequest(indexName, childType, "16", "2", "color", "green", "size", "44"));
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch(indexName).setTypes(masterType)
+        SearchResponse response = client().prepareSearch(indexName)
                 .setQuery(hasChildQuery(childType, termQuery("color", "orange"), ScoreMode.None))
                         .addAggregation(children("my-refinements", childType)
                                 .subAggregation(terms("my-colors").field("color"))
@@ -388,21 +445,27 @@ public class ChildrenIT extends ESIntegTestCase {
         String grandParentType = "continent";
         String parentType = "country";
         String childType = "city";
-        assertAcked(
-                prepareCreate(indexName)
-                        .setSettings(Settings.builder()
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                        )
-                        .setSettings("index.mapping.single_type", false)
-                        .addMapping(grandParentType, "name", "type=keyword")
-                        .addMapping(parentType, "_parent", "type=" + grandParentType)
-                        .addMapping(childType, "_parent", "type=" + parentType)
-        );
+        if (legacy()) {
+            assertAcked(
+                    prepareCreate(indexName)
+                            .setSettings(Settings.builder()
+                                    .put("index.mapping.single_type", false)
+                            ).addMapping(grandParentType, "name", "type=keyword")
+                            .addMapping(parentType, "_parent", "type=" + grandParentType)
+                            .addMapping(childType, "_parent", "type=" + parentType)
 
-        client().prepareIndex(indexName, grandParentType, "1").setSource("name", "europe").get();
-        client().prepareIndex(indexName, parentType, "2").setParent("1").setSource("name", "belgium").get();
-        client().prepareIndex(indexName, childType, "3").setParent("2").setRouting("1").setSource("name", "brussels").get();
+            );
+        } else {
+            assertAcked(
+                    prepareCreate(indexName)
+                            .addMapping("doc", "join_field", "type=join," + grandParentType + "=" + parentType + "," +
+                                    parentType + "=" + childType, "name", "type=keyword")
+            );
+        }
+
+        createIndexRequest(indexName, grandParentType, "1", null, "name", "europe").get();
+        createIndexRequest(indexName, parentType, "2", "1", "name", "belgium").get();
+        createIndexRequest(indexName, childType, "3", "2", "name", "brussels").setRouting("1").get();
         refresh();
 
         SearchResponse response = client().prepareSearch(indexName)
@@ -435,32 +498,37 @@ public class ChildrenIT extends ESIntegTestCase {
 
         // Before we only evaluated segments that yielded matches in 'towns' and 'parent_names' aggs, which caused
         // us to miss to evaluate child docs in segments we didn't have parent matches for.
-
-        assertAcked(
-            prepareCreate("index")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("parentType", "name", "type=keyword", "town", "type=keyword")
-                .addMapping("childType", "_parent", "type=parentType", "name", "type=keyword", "age", "type=integer")
-        );
+        if (legacy()) {
+            assertAcked(
+                    prepareCreate("index")
+                            .addMapping("parentType", "name", "type=keyword", "town", "type=keyword")
+                            .addMapping("childType", "_parent", "type=parentType", "name", "type=keyword", "age", "type=integer")
+            );
+        } else {
+            assertAcked(
+                    prepareCreate("index")
+                            .addMapping("doc", "join_field", "type=join,parentType=childType", "name", "type=keyword",
+                                    "town", "type=keyword", "age", "type=integer")
+            );
+        }
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("index", "parentType", "1").setSource("name", "Bob", "town", "Memphis"));
-        requests.add(client().prepareIndex("index", "parentType", "2").setSource("name", "Alice", "town", "Chicago"));
-        requests.add(client().prepareIndex("index", "parentType", "3").setSource("name", "Bill", "town", "Chicago"));
-        requests.add(client().prepareIndex("index", "childType", "1").setSource("name", "Jill", "age", 5).setParent("1"));
-        requests.add(client().prepareIndex("index", "childType", "2").setSource("name", "Joey", "age", 3).setParent("1"));
-        requests.add(client().prepareIndex("index", "childType", "3").setSource("name", "John", "age", 2).setParent("2"));
-        requests.add(client().prepareIndex("index", "childType", "4").setSource("name", "Betty", "age", 6).setParent("3"));
-        requests.add(client().prepareIndex("index", "childType", "5").setSource("name", "Dan", "age", 1).setParent("3"));
+        requests.add(createIndexRequest("index", "parentType", "1", null, "name", "Bob", "town", "Memphis"));
+        requests.add(createIndexRequest("index", "parentType", "2", null, "name", "Alice", "town", "Chicago"));
+        requests.add(createIndexRequest("index", "parentType", "3", null, "name", "Bill", "town", "Chicago"));
+        requests.add(createIndexRequest("index", "childType", "4", "1", "name", "Jill", "age", 5));
+        requests.add(createIndexRequest("index", "childType", "5", "1", "name", "Joey", "age", 3));
+        requests.add(createIndexRequest("index", "childType", "6", "2", "name", "John", "age", 2));
+        requests.add(createIndexRequest("index", "childType", "7", "3", "name", "Betty", "age", 6));
+        requests.add(createIndexRequest("index", "childType", "8", "3", "name", "Dan", "age", 1));
         indexRandom(true, requests);
 
         SearchResponse response = client().prepareSearch("index")
             .setSize(0)
             .addAggregation(AggregationBuilders.terms("towns").field("town")
                 .subAggregation(AggregationBuilders.terms("parent_names").field("name")
-.subAggregation(children("child_docs", "childType"))
+                    .subAggregation(children("child_docs", "childType"))
                 )
-            )
-            .get();
+            ).get();
 
         Terms towns = response.getAggregations().get("towns");
         assertThat(towns.getBuckets().size(), equalTo(2));

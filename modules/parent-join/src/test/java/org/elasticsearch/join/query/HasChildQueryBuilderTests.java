@@ -20,12 +20,12 @@
 package org.elasticsearch.join.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
@@ -85,8 +85,18 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     @Override
+    protected Settings indexSettings() {
+        return Settings.builder()
+            .put(super.indexSettings())
+            .put("index.mapping.single_type", false)
+            .build();
+    }
+
+    @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         similarity = randomFrom("classic", "BM25");
+        // TODO: use a single type when inner hits have been changed to work with join field,
+        // this test randomly generates queries with inner hits
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",

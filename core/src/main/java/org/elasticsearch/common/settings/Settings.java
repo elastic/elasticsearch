@@ -219,7 +219,7 @@ public final class Settings implements ToXContent {
      */
     public Settings getByPrefix(String prefix) {
         return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix), secureSettings == null ? null :
-            new PrefixedSecureSettings(secureSettings, s -> prefix + s, s -> s.startsWith(prefix)));
+            new PrefixedSecureSettings(secureSettings, prefix, s -> s.startsWith(prefix)));
     }
 
     /**
@@ -227,7 +227,7 @@ public final class Settings implements ToXContent {
      */
     public Settings filter(Predicate<String> predicate) {
         return new Settings(new FilteredMap(this.settings, predicate, null), secureSettings == null ? null :
-            new PrefixedSecureSettings(secureSettings, UnaryOperator.identity(), predicate));
+            new PrefixedSecureSettings(secureSettings, "", predicate));
     }
 
     /**
@@ -507,35 +507,21 @@ public final class Settings implements ToXContent {
     }
 
     private Map<String, Settings> getGroupsInternal(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
-        // we don't really care that it might happen twice
-        Map<String, Map<String, String>> map = new LinkedHashMap<>();
-        for (Object o : settings.keySet()) {
-            String setting = (String) o;
-            if (setting.startsWith(settingPrefix)) {
-                String nameValue = setting.substring(settingPrefix.length());
-                int dotIndex = nameValue.indexOf('.');
-                if (dotIndex == -1) {
-                    if (ignoreNonGrouped) {
-                        continue;
-                    }
-                    throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting ["
-                            + setting + "] because of a missing '.'");
+        Settings prefixSettings = getByPrefix(settingPrefix);
+        Map<String, Settings> groups = new HashMap<>();
+        for (String groupName : prefixSettings.names()) {
+            Settings groupSettings = prefixSettings.getByPrefix(groupName + ".");
+            if (groupSettings.isEmpty()) {
+                if (ignoreNonGrouped) {
+                    continue;
                 }
-                String name = nameValue.substring(0, dotIndex);
-                String value = nameValue.substring(dotIndex + 1);
-                Map<String, String> groupSettings = map.get(name);
-                if (groupSettings == null) {
-                    groupSettings = new LinkedHashMap<>();
-                    map.put(name, groupSettings);
-                }
-                groupSettings.put(value, get(setting));
+                throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting ["
+                    + settingPrefix + groupName + "] because of a missing '.'");
             }
+            groups.put(groupName, groupSettings);
         }
-        Map<String, Settings> retVal = new LinkedHashMap<>();
-        for (Map.Entry<String, Map<String, String>> entry : map.entrySet()) {
-            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue()), secureSettings));
-        }
-        return Collections.unmodifiableMap(retVal);
+
+        return Collections.unmodifiableMap(groups);
     }
     /**
      * Returns group settings for the given setting prefix.
@@ -719,6 +705,11 @@ public final class Settings implements ToXContent {
          */
         public String get(String key) {
             return map.get(key);
+        }
+
+        /** Return the current secure settings, or {@code null} if none have been set. */
+        public SecureSettings getSecureSettings() {
+            return secureSettings.get();
         }
 
         public Builder setSecureSettings(SecureSettings secureSettings) {
@@ -1276,13 +1267,15 @@ public final class Settings implements ToXContent {
 
     private static class PrefixedSecureSettings implements SecureSettings {
         private final SecureSettings delegate;
-        private final UnaryOperator<String> keyTransform;
+        private final UnaryOperator<String> addPrefix;
+        private final UnaryOperator<String> removePrefix;
         private final Predicate<String> keyPredicate;
         private final SetOnce<Set<String>> settingNames = new SetOnce<>();
 
-        PrefixedSecureSettings(SecureSettings delegate, UnaryOperator<String> keyTransform, Predicate<String> keyPredicate) {
+        PrefixedSecureSettings(SecureSettings delegate, String prefix, Predicate<String> keyPredicate) {
             this.delegate = delegate;
-            this.keyTransform = keyTransform;
+            this.addPrefix = s -> prefix + s;
+            this.removePrefix = s -> s.substring(prefix.length());
             this.keyPredicate = keyPredicate;
         }
 
@@ -1295,7 +1288,8 @@ public final class Settings implements ToXContent {
         public Set<String> getSettingNames() {
             synchronized (settingNames) {
                 if (settingNames.get() == null) {
-                    Set<String> names = delegate.getSettingNames().stream().filter(keyPredicate).collect(Collectors.toSet());
+                    Set<String> names = delegate.getSettingNames().stream()
+                        .filter(keyPredicate).map(removePrefix).collect(Collectors.toSet());
                     settingNames.set(Collections.unmodifiableSet(names));
                 }
             }
@@ -1304,12 +1298,12 @@ public final class Settings implements ToXContent {
 
         @Override
         public SecureString getString(String setting) throws GeneralSecurityException{
-            return delegate.getString(keyTransform.apply(setting));
+            return delegate.getString(addPrefix.apply(setting));
         }
 
         @Override
         public InputStream getFile(String setting) throws GeneralSecurityException{
-            return delegate.getFile(keyTransform.apply(setting));
+            return delegate.getFile(addPrefix.apply(setting));
         }
 
         @Override

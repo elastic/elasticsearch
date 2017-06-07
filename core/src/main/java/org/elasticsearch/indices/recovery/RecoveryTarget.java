@@ -36,7 +36,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -59,6 +58,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -79,7 +79,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final String tempFilePrefix;
     private final Store store;
     private final PeerRecoveryTargetService.RecoveryListener listener;
-    private final Callback<Long> ensureClusterStateVersionCallback;
+    private final LongConsumer ensureClusterStateVersionCallback;
 
     private final AtomicBoolean finished = new AtomicBoolean();
 
@@ -107,7 +107,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public RecoveryTarget(final IndexShard indexShard,
                    final DiscoveryNode sourceNode,
                    final PeerRecoveryTargetService.RecoveryListener listener,
-                   final Callback<Long> ensureClusterStateVersionCallback) {
+                   final LongConsumer ensureClusterStateVersionCallback) {
         super("recovery_status");
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
@@ -371,7 +371,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     @Override
     public void ensureClusterStateVersion(long clusterStateVersion) {
-        ensureClusterStateVersionCallback.handle(clusterStateVersion);
+        ensureClusterStateVersionCallback.accept(clusterStateVersion);
     }
 
     @Override

@@ -45,7 +45,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.template.CompiledTemplate;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -330,12 +329,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
-    /** Compiles a template. Note this will be moved to a separate TemplateService in the future. */
-    public CompiledTemplate compileTemplate(Script script, ScriptContext<ExecutableScript.Factory> scriptContext) {
-        ExecutableScript.Factory factory = compile(script, scriptContext);
-        return params -> (String) factory.newInstance(params).run();
-    }
-
     /**
      * Check whether there have been too many compilations within the last minute, throwing a circuit breaking exception if so.
      * This is a variant of the token bucket algorithm: https://en.wikipedia.org/wiki/Token_bucket
@@ -431,14 +424,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             } else if (isAnyContextEnabled() == false) {
                 throw new IllegalArgumentException(
                     "cannot put [" + ScriptType.STORED + "] script, no script contexts are enabled");
-            } else {
-                // TODO: executable context here is just a placeholder, replace with optional context name passed into PUT stored script req
-                Object compiled = scriptEngine.compile(request.id(), source.getCode(), ExecutableScript.CONTEXT, Collections.emptyMap());
-
-                if (compiled == null) {
-                    throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]" +
-                        (source.getCode() == null ? "" : " using code [" + source.getCode() + "]"));
+            } else if (request.context() != null) {
+                ScriptContext<?> context = contexts.get(request.context());
+                if (context == null) {
+                    throw new IllegalArgumentException("Unknown context [" + request.context() + "]");
                 }
+                scriptEngine.compile(request.id(), source.getCode(), context, Collections.emptyMap());
             }
         } catch (ScriptException good) {
             throw good;

@@ -57,6 +57,11 @@ public class RestAnalyzeAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "analyze_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"));

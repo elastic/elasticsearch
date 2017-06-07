@@ -51,7 +51,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
                                                    Map<String, Object> metaData,
                                                    InternalAggregations aggregations) {
         final int base = randomInt(50) - 30;
-        final int numBuckets = randomInt(10);
+        final int numBuckets = randomNumberOfBuckets();
         final int interval = randomIntBetween(1, 3);
         List<InternalHistogram.Bucket> buckets = new ArrayList<>();
         for (int i = 0; i < numBuckets; ++i) {

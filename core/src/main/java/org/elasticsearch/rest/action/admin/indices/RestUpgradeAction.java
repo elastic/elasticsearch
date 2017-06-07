@@ -56,6 +56,11 @@ public class RestUpgradeAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "upgrade_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (request.method().equals(RestRequest.Method.GET)) {
             return handleGet(request, client);

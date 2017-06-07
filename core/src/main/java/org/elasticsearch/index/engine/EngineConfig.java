@@ -41,6 +41,8 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.List;
+
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
  * Once {@link Engine} has been created with this object, changes to this
@@ -65,7 +67,7 @@ public final class EngineConfig {
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
     @Nullable
-    private final ReferenceManager.RefreshListener refreshListeners;
+    private final List<ReferenceManager.RefreshListener> refreshListeners;
     @Nullable
     private final Sort indexSort;
 
@@ -111,7 +113,7 @@ public final class EngineConfig {
                         MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter, ReferenceManager.RefreshListener refreshListeners,
+                        TranslogConfig translogConfig, TimeValue flushMergesAfter, List<ReferenceManager.RefreshListener> refreshListeners,
                         Sort indexSort) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
@@ -310,9 +312,9 @@ public final class EngineConfig {
     }
 
     /**
-     * {@linkplain ReferenceManager.RefreshListener} instance to configure.
+     * The refresh listeners to add to Lucene
      */
-    public ReferenceManager.RefreshListener getRefreshListeners() {
+    public List<ReferenceManager.RefreshListener> getRefreshListeners() {
         return refreshListeners;
     }
 

@@ -27,17 +27,16 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.TemplateScript;
 
 import java.io.Reader;
 import java.io.StringWriter;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -61,22 +60,22 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * @return a compiled template object for later execution.
      * */
     @Override
-    public <T> T compile(String templateName, String templateSource, ScriptContext<T> context, Map<String, String> params) {
-        if (context.instanceClazz.equals(ExecutableScript.class) == false) {
+    public <T> T compile(String templateName, String templateSource, ScriptContext<T> context, Map<String, String> options) {
+        if (context.instanceClazz.equals(TemplateScript.class) == false) {
             throw new IllegalArgumentException("mustache engine does not know how to handle context [" + context.name + "]");
         }
-        final MustacheFactory factory = createMustacheFactory(params);
+        final MustacheFactory factory = createMustacheFactory(options);
         Reader reader = new FastStringReader(templateSource);
         Mustache template = factory.compile(reader, "query-template");
-        ExecutableScript.Factory compiled = p -> new MustacheExecutableScript(template, p);
+        TemplateScript.Factory compiled = params -> new MustacheExecutableScript(template, params);
         return context.factoryClazz.cast(compiled);
     }
 
-    private CustomMustacheFactory createMustacheFactory(Map<String, String> params) {
-        if (params == null || params.isEmpty() || params.containsKey(Script.CONTENT_TYPE_OPTION) == false) {
+    private CustomMustacheFactory createMustacheFactory(Map<String, String> options) {
+        if (options == null || options.isEmpty() || options.containsKey(Script.CONTENT_TYPE_OPTION) == false) {
             return new CustomMustacheFactory();
         }
-        return new CustomMustacheFactory(params.get(Script.CONTENT_TYPE_OPTION));
+        return new CustomMustacheFactory(options.get(Script.CONTENT_TYPE_OPTION));
     }
 
     @Override
@@ -87,34 +86,28 @@ public final class MustacheScriptEngine implements ScriptEngine {
     /**
      * Used at query execution time by script service in order to execute a query template.
      * */
-    private class MustacheExecutableScript implements ExecutableScript {
+    private class MustacheExecutableScript implements TemplateScript {
         /** Factory template. */
         private Mustache template;
-        /** Parameters to fill above object with. */
-        private Map<String, Object> vars;
+
+        private Map<String, Object> params;
 
         /**
          * @param template the compiled template object wrapper
-         * @param vars the parameters to fill above object with
          **/
-        MustacheExecutableScript(Mustache template, Map<String, Object> vars) {
+        MustacheExecutableScript(Mustache template, Map<String, Object> params) {
             this.template = template;
-            this.vars = vars == null ? Collections.emptyMap() : vars;
+            this.params = params;
         }
 
         @Override
-        public void setNextVar(String name, Object value) {
-            this.vars.put(name, value);
-        }
-
-        @Override
-        public Object run() {
+        public String execute() {
             final StringWriter writer = new StringWriter();
             try {
                 // crazy reflection here
                 SpecialPermission.check();
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    template.execute(writer, vars);
+                    template.execute(writer, params);
                     return null;
                 });
             } catch (Exception e) {

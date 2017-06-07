@@ -22,14 +22,10 @@ package org.elasticsearch.ingest;
 import java.util.Collections;
 import java.util.Map;
 
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.template.CompiledTemplate;
+import org.elasticsearch.script.TemplateScript;
 
 public class InternalTemplateService implements TemplateService {
 
@@ -45,11 +41,11 @@ public class InternalTemplateService implements TemplateService {
         int mustacheEnd = template.indexOf("}}");
         if (mustacheStart != -1 && mustacheEnd != -1 && mustacheStart < mustacheEnd) {
             Script script = new Script(ScriptType.INLINE, "mustache", template, Collections.emptyMap());
-            CompiledTemplate compiledTemplate = scriptService.compileTemplate(script, ExecutableScript.INGEST_CONTEXT);
+            TemplateScript.Factory compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT);
             return new Template() {
                 @Override
                 public String execute(Map<String, Object> model) {
-                    return compiledTemplate.run(model);
+                    return compiledTemplate.newInstance(model).execute();
                 }
 
                 @Override

@@ -23,8 +23,8 @@ setup:
 "Get /_mapping":
 
  - skip:
-    version: " - 5.99.99"
-    reason:  mapping.single_type was added in 6.0
+    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+    reason:  mapping.single_type can not be changed on 6.x indices onwards
 
  - do:
     indices.get_mapping: {}
@@ -38,8 +38,8 @@ setup:
 "Get /{index}/_mapping":
 
  - skip:
-    version: " - 5.99.99"
-    reason:  mapping.single_type was added in 6.0
+    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+    reason:  mapping.single_type can not be changed on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -54,8 +54,8 @@ setup:
 "Get /{index}/_mapping/_all":
 
  - skip:
-    version: " - 5.99.99"
-    reason:  mapping.single_type was added in 6.0
+    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+    reason:  mapping.single_type can not be changed on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -70,8 +70,8 @@ setup:
 "Get /{index}/_mapping/*":
 
  - skip:
-    version: " - 5.99.99"
-    reason:  mapping.single_type was added in 6.0
+    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+    reason:  mapping.single_type can not be changed on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -86,8 +86,8 @@ setup:
 "Get /{index}/_mapping/{type}":
 
  - skip:
-    version: " - 5.99.99"
-    reason:  mapping.single_type was added in 6.0
+    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+    reason:  mapping.single_type can not be changed on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -102,8 +102,8 @@ setup:
 "Get /{index}/_mapping/{type,type}":
 
  - skip:
-    version: " - 5.99.99"
-    reason:  mapping.single_type was added in 6.0
+    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+    reason:  mapping.single_type can not be changed on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -118,8 +118,8 @@ setup:
 "Get /{index}/_mapping/{type*}":
 
  - skip:
-    version: " - 5.99.99"
-    reason:  mapping.single_type was added in 6.0
+    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+    reason:  mapping.single_type can not be changed on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -134,8 +134,8 @@ setup:
 "Get /_mapping/{type}":
 
  - skip:
-    version: " - 5.99.99"
-    reason:  mapping.single_type was added in 6.0
+    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+    reason:  mapping.single_type can not be changed on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -150,8 +150,8 @@ setup:
 "Get /_all/_mapping/{type}":
 
  - skip:
-    version: " - 5.99.99"
-    reason:  mapping.single_type was added in 6.0
+    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+    reason:  mapping.single_type can not be changed on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -167,8 +167,8 @@ setup:
 "Get /*/_mapping/{type}":
 
  - skip:
-    version: " - 5.99.99"
-    reason:  mapping.single_type was added in 6.0
+    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+    reason:  mapping.single_type can not be changed on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -184,8 +184,8 @@ setup:
 "Get /index,index/_mapping/{type}":
 
  - skip:
-    version: " - 5.99.99"
-    reason:  mapping.single_type was added in 6.0
+    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+    reason:  mapping.single_type can not be changed on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -200,8 +200,8 @@ setup:
 "Get /index*/_mapping/{type}":
 
  - skip:
-    version: " - 5.99.99"
-    reason:  mapping.single_type was added in 6.0
+    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
+    reason:  mapping.single_type can not be changed on 6.x indices onwards
 
  - do:
     indices.get_mapping:

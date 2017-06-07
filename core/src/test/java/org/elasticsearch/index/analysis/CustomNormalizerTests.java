@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -101,18 +102,23 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
 
     public void testIllegalCharFilters() throws IOException {
         Settings settings = Settings.builder()
-                .putArray("index.analysis.normalizer.my_normalizer.char_filter", "html_strip")
+                .putArray("index.analysis.normalizer.my_normalizer.char_filter", "mock_forbidden")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings));
-        assertEquals("Custom normalizer [my_normalizer] may not use char filter [html_strip]", e.getMessage());
+                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN));
+        assertEquals("Custom normalizer [my_normalizer] may not use char filter [mock_forbidden]", e.getMessage());
     }
 
     private static class MockAnalysisPlugin implements AnalysisPlugin {
         @Override
         public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
             return singletonList(PreConfiguredTokenFilter.singleton("mock_forbidden", false, MockLowerCaseFilter::new));
+        }
+
+        @Override
+        public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
+            return singletonList(PreConfiguredCharFilter.singleton("mock_forbidden", false, Function.identity()));
         }
 
         @Override

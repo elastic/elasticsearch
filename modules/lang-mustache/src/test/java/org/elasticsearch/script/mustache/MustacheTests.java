@@ -18,15 +18,6 @@
  */
 package org.elasticsearch.script.mustache;
 
-import com.github.mustachejava.MustacheException;
-
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matcher;
-
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -38,16 +29,22 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import com.github.mustachejava.MustacheException;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
+
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class MustacheTests extends ESTestCase {
 
@@ -58,41 +55,40 @@ public class MustacheTests extends ESTestCase {
             + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
             + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}"
             + "}}, \"negative_boost\": {{boost_val}} } }}";
-        Map<String, Object> params = Collections.singletonMap("boost_val", "0.2");
+        Map<String, Object> params = singletonMap("boost_val", "0.2");
 
-        ExecutableScript.Factory factory = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
-        ExecutableScript result = factory.newInstance(params);
+        TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
+        TemplateScript result = factory.newInstance(params);
         assertEquals(
                 "Mustache templating broken",
                 "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                         + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.2 } }}",
-                result.run()
+                result.execute()
         );
     }
 
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
-        ExecutableScript.Factory factory = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
+        TemplateScript.Factory factory  = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new String[] { "foo", "bar" },
             Arrays.asList("foo", "bar"));
         vars.put("data", data);
-        assertThat(factory.newInstance(vars).run(), equalTo("foo bar"));
+        assertThat(factory.newInstance(vars).execute(), equalTo("foo bar"));
 
         // Sets can come out in any order
         Set<String> setData = new HashSet<>();
         setData.add("foo");
         setData.add("bar");
         vars.put("data", setData);
-        Object output = factory.newInstance(vars).run();
-        assertThat(output, instanceOf(String.class));
-        assertThat((String)output, both(containsString("foo")).and(containsString("bar")));
+        String output = factory.newInstance(vars).execute();
+        assertThat(output, both(containsString("foo")).and(containsString("bar")));
     }
 
     public void testArrayInArrayAccess() throws Exception {
         String template = "{{data.0.0}} {{data.0.1}}";
-        ExecutableScript.Factory factory = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
+        TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new String[][] { new String[] { "foo", "bar" }},
@@ -100,27 +96,26 @@ public class MustacheTests extends ESTestCase {
             singleton(new String[] { "foo", "bar" })
         );
         vars.put("data", data);
-        assertThat(factory.newInstance(vars).run(), equalTo("foo bar"));
+        assertThat(factory.newInstance(vars).execute(), equalTo("foo bar"));
     }
 
     public void testMapInArrayAccess() throws Exception {
         String template = "{{data.0.key}} {{data.1.key}}";
-        ExecutableScript.Factory factory = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
+        TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new Object[] { singletonMap("key", "foo"), singletonMap("key", "bar") },
             Arrays.asList(singletonMap("key", "foo"), singletonMap("key", "bar")));
         vars.put("data", data);
-        assertThat(factory.newInstance(vars).run(), equalTo("foo bar"));
+        assertThat(factory.newInstance(vars).execute(), equalTo("foo bar"));
 
         // HashSet iteration order isn't fixed
         Set<Object> setData = new HashSet<>();
         setData.add(singletonMap("key", "foo"));
         setData.add(singletonMap("key", "bar"));
         vars.put("data", setData);
-        Object output = factory.newInstance(vars).run();
-        assertThat(output, instanceOf(String.class));
-        assertThat((String)output, both(containsString("foo")).and(containsString("bar")));
+        String output = factory.newInstance(vars).execute();
+        assertThat(output, both(containsString("foo")).and(containsString("bar")));
     }
 
 
@@ -129,34 +124,34 @@ public class MustacheTests extends ESTestCase {
         List<String> randomList = Arrays.asList(generateRandomStringArray(10, 20, false));
 
         String template = "{{data.array.size}} {{data.list.size}}";
-        ExecutableScript.Factory factory = engine.compile(null, template, ExecutableScript.CONTEXT, Collections.emptyMap());
+        TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> data = new HashMap<>();
         data.put("array", randomArrayValues);
         data.put("list", randomList);
         Map<String, Object> vars = new HashMap<>();
         vars.put("data", data);
         String expectedString = String.format(Locale.ROOT, "%s %s", randomArrayValues.length, randomList.size());
-        assertThat(factory.newInstance(vars).run(), equalTo(expectedString));
+        assertThat(factory.newInstance(vars).execute(), equalTo(expectedString));
     }
 
     public void testPrimitiveToJSON() throws Exception {
         String template = "{{#toJson}}ctx{{/toJson}}";
-        assertScript(template, Collections.singletonMap("ctx", "value"), equalTo("value"));
-        assertScript(template, Collections.singletonMap("ctx", ""), equalTo(""));
-        assertScript(template, Collections.singletonMap("ctx", true), equalTo("true"));
-        assertScript(template, Collections.singletonMap("ctx", 42), equalTo("42"));
-        assertScript(template, Collections.singletonMap("ctx", 42L), equalTo("42"));
-        assertScript(template, Collections.singletonMap("ctx", 42.5f), equalTo("42.5"));
-        assertScript(template, Collections.singletonMap("ctx", null), equalTo(""));
+        assertScript(template, singletonMap("ctx", "value"), equalTo("value"));
+        assertScript(template, singletonMap("ctx", ""), equalTo(""));
+        assertScript(template, singletonMap("ctx", true), equalTo("true"));
+        assertScript(template, singletonMap("ctx", 42), equalTo("42"));
+        assertScript(template, singletonMap("ctx", 42L), equalTo("42"));
+        assertScript(template, singletonMap("ctx", 42.5f), equalTo("42.5"));
+        assertScript(template, singletonMap("ctx", null), equalTo(""));
 
         template = "{{#toJson}}.{{/toJson}}";
-        assertScript(template, Collections.singletonMap("ctx", "value"), equalTo("{\"ctx\":\"value\"}"));
-        assertScript(template, Collections.singletonMap("ctx", ""), equalTo("{\"ctx\":\"\"}"));
-        assertScript(template, Collections.singletonMap("ctx", true), equalTo("{\"ctx\":true}"));
-        assertScript(template, Collections.singletonMap("ctx", 42), equalTo("{\"ctx\":42}"));
-        assertScript(template, Collections.singletonMap("ctx", 42L), equalTo("{\"ctx\":42}"));
-        assertScript(template, Collections.singletonMap("ctx", 42.5f), equalTo("{\"ctx\":42.5}"));
-        assertScript(template, Collections.singletonMap("ctx", null), equalTo("{\"ctx\":null}"));
+        assertScript(template, singletonMap("ctx", "value"), equalTo("{\"ctx\":\"value\"}"));
+        assertScript(template, singletonMap("ctx", ""), equalTo("{\"ctx\":\"\"}"));
+        assertScript(template, singletonMap("ctx", true), equalTo("{\"ctx\":true}"));
+        assertScript(template, singletonMap("ctx", 42), equalTo("{\"ctx\":42}"));
+        assertScript(template, singletonMap("ctx", 42L), equalTo("{\"ctx\":42}"));
+        assertScript(template, singletonMap("ctx", 42.5f), equalTo("{\"ctx\":42.5}"));
+        assertScript(template, singletonMap("ctx", null), equalTo("{\"ctx\":null}"));
     }
 
     public void testSimpleMapToJSON() throws Exception {
@@ -165,7 +160,7 @@ public class MustacheTests extends ESTestCase {
         human0.put("name", "John Smith");
         human0.put("height", 1.84);
 
-        Map<String, Object> ctx = Collections.singletonMap("ctx", human0);
+        Map<String, Object> ctx = singletonMap("ctx", human0);
 
         assertScript("{{#toJson}}.{{/toJson}}", ctx, equalTo("{\"ctx\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84}}"));
         assertScript("{{#toJson}}ctx{{/toJson}}", ctx, equalTo("{\"name\":\"John Smith\",\"age\":42,\"height\":1.84}"));
@@ -187,7 +182,7 @@ public class MustacheTests extends ESTestCase {
         humans.put("first", human0);
         humans.put("second", human1);
 
-        Map<String, Object> ctx = Collections.singletonMap("ctx", humans);
+        Map<String, Object> ctx = singletonMap("ctx", humans);
 
         assertScript("{{#toJson}}.{{/toJson}}", ctx,
                 equalTo("{\"ctx\":{\"first\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84},\"second\":" +
@@ -206,7 +201,7 @@ public class MustacheTests extends ESTestCase {
 
     public void testSimpleArrayToJSON() throws Exception {
         String[] array = new String[]{"one", "two", "three"};
-        Map<String, Object> ctx = Collections.singletonMap("array", array);
+        Map<String, Object> ctx = singletonMap("array", array);
 
         assertScript("{{#toJson}}.{{/toJson}}", ctx, equalTo("{\"array\":[\"one\",\"two\",\"three\"]}"));
         assertScript("{{#toJson}}array{{/toJson}}", ctx, equalTo("[\"one\",\"two\",\"three\"]"));
@@ -218,7 +213,7 @@ public class MustacheTests extends ESTestCase {
 
     public void testSimpleListToJSON() throws Exception {
         List<String> list = Arrays.asList("one", "two", "three");
-        Map<String, Object> ctx = Collections.singletonMap("ctx", list);
+        Map<String, Object> ctx = singletonMap("ctx", list);
 
         assertScript("{{#toJson}}.{{/toJson}}", ctx, equalTo("{\"ctx\":[\"one\",\"two\",\"three\"]}"));
         assertScript("{{#toJson}}ctx{{/toJson}}", ctx, equalTo("[\"one\",\"two\",\"three\"]"));
@@ -253,7 +248,7 @@ public class MustacheTests extends ESTestCase {
                     .endObject();
 
         Map<String, Object> ctx =
-            Collections.singletonMap("ctx", XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2());
+            singletonMap("ctx", XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2());
 
         assertScript("{{#ctx.bulks}}{{#toJson}}.{{/toJson}}{{/ctx.bulks}}", ctx,
                 equalTo("{\"index\":\"index-1\",\"id\":1,\"type\":\"type-1\"}{\"index\":\"index-2\",\"id\":2,\"type\":\"type-2\"}"));
@@ -264,12 +259,12 @@ public class MustacheTests extends ESTestCase {
 
     public void testSimpleArrayJoin() throws Exception {
         String template = "{{#join}}array{{/join}}";
-        assertScript(template, Collections.singletonMap("array", new String[]{"one", "two", "three"}), equalTo("one,two,three"));
-        assertScript(template, Collections.singletonMap("array", new int[]{1, 2, 3}), equalTo("1,2,3"));
-        assertScript(template, Collections.singletonMap("array", new long[]{1L, 2L, 3L}), equalTo("1,2,3"));
-        assertScript(template, Collections.singletonMap("array", new double[]{1.5, 2.5, 3.5}), equalTo("1.5,2.5,3.5"));
-        assertScript(template, Collections.singletonMap("array", new boolean[]{true, false, true}), equalTo("true,false,true"));
-        assertScript(template, Collections.singletonMap("array", new boolean[]{true, false, true}), equalTo("true,false,true"));
+        assertScript(template, singletonMap("array", new String[]{"one", "two", "three"}), equalTo("one,two,three"));
+        assertScript(template, singletonMap("array", new int[]{1, 2, 3}), equalTo("1,2,3"));
+        assertScript(template, singletonMap("array", new long[]{1L, 2L, 3L}), equalTo("1,2,3"));
+        assertScript(template, singletonMap("array", new double[]{1.5, 2.5, 3.5}), equalTo("1.5,2.5,3.5"));
+        assertScript(template, singletonMap("array", new boolean[]{true, false, true}), equalTo("true,false,true"));
+        assertScript(template, singletonMap("array", new boolean[]{true, false, true}), equalTo("true,false,true"));
     }
 
     public void testEmbeddedArrayJoin() throws Exception {
@@ -295,7 +290,7 @@ public class MustacheTests extends ESTestCase {
                                                 .endObject();
 
         Map<String, Object> ctx =
-            Collections.singletonMap("ctx", XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2());
+            singletonMap("ctx", XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2());
 
         assertScript("{{#join}}ctx.people.0.emails{{/join}}", ctx,
                 equalTo("john@smith.com,john.smith@email.com,jsmith@email.com"));
@@ -308,7 +303,7 @@ public class MustacheTests extends ESTestCase {
     }
 
     public void testJoinWithToJson() {
-        Map<String, Object> params = Collections.singletonMap("terms",
+        Map<String, Object> params = singletonMap("terms",
                 Arrays.asList(singletonMap("term", "foo"), singletonMap("term", "bar")));
 
         assertScript("{{#join}}{{#toJson}}terms{{/toJson}}{{/join}}", params,
@@ -324,7 +319,7 @@ public class MustacheTests extends ESTestCase {
     }
 
     public void testJoinWithCustomDelimiter() {
-        Map<String, Object> params = Collections.singletonMap("params", Arrays.asList(1, 2, 3, 4));
+        Map<String, Object> params = singletonMap("params", Arrays.asList(1, 2, 3, 4));
 
         assertScript("{{#join delimiter=''}}params{{/join delimiter=''}}", params, equalTo("1234"));
         assertScript("{{#join delimiter=','}}params{{/join delimiter=','}}", params, equalTo("1,2,3,4"));
@@ -370,13 +365,13 @@ public class MustacheTests extends ESTestCase {
                 equalTo("1%2B1%2B2%2B3%2B5%2B8%2B13%2B21%2B34%2B55"));
     }
 
-    private void assertScript(String script, Map<String, Object> vars, Matcher<Object> matcher) {
-        Object result = compile(script).newInstance(vars).run();
+    private void assertScript(String script, Map<String, Object> vars, Matcher<String> matcher) {
+        String result = compile(script).newInstance(vars).execute();
         assertThat(result, matcher);
     }
 
-    private ExecutableScript.Factory compile(String script) {
+    private TemplateScript.Factory compile(String script) {
         assertThat("cannot compile null or empty script", script, not(isEmptyOrNullString()));
-        return engine.compile(null, script, ExecutableScript.CONTEXT, Collections.emptyMap());
+        return engine.compile(null, script, TemplateScript.CONTEXT, Collections.emptyMap());
     }
 }

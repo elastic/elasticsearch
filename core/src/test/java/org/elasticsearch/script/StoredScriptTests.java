@@ -249,6 +249,16 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
         // complex script with script object
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject().field("script").startObject().field("lang", "lang").field("source", "code").endObject().endObject();
+
+            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
+            StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
+
+            assertThat(parsed, equalTo(source));
+        }
+
+        // complex script using "code" backcompat
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code").endObject().endObject();
 
             StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
@@ -305,13 +315,13 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             assertThat(iae.getMessage(), equalTo("must specify lang for stored script"));
         }
 
-        // check for missing code parameter when parsing a script
+        // check for missing source parameter when parsing a script
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
                 StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
-            assertThat(iae.getMessage(), equalTo("must specify code for stored script"));
+            assertThat(iae.getMessage(), equalTo("must specify source for stored script"));
         }
 
         // check for illegal options parameter when parsing a script

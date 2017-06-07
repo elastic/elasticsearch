@@ -353,20 +353,31 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             }
                         }
                     });
+                    latch.await();
 
+                    CountDownLatch failLatch = new CountDownLatch(1);
                     AtomicReference<Exception> ex = new AtomicReference<>();
                     service.collectNodes(new HashSet<>(Arrays.asList("cluster_1", "cluster_2", "no such cluster")),
                             new ActionListener<BiFunction<String, String, DiscoveryNode>>() {
                                 @Override
                                 public void onResponse(BiFunction<String, String, DiscoveryNode> stringStringDiscoveryNodeBiFunction) {
-                                    fail("should not be called");
+                                    try {
+                                        fail("should not be called");
+                                    } finally {
+                                        failLatch.countDown();
+                                    }
                                 }
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    ex.set(e);
+                                    try {
+                                        ex.set(e);
+                                    } finally {
+                                        failLatch.countDown();
+                                    }
                                 }
                             });
+                    failLatch.await();
                     assertNotNull(ex.get());
                     assertTrue(ex.get() instanceof IllegalArgumentException);
                     assertEquals("no such remote cluster: [no such cluster]", ex.get().getMessage());

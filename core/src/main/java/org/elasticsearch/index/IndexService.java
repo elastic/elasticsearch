@@ -515,7 +515,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
 
         @Override
-        public void handle(ShardLock lock) {
+        public void accept(ShardLock lock) {
             try {
                 assert lock.getShardId().equals(shardId) : "shard id mismatch, expected: " + shardId + " but got: " + lock.getShardId();
                 onShardClose(lock, ownsShard);

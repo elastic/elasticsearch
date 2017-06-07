@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -43,7 +44,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -58,7 +58,6 @@ import org.elasticsearch.index.shard.IndexShardRelocatedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
@@ -82,6 +81,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
@@ -691,9 +691,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private class FailedShardHandler implements Callback<IndexShard.ShardFailure> {
+    private class FailedShardHandler implements Consumer<IndexShard.ShardFailure> {
         @Override
-        public void handle(final IndexShard.ShardFailure shardFailure) {
+        public void accept(final IndexShard.ShardFailure shardFailure) {
             final ShardRouting shardRouting = shardFailure.routing;
             threadPool.generic().execute(() -> {
                 synchronized (IndicesClusterStateService.this) {
@@ -811,7 +811,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         T createShard(ShardRouting shardRouting, RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
                       PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
-                      Callback<IndexShard.ShardFailure> onShardFailure) throws IOException;
+                      Consumer<IndexShard.ShardFailure> onShardFailure) throws IOException;
 
         /**
          * Returns shard for the specified id if it exists otherwise returns <code>null</code>.

@@ -30,7 +30,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.util.Callback;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -84,12 +83,7 @@ public class GceMockUtils {
         }
         try (InputStream is = resource.openStream()) {
             final StringBuilder sb = new StringBuilder();
-            Streams.readAllLines(is, new Callback<String>() {
-                @Override
-                public void handle(String s) {
-                    sb.append(s);
-                }
-            });
+            Streams.readAllLines(is, sb::append);
             String response = sb.toString();
             return response;
         }

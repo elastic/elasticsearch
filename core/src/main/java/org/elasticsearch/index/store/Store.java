@@ -61,11 +61,10 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
@@ -96,8 +95,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -395,7 +394,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             try {
                 directory.innerClose(); // this closes the distributorDirectory as well
             } finally {
-                onClose.handle(shardLock);
+                onClose.accept(shardLock);
             }
         } catch (IOException e) {
             logger.debug("failed to close directory", e);
@@ -1364,14 +1363,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * A listener that is executed once the store is closed and all references to it are released
      */
-    public interface OnClose extends Callback<ShardLock> {
+    public interface OnClose extends Consumer<ShardLock> {
         OnClose EMPTY = new OnClose() {
             /**
              * This method is called while the provided {@link org.elasticsearch.env.ShardLock} is held.
              * This method is only called once after all resources for a store are released.
              */
             @Override
-            public void handle(ShardLock Lock) {
+            public void accept(ShardLock Lock) {
             }
         };
     }

@@ -76,11 +76,6 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
                 request.ingest());
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
-    }
-
     public static class NodeStatsRequest extends BaseNodeRequest {
 
         NodesStatsRequest request;

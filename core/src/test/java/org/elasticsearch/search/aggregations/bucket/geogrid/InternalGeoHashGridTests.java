@@ -34,11 +34,21 @@ import java.util.Map;
 public class InternalGeoHashGridTests extends InternalMultiBucketAggregationTestCase<InternalGeoHashGrid> {
 
     @Override
+    protected int minNumberOfBuckets() {
+        return 1;
+    }
+
+    @Override
+    protected int maxNumberOfBuckets() {
+        return 3;
+    }
+
+    @Override
     protected InternalGeoHashGrid createTestInstance(String name,
                                                      List<PipelineAggregator> pipelineAggregators,
                                                      Map<String, Object> metaData,
                                                      InternalAggregations aggregations) {
-        int size = randomIntBetween(1, 3);
+        int size = randomNumberOfBuckets();
         List<InternalGeoHashGrid.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             double latitude = randomDoubleBetween(-90.0, 90.0, false);

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.charfilter.HTMLStripCharFilterFactory;
 import org.apache.lucene.analysis.en.PorterStemFilterFactory;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory;
 import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory;
@@ -72,6 +73,14 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     }
 
     @Override
+    public Map<String, Class<?>> getPreConfiguredCharFilters() {
+        Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredCharFilters());
+        filters.put("html_strip", HTMLStripCharFilterFactory.class);
+        filters.put("htmlStrip", HTMLStripCharFilterFactory.class);
+        return filters;
+    }
+
+    @Override
     protected Map<String, Class<?>> getPreConfiguredTokenFilters() {
         Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenFilters());
         filters.put("apostrophe", null);
@@ -92,6 +101,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("elision", null);
         filters.put("french_stem", SnowballPorterFilterFactory.class);
         filters.put("german_stem", null);
+        filters.put("german_normalization", null);
         filters.put("hindi_normalization", null);
         filters.put("indic_normalization", null);
         filters.put("keyword_repeat", null);
@@ -123,8 +133,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
 
     @Override
     protected Map<String, Class<?>> getPreConfiguredTokenizers() {
-        Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenFilters());
-
+        Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenizers());
+        filters.put("lowercase", null);
         return filters;
     }
 

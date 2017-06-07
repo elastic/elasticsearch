@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 /**
@@ -54,9 +56,23 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
 
+    private final LongAdder usageCount = new LongAdder();
+
     protected BaseRestHandler(Settings settings) {
         super(settings);
     }
+
+    public final long getUsageCount() {
+        return usageCount.sum();
+    }
+
+    /**
+     * @return the name of this handler. The name should be human readable and
+     *         should describe the action that will performed when this API is
+     *         called. This name is used in the response to the
+     *         {@link RestNodesUsageAction}.
+     */
+    public abstract String getName();
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
@@ -76,6 +92,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
         }
 
+        usageCount.increment();
         // execute the action
         action.accept(channel);
     }

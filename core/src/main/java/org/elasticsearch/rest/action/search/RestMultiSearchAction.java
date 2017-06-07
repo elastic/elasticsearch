@@ -70,6 +70,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "msearch_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex);
         return channel -> client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));

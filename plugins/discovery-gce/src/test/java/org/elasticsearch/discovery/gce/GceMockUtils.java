@@ -31,7 +31,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.util.Callback;
 
 import java.io.IOException;
 import java.io.InputStream;

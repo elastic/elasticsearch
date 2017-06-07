@@ -257,23 +257,18 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().analyzer().getTokens().length, equalTo(4));
 
         //custom analyzer
-        analyzeResponse = client().admin().indices().prepareAnalyze("<text>THIS IS A TEST</text>")
-            .setExplain(true).addCharFilter("html_strip").setTokenizer("keyword").addTokenFilter("lowercase").get();
+        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST")
+            .setExplain(true).setTokenizer("keyword").addTokenFilter("lowercase").get();
         assertThat(analyzeResponse.detail().analyzer(), IsNull.nullValue());
-        //charfilters
-        assertThat(analyzeResponse.detail().charfilters().length, equalTo(1));
-        assertThat(analyzeResponse.detail().charfilters()[0].getName(), equalTo("html_strip"));
-        assertThat(analyzeResponse.detail().charfilters()[0].getTexts().length, equalTo(1));
-        assertThat(analyzeResponse.detail().charfilters()[0].getTexts()[0], equalTo("\nTHIS IS A TEST\n"));
         //tokenizer
         assertThat(analyzeResponse.detail().tokenizer().getName(), equalTo("keyword"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens().length, equalTo(1));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getTerm(), equalTo("\nTHIS IS A TEST\n"));
+        assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getTerm(), equalTo("THIS IS A TEST"));
         //tokenfilters
         assertThat(analyzeResponse.detail().tokenfilters().length, equalTo(1));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getName(), equalTo("lowercase"));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens().length, equalTo(1));
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[0].getTerm(), equalTo("\nthis is a test\n"));
+        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[0].getTerm(), equalTo("this is a test"));
 
         //check other attributes
         analyzeResponse = client().admin().indices().prepareAnalyze("This is troubled")

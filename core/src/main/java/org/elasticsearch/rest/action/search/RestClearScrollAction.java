@@ -42,6 +42,11 @@ public class RestClearScrollAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "clear_scroll_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String scrollIds = request.param("scroll_id");
         ClearScrollRequest clearRequest = new ClearScrollRequest();

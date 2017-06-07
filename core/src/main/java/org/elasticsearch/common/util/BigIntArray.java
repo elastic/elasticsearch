@@ -32,6 +32,8 @@ import static org.elasticsearch.common.util.BigArrays.INT_PAGE_SIZE;
  */
 final class BigIntArray extends AbstractBigArray implements IntArray {
 
+    private static final BigIntArray ESTIMATOR = new BigIntArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
+
     private int[][] pages;
 
     /** Constructor. */
@@ -106,6 +108,11 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
             releasePage(i);
         }
         this.size = newSize;
+    }
+
+    /** Estimates the number of bytes that would be consumed by an array of the given size. */
+    public static long estimateRamBytes(final long size) {
+        return ESTIMATOR.ramBytesEstimated(size);
     }
 
 }

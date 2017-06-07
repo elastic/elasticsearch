@@ -51,6 +51,11 @@ public class RestAllocationAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_allocation_action";
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/allocation\n");
     }

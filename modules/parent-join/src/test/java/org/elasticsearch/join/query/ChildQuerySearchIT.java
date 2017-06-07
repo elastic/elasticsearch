@@ -19,22 +19,20 @@
 package org.elasticsearch.join.query;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -52,7 +50,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
@@ -80,16 +77,15 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.parentId;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
-import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
-import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
+import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
+import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
+import static org.elasticsearch.join.query.JoinQueryBuilders.parentId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -99,9 +95,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.SUITE)
 public class ChildQuerySearchIT extends ESIntegTestCase {
@@ -130,6 +124,51 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
             .build();
     }
 
+    protected boolean legacy() {
+        return false;
+    }
+
+    private IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, Object... fields) {
+        Map<String, Object> source = new HashMap<>();
+        for (int i = 0; i < fields.length; i += 2) {
+            source.put((String) fields[i], fields[i + 1]);
+        }
+        return createIndexRequest(index, type, id, parentId, source);
+    }
+
+    private IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId,
+                                                   XContentBuilder builder) throws IOException {
+        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, builder.string(), false);
+        return createIndexRequest(index, type, id, parentId, source);
+    }
+
+    private IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, Map<String, Object> source) {
+        String name = type;
+        if (legacy() == false) {
+            type = "doc";
+        }
+
+        IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index, type, id);
+        if (legacy()) {
+            if (parentId != null) {
+                indexRequestBuilder.setParent(parentId);
+            }
+            indexRequestBuilder.setSource(source);
+        } else {
+            Map<String, Object> joinField = new HashMap<>();
+            if (parentId != null) {
+                joinField.put("name", name);
+                joinField.put("parent", parentId);
+                indexRequestBuilder.setRouting(parentId);
+            } else {
+                joinField.put("name", name);
+            }
+            source.put("join_field", joinField);
+            indexRequestBuilder.setSource(source);
+        }
+        return indexRequestBuilder;
+    }
+
     public void testSelfReferentialIsForbidden() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             prepareCreate("test").addMapping("type", "_parent", "type=type").get());
@@ -137,17 +176,20 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testMultiLevelChild() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent")
-                .addMapping("grandchild", "_parent", "type=child"));
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
+                    .addMapping("parent")
+                    .addMapping("child", "_parent", "type=parent")
+                    .addMapping("grandchild", "_parent", "type=child"));
+        } else {
+            assertAcked(prepareCreate("test")
+                    .addMapping("doc", "join_field", "type=join,parent=child,child=grandchild"));
+        }
         ensureGreen();
 
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "c_value1").setParent("p1").get();
-        client().prepareIndex("test", "grandchild", "gc1").setSource("gc_field", "gc_value1")
-                .setParent("c1").setRouting("p1").get();
+        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
+        createIndexRequest("test", "child", "c1", "p1", "c_field", "c_value1").get();
+        createIndexRequest("test", "grandchild", "gc1", "c1", "gc_field", "gc_value1").setRouting("p1").get();
         refresh();
 
         SearchResponse searchResponse = client()
@@ -197,15 +239,19 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     // see #2744
     public void test2744() throws IOException {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("foo")
-                .addMapping("test", "_parent", "type=foo"));
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
+                    .addMapping("foo")
+                    .addMapping("test", "_parent", "type=foo"));
+        } else {
+            assertAcked(prepareCreate("test")
+                    .addMapping("doc", "join_field", "type=join,foo=test"));
+        }
         ensureGreen();
 
         // index simple data
-        client().prepareIndex("test", "foo", "1").setSource("foo", 1).get();
-        client().prepareIndex("test", "test").setSource("foo", 1).setParent("1").get();
+        createIndexRequest("test", "foo", "1", null, "foo", 1).get();
+        createIndexRequest("test", "test", "2", "1", "foo", 1).get();
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test").
                 setQuery(hasChildQuery("test", matchQuery("foo", 1), ScoreMode.None))
@@ -217,46 +263,78 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testSimpleChildQuery() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent"));
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
+                    .addMapping("parent")
+                    .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                    .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").get();
-        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").get();
+        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
+        createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
+        createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
+        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
+        createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
+        createIndexRequest("test", "child", "c4", "p2", "c_field", "red").get();
         refresh();
 
         // TEST FETCHING _parent from child
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(idsQuery("child").addIds("c1")).storedFields("_parent").execute()
-                .actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("c1"));
-        assertThat(searchResponse.getHits().getAt(0).field("_parent").getValue().toString(), equalTo("p1"));
+        SearchResponse searchResponse;
+        if (legacy()) {
+            searchResponse = client().prepareSearch("test")
+                    .setQuery(idsQuery("child").addIds("c1")).storedFields("_parent").get();
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+            assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("c1"));
+            assertThat(searchResponse.getHits().getAt(0).field("_parent").getValue(), equalTo("p1"));
+        } else {
+            searchResponse = client().prepareSearch("test")
+                    .setQuery(idsQuery("doc").addIds("c1")).get();
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+            assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("c1"));
+            assertThat(searchResponse.getHits().getAt(0).field("join_field").getValue(), equalTo("child"));
+            assertThat(searchResponse.getHits().getAt(0).field("join_field#parent").getValue(), equalTo("p1"));
+        }
 
         // TEST matching on parent
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("_parent#parent", "p1")).storedFields("_parent").get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
-        assertThat(searchResponse.getHits().getAt(0).getId(), anyOf(equalTo("c1"), equalTo("c2")));
-        assertThat(searchResponse.getHits().getAt(0).field("_parent").getValue().toString(), equalTo("p1"));
-        assertThat(searchResponse.getHits().getAt(1).getId(), anyOf(equalTo("c1"), equalTo("c2")));
-        assertThat(searchResponse.getHits().getAt(1).field("_parent").getValue().toString(), equalTo("p1"));
+        if (legacy()) {
+            searchResponse = client().prepareSearch("test").setQuery(termQuery("_parent#parent", "p1")).storedFields("_parent").get();
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+            assertThat(searchResponse.getHits().getAt(0).getId(), anyOf(equalTo("c1"), equalTo("c2")));
+            assertThat(searchResponse.getHits().getAt(0).field("_parent").getValue(), equalTo("p1"));
+            assertThat(searchResponse.getHits().getAt(1).getId(), anyOf(equalTo("c1"), equalTo("c2")));
+            assertThat(searchResponse.getHits().getAt(1).field("_parent").getValue(), equalTo("p1"));
+        } else {
+            searchResponse = client().prepareSearch("test")
+                    .setQuery(boolQuery().filter(termQuery("join_field#parent", "p1")).filter(termQuery("join_field", "child")))
+                    .get();
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+            assertThat(searchResponse.getHits().getAt(0).getId(), anyOf(equalTo("c1"), equalTo("c2")));
+            assertThat(searchResponse.getHits().getAt(0).field("join_field").getValue(), equalTo("child"));
+            assertThat(searchResponse.getHits().getAt(0).field("join_field#parent").getValue(), equalTo("p1"));
+            assertThat(searchResponse.getHits().getAt(1).getId(), anyOf(equalTo("c1"), equalTo("c2")));
+            assertThat(searchResponse.getHits().getAt(1).field("join_field").getValue(), equalTo("child"));
+            assertThat(searchResponse.getHits().getAt(1).field("join_field#parent").getValue(), equalTo("p1"));
+        }
 
-        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("_parent#parent:p1")).storedFields("_parent").get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
-        assertThat(searchResponse.getHits().getAt(0).getId(), anyOf(equalTo("c1"), equalTo("c2")));
-        assertThat(searchResponse.getHits().getAt(0).field("_parent").getValue().toString(), equalTo("p1"));
-        assertThat(searchResponse.getHits().getAt(1).getId(), anyOf(equalTo("c1"), equalTo("c2")));
-        assertThat(searchResponse.getHits().getAt(1).field("_parent").getValue().toString(), equalTo("p1"));
+        if (legacy()) {
+            searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("_parent#parent:p1")).storedFields("_parent").get();
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+            assertThat(searchResponse.getHits().getAt(0).getId(), anyOf(equalTo("c1"), equalTo("c2")));
+            assertThat(searchResponse.getHits().getAt(0).field("_parent").getValue(), equalTo("p1"));
+            assertThat(searchResponse.getHits().getAt(1).getId(), anyOf(equalTo("c1"), equalTo("c2")));
+            assertThat(searchResponse.getHits().getAt(1).field("_parent").getValue(), equalTo("p1"));
+        } else {
+            // doesn't make sense for join field, because query string & term query om this field have no special logic.
+        }
 
         // HAS CHILD
         searchResponse = client().prepareSearch("test").setQuery(randomHasChild("child", "c_field", "yellow"))
@@ -292,25 +370,28 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     // Issue #3290
     public void testCachingBugWithFqueryFilter() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         // index simple data
         for (int i = 0; i < 10; i++) {
-            builders.add(client().prepareIndex("test", "parent", Integer.toString(i)).setSource("p_field", i));
+            builders.add(createIndexRequest("test", "parent", Integer.toString(i), null, "p_field", i));
         }
         indexRandom(randomBoolean(), builders);
         builders.clear();
         for (int j = 0; j < 2; j++) {
             for (int i = 0; i < 10; i++) {
-                builders.add(client().prepareIndex("test", "child", Integer.toString(i)).setSource("c_field", i).setParent("" + 0));
+                builders.add(createIndexRequest("test", "child", j + "-" + i, "0", "c_field", i));
             }
-            for (int i = 0; i < 10; i++) {
-                builders.add(client().prepareIndex("test", "child", Integer.toString(i + 10))
-                    .setSource("c_field", i + 10).setParent(Integer.toString(i)));
+            for (int i = 10; i < 20; i++) {
+                builders.add(createIndexRequest("test", "child", j + "-" + i, Integer.toString(i), "c_field", i));
             }
 
             if (randomBoolean()) {
@@ -333,14 +414,18 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testHasParentFilter() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
         Map<String, Set<String>> parentToChildren = new HashMap<>();
         // Childless parent
-        client().prepareIndex("test", "parent", "p0").setSource("p_field", "p0").get();
+        createIndexRequest("test", "parent", "p0", null, "p_field", "p0").get();
         parentToChildren.put("p0", new HashSet<>());
 
         String previousParentId = null;
@@ -351,12 +436,12 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
             if (previousParentId == null || i % numChildDocsPerParent == 0) {
                 previousParentId = "p" + i;
-                builders.add(client().prepareIndex("test", "parent", previousParentId).setSource("p_field", previousParentId));
+                builders.add(createIndexRequest("test", "parent", previousParentId, null, "p_field", previousParentId));
                 numChildDocsPerParent++;
             }
 
             String childId = "c" + i;
-            builders.add(client().prepareIndex("test", "child", childId).setSource("c_field", childId).setParent(previousParentId));
+            builders.add(createIndexRequest("test", "child", childId, previousParentId, "c_field", childId));
 
             if (!parentToChildren.containsKey(previousParentId)) {
                 parentToChildren.put(previousParentId, new HashSet<>());
@@ -383,24 +468,28 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testSimpleChildQueryWithFlush() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         // index simple data with flushes, so we have many segments
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
+        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
         client().admin().indices().prepareFlush().get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
+        createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
         client().admin().indices().prepareFlush().get();
-        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
+        createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
         client().admin().indices().prepareFlush().get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
+        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
         client().admin().indices().prepareFlush().get();
-        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").get();
+        createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
         client().admin().indices().prepareFlush().get();
-        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").get();
+        createIndexRequest("test", "child", "c4", "p2", "c_field", "red").get();
         client().admin().indices().prepareFlush().get();
         refresh();
 
@@ -453,19 +542,23 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testScopedFacet() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent", "c_field", "type=keyword"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child", "c_field", "type=keyword"));
+        }
         ensureGreen();
 
         // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").get();
-        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").get();
+        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
+        createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
+        createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
+        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
+        createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
+        createIndexRequest("test", "child", "c4", "p2", "c_field", "red").get();
 
         refresh();
 
@@ -493,18 +586,22 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testDeletedParent() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
         // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").get();
-        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").get();
+        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
+        createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
+        createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
+        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
+        createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
+        createIndexRequest("test", "child", "c4", "p2", "c_field", "red").get();
 
         refresh();
 
@@ -517,7 +614,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
         // update p1 and see what that we get updated values...
 
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1_updated").get();
+        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1_updated").get();
         client().admin().indices().prepareRefresh().get();
 
         searchResponse = client().prepareSearch("test")
@@ -529,19 +626,23 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testDfsSearchType() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").get();
-        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").get();
+        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
+        createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
+        createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
+        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
+        createIndexRequest("test", "child", "c3", "p3", "c_field", "blue").get();
+        createIndexRequest("test", "child", "c4", "p2", "c_field", "red").get();
 
         refresh();
 
@@ -558,17 +659,21 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testHasChildAndHasParentFailWhenSomeSegmentsDontContainAnyParentOrChildDocs() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
-        client().prepareIndex("test", "parent", "1").setSource("p_field", 1).get();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("c_field", 1).get();
+        createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
+        createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
         client().admin().indices().prepareFlush("test").get();
 
-        client().prepareIndex("test", "type1", "1").setSource("p_field", 1).get();
+        client().prepareIndex("test", legacy() ? "type1" : "doc", "3").setSource("p_field", 1).get();
         client().admin().indices().prepareFlush("test").get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -583,15 +688,19 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testCountApiUsage() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         String parentId = "p1";
-        client().prepareIndex("test", "parent", parentId).setSource("p_field", "1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "1").setParent(parentId).get();
+        createIndexRequest("test", "parent", parentId, null, "p_field", "1").get();
+        createIndexRequest("test", "child", "c1", parentId, "c_field", "1").get();
         refresh();
 
         SearchResponse countResponse = client().prepareSearch("test").setSize(0)
@@ -616,15 +725,19 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testExplainUsage() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         String parentId = "p1";
-        client().prepareIndex("test", "parent", parentId).setSource("p_field", "1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "1").setParent(parentId).get();
+        createIndexRequest("test", "parent", parentId, null, "p_field", "1").get();
+        createIndexRequest("test", "child", "c1", parentId, "c_field", "1").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -641,75 +754,62 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getExplanation().getDescription(), containsString("join value p1"));
 
-        ExplainResponse explainResponse = client().prepareExplain("test", "parent", parentId)
+        ExplainResponse explainResponse = client().prepareExplain("test", legacy() ? "parent" : "doc", parentId)
                 .setQuery(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.Max))
                 .get();
         assertThat(explainResponse.isExists(), equalTo(true));
-        assertThat(explainResponse.getExplanation().getDetails()[0].getDescription(), containsString("join value p1"));
+        assertThat(explainResponse.getExplanation().toString(), containsString("join value p1"));
     }
 
     List<IndexRequestBuilder> createDocBuilders() {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         // Parent 1 and its children
-        indexBuilders.add(client().prepareIndex().setType("parent").setId("1").setIndex("test").setSource("p_field", "p_value1"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("1").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 0).setParent("1"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("2").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 0).setParent("1"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("3").setIndex("test")
-                .setSource("c_field1", 2, "c_field2", 0).setParent("1"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("4").setIndex("test")
-                .setSource("c_field1", 2, "c_field2", 0).setParent("1"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("5").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 1).setParent("1"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("6").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 2).setParent("1"));
+        indexBuilders.add(createIndexRequest("test", "parent", "1", null, "p_field", "p_value1"));
+        indexBuilders.add(createIndexRequest("test", "child", "4", "1", "c_field1", 1, "c_field2", 0));
+        indexBuilders.add(createIndexRequest("test", "child", "5", "1", "c_field1", 1, "c_field2", 0));
+        indexBuilders.add(createIndexRequest("test", "child", "6", "1", "c_field1", 2, "c_field2", 0));
+        indexBuilders.add(createIndexRequest("test", "child", "7", "1", "c_field1", 2, "c_field2", 0));
+        indexBuilders.add(createIndexRequest("test", "child", "8", "1", "c_field1", 1, "c_field2", 1));
+        indexBuilders.add(createIndexRequest("test", "child", "9", "1", "c_field1", 1, "c_field2", 2));
 
         // Parent 2 and its children
-        indexBuilders.add(client().prepareIndex().setType("parent").setId("2").setIndex("test").setSource("p_field", "p_value2"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("7").setIndex("test")
-                .setSource("c_field1", 3, "c_field2", 0).setParent("2"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("8").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 1).setParent("2"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("9").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 1).setParent("p")); // why
-        // "p"????
-        indexBuilders.add(client().prepareIndex().setType("child").setId("10").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 1).setParent("2"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("11").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 1).setParent("2"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("12").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 2).setParent("2"));
+        indexBuilders.add(createIndexRequest("test", "parent", "2", null, "p_field", "p_value2"));
+        indexBuilders.add(createIndexRequest("test", "child", "10", "2", "c_field1", 3, "c_field2", 0));
+        indexBuilders.add(createIndexRequest("test", "child", "11", "2", "c_field1", 1, "c_field2", 1));
+        indexBuilders.add(createIndexRequest("test", "child", "12", "p", "c_field1", 1, "c_field2", 1)); // why "p"????
+        indexBuilders.add(createIndexRequest("test", "child", "13", "2", "c_field1", 1, "c_field2", 1));
+        indexBuilders.add(createIndexRequest("test", "child", "14", "2", "c_field1", 1, "c_field2", 1));
+        indexBuilders.add(createIndexRequest("test", "child", "15", "2", "c_field1", 1, "c_field2", 2));
 
         // Parent 3 and its children
-
-        indexBuilders.add(client().prepareIndex().setType("parent").setId("3").setIndex("test")
-                .setSource("p_field1", "p_value3", "p_field2", 5));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("13").setIndex("test")
-                .setSource("c_field1", 4, "c_field2", 0, "c_field3", 0).setParent("3"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("14").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 1, "c_field3", 1).setParent("3"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("15").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 2, "c_field3", 2).setParent("3")); // why
-        // "p"????
-        indexBuilders.add(client().prepareIndex().setType("child").setId("16").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 2, "c_field3", 3).setParent("3"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("17").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 2, "c_field3", 4).setParent("3"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("18").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 2, "c_field3", 5).setParent("3"));
-        indexBuilders.add(client().prepareIndex().setType("child1").setId("1").setIndex("test")
-                .setSource("c_field1", 1, "c_field2", 2, "c_field3", 6).setParent("3"));
+        indexBuilders.add(createIndexRequest("test", "parent", "3", null, "p_field1", "p_value3", "p_field2", 5));
+        indexBuilders.add(createIndexRequest("test", "child", "16", "3", "c_field1", 4, "c_field2", 0, "c_field3", 0));
+        indexBuilders.add(createIndexRequest("test", "child", "17", "3", "c_field1", 1, "c_field2", 1, "c_field3", 1));
+        indexBuilders.add(createIndexRequest("test", "child", "18", "3", "c_field1", 1, "c_field2", 2, "c_field3", 2));
+        indexBuilders.add(createIndexRequest("test", "child", "19", "3", "c_field1", 1, "c_field2", 2, "c_field3", 3));
+        indexBuilders.add(createIndexRequest("test", "child", "20", "3", "c_field1", 1, "c_field2", 2, "c_field3", 4));
+        indexBuilders.add(createIndexRequest("test", "child", "21", "3", "c_field1", 1, "c_field2", 2, "c_field3", 5));
+        indexBuilders.add(createIndexRequest("test", "child1", "22", "3", "c_field1", 1, "c_field2", 2, "c_field3", 6));
 
         return indexBuilders;
     }
 
     public void testScoreForParentChildQueriesWithFunctionScore() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent")
                 .addMapping("child1", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
+                    .startObject("join_field")
+                        .field("type", "join")
+                        .field("parent", new String[] {"child", "child1"})
+                    .endObject()
+                    .endObject().endObject().endObject()
+                ));
+        }
         ensureGreen();
 
         indexRandom(true, createDocBuilders().toArray(new IndexRequestBuilder[0]));
@@ -775,28 +875,32 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                 .addSort(SortBuilders.fieldSort("c_field3")).addSort(SortBuilders.scoreSort()).get();
 
         assertThat(response.getHits().getTotalHits(), equalTo(7L));
-        assertThat(response.getHits().getHits()[0].getId(), equalTo("13"));
+        assertThat(response.getHits().getHits()[0].getId(), equalTo("16"));
         assertThat(response.getHits().getHits()[0].getScore(), equalTo(5f));
-        assertThat(response.getHits().getHits()[1].getId(), equalTo("14"));
+        assertThat(response.getHits().getHits()[1].getId(), equalTo("17"));
         assertThat(response.getHits().getHits()[1].getScore(), equalTo(5f));
-        assertThat(response.getHits().getHits()[2].getId(), equalTo("15"));
+        assertThat(response.getHits().getHits()[2].getId(), equalTo("18"));
         assertThat(response.getHits().getHits()[2].getScore(), equalTo(5f));
-        assertThat(response.getHits().getHits()[3].getId(), equalTo("16"));
+        assertThat(response.getHits().getHits()[3].getId(), equalTo("19"));
         assertThat(response.getHits().getHits()[3].getScore(), equalTo(5f));
-        assertThat(response.getHits().getHits()[4].getId(), equalTo("17"));
+        assertThat(response.getHits().getHits()[4].getId(), equalTo("20"));
         assertThat(response.getHits().getHits()[4].getScore(), equalTo(5f));
-        assertThat(response.getHits().getHits()[5].getId(), equalTo("18"));
+        assertThat(response.getHits().getHits()[5].getId(), equalTo("21"));
         assertThat(response.getHits().getHits()[5].getScore(), equalTo(5f));
-        assertThat(response.getHits().getHits()[6].getId(), equalTo("1"));
+        assertThat(response.getHits().getHits()[6].getId(), equalTo("22"));
         assertThat(response.getHits().getHits()[6].getScore(), equalTo(5f));
     }
 
     // Issue #2536
     public void testParentChildQueriesCanHandleNoRelevantTypesInIndex() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         SearchResponse response = client().prepareSearch("test")
@@ -804,8 +908,13 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits(), equalTo(0L));
 
-        client().prepareIndex("test", "child1").setSource(jsonBuilder().startObject().field("text", "value").endObject())
+        if (legacy()) {
+            client().prepareIndex("test", "child1").setSource(jsonBuilder().startObject().field("text", "value").endObject())
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        } else {
+            client().prepareIndex("test", "doc").setSource(jsonBuilder().startObject().field("text", "value").endObject())
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        }
 
         response = client().prepareSearch("test")
                 .setQuery(hasChildQuery("child", matchQuery("text", "value"), ScoreMode.None)).get();
@@ -829,17 +938,25 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testHasChildAndHasParentFilter_withFilter() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
-        client().prepareIndex("test", "parent", "1").setSource("p_field", 1).get();
-        client().prepareIndex("test", "child", "2").setParent("1").setSource("c_field", 1).get();
+        createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
+        createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
         client().admin().indices().prepareFlush("test").get();
 
-        client().prepareIndex("test", "type1", "3").setSource("p_field", 2).get();
+        if (legacy()) {
+            client().prepareIndex("test", "type1", "3").setSource("p_field", 2).get();
+        } else {
+            client().prepareIndex("test", "doc", "3").setSource("p_field", 2).get();
+        }
         client().admin().indices().prepareFlush("test").get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -857,15 +974,20 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
     }
 
+    @AwaitsFix(bugUrl = "wait for inner hits to be fixed")
     public void testHasChildInnerHitsHighlighting() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
-        client().prepareIndex("test", "parent", "1").setSource("p_field", 1).get();
-        client().prepareIndex("test", "child", "2").setParent("1").setSource("c_field", "foo bar").get();
+        createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
+        createIndexRequest("test", "child", "2", "1", "c_field", "foo bar").get();
         client().admin().indices().prepareFlush("test").get();
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(
@@ -884,16 +1006,20 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testHasChildAndHasParentWrappedInAQueryFilter() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         // query filter in case for p/c shouldn't execute per segment, but rather
-        client().prepareIndex("test", "parent", "1").setSource("p_field", 1).get();
+        createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
         client().admin().indices().prepareFlush("test").setForce(true).get();
-        client().prepareIndex("test", "child", "2").setParent("1").setSource("c_field", 1).get();
+        createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -918,21 +1044,25 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testSimpleQueryRewrite() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent", "p_field", "type=keyword")
                 .addMapping("child", "_parent", "type=parent", "c_field", "type=keyword"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child", "p_field", "type=keyword", "c_field", "type=keyword"));
+        }
         ensureGreen();
 
         // index simple data
         int childId = 0;
         for (int i = 0; i < 10; i++) {
             String parentId = String.format(Locale.ROOT, "p%03d", i);
-            client().prepareIndex("test", "parent", parentId).setSource("p_field", parentId).get();
+            createIndexRequest("test", "parent", parentId, null, "p_field", parentId).get();
             int j = childId;
             for (; j < childId + 50; j++) {
                 String childUid = String.format(Locale.ROOT, "c%03d", j);
-                client().prepareIndex("test", "child", childUid).setSource("c_field", childUid).setParent(parentId).get();
+                createIndexRequest("test", "child", childUid, parentId, "c_field", childUid).get();
             }
             childId = j;
         }
@@ -967,19 +1097,23 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     // Issue #3144
     public void testReIndexingParentAndChildDocuments() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().prepareIndex("test", "child", "c3").setSource("c_field", "x").setParent("p2").get();
-        client().prepareIndex("test", "child", "c4").setSource("c_field", "x").setParent("p2").get();
+        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
+        createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
+        createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
+        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
+        createIndexRequest("test", "child", "c3", "p2", "c_field", "x").get();
+        createIndexRequest("test", "child", "c4", "p2", "c_field", "x").get();
 
         refresh();
 
@@ -1002,10 +1136,10 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
         // re-index
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-            client().prepareIndex("test", "child", "d" + i).setSource("c_field", "red").setParent("p1").get();
-            client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-            client().prepareIndex("test", "child", "c3").setSource("c_field", "x").setParent("p2").get();
+            createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
+            createIndexRequest("test", "child", "d" + i, "p1", "c_field", "red").get();
+            createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
+            createIndexRequest("test", "child", "c3", "p2", "c_field", "x").get();
             client().admin().indices().prepareRefresh("test").get();
         }
 
@@ -1030,19 +1164,23 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     // Issue #3203
     public void testHasChildQueryWithMinimumScore() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "x").setParent("p1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().prepareIndex("test", "child", "c3").setSource("c_field", "x").setParent("p2").get();
-        client().prepareIndex("test", "child", "c4").setSource("c_field", "x").setParent("p2").get();
-        client().prepareIndex("test", "child", "c5").setSource("c_field", "x").setParent("p2").get();
+        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
+        createIndexRequest("test", "child", "c1", "p1", "c_field", "x").get();
+        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
+        createIndexRequest("test", "child", "c3", "p2", "c_field", "x").get();
+        createIndexRequest("test", "child", "c4", "p2", "c_field", "x").get();
+        createIndexRequest("test", "child", "c5", "p2", "c_field", "x").get();
         refresh();
 
         SearchResponse searchResponse = client()
@@ -1056,52 +1194,99 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testParentFieldQuery() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.refresh_interval", -1, "index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder()
+                    .put(indexSettings())
+                    .put("index.refresh_interval", -1)
+                )
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .setSettings("index.refresh_interval", -1)
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
-        SearchResponse response = client().prepareSearch("test").setQuery(termQuery("_parent", "p1"))
+        SearchResponse response;
+        if (legacy()){
+            response = client().prepareSearch("test").setQuery(termQuery("_parent#parent:p1", "p1"))
                 .get();
+        } else {
+            response = client().prepareSearch("test")
+                .setQuery(boolQuery().filter(termQuery("join_field#parent", "p1")).filter(termQuery("join_field", "child")))
+                .get();
+        }
         assertHitCount(response, 0L);
 
-        client().prepareIndex("test", "child", "c1").setSource("{}", XContentType.JSON).setParent("p1").get();
+        createIndexRequest("test", "child", "c1", "p1").get();
         refresh();
 
-        response = client().prepareSearch("test").setQuery(termQuery("_parent#parent", "p1")).get();
+        if (legacy()){
+            response = client().prepareSearch("test").setQuery(termQuery("_parent#parent", "p1"))
+                .get();
+        } else {
+            response = client().prepareSearch("test")
+                .setQuery(boolQuery().filter(termQuery("join_field#parent", "p1")).filter(termQuery("join_field", "child")))
+                .get();
+        }
         assertHitCount(response, 1L);
 
-        response = client().prepareSearch("test").setQuery(queryStringQuery("_parent#parent:p1")).get();
-        assertHitCount(response, 1L);
+        if (legacy()) {
+            response = client().prepareSearch("test").setQuery(queryStringQuery("_parent#parent:p1")).get();
+            assertHitCount(response, 1L);
+        }
 
-        client().prepareIndex("test", "child", "c2").setSource("{}", XContentType.JSON).setParent("p2").get();
+        createIndexRequest("test", "child", "c2", "p2").get();
         refresh();
-        response = client().prepareSearch("test").setQuery(termsQuery("_parent#parent", "p1", "p2")).get();
-        assertHitCount(response, 2L);
+        if (legacy()) {
+            response = client().prepareSearch("test").setQuery(termsQuery("_parent#parent", "p1", "p2")).get();
+            assertHitCount(response, 2L);
+        }
 
-        response = client().prepareSearch("test")
+        if (legacy()) {
+            response = client().prepareSearch("test")
                 .setQuery(boolQuery()
                     .should(termQuery("_parent#parent", "p1"))
                     .should(termQuery("_parent#parent", "p2"))
                 ).get();
+        } else {
+            response = client().prepareSearch("test")
+                .setQuery(boolQuery()
+                    .should(boolQuery().filter(termQuery("join_field#parent", "p1")).filter(termQuery("join_field", "child")))
+                    .should(boolQuery().filter(termQuery("join_field#parent", "p2")).filter(termQuery("join_field", "child")))
+                ).get();
+        }
         assertHitCount(response, 2L);
     }
 
     public void testParentIdQuery() throws Exception {
-        assertAcked(prepareCreate("test")
-            .setSettings("index.refresh_interval", -1, "index.mapping.single_type", false)
-            .addMapping("parent")
-            .addMapping("child", "_parent", "type=parent"));
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder()
+                    .put(indexSettings())
+                    .put("index.refresh_interval", -1)
+                )
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder()
+                    .put(indexSettings())
+                    .put("index.refresh_interval", -1)
+                )
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
-        client().prepareIndex("test", "child", "c1").setSource("{}", XContentType.JSON).setParent("p1").get();
+        createIndexRequest("test", "child", "c1", "p1").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test").setQuery(parentId("child", "p1")).get();
         assertHitCount(response, 1L);
 
-        client().prepareIndex("test", "child", "c2").setSource("{}", XContentType.JSON).setParent("p2").get();
+        createIndexRequest("test", "child", "c2", "p2").get();
         refresh();
 
         response = client().prepareSearch("test")
@@ -1113,24 +1298,28 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testHasChildNotBeingCached() throws IOException {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").get();
-        client().prepareIndex("test", "parent", "p4").setSource("p_field", "p_value4").get();
-        client().prepareIndex("test", "parent", "p5").setSource("p_field", "p_value5").get();
-        client().prepareIndex("test", "parent", "p6").setSource("p_field", "p_value6").get();
-        client().prepareIndex("test", "parent", "p7").setSource("p_field", "p_value7").get();
-        client().prepareIndex("test", "parent", "p8").setSource("p_field", "p_value8").get();
-        client().prepareIndex("test", "parent", "p9").setSource("p_field", "p_value9").get();
-        client().prepareIndex("test", "parent", "p10").setSource("p_field", "p_value10").get();
-        client().prepareIndex("test", "child", "c1").setParent("p1").setSource("c_field", "blue").get();
+        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
+        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
+        createIndexRequest("test", "parent", "p3", null, "p_field", "p_value3").get();
+        createIndexRequest("test", "parent", "p4", null, "p_field", "p_value4").get();
+        createIndexRequest("test", "parent", "p5", null, "p_field", "p_value5").get();
+        createIndexRequest("test", "parent", "p6", null, "p_field", "p_value6").get();
+        createIndexRequest("test", "parent", "p7", null, "p_field", "p_value7").get();
+        createIndexRequest("test", "parent", "p8", null, "p_field", "p_value8").get();
+        createIndexRequest("test", "parent", "p9", null, "p_field", "p_value9").get();
+        createIndexRequest("test", "parent", "p10", null, "p_field", "p_value10").get();
+        createIndexRequest("test", "child", "c1", "p1", "c_field", "blue").get();
         client().admin().indices().prepareFlush("test").get();
         client().admin().indices().prepareRefresh("test").get();
 
@@ -1140,7 +1329,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
 
-        client().prepareIndex("test", "child", "c2").setParent("p2").setSource("c_field", "blue").get();
+        createIndexRequest("test", "child", "c2", "p2", "c_field", "blue").get();
         client().admin().indices().prepareRefresh("test").get();
 
         searchResponse = client().prepareSearch("test")
@@ -1175,22 +1364,29 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     // Issue #3818
-    public void testHasChildQueryOnlyReturnsSingleChildType() {
-        assertAcked(prepareCreate("grandissue")
-                .setSettings("index.mapping.single_type", false)
+    public void testHasChildQueryOnlyReturnsSingleChildType() throws Exception {
+        if (legacy()) {
+            assertAcked(prepareCreate("grandissue")
                 .addMapping("grandparent", "name", "type=text")
                 .addMapping("parent", "_parent", "type=grandparent")
                 .addMapping("child_type_one", "_parent", "type=parent")
                 .addMapping("child_type_two", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("grandissue")
+                .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
+                    .startObject("join_field")
+                    .field("type", "join")
+                    .field("grandparent", "parent")
+                    .field("parent", new String[] {"child_type_one", "child_type_two"})
+                    .endObject()
+                    .endObject().endObject().endObject()
+                ));
+        }
 
-        client().prepareIndex("grandissue", "grandparent", "1").setSource("name", "Grandpa").get();
-        client().prepareIndex("grandissue", "parent", "2").setParent("1").setSource("name", "Dana").get();
-        client().prepareIndex("grandissue", "child_type_one", "3").setParent("2").setRouting("1")
-                .setSource("name", "William")
-                .get();
-        client().prepareIndex("grandissue", "child_type_two", "4").setParent("2").setRouting("1")
-                .setSource("name", "Kate")
-                .get();
+        createIndexRequest("grandissue", "grandparent", "1", null, "name", "Grandpa").get();
+        createIndexRequest("grandissue", "parent", "2", "1", "name", "Dana").get();
+        createIndexRequest("grandissue", "child_type_one", "3", "2", "name", "William").setRouting("1").get();
+        createIndexRequest("grandissue", "child_type_two", "4", "2", "name", "Kate").setRouting("1").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("grandissue").setQuery(
@@ -1228,64 +1424,18 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 0L);
     }
 
-    public void testIndexChildDocWithNoParentMapping() throws IOException {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("parent")
-                .addMapping("child1"));
-        ensureGreen();
-
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        try {
-            client().prepareIndex("test", "child1", "c1").setParent("p1").setSource("c_field", "blue").get();
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.toString(), containsString("can't specify parent if no parent field has been configured"));
-        }
-        try {
-            client().prepareIndex("test", "child2", "c2").setParent("p1").setSource("c_field", "blue").get();
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.toString(), containsString("can't specify parent if no parent field has been configured"));
-        }
-
-        refresh();
-    }
-
-    public void testAddingParentToExistingMapping() throws IOException {
-        createIndex("test");
-        ensureGreen();
-
-        PutMappingResponse putMappingResponse = client().admin().indices()
-            .preparePutMapping("test").setType("child").setSource("number", "type=integer")
-                .get();
-        assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
-
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        Map<String, Object> mapping = getMappingsResponse.getMappings().get("test").get("child").getSourceAsMap();
-        assertThat(mapping.size(), greaterThanOrEqualTo(1)); // there are potentially some meta fields configured randomly
-        assertThat(mapping.get("properties"), notNullValue());
-
-        try {
-            // Adding _parent metadata field to existing mapping is prohibited:
-            client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("child")
-                    .startObject("_parent").field("type", "parent").endObject()
-                    .endObject().endObject()).get();
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.toString(), containsString("The _parent field's type option can't be changed: [null]->[parent]"));
-        }
-    }
-
     public void testHasChildQueryWithNestedInnerObjects() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent", "objects", "type=nested")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child", "objects", "type=nested"));
+        }
         ensureGreen();
 
-        client().prepareIndex("test", "parent", "p1")
-                .setSource(jsonBuilder().startObject().field("p_field", "1").startArray("objects")
+        createIndexRequest("test", "parent", "p1", null, jsonBuilder().startObject().field("p_field", "1").startArray("objects")
                         .startObject().field("i_field", "1").endObject()
                         .startObject().field("i_field", "2").endObject()
                         .startObject().field("i_field", "3").endObject()
@@ -1294,15 +1444,14 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                         .startObject().field("i_field", "6").endObject()
                         .endArray().endObject())
                 .get();
-        client().prepareIndex("test", "parent", "p2")
-                .setSource(jsonBuilder().startObject().field("p_field", "2").startArray("objects")
+        createIndexRequest("test", "parent", "p2", null, jsonBuilder().startObject().field("p_field", "2").startArray("objects")
                         .startObject().field("i_field", "1").endObject()
                         .startObject().field("i_field", "2").endObject()
                         .endArray().endObject())
                 .get();
-        client().prepareIndex("test", "child", "c1").setParent("p1").setSource("c_field", "blue").get();
-        client().prepareIndex("test", "child", "c2").setParent("p1").setSource("c_field", "red").get();
-        client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "red").get();
+        createIndexRequest("test", "child", "c1", "p1", "c_field", "blue").get();
+        createIndexRequest("test", "child", "c2", "p1", "c_field", "red").get();
+        createIndexRequest("test", "child", "c3", "p2", "c_field", "red").get();
         refresh();
 
         ScoreMode scoreMode = randomFrom(ScoreMode.values());
@@ -1322,15 +1471,19 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testNamedFilters() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         String parentId = "p1";
-        client().prepareIndex("test", "parent", parentId).setSource("p_field", "1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "1").setParent(parentId).get();
+        createIndexRequest("test", "parent", parentId, null, "p_field", "1").get();
+        createIndexRequest("test", "child", "c1", parentId, "c_field", "1").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child",
@@ -1370,7 +1523,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         ensureGreen();
 
         String parentId = "p1";
-        client().prepareIndex("test", "parent", parentId).setSource("p_field", "1").get();
+        client().prepareIndex("test", legacy() ? "parent" : "doc", parentId).setSource("p_field", "1").get();
         refresh();
 
         try {
@@ -1420,24 +1573,33 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testParentChildCaching() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.refresh_interval", -1, "index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder()
+                    .put(indexSettings())
+                    .put("index.refresh_interval", -1)
+                )
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .setSettings("index.refresh_interval", -1)
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().prepareIndex("test", "child", "c1").setParent("p1").setSource("c_field", "blue").get();
-        client().prepareIndex("test", "child", "c2").setParent("p1").setSource("c_field", "red").get();
-        client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "red").get();
+        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
+        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
+        createIndexRequest("test", "child", "c1", "p1", "c_field", "blue").get();
+        createIndexRequest("test", "child", "c2", "p1", "c_field", "red").get();
+        createIndexRequest("test", "child", "c3", "p2", "c_field", "red").get();
         client().admin().indices().prepareForceMerge("test").setMaxNumSegments(1).setFlush(true).get();
-        client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").get();
-        client().prepareIndex("test", "parent", "p4").setSource("p_field", "p_value4").get();
-        client().prepareIndex("test", "child", "c4").setParent("p3").setSource("c_field", "green").get();
-        client().prepareIndex("test", "child", "c5").setParent("p3").setSource("c_field", "blue").get();
-        client().prepareIndex("test", "child", "c6").setParent("p4").setSource("c_field", "blue").get();
+        createIndexRequest("test", "parent", "p3", null, "p_field", "p_value3").get();
+        createIndexRequest("test", "parent", "p4", null, "p_field", "p_value4").get();
+        createIndexRequest("test", "child", "c4", "p3", "c_field", "green").get();
+        createIndexRequest("test", "child", "c5", "p3", "c_field", "blue").get();
+        createIndexRequest("test", "child", "c6", "p4", "c_field", "blue").get();
         client().admin().indices().prepareFlush("test").get();
         client().admin().indices().prepareRefresh("test").get();
 
@@ -1451,7 +1613,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         }
 
 
-        client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "blue").get();
+       createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
         client().admin().indices().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -1464,14 +1626,18 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testParentChildQueriesViaScrollApi() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "parent", "p" + i).setSource("{}", XContentType.JSON).get();
-            client().prepareIndex("test", "child", "c" + i).setSource("{}", XContentType.JSON).setParent("p" + i).get();
+            createIndexRequest("test", "parent", "p" + i, null).get();
+            createIndexRequest("test", "child", "c" + i, "p" + i).get();
         }
 
         refresh();
@@ -1507,58 +1673,21 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         }
     }
 
-    // Issue #5783
-    public void testQueryBeforeChildType() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("features")
-                .addMapping("posts", "_parent", "type=features")
-                .addMapping("specials"));
-        ensureGreen();
-
-        client().prepareIndex("test", "features", "1").setSource("field", "foo").get();
-        client().prepareIndex("test", "posts", "1").setParent("1").setSource("field", "bar").get();
-        refresh();
-
-        SearchResponse resp;
-        resp = client().prepareSearch("test")
-                .setSource(new SearchSourceBuilder().query(hasChildQuery("posts",
-                    QueryBuilders.matchQuery("field", "bar"), ScoreMode.None)))
-                .get();
-        assertHitCount(resp, 1L);
-    }
-
-    // Issue #6256
-    public void testParentFieldInMultiMatchField() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("type1")
-                .addMapping("type2", "_parent", "type=type1")
-        );
-        ensureGreen();
-
-        client().prepareIndex("test", "type2", "1").setParent("1").setSource("field", "value").get();
-        refresh();
-
-        SearchResponse response = client().prepareSearch("test")
-                .setQuery(multiMatchQuery("1", "_parent#type1"))
-                .get();
-
-        assertThat(response.getHits().getTotalHits(), equalTo(1L));
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-    }
-
     public void testTypeIsAppliedInHasParentInnerQuery() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("test", "parent", "1").setSource("field1", "a"));
-        indexRequests.add(client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON));
-        indexRequests.add(client().prepareIndex("test", "child", "2").setParent("1").setSource("{}", XContentType.JSON));
+        indexRequests.add(createIndexRequest("test", "parent", "p1", null, "field1", "a"));
+        indexRequests.add(createIndexRequest("test", "child", "c1", "p1"));
+        indexRequests.add(createIndexRequest("test", "child", "c2", "p1"));
         indexRandom(true, indexRequests);
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1585,36 +1714,26 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     private List<IndexRequestBuilder> createMinMaxDocBuilders() {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         // Parent 1 and its children
-        indexBuilders.add(client().prepareIndex().setType("parent").setId("1").setIndex("test").setSource("id",1));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("10").setIndex("test")
-                .setSource("foo", "one").setParent("1"));
+        indexBuilders.add(createIndexRequest("test", "parent", "1", null, "id",1));
+        indexBuilders.add(createIndexRequest("test", "child", "10", "1", "foo", "one"));
 
         // Parent 2 and its children
-        indexBuilders.add(client().prepareIndex().setType("parent").setId("2").setIndex("test").setSource("id",2));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("11").setIndex("test")
-                .setSource("foo", "one").setParent("2"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("12").setIndex("test")
-                .setSource("foo", "one two").setParent("2"));
+        indexBuilders.add(createIndexRequest("test", "parent", "2", null, "id",2));
+        indexBuilders.add(createIndexRequest("test", "child", "11", "2", "foo", "one"));
+        indexBuilders.add(createIndexRequest("test", "child", "12", "2", "foo", "one two"));
 
         // Parent 3 and its children
-        indexBuilders.add(client().prepareIndex().setType("parent").setId("3").setIndex("test").setSource("id",3));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("13").setIndex("test")
-                .setSource("foo", "one").setParent("3"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("14").setIndex("test")
-                .setSource("foo", "one two").setParent("3"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("15").setIndex("test")
-                .setSource("foo", "one two three").setParent("3"));
+        indexBuilders.add(createIndexRequest("test", "parent", "3", null, "id",3));
+        indexBuilders.add(createIndexRequest("test", "child", "13", "3", "foo", "one"));
+        indexBuilders.add(createIndexRequest("test", "child", "14", "3", "foo", "one two"));
+        indexBuilders.add(createIndexRequest("test", "child", "15", "3", "foo", "one two three"));
 
         // Parent 4 and its children
-        indexBuilders.add(client().prepareIndex().setType("parent").setId("4").setIndex("test").setSource("id",4));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("16").setIndex("test")
-                .setSource("foo", "one").setParent("4"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("17").setIndex("test")
-                .setSource("foo", "one two").setParent("4"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("18").setIndex("test")
-                .setSource("foo", "one two three").setParent("4"));
-        indexBuilders.add(client().prepareIndex().setType("child").setId("19").setIndex("test")
-                .setSource("foo", "one two three four").setParent("4"));
+        indexBuilders.add(createIndexRequest("test", "parent", "4", null, "id", 4));
+        indexBuilders.add(createIndexRequest("test", "child", "16", "4", "foo", "one"));
+        indexBuilders.add(createIndexRequest("test", "child", "17", "4", "foo", "one two"));
+        indexBuilders.add(createIndexRequest("test", "child", "18", "4", "foo", "one two three"));
+        indexBuilders.add(createIndexRequest("test", "child", "19", "4", "foo", "one two three four"));
 
         return indexBuilders;
     }
@@ -1639,10 +1758,14 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testMinMaxChildren() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent", "id", "type=long")
                 .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent=child"));
+        }
         ensureGreen();
 
         indexRandom(true, createMinMaxDocBuilders().toArray(new IndexRequestBuilder[0]));
@@ -1953,59 +2076,41 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(e.getMessage(), equalTo("[has_child] 'max_children' is less than 'min_children'"));
     }
 
-    public void testParentFieldToNonExistingType() {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("parent").addMapping("child", "_parent", "type=parent2"));
-        client().prepareIndex("test", "parent", "1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON).get();
-        refresh();
-
-        try {
-            client().prepareSearch("test")
-                    .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
-                    .get();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-        }
-    }
-
     public void testHasParentInnerQueryType() {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
-        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("test", "parent-type", "parent-id").setSource("{}", XContentType.JSON).get();
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent-type=child-type"));
+        }
+        createIndexRequest("test", "child-type", "child-id", "parent-id").get();
+        createIndexRequest("test", "parent-type", "parent-id", null).get();
         refresh();
+
+        //make sure that when we explicitly set a type, the inner query is executed in the context of the child type instead
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(
+            hasChildQuery("child-type", new IdsQueryBuilder().addIds("child-id"), ScoreMode.None)).get();
+        assertSearchHits(searchResponse, "parent-id");
         //make sure that when we explicitly set a type, the inner query is executed in the context of the parent type instead
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("child-type").setQuery(
+        searchResponse = client().prepareSearch("test").setQuery(
                 hasParentQuery("parent-type", new IdsQueryBuilder().addIds("parent-id"), false)).get();
         assertSearchHits(searchResponse, "child-id");
     }
 
-    public void testHasChildInnerQueryType() {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
-        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("test", "parent-type", "parent-id").setSource("{}", XContentType.JSON).get();
-        refresh();
-        //make sure that when we explicitly set a type, the inner query is executed in the context of the child type instead
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("parent-type").setQuery(
-                hasChildQuery("child-type", new IdsQueryBuilder().addIds("child-id"), ScoreMode.None)).get();
-        assertSearchHits(searchResponse, "parent-id");
-    }
-
     public void testHighlightersIgnoreParentChild() {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
                 .addMapping("parent-type", "searchText", "type=text,term_vector=with_positions_offsets,index_options=offsets")
                 .addMapping("child-type", "_parent", "type=parent-type", "searchText",
-                        "type=text,term_vector=with_positions_offsets,index_options=offsets"));
-        client().prepareIndex("test", "parent-type", "parent-id")
-            .setSource("searchText", "quick brown fox").get();
-        client().prepareIndex("test", "child-type", "child-id")
-            .setParent("parent-id").setSource("searchText", "quick brown fox").get();
+                    "type=text,term_vector=with_positions_offsets,index_options=offsets"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .addMapping("doc", "join_field", "type=join,parent-type=child-type",
+                    "searchText", "type=text,term_vector=with_positions_offsets,index_options=offsets"));
+        }
+        createIndexRequest("test", "parent-type", "parent-id", null, "searchText", "quick brown fox").get();
+        createIndexRequest("test", "child-type", "child-id", "parent-id", "searchText", "quick brown fox").get();
         refresh();
 
         String[] highlightTypes = new String[] {"plain", "fvh", "unified"};
@@ -2038,13 +2143,18 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testAliasesFilterWithHasChildQuery() throws Exception {
-        assertAcked(prepareCreate("my-index")
-            .setSettings("index.mapping.single_type", false)
-            .addMapping("parent")
-            .addMapping("child", "_parent", "type=parent")
-        );
-        client().prepareIndex("my-index", "parent", "1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("my-index", "child", "2").setSource("{}", XContentType.JSON).setParent("1").get();
+        if (legacy()) {
+            assertAcked(prepareCreate("my-index")
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent")
+            );
+        } else {
+            assertAcked(prepareCreate("my-index")
+                .addMapping("doc", "join_field", "type=join,parent=child")
+            );
+        }
+        createIndexRequest("my-index", "parent", "1", null).get();
+        createIndexRequest("my-index", "child", "2", "1").get();
         refresh();
 
         assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1",
@@ -2060,154 +2170,4 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
     }
 
-    /*
-   Test for https://github.com/elastic/elasticsearch/issues/3444
-    */
-    public void testBulkUpdateDocAsUpsertWithParent() throws Exception {
-        client().admin().indices().prepareCreate("test")
-            .setSettings("index.mapping.single_type", false)
-            .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
-            .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON)
-            .execute().actionGet();
-        ensureGreen();
-
-        BulkRequestBuilder builder = client().prepareBulk();
-
-        // It's important to use JSON parsing here and request objects: issue 3444 is related to incomplete option parsing
-        byte[] addParent = new BytesArray(
-            "{" +
-                "  \"index\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"parent\"," +
-                "    \"_id\"    : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"field1\" : \"value1\"" +
-                "}" +
-                "\n").array();
-
-        byte[] addChild = new BytesArray(
-            "{" +
-                "  \"update\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"child\"," +
-                "    \"_id\"    : \"child1\"," +
-                "    \"parent\" : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"doc\" : {" +
-                "    \"field1\" : \"value1\"" +
-                "  }," +
-                "  \"doc_as_upsert\" : \"true\"" +
-                "}" +
-                "\n").array();
-
-        builder.add(addParent, 0, addParent.length, XContentType.JSON);
-        builder.add(addChild, 0, addChild.length, XContentType.JSON);
-
-        BulkResponse bulkResponse = builder.get();
-        assertThat(bulkResponse.getItems().length, equalTo(2));
-        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
-
-        client().admin().indices().prepareRefresh("test").get();
-
-        //we check that the _parent field was set on the child document by using the has parent query
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(hasParentQuery("parent", QueryBuilders.matchAllQuery(), false))
-            .get();
-
-        assertNoFailures(searchResponse);
-        assertSearchHits(searchResponse, "child1");
-    }
-
-    /*
-    Test for https://github.com/elastic/elasticsearch/issues/3444
-     */
-    public void testBulkUpdateUpsertWithParent() throws Exception {
-        assertAcked(prepareCreate("test")
-            .setSettings("index.mapping.single_type", false)
-            .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
-            .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON));
-        ensureGreen();
-
-        BulkRequestBuilder builder = client().prepareBulk();
-
-        byte[] addParent = new BytesArray(
-            "{" +
-                "  \"index\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"parent\"," +
-                "    \"_id\"    : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"field1\" : \"value1\"" +
-                "}" +
-                "\n").array();
-
-        byte[] addChild1 = new BytesArray(
-            "{" +
-                "  \"update\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"child\"," +
-                "    \"_id\"    : \"child1\"," +
-                "    \"parent\" : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"script\" : {" +
-                "    \"inline\" : \"ctx._source.field2 = 'value2'\"" +
-                "  }," +
-                "  \"lang\" : \"" + InnerHitsIT.CustomScriptPlugin.NAME + "\"," +
-                "  \"upsert\" : {" +
-                "    \"field1\" : \"value1'\"" +
-                "  }" +
-                "}" +
-                "\n").array();
-
-        byte[] addChild2 = new BytesArray(
-            "{" +
-                "  \"update\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"child\"," +
-                "    \"_id\"    : \"child1\"," +
-                "    \"parent\" : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"script\" : \"ctx._source.field2 = 'value2'\"," +
-                "  \"upsert\" : {" +
-                "    \"field1\" : \"value1'\"" +
-                "  }" +
-                "}" +
-                "\n").array();
-
-        builder.add(addParent, 0, addParent.length, XContentType.JSON);
-        builder.add(addChild1, 0, addChild1.length, XContentType.JSON);
-        builder.add(addChild2, 0, addChild2.length, XContentType.JSON);
-
-        BulkResponse bulkResponse = builder.get();
-        assertThat(bulkResponse.getItems().length, equalTo(3));
-        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[2].getFailure().getCause().getCause().getMessage(),
-            equalTo("script_lang not supported [painless]"));
-
-        client().admin().indices().prepareRefresh("test").get();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(hasParentQuery("parent", QueryBuilders.matchAllQuery(), false))
-            .get();
-
-        assertSearchHits(searchResponse, "child1");
-    }
 }

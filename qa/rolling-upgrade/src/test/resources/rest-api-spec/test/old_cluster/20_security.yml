@@ -48,12 +48,6 @@
 
   - do:
       cluster.health:
-        index: ".monitoring-es-*"
-        wait_for_active_shards: 2 # 1 primary and 1 replica
-        timeout: 25s
-
-  - do:
-      cluster.health:
         index: ".security"
         wait_for_active_shards: 2 # 1 primary and 1 replica since we have two nodes
         timeout: 25s

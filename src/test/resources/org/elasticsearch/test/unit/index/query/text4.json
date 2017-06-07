@@ -1,0 +1,8 @@
+{
+    "text":{
+        "name.first":{
+            "query":"aaa bbb",
+            "type":"phrase_prefix"
+        }
+    }
+}

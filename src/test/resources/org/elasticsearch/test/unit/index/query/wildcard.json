@@ -1,0 +1,5 @@
+{
+    wildcard:{
+        "name.first":"sh*"
+    }
+}

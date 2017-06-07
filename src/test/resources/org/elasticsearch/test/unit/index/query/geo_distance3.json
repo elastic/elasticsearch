@@ -1,0 +1,13 @@
+{
+    "filtered":{
+        "query":{
+            "match_all":{}
+        },
+        "filter":{
+            "geo_distance":{
+                "distance":"12mi",
+                "location":"40, -70"
+            }
+        }
+    }
+}

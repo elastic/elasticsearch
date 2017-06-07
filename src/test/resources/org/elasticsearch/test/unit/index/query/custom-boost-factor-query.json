@@ -1,0 +1,10 @@
+{
+    "custom_boost_factor":{
+        "query":{
+            "term":{
+                "name.last":"banon"
+            }
+        },
+        "boost_factor":1.3
+    }
+}

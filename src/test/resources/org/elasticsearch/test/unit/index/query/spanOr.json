@@ -1,0 +1,21 @@
+{
+    span_or:{
+        clauses:[
+            {
+                span_term:{
+                    age:34
+                }
+            },
+            {
+                span_term:{
+                    age:35
+                }
+            },
+            {
+                span_term:{
+                    age:36
+                }
+            }
+        ]
+    }
+}

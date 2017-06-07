@@ -1,0 +1,14 @@
+{
+    filtered:{
+        filter:{
+            term:{
+                "name.last":"banon"
+            }
+        },
+        query:{
+            term:{
+                "name.first":"shay"
+            }
+        }
+    }
+}

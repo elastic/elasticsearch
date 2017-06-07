@@ -1,0 +1,7 @@
+{
+    query_string:{
+        fields:["content", "name"],
+        use_dis_max:true,
+        query:"test"
+    }
+}

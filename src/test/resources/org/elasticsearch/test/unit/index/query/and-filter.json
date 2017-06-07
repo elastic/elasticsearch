@@ -1,0 +1,25 @@
+{
+    "filtered":{
+        "query":{
+            "term":{
+                "name.first":"shay"
+            }
+        },
+        "filter":{
+            "and":{
+                "filters":[
+                    {
+                        "term":{
+                            "name.first":"shay1"
+                        }
+                    },
+                    {
+                        "term":{
+                            "name.first":"shay4"
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

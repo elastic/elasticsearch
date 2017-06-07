@@ -1,0 +1,15 @@
+{
+    "filtered":{
+        "query":{
+            "term":{
+                "name.first":"shay"
+            }
+        },
+        "filter":{
+            "terms":{
+                "name.last":["banon", "kimchy"],
+                "_name":"test"
+            }
+        }
+    }
+}

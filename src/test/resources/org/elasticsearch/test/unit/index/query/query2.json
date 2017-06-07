@@ -1,0 +1,6 @@
+{
+    query_string:{
+        default_field:"age",
+        query:"12~0.2"
+    }
+}

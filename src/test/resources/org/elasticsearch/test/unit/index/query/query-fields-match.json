@@ -1,0 +1,7 @@
+{
+    query_string:{
+        fields:["name.*"],
+        use_dis_max:false,
+        query:"test"
+    }
+}

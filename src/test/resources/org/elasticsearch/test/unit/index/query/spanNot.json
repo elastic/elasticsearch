@@ -1,0 +1,14 @@
+{
+    span_not:{
+        include:{
+            span_term:{
+                age:34
+            }
+        },
+        exclude:{
+            span_term:{
+                age:35
+            }
+        }
+    }
+}

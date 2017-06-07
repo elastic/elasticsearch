@@ -1,0 +1,56 @@
+{
+    "person":{
+        "_all":{
+            "enabled": true ,
+            "index_options" : "freqs"
+        },
+        "properties":{
+            "name":{
+                "type":"object",
+                "dynamic":false,
+                "properties":{
+                    "first":{
+                        "type":"string",
+                        "store":"yes",
+                        "include_in_all":false
+                    },
+                    "last":{
+                        "type":"string",
+                        "index":"not_analyzed"
+                    }
+                }
+            },
+            "address":{
+                "type":"object",
+                "include_in_all":false,
+                "properties":{
+                    "first":{
+                        "properties":{
+                            "location":{
+                                "type":"string",
+                                "store":"yes",
+                                "index_name":"firstLocation"
+                            }
+                        }
+                    },
+                    "last":{
+                        "properties":{
+                            "location":{
+                                "type":"string",
+                                "include_in_all":true
+                            }
+                        }
+                    }
+                }
+            },
+            "simple1":{
+                "type":"long",
+                "include_in_all":true
+            },
+            "simple2":{
+                "type":"long",
+                "include_in_all":false
+            }
+        }
+    }
+}

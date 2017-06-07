@@ -86,10 +86,10 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         return joinFieldName + "#" + parentName;
     }
 
-    private static void checkPreConditions(Version indexCreatedVersion, ContentPath path, String name) {
-        if (indexCreatedVersion.before(Version.V_6_0_0_alpha2)) {
-            throw new IllegalStateException("unable to create join field [" + name +
-                "] for index created before " + Version.V_6_0_0_alpha2);
+    private static void checkIndexCompatibility(IndexSettings settings, String name) {
+        if (settings.getIndexMetaData().isRoutingPartitionedIndex()) {
+            throw new IllegalStateException("cannot create join field [" + name + "] " +
+                "for the partitioned index " + "[" + settings.getIndex().getName() + "]");
         }
         if (settings.isSingleType() == false) {
             throw new IllegalStateException("cannot create join field [" + name + "] " +

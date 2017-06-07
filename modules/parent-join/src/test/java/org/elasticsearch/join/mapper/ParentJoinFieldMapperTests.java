@@ -20,6 +20,7 @@
 package org.elasticsearch.join.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
@@ -43,6 +44,14 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singletonList(ParentJoinPlugin.class);
+    }
+
+    @Override
+    protected IndexService createIndex(String index) {
+        Settings settings = Settings.builder()
+            .put("index.mapping.single_type", true)
+            .build();
+        return super.createIndex(index, settings);
     }
 
     public void testSingleLevel() throws Exception {

@@ -76,10 +76,13 @@ public final class ParentJoinFieldSubFetchPhase implements FetchSubPhase {
     private String getSortedDocValue(String field, LeafReader reader, int docId) {
         try {
             SortedDocValues docValues = reader.getSortedDocValues(field);
-            if (docValues == null || docValues.advanceExact(docId) == false) {
+            if (docValues == null) {
                 return null;
             }
-            int ord = docValues.ordValue();
+            int ord = docValues.getOrd(docId);
+            if (ord == -1) {
+                return null;
+            }
             BytesRef joinName = docValues.lookupOrd(ord);
             return joinName.utf8ToString();
         } catch (IOException e) {

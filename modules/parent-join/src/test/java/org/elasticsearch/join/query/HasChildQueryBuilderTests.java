@@ -33,8 +33,11 @@ import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -91,6 +94,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         return Settings.builder()
             .put(super.indexSettings())
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.mapping.single_type", true)
             .build();
     }
 

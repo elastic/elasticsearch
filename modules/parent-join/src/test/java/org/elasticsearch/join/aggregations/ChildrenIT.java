@@ -317,6 +317,7 @@ public class ChildrenIT extends ParentChildTestCase {
             assertAcked(
                     prepareCreate(indexName)
                             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(indexSettings())
                                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                                     .put("index.mapping.single_type", false))
                             .addMapping(masterType, "brand", "type=text", "name", "type=keyword", "material", "type=text")
@@ -326,6 +327,7 @@ public class ChildrenIT extends ParentChildTestCase {
             assertAcked(
                     prepareCreate(indexName)
                             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(indexSettings())
                                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                             .addMapping("doc", "join_field", "type=join," + masterType + "=" + childType, "brand", "type=text",
                                     "name", "type=keyword", "material", "type=text", "color", "type=keyword", "size", "type=keyword")
@@ -390,9 +392,7 @@ public class ChildrenIT extends ParentChildTestCase {
         if (legacy()) {
             assertAcked(
                     prepareCreate(indexName)
-                            .setSettings(Settings.builder()
-                                    .put("index.mapping.single_type", false)
-                            ).addMapping(grandParentType, "name", "type=keyword")
+                            .addMapping(grandParentType, "name", "type=keyword")
                             .addMapping(parentType, "_parent", "type=" + grandParentType)
                             .addMapping(childType, "_parent", "type=" + parentType)
 

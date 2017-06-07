@@ -58,7 +58,6 @@ public class LegacyParentIdQueryBuilderTests extends AbstractQueryTestCase<Paren
     protected Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
-            .put("index.mapping.single_type", false)
             .build();
     }
 

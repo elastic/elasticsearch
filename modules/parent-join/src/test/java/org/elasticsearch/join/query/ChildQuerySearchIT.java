@@ -892,7 +892,6 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
     }
 
-    @AwaitsFix(bugUrl = "wait for inner hits to be fixed")
     public void testHasChildInnerHitsHighlighting() throws Exception {
         if (legacy()) {
             assertAcked(prepareCreate("test")
@@ -1122,7 +1121,10 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .setSettings("index.refresh_interval", -1)
+                .setSettings(Settings.builder()
+                    .put(indexSettings())
+                    .put("index.refresh_interval", -1)
+                )
                 .addMapping("doc", "join_field", "type=join,parent=child"));
         }
         ensureGreen();
@@ -1501,7 +1503,10 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("test")
-                .setSettings("index.refresh_interval", -1)
+                .setSettings(Settings.builder()
+                    .put(indexSettings())
+                    .put("index.refresh_interval", -1)
+                )
                 .addMapping("doc", "join_field", "type=join,parent=child"));
         }
         ensureGreen();

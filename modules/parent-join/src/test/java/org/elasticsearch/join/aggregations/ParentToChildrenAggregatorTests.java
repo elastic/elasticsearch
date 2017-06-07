@@ -36,8 +36,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -56,8 +60,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.mockito.Mockito.mock;
@@ -158,9 +164,33 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         return new SortedDocValuesField("join_field#" + parentType, new BytesRef(id));
     }
 
+    private static IndexMetaData newIndexMeta(String name, Settings indexSettings) {
+        Settings build = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(indexSettings)
+            .put("index.mapping.single_type", true)
+            .build();
+        IndexMetaData metaData = IndexMetaData.builder(name).settings(build).build();
+        return metaData;
+    }
+
+    private static IndexSettings newIndexSettings(IndexMetaData metaData) {
+        Set<Setting<?>> settingSet = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        return new IndexSettings(metaData, Settings.EMPTY, (idx) -> Regex.simpleMatch(idx, metaData.getIndex().getName()),
+            new IndexScopedSettings(Settings.EMPTY, settingSet));
+    }
+
+    @Override
+    protected IndexSettings indexSettings() {
+        return newIndexSettings(newIndexMeta("_index", Settings.EMPTY));
+    }
+
     @Override
     protected MapperService mapperServiceMock() {
-        ParentJoinFieldMapper joinFieldMapper = createJoinFieldMapper();
+        IndexSettings indexSettings = indexSettings();
+        ParentJoinFieldMapper joinFieldMapper = createJoinFieldMapper(indexSettings.getSettings());
         MapperService mapperService = mock(MapperService.class);
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
         when(metaJoinFieldType.getMapper()).thenReturn(joinFieldMapper);
@@ -168,8 +198,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         return mapperService;
     }
 
-    private static ParentJoinFieldMapper createJoinFieldMapper() {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+    private static ParentJoinFieldMapper createJoinFieldMapper(Settings settings) {
         return new ParentJoinFieldMapper.Builder("join_field")
                 .addParent(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
                 .build(new Mapper.BuilderContext(settings, new ContentPath(0)));

@@ -66,6 +66,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
         return Settings.builder()
             .put(super.indexSettings())
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.mapping.single_type", true)
             .build();
     }
 

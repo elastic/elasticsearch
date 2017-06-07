@@ -177,7 +177,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 .put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
-        
+
         index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
 
         // Set a single type in the index
@@ -187,8 +187,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     protected Settings indexSettings() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        Version indexVersionCreated = randomBoolean() ? Version.CURRENT
-            : VersionUtils.randomVersionBetween(random(), null, Version.CURRENT);
+        Version indexVersionCreated = randomBoolean() ? Version.CURRENT :
+            VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
         return Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
             .build();

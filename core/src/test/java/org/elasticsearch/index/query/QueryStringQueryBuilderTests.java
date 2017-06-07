@@ -912,8 +912,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             MapperService.MergeReason.MAPPING_UPDATE, true);
     }
 
-
-
     public void testFromJson() throws IOException {
         String json =
                 "{\n" +

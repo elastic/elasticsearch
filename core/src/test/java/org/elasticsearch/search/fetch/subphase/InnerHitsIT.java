@@ -21,9 +21,11 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -80,6 +82,13 @@ public class InnerHitsIT extends ESIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap("5", script -> "5");
         }
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder()
+            .put(super.indexSettings())
+            .build();
     }
 
     public void testSimpleNested() throws Exception {
@@ -632,26 +641,4 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertHitCount(response, 2);
         assertSearchHits(response, "1", "3");
     }
-
-    public void testDontExplode() throws Exception {
-        assertAcked(prepareCreate("index2").addMapping("type", "nested", "type=nested"));
-        client().prepareIndex("index2", "type", "1").setSource(jsonBuilder().startObject()
-            .startArray("nested")
-            .startObject()
-            .field("field", "value1")
-            .endObject()
-            .endArray()
-            .endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-
-        QueryBuilder query = nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg)
-            .innerHit(new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1));
-        SearchResponse response = client().prepareSearch("index2")
-            .setQuery(query)
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
-    }
-
 }

@@ -33,7 +33,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
@@ -114,7 +113,6 @@ public class LegacyHasChildQueryBuilderTests extends AbstractQueryTestCase<HasCh
     protected Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
-            .put("index.mapping.single_type", false)
             .build();
     }
 
@@ -321,9 +319,7 @@ public class LegacyHasChildQueryBuilderTests extends AbstractQueryTestCase<HasCh
         HasChildQueryBuilder hasChildQueryBuilder =
             hasChildQuery(CHILD_TYPE, new TermQueryBuilder("custom_string", "value"), ScoreMode.None);
         HasChildQueryBuilder.LateParsingQuery query = (HasChildQueryBuilder.LateParsingQuery) hasChildQueryBuilder.toQuery(shardContext);
-        Similarity expected = SimilarityService.BUILT_IN.get(similarity)
-            .apply(similarity, Settings.EMPTY, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build())
-            .get();
+        Similarity expected = SimilarityService.BUILT_IN.get(similarity).apply(similarity, Settings.EMPTY).get();
         assertThat(((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string"), instanceOf(expected.getClass()));
     }
 

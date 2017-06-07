@@ -59,8 +59,8 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), true)
             .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true);
 
-        if (legacy()) {
-            builder.put("index.mapping.single_type", false);
+        if (legacy() == false) {
+            builder.put("index.mapping.single_type", true);
         }
 
         return builder.build();

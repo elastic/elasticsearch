@@ -87,11 +87,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
 
-    protected <B extends AggregationBuilder> AggregatorFactory<?> createAggregatorFactory(B aggregationBuilder,
-            IndexSearcher indexSearcher,
-            MappedFieldType... fieldTypes) throws IOException {
-
-        IndexSettings indexSettings = new IndexSettings(
+    protected IndexSettings indexSettings() {
+        return new IndexSettings(
             IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
@@ -99,7 +96,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 .build(),
             Settings.EMPTY
         );
+    }
 
+    protected <B extends AggregationBuilder> AggregatorFactory<?> createAggregatorFactory(B aggregationBuilder,
+            IndexSearcher indexSearcher,
+            MappedFieldType... fieldTypes) throws IOException {
+
+        IndexSettings indexSettings = indexSettings();
         Engine.Searcher searcher = new Engine.Searcher("aggregator_test", indexSearcher);
         QueryCache queryCache = new DisabledQueryCache(indexSettings);
         QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {

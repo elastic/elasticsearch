@@ -55,7 +55,10 @@ public class ParentJoinFieldSubFetchPhaseTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject()
             .endObject().string();
-        IndexService service = createIndex("test", Settings.EMPTY);
+        Settings settings = Settings.builder()
+            .put("index.mapping.single_type", true)
+            .build();
+        IndexService service = createIndex("test", settings);
         service.mapperService().merge("doc", new CompressedXContent(mapping),
             MapperService.MergeReason.MAPPING_UPDATE, true);
 

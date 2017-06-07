@@ -163,7 +163,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
 
         private String value;
 
-        public CustomRequest() {
+        CustomRequest() {
         }
 
         public String getValue() {

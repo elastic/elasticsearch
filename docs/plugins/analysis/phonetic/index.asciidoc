@@ -1,0 +1,71 @@
+[[analysis-phonetic]]
+== Phonetic Analysis for Elasticsearch
+
+The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.
+
+[analysis-phonetic-install]
+=== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+bin/plugin install elasticsearch-analysis-phonetic
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[analysis-phonetic-remove]
+=== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+bin/plugin remove elasticsearch-analysis-phonetic
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[analysis-phonetic-usage]
+=== Usage
+
+
+
+A `phonetic` token filter that can be configured with different `encoder` types: 
+`metaphone`, `doublemetaphone`, `soundex`, `refinedsoundex`, 
+`caverphone1`, `caverphone2`, `cologne`, `nysiis`,
+`koelnerphonetik`, `haasephonetik`, `beidermorse`
+
+The `replace` parameter (defaults to `true`) controls if the token processed 
+should be replaced with the encoded one (set it to `true`), or added (set it to `false`).
+
+[source,json]
+--------------------------------------------------
+PUT phonetic_sample
+{
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "my_analyzer" : {
+                        "tokenizer" : "standard",
+                        "filter" : ["standard", "lowercase", "my_metaphone"]
+                    }
+                },
+                "filter" : {
+                    "my_metaphone" : {
+                        "type" : "phonetic",
+                        "encoder" : "metaphone",
+                        "replace" : false
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+Note that `beidermorse` does not support `replace` parameter.

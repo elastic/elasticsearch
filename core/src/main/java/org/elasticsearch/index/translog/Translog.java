@@ -255,7 +255,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             if (tempFileRenamed == false) {
                 try {
-                    Files.delete(tempFile);
+                    if (Files.exists(tempFile)) {
+                        Files.delete(tempFile);
+                    }
+                    
                 } catch (IOException ex) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to delete temp file {}", tempFile), ex);
                 }

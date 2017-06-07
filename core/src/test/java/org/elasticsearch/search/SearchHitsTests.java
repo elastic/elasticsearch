@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SearchHitsTests extends ESTestCase {
@@ -81,7 +82,7 @@ public class SearchHitsTests extends ESTestCase {
         BytesReference originalBytes = toXContent(searchHits, xcontentType, ToXContent.EMPTY_PARAMS, true);
         Predicate<String> pathsToExclude = path -> (path.isEmpty() || path.endsWith("highlight") || path.endsWith("fields")
                 || path.contains("_source"));
-        BytesReference withRandomFields = insertRandomFields(xcontentType, originalBytes, pathsToExclude);
+        BytesReference withRandomFields = insertRandomFields(xcontentType, originalBytes, pathsToExclude, random(), xContentRegistry());
         SearchHits parsed = null;
         try (XContentParser parser = createParser(xcontentType.xContent(), withRandomFields)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());

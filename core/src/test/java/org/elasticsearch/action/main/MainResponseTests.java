@@ -36,6 +36,7 @@ import java.util.Date;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class MainResponseTests extends ESTestCase {
@@ -56,7 +57,7 @@ public class MainResponseTests extends ESTestCase {
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(mainResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         // we add a few random fields to check that parser is lenient on new fields
-        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null);
+        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random(), xContentRegistry());
         MainResponse parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             parsed = MainResponse.fromXContent(parser);

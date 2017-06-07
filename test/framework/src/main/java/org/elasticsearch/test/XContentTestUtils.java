@@ -20,22 +20,29 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Stack;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 
 public final class XContentTestUtils {
     private XContentTestUtils() {
@@ -126,6 +133,80 @@ public final class XContentTestUtils {
                 return path + ": the elements don't match: [" + first + "] != [" + second + "]";
             }
 
+        }
+    }
+
+    /**
+     * This method takes the input xContent data and adds a random field value, inner object or array into each
+     * json object. This can e.g. be used to test if parsers that handle the resulting xContent can handle the
+     * augmented xContent correctly, for example when testing lenient parsing.
+     *
+     * If the xContent output contains objects that should be skipped of such treatment, an optional filtering
+     * {@link Predicate} can be supplied that checks xContent paths that should be excluded from this treatment.
+     *
+     * This predicate should check the xContent path that we want to insert to and return <tt>true</tt> if the
+     * path should be excluded. Paths are string concatenating field names and array indices, so e.g. in:
+     *
+     * <pre>
+     * {
+     *      "foo1 : {
+     *          "bar" : [
+     *              { ... },
+     *              { ... },
+     *              {
+     *                  "baz" : {
+     *                      // insert here
+     *                  }
+     *              }
+     *          ]
+     *      }
+     * }
+     * </pre>
+     *
+     * "foo1.bar.2.baz" would point to the desired insert location.
+     *
+     * To exclude inserting into the "foo1" object we would user a {@link Predicate} like
+     * <pre>
+     * {@code
+     *      (path) -> path.endsWith("foo1")
+     * }
+     * </pre>
+     *
+     * or if we don't want any random insertions in the "foo1" tree we could use
+     * <pre>
+     * {@code
+     *      (path) -> path.contains("foo1")
+     * }
+     * </pre>
+     */
+    public static BytesReference insertRandomFields(XContentType contentType, BytesReference xContent, Predicate<String> excludeFilter,
+            Random random, NamedXContentRegistry registry) throws IOException {
+        List<String> insertPaths;
+
+        try (XContentParser parser = createParser(registry, xContent, contentType)) {
+            List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser);
+            if (excludeFilter == null) {
+                insertPaths = possiblePaths;
+            } else {
+                insertPaths = new ArrayList<>();
+                possiblePaths.stream().filter(excludeFilter.negate()).forEach(insertPaths::add);
+            }
+        }
+        try (XContentParser parser = createParser(registry, xContent, contentType)) {
+            Supplier<Object> value = () -> {
+                if (random.nextBoolean()) {
+                    return RandomObjects.randomStoredFieldValues(random, contentType);
+                } else {
+                    if (random.nextBoolean()) {
+                        return Collections.singletonMap(randomAsciiOfLength(random, 10), randomAsciiOfLength(random, 10));
+                    } else {
+                        return Collections.singletonList(randomAsciiOfLength(random, 10));
+                    }
+                }
+            };
+            return XContentTestUtils
+                    .insertIntoXContent(contentType.xContent(), xContent, insertPaths, () -> randomAsciiOfLength(random, 10), value)
+                    .bytes();
         }
     }
 

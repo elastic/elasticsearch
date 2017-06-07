@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -202,7 +203,7 @@ public class ESTestCaseTests extends ESTestCase {
         Map<String, Object> resultMap;
 
         try (XContentParser parser = createParser(XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), builder.bytes(), null))) {
+                insertRandomFields(builder.contentType(), builder.bytes(), null, random(), xContentRegistry()))) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());
@@ -216,7 +217,7 @@ public class ESTestCaseTests extends ESTestCase {
 
         Predicate<String> pathsToExclude = path -> path.endsWith("foo1");
         try (XContentParser parser = createParser(XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude))) {
+                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude, random(), xContentRegistry()))) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());
@@ -230,7 +231,7 @@ public class ESTestCaseTests extends ESTestCase {
 
         pathsToExclude = path -> path.contains("foo1");
         try (XContentParser parser = createParser(XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude))) {
+                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude, random(), xContentRegistry()))) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());

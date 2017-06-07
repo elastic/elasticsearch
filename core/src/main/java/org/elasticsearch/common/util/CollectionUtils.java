@@ -370,7 +370,7 @@ public class CollectionUtils {
         if (size <= 0) {
             throw new IllegalArgumentException("size <= 0");
         }
-        List<List<E>> result = new ArrayList<>((int) Math.ceil(list.size() / size));
+        List<List<E>> result = new ArrayList<>((int) Math.ceil((double)list.size() / size));
 
         List<E> accumulator = new ArrayList<>(size);
         int count = 0;

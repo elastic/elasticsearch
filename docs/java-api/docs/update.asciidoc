@@ -85,6 +85,7 @@ IndexRequest indexRequest = new IndexRequest("index", "type", "1")
 UpdateRequest updateRequest = new UpdateRequest("index", "type", "1")
         .doc(jsonBuilder()
             .startObject()
+                .field("name", "Joe Dalton")
                 .field("gender", "male")
             .endObject())
         .upsert(indexRequest);              <1>

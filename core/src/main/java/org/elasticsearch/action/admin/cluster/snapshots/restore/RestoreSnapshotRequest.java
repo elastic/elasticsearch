@@ -146,7 +146,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * Sets the list of indices that should be restored from snapshot
      * <p>
      * The list of indices supports multi-index syntax. For example: "+test*" ,"-test42" will index all indices with
-     * prefix "test" except index "test42". Aliases are not supported. An empty list or {"_all"} will restore all open
+     * prefix "test" except index "test42". Aliases are not supported. An empty list will restore all open
      * indices in the snapshot.
      *
      * @param indices list of indices
@@ -161,7 +161,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * Sets the list of indices that should be restored from snapshot
      * <p>
      * The list of indices supports multi-index syntax. For example: "+test*" ,"-test42" will index all indices with
-     * prefix "test" except index "test42". Aliases are not supported. An empty list or {"_all"} will restore all open
+     * prefix "test" except index "test42". Aliases are not supported. An empty list will restore all open
      * indices in the snapshot.
      *
      * @param indices list of indices

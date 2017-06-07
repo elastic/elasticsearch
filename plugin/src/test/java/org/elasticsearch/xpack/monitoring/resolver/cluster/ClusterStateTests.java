@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
@@ -28,6 +29,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ESIntegTestCase.ClusterScope(numDataNodes = 1, supportsDedicatedMasters = false)
 public class ClusterStateTests extends MonitoringIntegTestCase {
 
     private int randomInt = randomInt();

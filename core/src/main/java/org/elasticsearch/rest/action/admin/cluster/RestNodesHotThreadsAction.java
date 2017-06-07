@@ -74,7 +74,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
                         StringBuilder sb = new StringBuilder();
                         for (NodeHotThreads node : response.getNodes()) {
                             sb.append("::: ").append(node.getNode().toString()).append("\n");
-                            Strings.spaceify(3, node.getHotThreads(), sb);
+                            Strings.specify(3, node.getHotThreads(), sb);
                             sb.append('\n');
                         }
                         return new BytesRestResponse(RestStatus.OK, sb.toString());

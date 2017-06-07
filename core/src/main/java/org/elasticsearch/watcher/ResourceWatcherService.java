@@ -50,7 +50,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
         HIGH(TimeValue.timeValueSeconds(5)),
 
         /**
-         * Defaults to 30 seconds
+         * Defaults to 25 seconds
          */
         MEDIUM(TimeValue.timeValueSeconds(30)),
 

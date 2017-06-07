@@ -189,8 +189,10 @@ something similar on the client side, and reduce buffering as much as
 possible.
 
 The response to a bulk action is a large JSON structure with the
-individual results of each action that was performed. The failure of a
-single action does not affect the remaining actions.
+individual results of each action that was performed. The response
+contains the items array, which lists the result of each request,
+in the same order as we requested them. The failure of a single action 
+does not affect the remaining actions. See https://www.elastic.co/guide/en/elasticsearch/guide/current/bulk.html?q=Bulk[Bulk::Elasticsearch]
 
 There is no "correct" number of actions to perform in a single bulk
 call. You should experiment with different settings to find the optimum

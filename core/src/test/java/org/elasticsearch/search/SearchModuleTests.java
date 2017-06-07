@@ -279,7 +279,6 @@ public class SearchModuleTests extends ModuleTestCase {
             "more_like_this",
             "multi_match",
             "nested",
-            "parent_id",
             "prefix",
             "query_string",
             "range",

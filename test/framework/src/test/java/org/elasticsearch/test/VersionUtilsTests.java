@@ -193,7 +193,7 @@ public class VersionUtilsTests extends ESTestCase {
         // This *should* be:
         //         Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
         // But instead it is:
-        Version minimumCompatibleVersion = Version.V_5_5_0;
+        Version minimumCompatibleVersion = Version.V_5_6_0;
         // Because things blow up all over the place if the minimum compatible version isn't released.
         // We'll fix this very, very soon. But for now, this hack.
         // end big horrible hack

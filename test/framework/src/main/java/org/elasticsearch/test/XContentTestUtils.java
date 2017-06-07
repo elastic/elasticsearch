@@ -180,11 +180,13 @@ public final class XContentTestUtils {
      * </pre>
      */
     public static BytesReference insertRandomFields(XContentType contentType, BytesReference xContent, Predicate<String> excludeFilter,
-            Random random, NamedXContentRegistry registry) throws IOException {
+            Random random) throws IOException {
         List<String> insertPaths;
 
-        try (XContentParser parser = createParser(registry, xContent, contentType)) {
-            List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser);
+        // we can use NamedXContentRegistry.EMPTY here because we only traverse the xContent once and don't use it
+        try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY, xContent, contentType)) {
+            parser.nextToken();
+            List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
             if (excludeFilter == null) {
                 insertPaths = possiblePaths;
             } else {
@@ -192,7 +194,8 @@ public final class XContentTestUtils {
                 possiblePaths.stream().filter(excludeFilter.negate()).forEach(insertPaths::add);
             }
         }
-        try (XContentParser parser = createParser(registry, xContent, contentType)) {
+
+        try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY, xContent, contentType)) {
             Supplier<Object> value = () -> {
                 if (random.nextBoolean()) {
                     return RandomObjects.randomStoredFieldValues(random, contentType);
@@ -218,6 +221,8 @@ public final class XContentTestUtils {
      * The path uses dot separated fieldnames and numbers for array indices, similar to what we do in
      * {@link ObjectPath}.
      *
+     * The {@link Stack} passed in should initially be empty, it gets pushed to by recursive calls
+     *
      * As an example, the following json xContent:
      * <pre>
      *     {
@@ -240,13 +245,7 @@ public final class XContentTestUtils {
      *  <li>"foo3.foo4</li>
      * </ul>
      */
-    static List<String> getInsertPaths(XContentParser parser) throws IOException{
-        assert parser.currentToken() == null : "the parsers token cursor should be before the first token";
-        assert parser.nextToken() == XContentParser.Token.START_OBJECT;
-        return getInsertPaths(parser, new Stack<String>());
-    }
-
-    private static List<String> getInsertPaths(XContentParser parser, Stack<String> currentPath) throws IOException {
+    static List<String> getInsertPaths(XContentParser parser, Stack<String> currentPath) throws IOException {
         assert parser.currentToken() == XContentParser.Token.START_OBJECT || parser.currentToken() == XContentParser.Token.START_ARRAY :
             "should only be called when new objects or arrays start";
         List<String> validPaths = new ArrayList<>();

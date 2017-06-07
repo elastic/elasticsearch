@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -68,7 +69,8 @@ public class XContentTestUtilsTests extends ESTestCase {
         builder.endObject();
 
         try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, builder.bytes(), builder.contentType())) {
-            List<String> insertPaths = XContentTestUtils.getInsertPaths(parser);
+            parser.nextToken();
+            List<String> insertPaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
             assertEquals(5, insertPaths.size());
             assertThat(insertPaths, hasItem(equalTo("")));
             assertThat(insertPaths, hasItem(equalTo("list1.2")));

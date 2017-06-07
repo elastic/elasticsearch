@@ -203,7 +203,7 @@ public class ESTestCaseTests extends ESTestCase {
         Map<String, Object> resultMap;
 
         try (XContentParser parser = createParser(XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), builder.bytes(), null, random(), xContentRegistry()))) {
+                insertRandomFields(builder.contentType(), builder.bytes(), null, random()))) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());
@@ -217,7 +217,7 @@ public class ESTestCaseTests extends ESTestCase {
 
         Predicate<String> pathsToExclude = path -> path.endsWith("foo1");
         try (XContentParser parser = createParser(XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude, random(), xContentRegistry()))) {
+                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude, random()))) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());
@@ -231,7 +231,7 @@ public class ESTestCaseTests extends ESTestCase {
 
         pathsToExclude = path -> path.contains("foo1");
         try (XContentParser parser = createParser(XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude, random(), xContentRegistry()))) {
+                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude, random()))) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());

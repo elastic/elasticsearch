@@ -167,7 +167,7 @@ public class SearchHitTests extends ESTestCase {
         BytesReference originalBytes = toXContent(searchHit, xContentType, true);
         Predicate<String> pathsToExclude = path -> (path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source")
                 || path.contains("inner_hits"));
-        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random(), xContentRegistry());
+        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
 
         SearchHit parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {

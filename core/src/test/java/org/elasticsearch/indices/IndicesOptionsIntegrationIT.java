@@ -516,19 +516,20 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     public void testDeleteIndexWildcard() throws Exception {
-        verify(client().admin().indices().prepareDelete("_all"), false);
+        IndicesOptions deleteOptions = IndicesOptions.fromOptions(false, true, true, true);
+        verify(client().admin().indices().prepareDelete("_all").setIndicesOptions(deleteOptions), false);
 
         createIndex("foo", "foobar", "bar", "barbaz");
 
-        verify(client().admin().indices().prepareDelete("foo*"), false);
+        verify(client().admin().indices().prepareDelete("foo*").setIndicesOptions(deleteOptions), false);
         assertThat(client().admin().indices().prepareExists("foo").get().isExists(), equalTo(false));
         assertThat(client().admin().indices().prepareExists("foobar").get().isExists(), equalTo(false));
         assertThat(client().admin().indices().prepareExists("bar").get().isExists(), equalTo(true));
         assertThat(client().admin().indices().prepareExists("barbaz").get().isExists(), equalTo(true));
 
-        verify(client().admin().indices().prepareDelete("foo*"), false);
+        verify(client().admin().indices().prepareDelete("foo*").setIndicesOptions(deleteOptions), false);
 
-        verify(client().admin().indices().prepareDelete("_all"), false);
+        verify(client().admin().indices().prepareDelete("_all").setIndicesOptions(deleteOptions), false);
         assertThat(client().admin().indices().prepareExists("foo").get().isExists(), equalTo(false));
         assertThat(client().admin().indices().prepareExists("foobar").get().isExists(), equalTo(false));
         assertThat(client().admin().indices().prepareExists("bar").get().isExists(), equalTo(false));

@@ -21,6 +21,7 @@ package org.elasticsearch.tribe;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -187,7 +188,8 @@ public class TribeIT extends ESIntegTestCase {
         doWithAllClusters(c -> {
             final String clusterName = c.getClusterName();
             try {
-                c.client().admin().indices().prepareDelete(MetaData.ALL).get();
+                IndicesOptions deleteOptions = IndicesOptions.fromOptions(false, true, true, true);
+                c.client().admin().indices().prepareDelete(MetaData.ALL).setIndicesOptions(deleteOptions).get();
                 c.afterTest();
             } catch (IOException e) {
                 throw new RuntimeException("Failed to clean up remote cluster [" + clusterName + "]", e);

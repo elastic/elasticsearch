@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;;
 
 public class XContentTestUtilsTests extends ESTestCase {
 
-    public void testGetInserPaths() throws IOException {
+    public void testGetInsertPaths() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         {
@@ -79,7 +79,7 @@ public class XContentTestUtilsTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testInsertInto() throws IOException {
+    public void testInsertIntoXContent() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.endObject();

@@ -159,20 +159,21 @@ public final class XContentTestUtils {
      *  <li>"foo3.foo4</li>
      * </ul>
      */
-    public static List<String> getInsertPaths(XContentParser parser) throws IOException{
-        if (parser.currentToken() == null) {
-            parser.nextToken();
-        }
+    static List<String> getInsertPaths(XContentParser parser) throws IOException{
+        assert parser.currentToken() == null : "the parsers token cursor should be before the first token";
+        assert parser.nextToken() == XContentParser.Token.START_OBJECT;
         return getInsertPaths(parser, new Stack<String>());
     }
 
     private static List<String> getInsertPaths(XContentParser parser, Stack<String> currentPath) throws IOException {
-        assert (parser.currentToken() == XContentParser.Token.START_OBJECT || parser.currentToken() == XContentParser.Token.START_ARRAY);
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT || parser.currentToken() == XContentParser.Token.START_ARRAY :
+            "should only be called when new objects or arrays start";
         List<String> validPaths = new ArrayList<>();
+        // parser.currentName() can be null for root object and unnamed objects in arrays
+        if (parser.currentName() != null) {
+            currentPath.push(parser.currentName());
+        }
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            if (parser.currentName() != null) {
-                currentPath.push(parser.currentName());
-            }
             validPaths.add(String.join(".", currentPath.toArray(new String[currentPath.size()])));
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
@@ -180,11 +181,7 @@ public final class XContentTestUtils {
                     validPaths.addAll(getInsertPaths(parser, currentPath));
                 }
             }
-            if (parser.currentName() != null) {
-                currentPath.pop();
-            }
         } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-            currentPath.push(parser.currentName());
             int itemCount = 0;
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
@@ -195,12 +192,20 @@ public final class XContentTestUtils {
                 }
                 itemCount++;
             }
+        }
+        if (parser.currentName() != null) {
             currentPath.pop();
         }
         return validPaths;
     }
 
-    public static XContentBuilder insertIntoXContent(XContent xContent, BytesReference original, List<String> paths, Supplier<String> key,
+    /**
+     * Inserts key/value pairs into xContent passed in as {@link BytesReference} and returns a new {@link XContentBuilder}
+     * The paths argument uses dot separated fieldnames and numbers for array indices, similar to what we do in
+     * {@link ObjectPath}.
+     * The key/value arguments can suppliers that either return fixed or random values.
+     */
+    static XContentBuilder insertIntoXContent(XContent xContent, BytesReference original, List<String> paths, Supplier<String> key,
             Supplier<Object> value) throws IOException {
         ObjectPath object = ObjectPath.createFromXContent(xContent, original);
         for (String path : paths) {

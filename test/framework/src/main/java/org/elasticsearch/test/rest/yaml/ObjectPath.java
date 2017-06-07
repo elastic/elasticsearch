@@ -150,6 +150,12 @@ public class ObjectPath {
         return list.toArray(new String[list.size()]);
     }
 
+    /**
+     * Create a new {@link XContentBuilder} from the xContent object underlying this {@link ObjectPath}.
+     * This only works for {@link ObjectPath} instances created from an xContent object, not from nested
+     * substructures. We throw an {@link UnsupportedOperationException} in those cases.
+     */
+    @SuppressWarnings("unchecked")
     public XContentBuilder toXContentBuilder(XContent xContent) throws IOException {
         XContentBuilder builder = XContentBuilder.builder(xContent);
         if (this.object instanceof Map) {

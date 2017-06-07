@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -112,6 +113,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         String searchType = request.param("search_type");
         String routing = request.param("routing");
+        String timeout = request.param("timeout");
 
         final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
@@ -147,6 +149,12 @@ public class RestMultiSearchAction extends BaseRestHandler {
             if (searchType != null) {
                 searchRequest.searchType(searchType);
             }
+            if (timeout != null) {
+                if (searchRequest.source() == null) {
+                    searchRequest.source(new SearchSourceBuilder());
+                }
+                searchRequest.source().timeout(new TimeValue(Long.parseLong(timeout)));
+            }
 
             IndicesOptions defaultOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
@@ -172,6 +180,13 @@ public class RestMultiSearchAction extends BaseRestHandler {
                             searchRequest.preference(nodeStringValue(value, null));
                         } else if ("routing".equals(entry.getKey())) {
                             searchRequest.routing(nodeStringValue(value, null));
+                        } else if ("timeout".equals(entry.getKey())) {
+                            if (timeout != null) {
+                                if (searchRequest.source() == null) {
+                                    searchRequest.source(new SearchSourceBuilder());
+                                }
+                                searchRequest.source().timeout(new TimeValue(Long.parseLong(nodeStringValue(value, null))));
+                            }
                         }
                     }
                     defaultOptions = IndicesOptions.fromMap(source, defaultOptions);

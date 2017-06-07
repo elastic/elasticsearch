@@ -1776,7 +1776,7 @@ public class InternalEngine extends Engine {
      * @param syncId   the sync flush ID ({@code null} if not committing a synced flush)
      * @throws IOException if an I/O exception occurs committing the specfied writer
      */
-    private void commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
+    protected void commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
         ensureCanFlush();
         try {
             final long localCheckpoint = seqNoService().getLocalCheckpoint();
@@ -1808,7 +1808,7 @@ public class InternalEngine extends Engine {
                 return commitData.entrySet().iterator();
             });
 
-            callCommitOnWriter(writer);
+            writer.commit();
         } catch (final Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);
@@ -1833,10 +1833,6 @@ public class InternalEngine extends Engine {
                 throw e;
             }
         }
-    }
-
-    void callCommitOnWriter(IndexWriter writer) throws IOException {
-        writer.commit();
     }
 
     private void ensureCanFlush() {

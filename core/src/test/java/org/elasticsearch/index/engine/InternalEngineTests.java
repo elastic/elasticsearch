@@ -2491,8 +2491,8 @@ public class InternalEngineTests extends ESTestCase {
             final Path translogPath = createTempDir();
             try (InternalEngine engine = new InternalEngine(config(defaultSettings, store, translogPath, newMergePolicy(), null, null)) {
                 @Override
-                void callCommitOnWriter(IndexWriter writer) throws IOException {
-                    super.callCommitOnWriter(writer);
+                void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
+                    super.commitIndexWriter(writer, translog, syncId);
                     if (throwErrorOnCommit.get()) {
                         throw new RuntimeException("power's out");
                     }

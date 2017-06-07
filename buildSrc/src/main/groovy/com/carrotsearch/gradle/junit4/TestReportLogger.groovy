@@ -187,13 +187,10 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
 
     @Subscribe
     void onTestResult(AggregatedTestResultEvent e) throws IOException {
-        if (isPassthrough() && e.getStatus() != TestStatus.OK) {
-            flushOutput();
-            emitStatusLine(LogLevel.ERROR, e, e.getStatus(), e.getExecutionTime());
-        }
-
         if (!e.isSuccessful()) {
             failedTests.add(e.getDescription());
+            flushOutput();
+            emitStatusLine(LogLevel.ERROR, e, e.getStatus(), e.getExecutionTime());
         }
     }
 

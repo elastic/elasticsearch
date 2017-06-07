@@ -192,6 +192,8 @@ The response to a bulk action is a large JSON structure with the
 individual results of each action that was performed. The failure of a
 single action does not affect the remaining actions.
 
+For more details see our link:../../guide/current/bulk.html[bulk api guide].
+
 There is no "correct" number of actions to perform in a single bulk
 call. You should experiment with different settings to find the optimum
 size for your particular workload.

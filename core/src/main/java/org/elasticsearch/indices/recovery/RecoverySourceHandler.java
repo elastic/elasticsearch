@@ -460,10 +460,12 @@ public class RecoverySourceHandler {
             try (Releasable ignored = delayNewRecoveries.apply("primary relocation hand-off in progress or completed for " + shardId)) {
                 final long currentClusterStateVersion = currentClusterStateVersionSupplier.get();
                 logger.trace("waiting on remote node to have cluster state with version [{}]", currentClusterStateVersion);
-                cancellableThreads.execute(() -> recoveryTarget.ensureClusterStateVersion(currentClusterStateVersion));
 
                 logger.trace("performing relocation hand-off");
-                cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode()));
+                cancellableThreads.execute(
+                        () -> shard.relocated(
+                                "to " + request.targetNode(),
+                                () -> recoveryTarget.handoffPrimaryContext(shard.primaryContext(currentClusterStateVersion))));
             }
             /*
              * if the recovery process fails after setting the shard state to RELOCATED, both relocation source and

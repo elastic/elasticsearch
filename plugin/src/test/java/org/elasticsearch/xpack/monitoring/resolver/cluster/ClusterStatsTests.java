@@ -62,7 +62,7 @@ public class ClusterStatsTests extends MonitoringIntegTestCase {
         assertTrue(Strings.hasText(clusterUUID));
 
         // waiting for cluster stats collector to collect data
-        awaitMonitoringDocsCountOnPrimary(equalTo(1L), ClusterStatsMonitoringDoc.TYPE);
+        awaitMonitoringDocsCountOnPrimary(greaterThanOrEqualTo(1L), ClusterStatsMonitoringDoc.TYPE);
 
         refresh();
 

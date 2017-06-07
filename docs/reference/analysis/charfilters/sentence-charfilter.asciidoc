@@ -1,0 +1,47 @@
+[[analysis-sentence-charfilter]]
+=== Sentence Char Filter
+
+A char filter of type `sentence` chops the string into the first few
+sentences.
+
+Here is a sample configuration:
+
+[source,js]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "char_filter" : {
+                "my_mapping" : {
+                    "type" : "sentence"
+                }
+            },
+            "analyzer" : {
+                "custom_with_char_filter" : {
+                    "tokenizer" : "standard",
+                    "char_filter" : ["sentence"]
+                },
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Here are the configuration attributes:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Attribute |Description
+|`sentences` |The number of sentences to keep.  Defaults to `1`.
+
+|`locale` |Locale to use for sentence splitting.  Defaults to `en_us`.
+
+|`ananlyzed_chars` |Maximum number of characters to check for sentences.
+Defaults to `1024`.  If all requested sentences don't fit into this many
+characters then all characters up until the last word break before this
+many characters are passed to the analyzer.
+|=======================================================================
+
+*Note:* All boundaries in this filter are made by Java's BreakIterator,
+including the word boundary when there are insufficient analyzed_chars
+for the requested number of sentences.

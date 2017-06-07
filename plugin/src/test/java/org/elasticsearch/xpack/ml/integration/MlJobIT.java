@@ -11,6 +11,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -18,10 +20,12 @@ import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.junit.After;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -531,6 +535,64 @@ public class MlJobIT extends ESRestTestCase {
 
         expectThrows(ResponseException.class, () ->
                 client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+    }
+
+    public void testDelete_multipleRequest() throws Exception {
+        String jobId = "delete-job-mulitple-times";
+        createFarequoteJob(jobId);
+
+        ConcurrentMapLong<Response> responses = ConcurrentCollections.newConcurrentMapLong();
+        ConcurrentMapLong<ResponseException> responseExceptions = ConcurrentCollections.newConcurrentMapLong();
+        AtomicReference<IOException> ioe = new AtomicReference<>();
+
+        Runnable deleteJob = () -> {
+            try {
+                boolean forceDelete = randomBoolean();
+                String url = MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId;
+                if (forceDelete) {
+                    url += "?force=true";
+                }
+                Response response = client().performRequest("delete", url);
+                responses.put(Thread.currentThread().getId(), response);
+            } catch (ResponseException re) {
+                responseExceptions.put(Thread.currentThread().getId(), re);
+            } catch (IOException e) {
+                ioe.set(e);
+            }
+
+        };
+
+        // The idea is to hit the situation where one request waits for
+        // the other to complete. This is difficult to schedule but
+        // hopefully it will happen in CI
+        int numThreads = 5;
+        Thread [] threads = new Thread[numThreads];
+        for (int i=0; i<numThreads; i++) {
+            threads[i] = new Thread(deleteJob);
+        }
+        for (int i=0; i<numThreads; i++) {
+            threads[i].start();
+        }
+        for (int i=0; i<numThreads; i++) {
+            threads[i].join();
+        }
+
+        if (ioe.get() != null) {
+            // This looks redundant but the check is done so we can
+            // print the exception's error message
+            assertNull(ioe.get().getMessage(), ioe.get());
+        }
+
+        assertEquals(numThreads, responses.size() + responseExceptions.size());
+
+        // 404s are ok as it means the job had already been deleted.
+        for (ResponseException re : responseExceptions.values()) {
+            assertEquals(re.getMessage(), 404, re.getResponse().getStatusLine().getStatusCode());
+        }
+
+        for (Response response : responses.values()) {
+            assertEquals(responseEntityToString(response), 200, response.getStatusLine().getStatusCode());
+        }
     }
 
     private static String responseEntityToString(Response response) throws Exception {

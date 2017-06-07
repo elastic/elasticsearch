@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -29,10 +30,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -195,6 +199,19 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
 
+            // For a normal delete check if the job is already being deleted.
+            if (request.isForce() == false) {
+                MlMetadata currentMlMetadata = state.metaData().custom(MlMetadata.TYPE);
+                if (currentMlMetadata != null) {
+                    Job job = currentMlMetadata.getJobs().get(request.getJobId());
+                    if (job != null && job.isDeleted()) {
+                        // This is a generous timeout value but it's unlikely to ever take this long
+                        waitForDeletingJob(request.getJobId(), MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT, listener);
+                        return;
+                    }
+                }
+            }
+
             ActionListener<Boolean> markAsDeletingListener = ActionListener.wrap(
                     response -> {
                         if (request.isForce()) {
@@ -315,6 +332,40 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
                     listener.onResponse(true);
                 }
             });
+        }
+
+        void waitForDeletingJob(String jobId, TimeValue timeout, ActionListener<Response> listener) {
+            ClusterStateObserver stateObserver = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
+
+            ClusterState clusterState = stateObserver.setAndGetObservedState();
+            if (jobIsDeletedFromState(jobId, clusterState)) {
+                listener.onResponse(new Response(true));
+            } else {
+                stateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        listener.onResponse(new Response(true));
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        listener.onFailure(new IllegalStateException("timed out after " + timeout));
+                    }
+                }, newClusterState -> jobIsDeletedFromState(jobId, newClusterState), timeout);
+            }
+        }
+
+        static boolean jobIsDeletedFromState(String jobId, ClusterState clusterState) {
+            MlMetadata metadata = clusterState.metaData().custom(MlMetadata.TYPE);
+            if (metadata == null) {
+                return true;
+            }
+            return !metadata.getJobs().containsKey(jobId);
         }
 
         private static ClusterState buildNewClusterState(ClusterState currentState, MlMetadata.Builder builder) {

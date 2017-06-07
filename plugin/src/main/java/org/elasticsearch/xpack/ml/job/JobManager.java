@@ -307,12 +307,20 @@ public class JobManager extends AbstractComponent {
                         return acknowledged && response;
                     }
 
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
-                    builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
-                    return buildNewClusterState(currentState, builder);
-                }
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        MlMetadata currentMlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
+                        if (currentMlMetadata.getJobs().containsKey(jobId) == false) {
+                            // We wouldn't have got here if the job never existed so
+                            // the Job must have been deleted by another action.
+                            // Don't error in this case
+                            return currentState;
+                        }
+
+                        MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
+                        builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
+                        return buildNewClusterState(currentState, builder);
+                    }
             });
 
         // Step 1. Delete the physical storage

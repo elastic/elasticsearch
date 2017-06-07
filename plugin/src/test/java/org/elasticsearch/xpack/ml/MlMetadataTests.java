@@ -168,7 +168,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
                 () -> builder.deleteJob(job1.getId(), new PersistentTasksCustomMetaData(0L, Collections.emptyMap())));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
-        String expectedMsg = "Cannot delete job [" + job1.getId() + "] while datafeed [" + datafeedConfig1.getId() + "] refers to it";
+        String expectedMsg = "Cannot delete job [" + job1.getId() + "] because datafeed [" + datafeedConfig1.getId() + "] refers to it";
         assertThat(e.getMessage(), equalTo(expectedMsg));
     }
 

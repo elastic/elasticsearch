@@ -250,11 +250,8 @@ public class MlMetadata implements MetaData.Custom {
         }
 
         public Builder deleteJob(String jobId, PersistentTasksCustomMetaData tasks) {
-            Optional<DatafeedConfig> datafeed = getDatafeedByJobId(jobId);
-            if (datafeed.isPresent()) {
-                throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] while datafeed ["
-                        + datafeed.get().getId() + "] refers to it");
-            }
+            checkJobHasNoDatafeed(jobId);
+
             JobState jobState = MlMetadata.getJobState(jobId, tasks);
             if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                 throw ExceptionsHelper.conflictStatusException("Unexpected job state [" + jobState + "], expected [" +

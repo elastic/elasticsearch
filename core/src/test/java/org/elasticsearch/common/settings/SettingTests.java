@@ -281,6 +281,82 @@ public class SettingTests extends ESTestCase {
         }
     }
 
+    public void testListGroups() {
+        AtomicReference<List<Settings>> ref = new AtomicReference<>(null);
+        Setting<List<Settings>> setting = Setting.listGroupSetting("foo.bar",
+            (l) -> {}, Property.Dynamic, Property.NodeScope);
+        assertTrue(setting.hasComplexMatcher());
+        ClusterSettings.SettingUpdater<List<Settings>> settingUpdater = setting.newUpdater(ref::set, logger);
+
+        Settings currentInput = Settings.builder()
+            .putGroupArray("foo.bar", Arrays.asList(
+                Settings.builder().put("value", 1).build(),
+                Settings.builder().put("value", 2).build(),
+                Settings.builder().put("value", 3).build()
+            )).build();
+        Settings previousInput = Settings.EMPTY;
+        assertTrue(settingUpdater.apply(currentInput, previousInput));
+        assertNotNull(ref.get());
+        List<Settings> current = ref.get();
+        assertThat(current.size(), equalTo(3));
+        assertThat(current.get(0).get("value"), equalTo("1"));
+        assertThat(current.size(), equalTo(3));
+        assertThat(current.get(1).get("value"), equalTo("2"));
+        assertThat(current.size(), equalTo(3));
+        assertThat(current.get(2).get("value"), equalTo("3"));
+
+        currentInput = Settings.builder()
+            .putGroupArray("foo.bar", Arrays.asList(
+                Settings.builder().put("value", 1).put("another", "one").build(),
+                Settings.builder().put("value", 2).build(),
+                Settings.builder().put("value", 3).build()
+            )).build();
+        assertTrue(settingUpdater.apply(currentInput, previousInput));
+        assertNotSame(current, ref.get());
+        current = ref.get();
+        assertThat(current.size(), equalTo(3));
+        assertThat(current.get(0).get("value"), equalTo("1"));
+        assertThat(current.get(0).get("another"), equalTo("one"));
+        assertThat(current.size(), equalTo(3));
+        assertThat(current.get(1).get("value"), equalTo("2"));
+        assertThat(current.size(), equalTo(3));
+        assertThat(current.get(2).get("value"), equalTo("3"));
+
+        ClusterSettings.SettingUpdater<List<Settings>> predicateSettingUpdater =
+            setting.newUpdater(ref::set, logger,(s) -> assertFalse(true));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> predicateSettingUpdater.apply(
+                Settings.builder().putGroupArray("foo.bar", Arrays.asList(
+                    Settings.builder().put("value", 10).put("another", "one").build(),
+                    Settings.builder().put("value", 22).build(),
+                    Settings.builder().put("value", 35).build())).build(),
+                Settings.EMPTY));
+        assertThat(ex.getMessage(),
+            containsString("illegal value can't update [foo.bar] from [[]] to " +
+                "[[{\"value\":\"10\",\"another\":\"one\"},{\"value\":\"22\"},{\"value\":\"35\"}]]"));
+
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> predicateSettingUpdater.apply(
+                Settings.builder().put("foo.bar.0.value", 0).put("foo.bar.2.value", 10).build(),
+                Settings.EMPTY));
+        assertThat(ex.getMessage(),
+            containsString("setting [foo.bar] must be a dense list, found a hole [foo.bar.1]"));
+
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> predicateSettingUpdater.apply(
+                Settings.builder().put("foo.bar.1.value", 0).put("foo.bar.2.value", 10).build(),
+                Settings.EMPTY));
+        assertThat(ex.getMessage(),
+            containsString("setting [foo.bar] must be a dense list, found a hole [foo.bar.0]"));
+
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> predicateSettingUpdater.apply(
+                Settings.builder().put("foo.bar.0.value", 0).put("foo.bar.not_a_number.value", 10).build(),
+                Settings.EMPTY));
+        assertThat(ex.getMessage(),
+            containsString("setting [foo.bar] must be a list, found a map [foo.bar.not_a_number]"));
+    }
+
     public static class ComplexType {
 
         final String foo;

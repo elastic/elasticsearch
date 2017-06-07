@@ -45,7 +45,7 @@ final class ClearScrollController implements Runnable {
     private final Logger logger;
     private final Runnable runner;
 
-    public ClearScrollController(ClearScrollRequest request, final ActionListener<ClearScrollResponse> listener,
+    public ClearScrollController(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener,
                                  DiscoveryNodes nodes, Logger logger, SearchTransportService searchTransportService) {
         this.nodes = nodes;
         this.logger = logger;

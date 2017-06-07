@@ -528,8 +528,8 @@ class BuildPlugin implements Plugin<Project> {
                 if (property.getKey().startsWith('tests.') ||
                         property.getKey().startsWith('es.')) {
                     if (property.getKey().equals('tests.seed')) {
-                        /* The see is already set on the project so we shouldn't
-                         * attempt to override it. */
+                        /* The seed is already set on the project so we
+                         * shouldn't attempt to override it. */
                         continue;
                     }
                     systemProperty property.getKey(), property.getValue()

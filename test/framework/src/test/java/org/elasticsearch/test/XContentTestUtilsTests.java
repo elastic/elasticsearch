@@ -21,6 +21,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -32,7 +33,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
+import java.util.function.Predicate;
 
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;;
@@ -104,5 +107,82 @@ public class XContentTestUtilsTests extends ESTestCase {
             assertThat(innerMap.get("inner2"), instanceOf(Map.class));
             assertEquals(0, ((Map<String, Object>) innerMap.get("inner2")).size());
         }
+    }
+
+
+    @SuppressWarnings("unchecked")
+    public void testInsertRandomXContent() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        {
+            builder.startObject("foo");
+            {
+                builder.field("bar", 1);
+            }
+            builder.endObject();
+            builder.startObject("foo1");
+            {
+                builder.startObject("foo2");
+                {
+                    builder.field("buzz", 1);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            builder.field("foo3", 2);
+            builder.startArray("foo4");
+            {
+                builder.startObject();
+                {
+                    builder.field("foo5", 1);
+                }
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+        builder.endObject();
+
+        Map<String, Object> resultMap;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(),
+                insertRandomFields(builder.contentType(), builder.bytes(), null, random()))) {
+            resultMap = parser.map();
+        }
+        assertEquals(5, resultMap.keySet().size());
+        assertEquals(2, ((Map<String, Object>) resultMap.get("foo")).keySet().size());
+        Map<String, Object> foo1 = (Map<String, Object>) resultMap.get("foo1");
+        assertEquals(2, foo1.keySet().size());
+        assertEquals(2, ((Map<String, Object>) foo1.get("foo2")).keySet().size());
+        List<Object> foo4List = (List<Object>) resultMap.get("foo4");
+        assertEquals(1, foo4List.size());
+        assertEquals(2, ((Map<String, Object>) foo4List.get(0)).keySet().size());
+
+        Predicate<String> pathsToExclude = path -> path.endsWith("foo1");
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(),
+                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude, random()))) {
+            resultMap = parser.map();
+        }
+        assertEquals(5, resultMap.keySet().size());
+        assertEquals(2, ((Map<String, Object>) resultMap.get("foo")).keySet().size());
+        foo1 = (Map<String, Object>) resultMap.get("foo1");
+        assertEquals(1, foo1.keySet().size());
+        assertEquals(2, ((Map<String, Object>) foo1.get("foo2")).keySet().size());
+        foo4List = (List<Object>) resultMap.get("foo4");
+        assertEquals(1, foo4List.size());
+        assertEquals(2, ((Map<String, Object>) foo4List.get(0)).keySet().size());
+
+        pathsToExclude = path -> path.contains("foo1");
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(),
+                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude, random()))) {
+            resultMap = parser.map();
+        }
+        assertEquals(5, resultMap.keySet().size());
+        assertEquals(2, ((Map<String, Object>) resultMap.get("foo")).keySet().size());
+        foo1 = (Map<String, Object>) resultMap.get("foo1");
+        assertEquals(1, foo1.keySet().size());
+        assertEquals(1, ((Map<String, Object>) foo1.get("foo2")).keySet().size());
+        foo4List = (List<Object>) resultMap.get("foo4");
+        assertEquals(1, foo4List.size());
+        assertEquals(2, ((Map<String, Object>) foo4List.get(0)).keySet().size());
     }
 }

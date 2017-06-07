@@ -22,11 +22,17 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
 
     @Override
     public void test() throws IOException {
-        AssertionError ae = expectThrows(AssertionError.class, super::test);
-        assertThat(ae.getMessage(),
-                either(containsString("action [cluster:monitor/xpack/ml")).or(containsString("action [cluster:admin/xpack/ml")));
-        assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
-        assertThat(ae.getMessage(), containsString("is unauthorized for user [no_ml]"));
+        try {
+            // Cannot use expectThrows here because blacklisted tests will throw an
+            // InternalAssumptionViolatedException rather than an AssertionError
+            super.test();
+            fail("should have failed because of missing role");
+        } catch (AssertionError ae) {
+            assertThat(ae.getMessage(),
+                    either(containsString("action [cluster:monitor/xpack/ml")).or(containsString("action [cluster:admin/xpack/ml")));
+            assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
+            assertThat(ae.getMessage(), containsString("is unauthorized for user [no_ml]"));
+        }
     }
 
     @Override

@@ -50,3 +50,34 @@ GET my_index/_search
 
 IMPORTANT: The `null_value` needs to be the same datatype as the field.  For
 instance, a `long` field cannot have a string `null_value`.
+
+`null_value` is not supported by all field data types. Here is a list of field supporting `null_value`
+
+[float]
+=== Core datatypes
+
+<<boolean>>::   `boolean`
+<<date>>::      `date`
+<<keyword>>::   `keyword`
+<<number>>::    `long`, `integer`, `short`, `byte`, `double`, `float`
+<<range>>::     `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`
+
+[float]
+=== Specialised datatypes
+
+<<ip>>::            `ip` for IPv4 and IPv6 addresses
+<<token-count>>::   `token_count` to count the number of tokens in a string
+
+include::../types/boolean.asciidoc[]
+
+include::../types/date.asciidoc[]
+
+include::../types/keyword.asciidoc[]
+
+include::../types/numeric.asciidoc[]
+
+include::../types/range.asciidoc[]
+
+include::../types/ip.asciidoc[]
+
+include::../types/token-count.asciidoc[]

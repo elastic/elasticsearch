@@ -19,14 +19,22 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
 /**
  * A String implementations which allows clearing the underlying char array.
  */
-public final class SecureString implements CharSequence, Closeable {
+public final class SecureString implements CharSequence, Closeable, Writeable {
 
     private char[] chars;
 
@@ -37,6 +45,21 @@ public final class SecureString implements CharSequence, Closeable {
      */
     public SecureString(char[] chars) {
         this.chars = Objects.requireNonNull(chars);
+    }
+
+    /**
+     * Constructs a new SecureString from a StreamInput.
+     */
+    public SecureString(StreamInput in) throws IOException {
+        final BytesRef ref = in.readBytesRef();
+        final char[] chars = new char[ref.length];
+        try {
+            final int charsLength = UnicodeUtil.UTF8toUTF16(ref.bytes, 0, ref.length, chars);
+            this.chars = Arrays.copyOfRange(chars, 0, charsLength);
+        } finally {
+            Arrays.fill(ref.bytes, (byte) 0);
+            Arrays.fill(chars, (char) 0);
+        }
     }
 
     /**
@@ -145,6 +168,19 @@ public final class SecureString implements CharSequence, Closeable {
     private void ensureNotClosed() {
         if (chars == null) {
             throw new IllegalStateException("SecureString has already been closed");
+        }
+    }
+
+    @Override
+    public synchronized void writeTo(StreamOutput out) throws IOException {
+        ensureNotClosed();
+        final int utf8Size = UnicodeUtil.calcUTF16toUTF8Length(new CharsRef(chars, 0, chars.length), 0, chars.length);
+        final byte[] bytes = new byte[utf8Size];;
+        try {
+            UnicodeUtil.UTF16toUTF8(chars, 0, chars.length, bytes);
+            out.writeBytesRef(new BytesRef(bytes));
+        } finally {
+            Arrays.fill(bytes, (byte) 0);
         }
     }
 }

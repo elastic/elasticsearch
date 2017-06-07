@@ -82,3 +82,7 @@ org.joda.time.DateTime#<init>(int, int, int, int, int, int)
 org.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
 org.joda.time.DateTime#now()
 org.joda.time.DateTimeZone#getDefault()
+
+@defaultMessage Serialization of sensitive data needs to be thought about carefully
+org.elasticsearch.common.settings.SecureString#<init>(org.elasticsearch.common.io.stream.StreamInput)
+org.elasticsearch.common.settings.SecureString#writeTo(org.elasticsearch.common.io.stream.StreamOutput)

@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -30,22 +31,31 @@ import java.io.IOException;
  */
 public class DeleteIndexResponse extends AcknowledgedResponse {
 
+    private String[] indices;
+
     DeleteIndexResponse() {
     }
 
-    DeleteIndexResponse(boolean acknowledged) {
+    DeleteIndexResponse(boolean acknowledged, String...indices) {
         super(acknowledged);
+        this.indices = indices;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         readAcknowledged(in);
+        this.indices = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
+        out.writeStringArray(indices);
+    }
+
+    public void addCustomFields(XContentBuilder builder) throws IOException {
+        builder.field("index", indices);
     }
 }

@@ -1621,6 +1621,7 @@ For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`
 | `value_split`    | yes       | -        | Regex pattern to use for splitting the key from the value within a key-value pair
 | `target_field`   | no        | `null`   | The field to insert the extracted keys into. Defaults to the root of the document
 | `include_keys`   | no        | `null`   | List of keys to filter and insert into document. Defaults to including all keys
+| `exclude_keys`   | no        | `null`   | List of keys to exclude from document
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 

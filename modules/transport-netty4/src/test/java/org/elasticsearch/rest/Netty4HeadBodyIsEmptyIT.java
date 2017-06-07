@@ -108,6 +108,12 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         }
     }
 
+    public void testAliasDoesNotExist() throws IOException {
+        createTestDoc();
+        headTestCase("/_alias/test_alias", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
+        headTestCase("/test/_alias/test_alias", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
+    }
+
     public void testTemplateExists() throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

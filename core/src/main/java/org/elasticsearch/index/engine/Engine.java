@@ -89,6 +89,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 public abstract class Engine implements Closeable {
 
@@ -485,11 +486,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public final GetResult get(Get get) throws EngineException {
-        return get(get, this::acquireSearcher);
-    }
-
-    public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException;
+    public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory, LongConsumer onRefresh) throws EngineException;
 
     /**
      * Returns a new searcher instance. The consumer of this

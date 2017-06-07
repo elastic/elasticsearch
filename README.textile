@@ -54,7 +54,7 @@ curl -XPUT 'http://localhost:9200/twitter/user/kimchy?pretty' -H 'Content-Type: 
 
 curl -XPUT 'http://localhost:9200/twitter/tweet/1?pretty' -H 'Content-Type: application/json' -d '
 {
-    "user": "kimchy",
+    "user": "kimchya",
     "post_date": "2009-11-15T13:12:00",
     "message": "Trying out Elasticsearch, so far so good?"
 }'
@@ -90,7 +90,7 @@ We can also use the JSON query language Elasticsearch provides instead of a quer
 curl -XGET 'http://localhost:9200/twitter/tweet/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
     "query" : {
-        "match" : { "user": "kimchy" }
+        "match" : { "user": "kimchyaaadddda1111" }
     }
 }'
 </pre>

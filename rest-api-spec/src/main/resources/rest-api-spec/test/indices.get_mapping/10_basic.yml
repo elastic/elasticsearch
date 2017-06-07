@@ -20,6 +20,19 @@ setup:
                 type_3: {}
 
 ---
+"Get /{index}/_mapping with empty mappings":
+
+ - do:
+     indices.create:
+       index: t
+
+ - do:
+     indices.get_mapping:
+       index: t
+
+ - match: { t.mappings: {}}
+
+---
 "Get /_mapping":
 
  - skip:

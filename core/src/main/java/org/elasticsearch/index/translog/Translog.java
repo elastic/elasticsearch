@@ -56,6 +56,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1501,15 +1502,22 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 "deletion policy requires a minReferenceGen of [" + minReferencedGen + "] which is higher than the current generation ["
                     + currentFileGeneration() + "]";
 
-            while (readers.isEmpty() == false && readers.get(0).getGeneration() < minReferencedGen) {
-                TranslogReader unreferencedReader = readers.remove(0);
-                IOUtils.closeWhileHandlingException(unreferencedReader);
-                final Path translogPath = unreferencedReader.path();
+
+            for (Iterator<TranslogReader> iterator = readers.iterator(); iterator.hasNext(); ) {
+                TranslogReader reader = iterator.next();
+                if (reader.getGeneration() >= minReferencedGen) {
+                    break;
+                }
+                iterator.remove();
+                IOUtils.closeWhileHandlingException(reader);
+                final Path translogPath = reader.path();
                 logger.trace("delete translog file [{}], not referenced and not current anymore", translogPath);
-                // update the checkpoint not to reference the removed file
+                // The checkpoint is used when opening the translog to know which files should be recovered from.
+                // We now update the checkpoint to ignore the file we are going to remove.
+                // Note that there is a provision in recoverFromFiles to allow for the case where we synced the checkpoint
+                // but crashed before we could delete the file.
                 current.sync();
-                // now remove it
-                deleteReaderFiles(unreferencedReader);
+                deleteReaderFiles(reader);
             }
             assert readers.isEmpty() == false || current.generation == minReferencedGen :
                 "all readers were cleaned but the minReferenceGen [" + minReferencedGen + "] is not the current writer's gen [" +

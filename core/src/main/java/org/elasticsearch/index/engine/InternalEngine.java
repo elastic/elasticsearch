@@ -1835,7 +1835,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    // commit hook for testing
     void callCommitOnWriter(IndexWriter writer) throws IOException {
         writer.commit();
     }

@@ -455,7 +455,14 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                     }
                 };
 
-        TemplateScript.Factory compiledTemplate = params -> () -> "rendered_text";
+        TemplateScript.Factory compiledTemplate = templateParams ->
+                new TemplateScript(templateParams) {
+                    @Override
+                    public String execute() {
+                        return "rendered_text";
+                    }
+                };
+        
         when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenReturn(compiledTemplate);
 
         XContentBuilder builder = jsonBuilder();

@@ -131,6 +131,7 @@ import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -543,6 +544,27 @@ public class IndexShardTests extends IndexShardTestCase {
             // Some path weirdness on windows
         } else {
             assertTrue(xContent.contains(expectedSubSequence));
+        }
+        closeShards(shard);
+    }
+
+    public void testRefreshMetric() throws IOException {
+        IndexShard shard = newStartedShard();
+        assertThat(shard.refreshStats().getTotal(), equalTo(2L)); // one refresh on end of recovery, one on starting shard
+        long initialTotalTime = shard.refreshStats().getTotalTimeInMillis();
+        // check time advances
+        for (int i = 1; shard.refreshStats().getTotalTimeInMillis() == initialTotalTime; i++) {
+            indexDoc(shard, "test", "test" + i);
+            assertThat(shard.refreshStats().getTotal(), equalTo(2L + i - 1));
+            shard.refresh("test");
+            assertThat(shard.refreshStats().getTotal(), equalTo(2L + i));
+            assertThat(shard.refreshStats().getTotalTimeInMillis(), greaterThanOrEqualTo(initialTotalTime));
+        }
+        long refreshCount = shard.refreshStats().getTotal();
+        indexDoc(shard, "test", "last");
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, "test", "last",
+            new Term(UidFieldMapper.NAME, Uid.createUid("test", "last"))))) {
+            assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 1));
         }
         closeShards(shard);
     }

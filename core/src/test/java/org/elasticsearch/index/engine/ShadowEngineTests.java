@@ -32,6 +32,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -77,10 +78,12 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
@@ -245,10 +248,12 @@ public class ShadowEngineTests extends ESTestCase {
             }
         };
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        final List<ReferenceManager.RefreshListener> refreshListenerList =
+            refreshListeners == null ? emptyList() : Collections.singletonList(refreshListeners);
         EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store, createSnapshotDeletionPolicy(),
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), eventListener, null,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), refreshListeners, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
+                TimeValue.timeValueMinutes(5), refreshListenerList, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
 
         return config;
     }
@@ -519,7 +524,7 @@ public class ShadowEngineTests extends ESTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         searchResult.close();
-        Engine.GetResult getResult = replicaEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), replicaEngine::acquireSearcher, refreshTook -> fail("didn't expect to refresh"));
+        Engine.GetResult getResult = replicaEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), replicaEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(false));
         getResult.release();
 
@@ -538,7 +543,7 @@ public class ShadowEngineTests extends ESTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         searchResult.close();
-        getResult = replicaEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), replicaEngine::acquireSearcher, refreshTook -> fail("didn't expect to refresh"));
+        getResult = replicaEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), replicaEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(false));
         getResult.release();
 
@@ -557,7 +562,7 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
 
         // And the replica can retrieve it
-        getResult = replicaEngine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)), replicaEngine::acquireSearcher, refreshTook -> fail("didn't expect to refresh"));
+        getResult = replicaEngine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)), replicaEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -576,7 +581,7 @@ public class ShadowEngineTests extends ESTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.close();
-        getResult = replicaEngine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)), replicaEngine::acquireSearcher, refreshTook -> fail("didn't expect to refresh"));
+        getResult = replicaEngine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)), replicaEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -586,7 +591,7 @@ public class ShadowEngineTests extends ESTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.close();
-        getResult = primaryEngine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher, refreshTook -> fail("didn't expect to refresh"));
+        getResult = primaryEngine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -616,20 +621,18 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
 
         // but, we can still get it (in realtime)
-        AtomicBoolean refreshed = new AtomicBoolean();
-        Engine.GetResult getResult = primaryEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher, refreshTook -> refreshed.set(true));
-        assertTrue(refreshed.get());
+        Engine.GetResult getResult = primaryEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
 
         // can't get it from the replica, because it's not in the translog for a shadow replica
-        getResult = replicaEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), replicaEngine::acquireSearcher, refreshTook -> fail("didn't expect to refresh"));
+        getResult = replicaEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), replicaEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(false));
         getResult.release();
 
         // but, not there non realtime
-        getResult = primaryEngine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher, refreshTook -> fail("didn't expect to refresh"));
+        getResult = primaryEngine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(true));
         getResult.release();
 
@@ -640,7 +643,7 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
 
         // also in non realtime
-        getResult = primaryEngine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher, refreshTook -> fail("didn't expect to refresh"));
+        getResult = primaryEngine.get(new Engine.Get(false, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -666,9 +669,7 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
 
         // but, we can still get it (in realtime)
-        refreshed.set(false);
-        getResult = primaryEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher, refreshTook -> refreshed.set(true));
-        assertTrue(refreshed.get());
+        getResult = primaryEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -711,7 +712,7 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
 
         // but, get should not see it (in realtime)
-        getResult = primaryEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher, refreshTook -> fail("didn't expect to refresh"));
+        getResult = primaryEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(false));
         getResult.release();
 
@@ -751,7 +752,7 @@ public class ShadowEngineTests extends ESTestCase {
         primaryEngine.flush();
 
         // and, verify get (in real time)
-        getResult = primaryEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher, refreshTook -> fail("didn't expect to refresh"));
+        getResult = primaryEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -763,7 +764,7 @@ public class ShadowEngineTests extends ESTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
         searchResult.close();
-        getResult = replicaEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher, refreshTook -> fail("didn't expect to refresh"));
+        getResult = replicaEngine.get(new Engine.Get(true, doc.type(), doc.id(), newUid(doc)), primaryEngine::acquireSearcher);
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -993,12 +994,5 @@ public class ShadowEngineTests extends ESTestCase {
         } catch (UnsupportedOperationException ex) {
             // all good
         }
-    }
-
-    public void testRefreshListenersFails() throws IOException {
-        EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(),
-                new RefreshListeners(null, null, null, logger));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new ShadowEngine(config));
-        assertEquals("ShadowEngine doesn't support RefreshListeners", e.getMessage());
     }
 }

@@ -67,6 +67,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -128,7 +129,7 @@ public class RefreshListenersTests extends ESTestCase {
                 store, new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), newMergePolicy(), iwc.getAnalyzer(),
                 iwc.getSimilarity(), new CodecService(null, logger), eventListener, translogHandler,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), listeners, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
+                TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());
     }
@@ -306,8 +307,7 @@ public class RefreshListenersTests extends ESTestCase {
                         listener.assertNoError();
 
                         Engine.Get get = new Engine.Get(false, "test", threadId, new Term("_uid",  Uid.createUid("test", threadId)));
-                        try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher,
-                                onRefresh -> fail("shouldn't have a refresh"))) {
+                        try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher)) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
                             SingleFieldsVisitor visitor = new SingleFieldsVisitor("test");

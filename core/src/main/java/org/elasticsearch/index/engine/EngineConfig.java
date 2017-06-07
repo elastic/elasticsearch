@@ -27,7 +27,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -41,6 +40,8 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.List;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -67,8 +68,7 @@ public final class EngineConfig {
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
     private final long maxUnsafeAutoIdTimestamp;
-    @Nullable
-    private final ReferenceManager.RefreshListener refreshListeners;
+    private final List<ReferenceManager.RefreshListener> refreshListeners;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -112,7 +112,7 @@ public final class EngineConfig {
                         MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter, ReferenceManager.RefreshListener refreshListeners,
+                        TranslogConfig translogConfig, TimeValue flushMergesAfter, List<ReferenceManager.RefreshListener> refreshListeners,
                         long maxUnsafeAutoIdTimestamp) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
@@ -322,9 +322,9 @@ public final class EngineConfig {
     }
 
     /**
-     * {@linkplain ReferenceManager.RefreshListener} instance to configure.
+     * The refresh listeners to add to Lucene
      */
-    public ReferenceManager.RefreshListener getRefreshListeners() {
+    public List<ReferenceManager.RefreshListener> getRefreshListeners() {
         return refreshListeners;
     }
 

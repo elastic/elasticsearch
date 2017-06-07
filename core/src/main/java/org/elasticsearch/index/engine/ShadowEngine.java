@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 
 /**
  * ShadowEngine is a specialized engine that only allows read-only operations
@@ -53,7 +52,7 @@ import java.util.function.LongConsumer;
  * regular primary (which uses {@link org.elasticsearch.index.engine.InternalEngine})
  *
  * Notice that since this Engine does not deal with the translog, any
- * {@link #get(Get, Function, LongConsumer)} request goes directly to the searcher,
+ * {@link #get(Get, Function)} request goes directly to the searcher,
  * meaning it is non-realtime.
  */
 public class ShadowEngine extends Engine {
@@ -68,9 +67,6 @@ public class ShadowEngine extends Engine {
 
     public ShadowEngine(EngineConfig engineConfig)  {
         super(engineConfig);
-        if (engineConfig.getRefreshListeners() != null) {
-            throw new IllegalArgumentException("ShadowEngine doesn't support RefreshListeners");
-        }
         SearcherFactory searcherFactory = new EngineSearcherFactory(engineConfig);
         final long nonexistentRetryTime = engineConfig.getIndexSettings().getSettings()
                 .getAsTime(NONEXISTENT_INDEX_RETRY_WAIT, DEFAULT_NONEXISTENT_INDEX_RETRY_WAIT)
@@ -161,7 +157,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, Function<String, Searcher> searcherFacotry, LongConsumer onRefresh) throws EngineException {
+    public GetResult get(Get get, Function<String, Searcher> searcherFacotry) throws EngineException {
         // There is no translog, so we can get it directly from the searcher
         // Since we never refresh we just drop the onRefresh parameter on the floor
         return getFromSearcher(get, searcherFacotry);

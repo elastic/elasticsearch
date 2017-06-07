@@ -197,20 +197,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
                 Checkpoint.write(getChannelFactory(), checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 IOUtils.fsync(checkpointFile, false);
-                current = createWriter(generation, new LongSupplier() {
-                    // this is a bit of a nasty hack to work around the fact that we're not fully initialized
-                    // yet when this supplier is called. Normally this is piped to call getMinFileGeneration().
-                    // which checks the readers and falls back to current. However, current is not yet set during initialization.
-                    final AtomicBoolean initializing = new AtomicBoolean(true);
-                    @Override
-                    public long getAsLong() {
-                        if (initializing.getAndSet(false)) {
-                            return generation;
-                        } else {
-                            return getMinFileGeneration();
-                        }
-                    }
-                });
+                current = createWriter(generation, generation);
                 readers.clear();
             }
         } catch (Exception e) {
@@ -233,7 +220,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             final long minGenerationToRecoverFrom;
             if (checkpoint.minTranslogGeneration < 0) {
                 final Version indexVersionCreated = indexSettings().getIndexVersionCreated();
-                assert indexVersionCreated.before(Version.V_6_0_0_alpha2) :
+                assert indexVersionCreated.before(Version.V_5_0_0_alpha3) :
                     "no minTranslogGeneration in checkpoint, but index was created with version [" + indexVersionCreated + "]";
                 minGenerationToRecoverFrom = deletionPolicy.getMinTranslogGenerationForRecovery();
             } else {
@@ -257,8 +244,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             Collections.reverse(foundTranslogs);
 
-            // when we clean up files, we first update the checkpoint with a new minReferencedTranslog and then delete them
-            // if we crush just at the wrong moment, it may be that we leave one unreferenced file behind. Delete it if there
+            // when we clean up files, we first update the checkpoint with a new minReferencedTranslog and then delete them;
+            // if we crash just at the wrong moment, it may be that we leave one unreferenced file behind so we delete it if there
             IOUtils.deleteFilesIgnoringExceptions(location.resolve(getFilename(minGenerationToRecoverFrom - 1)),
                 location.resolve(getCommitCheckpointFileName(minGenerationToRecoverFrom - 1)));
 
@@ -367,10 +354,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     long getMinFileGeneration() {
         try (ReleasableLock ignored = readLock.acquire()) {
-            if (readers.isEmpty() == false) {
-                return readers.get(0).getGeneration();
-            } else {
+            if (readers.isEmpty()) {
                 return current.getGeneration();
+            } else {
+                return readers.get(0).getGeneration();
             }
         }
     }
@@ -424,10 +411,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if creating the translog failed
      */
     TranslogWriter createWriter(long fileGeneration) throws IOException {
-        return createWriter(fileGeneration, this::getMinFileGeneration);
+        return createWriter(fileGeneration, getMinFileGeneration());
     }
 
-    private TranslogWriter createWriter(long fileGeneration, LongSupplier minTranslogGenerationSupplier) throws IOException {
+    /**
+     * creates a new writer
+     *
+     * @param fileGeneration        the generation of the write to be written
+     * @param initialMinTranslogGen the minimum translog generation to be written in the first checkpoint. This is
+     *                              needed to solve and initialization problem while constructing an empty translog.
+     *                              With no readers and no current, a call to  {@link #getMinFileGeneration()} would not work.
+     */
+    private TranslogWriter createWriter(long fileGeneration, long initialMinTranslogGen) throws IOException {
         final TranslogWriter newFile;
         try {
             newFile = TranslogWriter.create(
@@ -438,8 +433,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 getChannelFactory(),
                 config.getBufferSize(),
                 globalCheckpointSupplier,
-                minTranslogGenerationSupplier
-                );
+                initialMinTranslogGen,
+                this::getMinFileGeneration);
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }

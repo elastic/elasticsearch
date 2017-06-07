@@ -124,6 +124,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         ChannelFactory channelFactory,
         ByteSizeValue bufferSize,
         final LongSupplier globalCheckpointSupplier,
+        final long initialMinTranslogGen,
         final LongSupplier minTranslogGenerationSupplier) throws IOException {
         final BytesRef ref = new BytesRef(translogUUID);
         final int headerLength = getHeaderLength(ref.length);
@@ -136,7 +137,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             channel.force(true);
             final Checkpoint checkpoint =
                     Checkpoint.emptyTranslogCheckpoint(headerLength, fileGeneration, globalCheckpointSupplier.getAsLong(),
-                        minTranslogGenerationSupplier.getAsLong());
+                        initialMinTranslogGen);
             writeCheckpoint(channelFactory, file.getParent(), checkpoint);
             return new TranslogWriter(channelFactory, shardId, checkpoint, channel, file, bufferSize, globalCheckpointSupplier,
                 minTranslogGenerationSupplier);

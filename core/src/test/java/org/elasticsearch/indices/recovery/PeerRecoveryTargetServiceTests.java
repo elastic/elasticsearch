@@ -111,14 +111,12 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         final Path resolve = tempDir.resolve(Translog.getFilename(generation));
         Files.createFile(tempDir.resolve(Translog.CHECKPOINT_FILE_NAME));
         try (TranslogWriter ignored = TranslogWriter.create(
-            shardId,
-            translogUUID,
-            generation,
-            resolve,
-            FileChannel::open,
-            TranslogConfig.DEFAULT_BUFFER_SIZE,
-            () -> globalCheckpoint, () -> generation)) {
-        }
+                shardId,
+                translogUUID,
+                generation,
+                resolve,
+                FileChannel::open,
+                TranslogConfig.DEFAULT_BUFFER_SIZE, () -> globalCheckpoint, generation, () -> generation)) {}
         return tempDir;
     }
 

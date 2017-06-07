@@ -1,0 +1,92 @@
+[[token-sum]]
+=== Token sum datatype
+
+A field of type `token_sum` is really an <<number,`integer`>> field which
+accepts string tokens with integer values from analyzer, then calculate the integer sum of the tokens to indexed.
+
+For instance:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "rainfall": {
+          "type": "text",
+          "fields": {
+            "amount": {
+              "type":     "token_sum",
+              "analyzer": "standard"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{ "rainfall": "10 20 50" }
+
+PUT my_index/my_type/2
+{ "rainfall": "10 20 30 20 10 10" }
+
+GET my_index/_search
+{
+  "query": {
+    "term": {
+      "rainfall.amount": 100
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+[[token-sum-params]]
+==== Parameters for `token_sum` fields
+
+The following parameters are accepted by `token_sum` fields:
+
+[horizontal]
+
+<<analyzer,`analyzer`>>::
+
+    The <<analysis,analyzer>> which should be used to analyze the string
+    value. Required. For best performance, use an analyzer without token
+    filters.
+
+<<mapping-boost,`boost`>>::
+
+    Mapping field-level query time boosting. Accepts a floating point number, defaults
+    to `1.0`.
+
+<<doc-values,`doc_values`>>::
+
+    Should the field be stored on disk in a column-stride fashion, so that it
+    can later be used for sorting, aggregations, or scripting? Accepts `true`
+    (default) or `false`.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `not_analyzed` (default) and `no`.
+
+<<include-in-all,`include_in_all`>>::
+
+    Whether or not the field value should be included in the
+    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
+    to `false`. Note: if `true`, it is the string value that is added to `_all`,
+    not the calculated token sum.
+
+<<null-value,`null_value`>>::
+
+    Accepts a numeric value of the same `type` as the field which is
+    substituted for any explicit `null` values.  Defaults to `null`, which
+    means the field is treated as missing.
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).

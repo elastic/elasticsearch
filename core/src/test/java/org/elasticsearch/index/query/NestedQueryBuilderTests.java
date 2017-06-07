@@ -59,7 +59,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         String geoFieldMapping = (mapperService.getIndexSettings().getIndexVersionCreated()
             .before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) ?
             LEGACY_GEO_POINT_FIELD_MAPPING : "type=geo_point";
-        mapperService.merge("nested_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("nested_doc",
+        mapperService.merge("doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("doc",
                 STRING_FIELD_NAME, "type=text",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",

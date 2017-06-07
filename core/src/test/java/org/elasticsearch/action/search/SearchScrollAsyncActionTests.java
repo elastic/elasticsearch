@@ -60,8 +60,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
         SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action =
-            new SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, null, null, request
-                , null)
+            new SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, dummyListener(),
+                null, request, null)
             {
                 @Override
                 protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
@@ -219,8 +219,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
         SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action =
-            new SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, null, null,
-                request, null)
+            new SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, dummyListener()
+                , null, request, null)
             {
                 @Override
                 protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
@@ -298,8 +298,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
         SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action =
-            new SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, null, null,
-                request, null)
+            new SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, dummyListener(),
+                null, request, null)
             {
                 @Override
                 protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
@@ -441,5 +441,19 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         List<ScrollIdForNode> scrollIdForNodes = Arrays.asList(idsForNodes);
         Collections.shuffle(scrollIdForNodes, random());
         return new ParsedScrollId("", "test", scrollIdForNodes.toArray(new ScrollIdForNode[0]));
+    }
+
+    private ActionListener<SearchResponse> dummyListener() {
+        return new ActionListener<SearchResponse>() {
+            @Override
+            public void onResponse(SearchResponse response) {
+                fail("dummy");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        };
     }
 }

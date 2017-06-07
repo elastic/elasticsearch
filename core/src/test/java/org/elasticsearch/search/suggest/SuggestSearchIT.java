@@ -1035,7 +1035,12 @@ public class SuggestSearchIT extends ESIntegTestCase {
                     script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
                 }
                 String result = script;
-                return () -> result;
+                return new TemplateScript(null) {
+                    @Override
+                    public String execute() {
+                        return result;
+                    }
+                };
             };
             return context.factoryClazz.cast(factory);
         }

@@ -22,7 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
@@ -78,8 +78,8 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
                         LeafReaderContext ctx = indexReader.leaves().get(readerIndex);
                         docBase = ctx.docBase;
                         // scorers can be costly to create, so reuse them across docs of the same segment
-                        Scorer scorer = weight.scorer(ctx);
-                        matchingDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), scorer);
+                        ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
+                        matchingDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), scorerSupplier);
                     }
                     if (matchingDocs.get(hit.docId() - docBase)) {
                         matchedQueries[i].add(name);

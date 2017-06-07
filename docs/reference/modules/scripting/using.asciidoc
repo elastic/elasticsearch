@@ -137,7 +137,7 @@ the following example creates a Groovy script called `calculate-score`:
 
 [source,sh]
 --------------------------------------------------
-cat "Math.log(_score * 2) + params.my_modifier" > config/scripts/calculate_score.painless
+echo "Math.log(_score * 2) + params.my_modifier" > config/scripts/calculate_score.painless
 --------------------------------------------------
 
 This script can be used as follows:

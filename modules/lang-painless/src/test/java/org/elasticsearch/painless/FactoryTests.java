@@ -61,7 +61,7 @@ public class FactoryTests extends ScriptTestCase {
 
     public void testFactory() {
         FactoryTestScript.Factory factory =
-            scriptEngine.compile("factory_test", "test + params.get('test')", FactoryTestScript.CONTEXT, Collections.EMPTY_MAP);
+            scriptEngine.compile("factory_test", "test + params.get('test')", FactoryTestScript.CONTEXT, Collections.emptyMap());
         FactoryTestScript script = factory.newInstance(Collections.singletonMap("test", 2));
         assertEquals(4, script.execute(2));
         assertEquals(5, script.execute(3));
@@ -83,7 +83,7 @@ public class FactoryTests extends ScriptTestCase {
     }
 
     public void testEmpty() {
-        EmptyTestScript.Factory factory = scriptEngine.compile("empty_test", "1", EmptyTestScript.CONTEXT, Collections.EMPTY_MAP);
+        EmptyTestScript.Factory factory = scriptEngine.compile("empty_test", "1", EmptyTestScript.CONTEXT, Collections.emptyMap());
         EmptyTestScript script = factory.newInstance();
         assertEquals(1, script.execute());
         assertEquals(1, script.execute());
@@ -93,7 +93,8 @@ public class FactoryTests extends ScriptTestCase {
     }
 
     public void testTemplate() {
-        TemplateScript.Factory factory = scriptEngine.compile("template_test", "params['test']", TemplateScript.CONTEXT, Collections.EMPTY_MAP);
+        TemplateScript.Factory factory =
+            scriptEngine.compile("template_test", "params['test']", TemplateScript.CONTEXT, Collections.emptyMap());
         TemplateScript script = factory.newInstance(Collections.singletonMap("test", "abc"));
         assertEquals("abc", script.execute());
         assertEquals("abc", script.execute());

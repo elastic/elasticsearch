@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import jdk.internal.org.objectweb.asm.util.ASMifiable;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -34,7 +33,6 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
-import org.objectweb.asm.util.ASMifier;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;

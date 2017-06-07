@@ -1,0 +1,9 @@
+#ES_PATH_LOG=/var/log/elasticsearch
+#ES_PATH_DATA=/var/lib/elasticsearch
+#ES_PATH_WORK=/tmp/elasticsearch
+#ES_PATH_CONF=/opt/elasticsearch/config
+#ES_CONFIG=/opt/elasticsearch/config/elasticsearch.yml
+
+#ES_INCLUDE=/opt/elasticsearch/bin/elasticsearch.in.sh
+#ES_MIN_MEM=256m
+#ES_MAX_MEM=1g

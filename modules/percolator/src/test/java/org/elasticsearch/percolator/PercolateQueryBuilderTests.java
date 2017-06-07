@@ -86,8 +86,8 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         queryField = randomAlphaOfLength(4);
-        docType = randomAlphaOfLength(4);
-        mapperService.merge("query_type", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("query_type",
+        docType = "doc";
+        mapperService.merge("doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("doc",
                 queryField, "type=percolator"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapperService.merge(docType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(docType,
@@ -104,7 +104,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         documentSource = randomSource();
         if (indexedDocument) {
             indexedDocumentIndex = randomAlphaOfLength(4);
-            indexedDocumentType = randomAlphaOfLength(4);
+            indexedDocumentType = "doc";
             indexedDocumentId = randomAlphaOfLength(4);
             indexedDocumentRouting = randomAlphaOfLength(4);
             indexedDocumentPreference = randomAlphaOfLength(4);

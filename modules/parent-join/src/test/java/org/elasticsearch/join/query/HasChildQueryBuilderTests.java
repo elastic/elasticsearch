@@ -85,6 +85,14 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     @Override
+    protected Settings indexSettings() {
+        return Settings.builder()
+            .put(super.indexSettings())
+            .put("index.mapping.single_type", false)
+            .build();
+    }
+
+    @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         similarity = randomFrom("classic", "BM25");
         // TODO: use a single type when inner hits have been changed to work with join field,

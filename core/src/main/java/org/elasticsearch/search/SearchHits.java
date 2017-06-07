@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 
 public final class SearchHits implements Streamable, ToXContent, Iterable<SearchHit> {
 
@@ -148,19 +147,21 @@ public final class SearchHits implements Streamable, ToXContent, Iterable<Search
                     totalHits = parser.longValue();
                 } else if (Fields.MAX_SCORE.equals(currentFieldName)) {
                     maxScore = parser.floatValue();
-                } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 if (Fields.MAX_SCORE.equals(currentFieldName)) {
                     maxScore = Float.NaN; // NaN gets rendered as null-field
-                } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    hits.add(SearchHit.fromXContent(parser));
+                if (Fields.HITS.equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        hits.add(SearchHit.fromXContent(parser));
+                    }
+                } else {
+                    parser.skipChildren();
                 }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                parser.skipChildren();
             }
         }
         SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[hits.size()]), totalHits,

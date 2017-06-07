@@ -19,7 +19,10 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.SuggestWord;
@@ -58,6 +61,13 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             );
             Text key = new Text(new BytesArray(token.term.bytes()));
             TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
+            if (suggestion.getDirectSpellCheckerSettings().exactMatch()){
+                final TermsEnum termsEnum = MultiFields.getTerms(indexReader, token.term.field()).iterator();
+				if (termsEnum.seekExact(token.term.bytes())) {
+					Text word = new Text(token.term.text());
+					resultEntry.addOption(new TermSuggestion.Entry.Option(word, termsEnum.docFreq(), 1f));
+				}
+            }
             for (SuggestWord suggestWord : suggestedWords) {
                 Text word = new Text(suggestWord.string);
                 resultEntry.addOption(new TermSuggestion.Entry.Option(word, suggestWord.freq, suggestWord.score));

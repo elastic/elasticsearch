@@ -299,22 +299,24 @@ public class ExecutionService extends AbstractComponent {
             record = createWatchRecord(record, ctx, e);
             logWatchRecord(ctx, e);
         } finally {
-            if (ctx.knownWatch() && record != null && ctx.recordExecution()) {
-                try {
-                    if (ctx.overrideRecordOnConflict()) {
-                        historyStore.forcePut(record);
-                    } else {
-                        historyStore.put(record);
+            if (ctx.knownWatch()) {
+                if (record != null && ctx.recordExecution()) {
+                    try {
+                        if (ctx.overrideRecordOnConflict()) {
+                            historyStore.forcePut(record);
+                        } else {
+                            historyStore.put(record);
+                        }
+                    } catch (Exception e) {
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to update watch record [{}]", ctx.id()), e);
+                        // TODO log watch record in logger, when saving in history store failed, otherwise the info is gone!
                     }
-                } catch (Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to update watch record [{}]", ctx.id()), e);
-                    // TODO log watch record in logger, when saving in history store failed, otherwise the info is gone!
                 }
-            }
-            try {
-                triggeredWatchStore.delete(ctx.id());
-            } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to delete triggered watch [{}]", ctx.id()), e);
+                try {
+                    triggeredWatchStore.delete(ctx.id());
+                } catch (Exception e) {
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to delete triggered watch [{}]", ctx.id()), e);
+                }
             }
             currentExecutions.remove(ctx.watch().id());
             logger.trace("finished [{}]/[{}]", ctx.watch().id(), ctx.id());

@@ -238,7 +238,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
-            assertNoOpTranslogOperationForDocumentFailure(shards, 1, failureMessage);
+            assertNoOpTranslogOperationForDocumentFailure(shards, 1, shards.getPrimary().getPrimaryTerm(), failureMessage);
             shards.assertAllEqual(0);
 
             // add some replicas
@@ -252,7 +252,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
-            assertNoOpTranslogOperationForDocumentFailure(shards, 2, failureMessage);
+            assertNoOpTranslogOperationForDocumentFailure(shards, 2, shards.getPrimary().getPrimaryTerm(), failureMessage);
             shards.assertAllEqual(0);
         }
     }
@@ -323,6 +323,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     private static void assertNoOpTranslogOperationForDocumentFailure(
             Iterable<IndexShard> replicationGroup,
             int expectedOperation,
+            long expectedPrimaryTerm,
             String failureMessage) throws IOException {
         for (IndexShard indexShard : replicationGroup) {
             try(Translog.View view = indexShard.acquireTranslogView()) {
@@ -333,6 +334,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 do {
                     assertThat(op.opType(), equalTo(Translog.Operation.Type.NO_OP));
                     assertThat(op.seqNo(), equalTo(expectedSeqNo));
+                    assertThat(op.primaryTerm(), equalTo(expectedPrimaryTerm));
                     assertThat(((Translog.NoOp) op).reason(), containsString(failureMessage));
                     op = snapshot.next();
                     expectedSeqNo++;

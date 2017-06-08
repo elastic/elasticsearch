@@ -214,7 +214,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
     }
 
-    public final class MockConnection implements Transport.Connection {
+    public static final class MockConnection implements Transport.Connection {
 
         private final DiscoveryNode node;
 

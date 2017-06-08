@@ -137,24 +137,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         // admin context must be available for @After always, regardless of whether the test was blacklisted
         adminExecutionContext.clear();
 
-        //skip test if it matches one of the blacklist globs
-        for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
-            String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
-                    .isSuffixMatch(testPath));
-        }
-
         restTestExecutionContext.clear();
-
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-                testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-                testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if test section is disabled
-        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-                testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
     }
 
     @Override
@@ -305,6 +288,23 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     public void test() throws IOException {
+        //skip test if it matches one of the blacklist globs
+        for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
+            String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
+            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
+                .isSuffixMatch(testPath));
+        }
+
+        //skip test if the whole suite (yaml file) is disabled
+        assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if the whole suite (yaml file) is disabled
+        assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if test section is disabled
+        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");

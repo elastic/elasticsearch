@@ -109,12 +109,14 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     private static NestedAggregatorFactory findNestedAggregatorFactory(AggregatorFactory<?> parent) {
-        if (parent == null) {
-            return null;
-        } else if (parent instanceof NestedAggregatorFactory) {
-            return (NestedAggregatorFactory) parent;
-        } else {
-            return findNestedAggregatorFactory(parent.getParent());
+        while (true) {
+            if (parent == null) {
+                return null;
+            } else if (parent instanceof NestedAggregatorFactory) {
+                return (NestedAggregatorFactory) parent;
+            } else {
+                parent = parent.getParent();
+            }
         }
     }
 

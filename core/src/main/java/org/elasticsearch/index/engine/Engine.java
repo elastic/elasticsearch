@@ -142,14 +142,17 @@ public abstract class Engine implements Closeable {
      * If no SegmentReader can be extracted an {@link IllegalStateException} is thrown.
      */
     protected static SegmentReader segmentReader(LeafReader reader) {
-        if (reader instanceof SegmentReader) {
-            return (SegmentReader) reader;
-        } else if (reader instanceof FilterLeafReader) {
-            final FilterLeafReader fReader = (FilterLeafReader) reader;
-            return segmentReader(FilterLeafReader.unwrap(fReader));
+        while (true) {
+            if (reader instanceof SegmentReader) {
+                return (SegmentReader) reader;
+            } else if (reader instanceof FilterLeafReader) {
+                final FilterLeafReader fReader = (FilterLeafReader) reader;
+                reader = FilterLeafReader.unwrap(fReader);
+                continue;
+            }
+            // hard fail - we can't get a SegmentReader
+            throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
         }
-        // hard fail - we can't get a SegmentReader
-        throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
     }
 
     /**

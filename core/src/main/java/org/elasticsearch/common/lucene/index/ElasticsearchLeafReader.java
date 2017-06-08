@@ -59,17 +59,20 @@ public final class ElasticsearchLeafReader extends FilterLeafReader {
     }
 
     public static ElasticsearchLeafReader getElasticsearchLeafReader(LeafReader reader) {
-        if (reader instanceof FilterLeafReader) {
-            if (reader instanceof ElasticsearchLeafReader) {
-                return (ElasticsearchLeafReader) reader;
-            } else {
-                // We need to use FilterLeafReader#getDelegate and not FilterLeafReader#unwrap, because
-                // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
-                // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
-                // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
-                return getElasticsearchLeafReader(((FilterLeafReader) reader).getDelegate());
+        while (true) {
+            if (reader instanceof FilterLeafReader) {
+                if (reader instanceof ElasticsearchLeafReader) {
+                    return (ElasticsearchLeafReader) reader;
+                } else {
+                    // We need to use FilterLeafReader#getDelegate and not FilterLeafReader#unwrap, because
+                    // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
+                    // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
+                    // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
+                    reader = ((FilterLeafReader) reader).getDelegate();
+                    continue;
+                }
             }
+            return null;
         }
-        return null;
     }
 }

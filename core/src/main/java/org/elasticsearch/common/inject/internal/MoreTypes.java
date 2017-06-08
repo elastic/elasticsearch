@@ -176,57 +176,60 @@ public class MoreTypes {
      * Returns true if {@code a} and {@code b} are equal.
      */
     public static boolean equals(Type a, Type b) {
-        if (a == b) {
-            // also handles (a == null && b == null)
-            return true;
+        while (true) {
+            if (a == b) {
+                // also handles (a == null && b == null)
+                return true;
 
-        } else if (a instanceof Class) {
-            // Class already specifies equals().
-            return a.equals(b);
+            } else if (a instanceof Class) {
+                // Class already specifies equals().
+                return a.equals(b);
 
-        } else if (a instanceof ParameterizedType) {
-            if (!(b instanceof ParameterizedType)) {
-                return false;
-            }
+            } else if (a instanceof ParameterizedType) {
+                if (!(b instanceof ParameterizedType)) {
+                    return false;
+                }
 
-            // TODO: save a .clone() call
-            ParameterizedType pa = (ParameterizedType) a;
-            ParameterizedType pb = (ParameterizedType) b;
-            return Objects.equals(pa.getOwnerType(), pb.getOwnerType())
+                // TODO: save a .clone() call
+                ParameterizedType pa = (ParameterizedType) a;
+                ParameterizedType pb = (ParameterizedType) b;
+                return Objects.equals(pa.getOwnerType(), pb.getOwnerType())
                     && pa.getRawType().equals(pb.getRawType())
                     && Arrays.equals(pa.getActualTypeArguments(), pb.getActualTypeArguments());
 
-        } else if (a instanceof GenericArrayType) {
-            if (!(b instanceof GenericArrayType)) {
-                return false;
-            }
+            } else if (a instanceof GenericArrayType) {
+                if (!(b instanceof GenericArrayType)) {
+                    return false;
+                }
 
-            GenericArrayType ga = (GenericArrayType) a;
-            GenericArrayType gb = (GenericArrayType) b;
-            return equals(ga.getGenericComponentType(), gb.getGenericComponentType());
+                GenericArrayType ga = (GenericArrayType) a;
+                GenericArrayType gb = (GenericArrayType) b;
+                b = gb.getGenericComponentType();
+                a = ga.getGenericComponentType();
 
-        } else if (a instanceof WildcardType) {
-            if (!(b instanceof WildcardType)) {
-                return false;
-            }
+            } else if (a instanceof WildcardType) {
+                if (!(b instanceof WildcardType)) {
+                    return false;
+                }
 
-            WildcardType wa = (WildcardType) a;
-            WildcardType wb = (WildcardType) b;
-            return Arrays.equals(wa.getUpperBounds(), wb.getUpperBounds())
+                WildcardType wa = (WildcardType) a;
+                WildcardType wb = (WildcardType) b;
+                return Arrays.equals(wa.getUpperBounds(), wb.getUpperBounds())
                     && Arrays.equals(wa.getLowerBounds(), wb.getLowerBounds());
 
-        } else if (a instanceof TypeVariable) {
-            if (!(b instanceof TypeVariable)) {
-                return false;
-            }
-            TypeVariable<?> va = (TypeVariable) a;
-            TypeVariable<?> vb = (TypeVariable) b;
-            return va.getGenericDeclaration() == vb.getGenericDeclaration()
+            } else if (a instanceof TypeVariable) {
+                if (!(b instanceof TypeVariable)) {
+                    return false;
+                }
+                TypeVariable<?> va = (TypeVariable) a;
+                TypeVariable<?> vb = (TypeVariable) b;
+                return va.getGenericDeclaration() == vb.getGenericDeclaration()
                     && va.getName().equals(vb.getName());
 
-        } else {
-            // This isn't a type we support. Could be a generic array type, wildcard type, etc.
-            return false;
+            } else {
+                // This isn't a type we support. Could be a generic array type, wildcard type, etc.
+                return false;
+            }
         }
     }
 
@@ -234,26 +237,28 @@ public class MoreTypes {
      * Returns the hashCode of {@code type}.
      */
     public static int hashCode(Type type) {
-        if (type instanceof Class) {
-            // Class specifies hashCode().
-            return type.hashCode();
+        while (true) {
+            if (type instanceof Class) {
+                // Class specifies hashCode().
+                return type.hashCode();
 
-        } else if (type instanceof ParameterizedType) {
-            ParameterizedType p = (ParameterizedType) type;
-            return Arrays.hashCode(p.getActualTypeArguments())
+            } else if (type instanceof ParameterizedType) {
+                ParameterizedType p = (ParameterizedType) type;
+                return Arrays.hashCode(p.getActualTypeArguments())
                     ^ p.getRawType().hashCode()
                     ^ hashCodeOrZero(p.getOwnerType());
 
-        } else if (type instanceof GenericArrayType) {
-            return hashCode(((GenericArrayType) type).getGenericComponentType());
+            } else if (type instanceof GenericArrayType) {
+                type = ((GenericArrayType) type).getGenericComponentType();
 
-        } else if (type instanceof WildcardType) {
-            WildcardType w = (WildcardType) type;
-            return Arrays.hashCode(w.getLowerBounds()) ^ Arrays.hashCode(w.getUpperBounds());
+            } else if (type instanceof WildcardType) {
+                WildcardType w = (WildcardType) type;
+                return Arrays.hashCode(w.getLowerBounds()) ^ Arrays.hashCode(w.getUpperBounds());
 
-        } else {
-            // This isn't a type we support. Probably a type variable
-            return hashCodeOrZero(type);
+            } else {
+                // This isn't a type we support. Probably a type variable
+                return hashCodeOrZero(type);
+            }
         }
     }
 
@@ -366,37 +371,44 @@ public class MoreTypes {
      * result when the supertype is {@code Collection.class} is {@code Collection<Integer>}.
      */
     public static Type getGenericSupertype(Type type, Class<?> rawType, Class<?> toResolve) {
-        if (toResolve == rawType) {
-            return type;
-        }
+        getGenericSupertype:
+        while (true) {
+            if (toResolve == rawType) {
+                return type;
+            }
 
-        // we skip searching through interfaces if unknown is an interface
-        if (toResolve.isInterface()) {
-            Class[] interfaces = rawType.getInterfaces();
-            for (int i = 0, length = interfaces.length; i < length; i++) {
-                if (interfaces[i] == toResolve) {
-                    return rawType.getGenericInterfaces()[i];
-                } else if (toResolve.isAssignableFrom(interfaces[i])) {
-                    return getGenericSupertype(rawType.getGenericInterfaces()[i], interfaces[i], toResolve);
+            // we skip searching through interfaces if unknown is an interface
+            if (toResolve.isInterface()) {
+                Class[] interfaces = rawType.getInterfaces();
+                for (int i = 0, length = interfaces.length; i < length; i++) {
+                    if (interfaces[i] == toResolve) {
+                        return rawType.getGenericInterfaces()[i];
+                    } else if (toResolve.isAssignableFrom(interfaces[i])) {
+                        type = rawType.getGenericInterfaces()[i];
+                        rawType = interfaces[i];
+                        continue getGenericSupertype;
+                    }
                 }
             }
-        }
 
-        // check our supertypes
-        if (!rawType.isInterface()) {
-            while (rawType != Object.class) {
-                Class<?> rawSupertype = rawType.getSuperclass();
-                if (rawSupertype == toResolve) {
-                    return rawType.getGenericSuperclass();
-                } else if (toResolve.isAssignableFrom(rawSupertype)) {
-                    return getGenericSupertype(rawType.getGenericSuperclass(), rawSupertype, toResolve);
+            // check our supertypes
+            if (!rawType.isInterface()) {
+                while (rawType != Object.class) {
+                    Class<?> rawSupertype = rawType.getSuperclass();
+                    if (rawSupertype == toResolve) {
+                        return rawType.getGenericSuperclass();
+                    } else if (toResolve.isAssignableFrom(rawSupertype)) {
+                        type = rawType.getGenericSuperclass();
+                        rawType = rawSupertype;
+                        continue getGenericSupertype;
+                    }
+                    rawType = rawSupertype;
                 }
-                rawType = rawSupertype;
             }
-        }
 
-        // we can't resolve this further
-        return toResolve;
+            // we can't resolve this further
+            return toResolve;
+        }
     }
 
     public static Type resolveTypeVariable(Type type, Class<?> rawType, TypeVariable unknown) {

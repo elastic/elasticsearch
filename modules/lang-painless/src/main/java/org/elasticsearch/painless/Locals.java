@@ -118,40 +118,58 @@ public final class Locals {
         return locals;
     }
 
-    /** Checks if a variable exists or not, in this scope or any parents. */
+    /**
+     * Checks if a variable exists or not, in this scope or any parents.
+     */
     public boolean hasVariable(String name) {
-        Variable variable = lookupVariable(null, name);
-        if (variable != null) {
-            return true;
+        Locals other = this;
+        while (true) {
+            Variable variable = other.lookupVariable(null, name);
+            if (variable != null) {
+                return true;
+            }
+            if (other.parent != null) {
+                other = other.parent;
+                continue;
+            }
+            return false;
         }
-        if (parent != null) {
-            return parent.hasVariable(name);
-        }
-        return false;
     }
 
-    /** Accesses a variable. This will throw IAE if the variable does not exist */
+    /**
+     * Accesses a variable. This will throw IAE if the variable does not exist
+     */
     public Variable getVariable(Location location, String name) {
-        Variable variable = lookupVariable(location, name);
-        if (variable != null) {
-            return variable;
+        Locals other = this;
+        while (true) {
+            Variable variable = other.lookupVariable(location, name);
+            if (variable != null) {
+                return variable;
+            }
+            if (other.parent != null) {
+                other = other.parent;
+                continue;
+            }
+            throw location.createError(new IllegalArgumentException("Variable [" + name + "] is not defined."));
         }
-        if (parent != null) {
-            return parent.getVariable(location, name);
-        }
-        throw location.createError(new IllegalArgumentException("Variable [" + name + "] is not defined."));
     }
 
-    /** Looks up a method. Returns null if the method does not exist. */
+    /**
+     * Looks up a method. Returns null if the method does not exist.
+     */
     public Method getMethod(MethodKey key) {
-        Method method = lookupMethod(key);
-        if (method != null) {
-            return method;
+        Locals other = this;
+        while (true) {
+            Method method = other.lookupMethod(key);
+            if (method != null) {
+                return method;
+            }
+            if (other.parent != null) {
+                other = other.parent;
+                continue;
+            }
+            return null;
         }
-        if (parent != null) {
-            return parent.getMethod(key);
-        }
-        return null;
     }
 
     /** Creates a new variable. Throws IAE if the variable has already been defined (even in a parent) or reserved. */

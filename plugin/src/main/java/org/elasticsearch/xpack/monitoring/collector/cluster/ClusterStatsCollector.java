@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -75,6 +76,7 @@ public class ClusterStatsCollector extends Collector {
         final DiscoveryNode sourceNode = localNode();
         final String clusterName = clusterService.getClusterName().value();
         final String version = Version.CURRENT.toString();
+        final ClusterState clusterState = clusterService.state();
         final License license = licenseService.getLicense();
         final List<XPackFeatureSet.Usage> usage = collect(usageSupplier);
 
@@ -82,7 +84,7 @@ public class ClusterStatsCollector extends Collector {
         return Collections.singleton(
                 new ClusterStatsMonitoringDoc(monitoringId(), monitoringVersion(),
                                               clusterUUID, timestamp, sourceNode, clusterName, version, license, usage,
-                                              clusterStats));
+                                              clusterStats, clusterState, clusterStats.getStatus()));
     }
 
     @Nullable

@@ -8,8 +8,12 @@ package org.elasticsearch.xpack.monitoring.resolver.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -25,6 +29,8 @@ import java.util.UUID;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCase<ClusterStatsMonitoringDoc, ClusterStatsResolver> {
 
@@ -40,6 +46,15 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
                     .issueDate(1437580442979L)
                     .expiryDate(1437580442979L + TimeValue.timeValueHours(2).getMillis());
 
+            final String nodeUuid = "the-master-nodes-uuid";
+            final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
+            final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+            final DiscoveryNode node =
+                    new DiscoveryNode(nodeUuid, new TransportAddress(TransportAddress.META_ADDRESS, 9300), Version.CURRENT);
+
+            when(nodes.getMasterNodeId()).thenReturn(nodeUuid);
+            when(nodes.iterator()).thenReturn(Collections.singleton(node).iterator());
+
             return new ClusterStatsMonitoringDoc(randomMonitoringId(),
                     randomAlphaOfLength(2), randomAlphaOfLength(5),
                     Math.abs(randomLong()),
@@ -50,10 +65,12 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
                     Collections.singletonList(new MonitoringFeatureSet.Usage(randomBoolean(), randomBoolean(), emptyMap())),
                     new ClusterStatsResponse(
                             Math.abs(randomLong()),
-                            ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY),
+                            clusterName,
                             Collections.emptyList(),
-                            Collections.emptyList())
-                    );
+                            Collections.emptyList()),
+                    new ClusterState(clusterName, randomLong(), "a-real-state-uuid", null, null, nodes, null, null, false),
+                    randomFrom(ClusterHealthStatus.values())
+                );
         } catch (Exception e) {
             throw new IllegalStateException("Failed to generated random ClusterStatsMonitoringDoc", e);
         }
@@ -79,6 +96,11 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
                          "version",
                          "license",
                          "cluster_stats",
+                         "cluster_state.status",
+                         "cluster_state.version",
+                         "cluster_state.state_uuid",
+                         "cluster_state.master_node",
+                         "cluster_state.nodes",
                          "stack_stats.xpack"), XContentType.JSON);
     }
 }

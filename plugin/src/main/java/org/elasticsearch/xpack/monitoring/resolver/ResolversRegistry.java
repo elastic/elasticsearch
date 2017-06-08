@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.monitoring.action.MonitoringIndex;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsMonitoringDoc;
-import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndicesStatsMonitoringDoc;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.bulk.MonitoringBulkTimestampedResolver;
 import org.elasticsearch.xpack.monitoring.resolver.cluster.ClusterStatsResolver;
-import org.elasticsearch.xpack.monitoring.resolver.cluster.ClusterStateResolver;
 import org.elasticsearch.xpack.monitoring.resolver.indices.IndexRecoveryResolver;
 import org.elasticsearch.xpack.monitoring.resolver.indices.IndexStatsResolver;
 import org.elasticsearch.xpack.monitoring.resolver.indices.IndicesStatsResolver;
@@ -61,7 +59,6 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
      * Registers resolvers for elasticsearch documents collected by the monitoring plugin
      */
     private void registerBuiltIn(MonitoredSystem id, Settings settings) {
-        registrations.add(resolveByClass(ClusterStateMonitoringDoc.class, new ClusterStateResolver(id, settings)));
         registrations.add(resolveByClass(ClusterStatsMonitoringDoc.class, new ClusterStatsResolver(id, settings)));
         registrations.add(resolveByClass(IndexRecoveryMonitoringDoc.class, new IndexRecoveryResolver(id, settings)));
         registrations.add(resolveByClass(IndexStatsMonitoringDoc.class, new IndexStatsResolver(id, settings)));

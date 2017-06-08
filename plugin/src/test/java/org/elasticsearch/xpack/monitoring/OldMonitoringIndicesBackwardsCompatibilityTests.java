@@ -23,7 +23,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateMonitoringDoc;
+import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndicesStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsMonitoringDoc;
@@ -131,14 +131,10 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
                     search(indexPattern, IndexStatsMonitoringDoc.TYPE, greaterThanOrEqualTo(10L));
 
             // All the other aliases should have been created by now so we can assert that we have the data we saved in the bwc indexes
-            SearchResponse firstShards =
-                    search(indexPattern, ShardMonitoringDoc.TYPE, greaterThanOrEqualTo(10L));
-            SearchResponse firstIndices =
-                    search(indexPattern, IndicesStatsMonitoringDoc.TYPE, greaterThanOrEqualTo(3L));
-            SearchResponse firstNode =
-                    search(indexPattern, NodeStatsMonitoringDoc.TYPE, greaterThanOrEqualTo(3L));
-            SearchResponse firstState =
-                    search(indexPattern, ClusterStateMonitoringDoc.TYPE, greaterThanOrEqualTo(3L));
+            SearchResponse firstShards = search(indexPattern, ShardMonitoringDoc.TYPE, greaterThanOrEqualTo(10L));
+            SearchResponse firstIndices = search(indexPattern, IndicesStatsMonitoringDoc.TYPE, greaterThanOrEqualTo(3L));
+            SearchResponse firstNode = search(indexPattern, NodeStatsMonitoringDoc.TYPE, greaterThanOrEqualTo(3L));
+            SearchResponse firstState = search(indexPattern, ClusterStatsMonitoringDoc.TYPE, greaterThanOrEqualTo(3L));
 
             ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setNodes(true).get();
             final String masterNodeId = clusterStateResponse.getState().getNodes().getMasterNodeId();
@@ -164,7 +160,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
                     greaterThan(firstIndices.getHits().getTotalHits())), 1, TimeUnit.MINUTES);
             assertBusy(() -> search(indexPattern, NodeStatsMonitoringDoc.TYPE,
                     greaterThan(firstNode.getHits().getTotalHits())), 1, TimeUnit.MINUTES);
-            assertBusy(() -> search(indexPattern, ClusterStateMonitoringDoc.TYPE,
+            assertBusy(() -> search(indexPattern, ClusterStatsMonitoringDoc.TYPE,
                     greaterThan(firstState.getHits().getTotalHits())), 1, TimeUnit.MINUTES);
 
         } finally {

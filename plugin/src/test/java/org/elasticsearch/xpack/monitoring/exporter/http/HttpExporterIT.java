@@ -16,7 +16,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -37,7 +36,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
@@ -659,13 +657,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         long timestamp = System.currentTimeMillis();
         DiscoveryNode sourceNode = new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
-        if (randomBoolean()) {
-            return new IndexRecoveryMonitoringDoc(monitoringId, monitoringVersion, clusterUUID,
-                    timestamp, sourceNode, new RecoveryResponse());
-        } else {
-            return new ClusterStateMonitoringDoc(monitoringId, monitoringVersion,clusterUUID,
-                    timestamp, sourceNode, ClusterState.EMPTY_STATE, ClusterHealthStatus.GREEN);
-        }
+        return new IndexRecoveryMonitoringDoc(monitoringId, monitoringVersion, clusterUUID, timestamp, sourceNode, new RecoveryResponse());
     }
 
     private List<MonitoringDoc> newRandomMonitoringDocs(int nb) {

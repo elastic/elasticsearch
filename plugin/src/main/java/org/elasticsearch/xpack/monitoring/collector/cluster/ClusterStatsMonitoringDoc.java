@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.XPackFeatureSet;
@@ -31,18 +33,23 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
     private final License license;
     private final List<XPackFeatureSet.Usage> usage;
     private final ClusterStatsResponse clusterStats;
+    private final ClusterState clusterState;
+    private final ClusterHealthStatus status;
 
     public ClusterStatsMonitoringDoc(String monitoringId, String monitoringVersion,
                                      String clusterUUID, long timestamp, DiscoveryNode node,
                                      String clusterName, String version, License license,
                                      List<XPackFeatureSet.Usage> usage,
-                                     ClusterStatsResponse clusterStats) {
+                                     ClusterStatsResponse clusterStats,
+                                     ClusterState clusterState, ClusterHealthStatus status) {
         super(monitoringId, monitoringVersion, TYPE, null, clusterUUID, timestamp, node);
         this.clusterName = clusterName;
         this.version = version;
         this.license = license;
         this.usage = usage;
         this.clusterStats = clusterStats;
+        this.clusterState = clusterState;
+        this.status = status;
     }
 
     public String getClusterName() {
@@ -64,4 +71,13 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
     public ClusterStatsResponse getClusterStats() {
         return clusterStats;
     }
+
+    public ClusterState getClusterState() {
+        return clusterState;
+    }
+
+    public ClusterHealthStatus getStatus() {
+        return status;
+    }
+
 }

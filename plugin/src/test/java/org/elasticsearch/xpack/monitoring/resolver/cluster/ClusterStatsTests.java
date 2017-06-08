@@ -28,6 +28,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
@@ -55,6 +56,7 @@ public class ClusterStatsTests extends MonitoringIntegTestCase {
         wipeMonitoringIndices();
     }
 
+    @SuppressWarnings("unchecked")
     public void testClusterStats() throws Exception {
         ensureGreen();
 
@@ -135,5 +137,18 @@ public class ClusterStatsTests extends MonitoringIntegTestCase {
         assertNotNull(monitoring);
         // we don't make any assumptions about what's in it, only that it's there
         assertThat(monitoring, instanceOf(Map.class));
+
+        Object clusterState = source.get("cluster_state");
+        assertNotNull(clusterState);
+        assertThat(clusterState, instanceOf(Map.class));
+
+        Map<String, Object> clusterStateMap = (Map<String, Object>)clusterState;
+
+        assertThat(clusterStateMap.keySet(), hasSize(5));
+        assertThat(clusterStateMap.remove("status"), notNullValue());
+        assertThat(clusterStateMap.remove("version"), notNullValue());
+        assertThat(clusterStateMap.remove("state_uuid"), notNullValue());
+        assertThat(clusterStateMap.remove("master_node"), notNullValue());
+        assertThat(clusterStateMap.remove("nodes"), notNullValue());
     }
 }

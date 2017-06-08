@@ -150,11 +150,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
                 assertThat(client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "cluster_state"))
-                        .get().getHits().getTotalHits(), greaterThan(0L));
-
-                assertThat(client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "cluster_stats"))
                         .get().getHits().getTotalHits(), greaterThan(0L));
 

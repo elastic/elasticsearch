@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.resolver.cluster;
 
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
@@ -19,10 +20,19 @@ import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class ClusterStatsResolver extends MonitoringIndexNameResolver.Timestamped<ClusterStatsMonitoringDoc> {
+
+    private static final ToXContent.MapParams CLUSTER_STATS_PARAMS =
+            new ToXContent.MapParams(
+                    Collections.singletonMap("metric",
+                                             ClusterState.Metric.VERSION + "," +
+                                             ClusterState.Metric.MASTER_NODE + "," +
+                                             ClusterState.Metric.NODES));
 
     public ClusterStatsResolver(MonitoredSystem system, Settings settings) {
         super(system, settings);
@@ -49,6 +59,14 @@ public class ClusterStatsResolver extends MonitoringIndexNameResolver.Timestampe
         if (clusterStats != null) {
             builder.startObject("cluster_stats");
             clusterStats.toXContent(builder, params);
+            builder.endObject();
+        }
+
+        final ClusterState clusterState = document.getClusterState();
+        if (clusterState != null) {
+            builder.startObject("cluster_state");
+            builder.field("status", document.getStatus().name().toLowerCase(Locale.ROOT));
+            clusterState.toXContent(builder, CLUSTER_STATS_PARAMS);
             builder.endObject();
         }
 

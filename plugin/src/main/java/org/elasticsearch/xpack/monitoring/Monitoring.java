@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
-import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateCollector;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsCollector;
@@ -121,7 +120,6 @@ public class Monitoring implements ActionPlugin {
         collectors.add(new IndicesStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));
         collectors.add(new IndexStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));
         collectors.add(new ClusterStatsCollector(settings, clusterService, monitoringSettings, licenseState, client, licenseService));
-        collectors.add(new ClusterStateCollector(settings, clusterService, monitoringSettings, licenseState, client));
         collectors.add(new ShardsCollector(settings, clusterService, monitoringSettings, licenseState));
         collectors.add(new NodeStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));
         collectors.add(new IndexRecoveryCollector(settings, clusterService, monitoringSettings, licenseState, client));

@@ -305,7 +305,8 @@ public class InternalEngine extends Engine {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
         try {
-            Translog.Snapshot snapshot = translog.newSnapshot();
+            final long translogGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+            Translog.Snapshot snapshot = translog.newSnapshot(translogGen);
             opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
         } catch (Exception e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
@@ -321,6 +322,8 @@ public class InternalEngine extends Engine {
         } else if (translog.isCurrent(translogGeneration) == false) {
             commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
         }
+        // clean up what's not needed
+        translog.trimUnreferencedReaders();
     }
 
     private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
@@ -1772,7 +1775,7 @@ public class InternalEngine extends Engine {
      * @param syncId   the sync flush ID ({@code null} if not committing a synced flush)
      * @throws IOException if an I/O exception occurs committing the specfied writer
      */
-    private void commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
+    protected void commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
         ensureCanFlush();
         try {
             final long localCheckpoint = seqNoService().getLocalCheckpoint();

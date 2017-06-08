@@ -244,8 +244,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         commonTermsQuery.add(new Term("field", "fox"));
         addQuery(commonTermsQuery, documents);
 
-        BlendedTermQuery blendedTermQuery = BlendedTermQuery.booleanBlendedQuery(new Term[]{new Term("field", "quick"),
-                new Term("field", "brown"), new Term("field", "fox")});
+        BlendedTermQuery blendedTermQuery = BlendedTermQuery.dismaxBlendedQuery(new Term[]{new Term("field", "quick"),
+                new Term("field", "brown"), new Term("field", "fox")}, 1.0f);
         addQuery(blendedTermQuery, documents);
 
         SpanNearQuery spanNearQuery = new SpanNearQuery.Builder("field", true)

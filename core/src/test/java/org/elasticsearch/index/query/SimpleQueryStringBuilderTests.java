@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -47,6 +48,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -211,7 +213,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         // the remaining tests requires either a mapping that we register with types in base test setup
         if (getCurrentTypes().length > 0) {
             Query luceneQuery = queryBuilder.toQuery(shardContext);
-            assertThat(luceneQuery, instanceOf(BooleanQuery.class));
+            assertThat(luceneQuery, anyOf(instanceOf(BooleanQuery.class), instanceOf(DisjunctionMaxQuery.class)));
         }
     }
 
@@ -229,30 +231,39 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         if ("".equals(queryBuilder.value())) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else if (queryBuilder.fields().size() > 1) {
-            assertThat(query, instanceOf(BooleanQuery.class));
-            BooleanQuery boolQuery = (BooleanQuery) query;
-            for (BooleanClause clause : boolQuery.clauses()) {
-                if (clause.getQuery() instanceof TermQuery) {
-                    TermQuery inner = (TermQuery) clause.getQuery();
-                    assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
+            assertThat(query, anyOf(instanceOf(BooleanQuery.class), instanceOf(DisjunctionMaxQuery.class)));
+            if (query instanceof BooleanQuery) {
+                BooleanQuery boolQuery = (BooleanQuery) query;
+                for (BooleanClause clause : boolQuery.clauses()) {
+                    if (clause.getQuery() instanceof TermQuery) {
+                        TermQuery inner = (TermQuery) clause.getQuery();
+                        assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
+                    }
+                }
+                assertThat(boolQuery.clauses().size(), equalTo(queryBuilder.fields().size()));
+                Iterator<Map.Entry<String, Float>> fieldsIterator = queryBuilder.fields().entrySet().iterator();
+                for (BooleanClause booleanClause : boolQuery) {
+                    Map.Entry<String, Float> field = fieldsIterator.next();
+                    assertTermOrBoostQuery(booleanClause.getQuery(), field.getKey(), queryBuilder.value(), field.getValue());
+                }
+                if (queryBuilder.minimumShouldMatch() != null) {
+                    assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
+                }
+            } else if (query instanceof DisjunctionMaxQuery) {
+                DisjunctionMaxQuery maxQuery = (DisjunctionMaxQuery) query;
+                for (Query disjunct : maxQuery.getDisjuncts()) {
+                    if (disjunct instanceof TermQuery) {
+                        TermQuery inner = (TermQuery) disjunct;
+                        assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
+                    }
+                }
+                assertThat(maxQuery.getDisjuncts().size(), equalTo(queryBuilder.fields().size()));
+                Iterator<Map.Entry<String, Float>> fieldsIterator = queryBuilder.fields().entrySet().iterator();
+                for (Query disjunct : maxQuery) {
+                    Map.Entry<String, Float> field = fieldsIterator.next();
+                    assertTermOrBoostQuery(disjunct, field.getKey(), queryBuilder.value(), field.getValue());
                 }
             }
-            assertThat(boolQuery.clauses().size(), equalTo(queryBuilder.fields().size()));
-            Iterator<Map.Entry<String, Float>> fieldsIterator = queryBuilder.fields().entrySet().iterator();
-            for (BooleanClause booleanClause : boolQuery) {
-                Map.Entry<String, Float> field = fieldsIterator.next();
-                assertTermOrBoostQuery(booleanClause.getQuery(), field.getKey(), queryBuilder.value(), field.getValue());
-            }
-            /**
-             * TODO:
-             * Test disabled because we cannot check min should match consistently:
-             * https://github.com/elastic/elasticsearch/issues/23966
-             *
-                if (queryBuilder.minimumShouldMatch() != null && !boolQuery.isCoordDisabled()) {
-                assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
-                }
-             *
-             **/
         } else if (queryBuilder.fields().size() == 1) {
             Map.Entry<String, Float> field = queryBuilder.fields().entrySet().iterator().next();
             assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());
@@ -261,7 +272,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             if (ms.allEnabled()) {
                 assertTermQuery(query, MetaData.ALL, queryBuilder.value());
             } else {
-                assertThat(query.getClass(), anyOf(equalTo(BooleanQuery.class), equalTo(MatchNoDocsQuery.class)));
+                assertThat(query.getClass(),
+                    anyOf(equalTo(BooleanQuery.class), equalTo(DisjunctionMaxQuery.class), equalTo(MatchNoDocsQuery.class)));
             }
         } else {
             fail("Encountered lucene query type we do not have a validation implementation for in our "
@@ -337,7 +349,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, ".quote", parsed.quoteFieldSuffix());
     }
 
-    @AwaitsFix(bugUrl = "Waiting on fix for minimumShouldMatch https://github.com/elastic/elasticsearch/issues/23966")
     public void testMinimumShouldMatch() throws IOException {
         QueryShardContext shardContext = createShardContext();
         int numberOfTerms = randomIntBetween(1, 4);
@@ -360,12 +371,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         // check special case: one term & one field should get simplified to a TermQuery
         if (numberOfFields * numberOfTerms == 1) {
             assertThat(query, instanceOf(TermQuery.class));
+        } else if (numberOfTerms == 1) {
+            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         } else {
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery boolQuery = (BooleanQuery) query;
             int expectedMinimumShouldMatch = numberOfTerms * percent / 100;
-            if (numberOfTerms == 1
-                    || simpleQueryStringBuilder.defaultOperator().equals(Operator.AND)) {
+            if (simpleQueryStringBuilder.defaultOperator().equals(Operator.AND)) {
                 expectedMinimumShouldMatch = 0;
             }
             assertEquals(expectedMinimumShouldMatch, boolQuery.getMinimumNumberShouldMatch());

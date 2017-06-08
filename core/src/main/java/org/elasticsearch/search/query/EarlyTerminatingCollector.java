@@ -16,47 +16,50 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.lucene.search;
+
+package org.elasticsearch.search.query;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FilterCollector;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class FilteredCollector implements Collector {
+/**
+ * A {@link Collector} that early terminates collection after <code>maxCountHits</code> docs have been collected.
+ */
+public class EarlyTerminatingCollector extends FilterCollector {
+    private final int maxCountHits;
+    private int numCollected;
+    private boolean terminatedEarly = false;
 
-    private final Collector collector;
-    private final Weight filter;
-
-    public FilteredCollector(Collector collector, Weight filter) {
-        this.collector = collector;
-        this.filter = filter;
+    EarlyTerminatingCollector(final Collector delegate, int maxCountHits) {
+        super(delegate);
+        this.maxCountHits = maxCountHits;
     }
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-        final ScorerSupplier filterScorerSupplier = filter.scorerSupplier(context);
-        final LeafCollector in = collector.getLeafCollector(context);
-        final Bits bits = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier);
-
-        return new FilterLeafCollector(in) {
+        if (numCollected >= maxCountHits) {
+            throw new CollectionTerminatedException();
+        }
+        return new FilterLeafCollector(super.getLeafCollector(context)) {
             @Override
             public void collect(int doc) throws IOException {
-                if (bits.get(doc)) {
-                    in.collect(doc);
+                super.collect(doc);
+                if (++numCollected >= maxCountHits) {
+                    terminatedEarly = true;
+                    throw new CollectionTerminatedException();
                 }
-            }
+            };
         };
     }
 
-    @Override
-    public boolean needsScores() {
-        return collector.needsScores();
+    public boolean terminatedEarly() {
+        return terminatedEarly;
     }
 }

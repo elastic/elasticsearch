@@ -280,9 +280,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertExplanations(QueryBuilders.matchPhrasePrefixQuery("field", "ju"),
             Arrays.asList(
                 equalTo("field:jumps"),
-                equalTo("+MatchNoDocsQuery(\"empty MultiPhraseQuery\") +MatchNoDocsQuery(\"No " +
-                    "terms supplied for org.elasticsearch.common.lucene.search." +
-                    "MultiPhrasePrefixQuery\")")
+                equalTo("field:\"ju*\"")
             ), true, true);
     }
 

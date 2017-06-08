@@ -43,7 +43,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClearScrollControllerTests extends ESTestCase {
 
-
     public void testClearAll() throws IOException, InterruptedException {
         DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -59,7 +58,6 @@ public class ClearScrollControllerTests extends ESTestCase {
                 } finally {
                     latch.countDown();
                 }
-
             }
 
             @Override
@@ -74,10 +72,15 @@ public class ClearScrollControllerTests extends ESTestCase {
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
         SearchTransportService searchTransportService = new SearchTransportService(Settings.EMPTY, null) {
             @Override
-            public void sendClearAllScrollContexts(DiscoveryNode node, ActionListener<TransportResponse> listener) {
-                nodesInvoked.add(node);
+            public void sendClearAllScrollContexts(Transport.Connection connection, ActionListener<TransportResponse> listener) {
+                nodesInvoked.add(connection.getNode());
                 Thread t = new Thread(() -> listener.onResponse(TransportResponse.Empty.INSTANCE)); // response is unused
                 t.start();
+            }
+
+            @Override
+            Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                return new SearchAsyncActionTests.MockConnection(node);
             }
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();

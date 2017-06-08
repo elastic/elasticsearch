@@ -83,17 +83,22 @@ final class ClearScrollController implements Runnable {
 
     void cleanAllScrolls() {
         for (final DiscoveryNode node : nodes) {
-            searchTransportService.sendClearAllScrollContexts(node, new ActionListener<TransportResponse>() {
-                @Override
-                public void onResponse(TransportResponse response) {
-                    onFreedContext(true);
-                }
+            try {
+                Transport.Connection connection = searchTransportService.getConnection(null, node);
+                searchTransportService.sendClearAllScrollContexts(connection, new ActionListener<TransportResponse>() {
+                    @Override
+                    public void onResponse(TransportResponse response) {
+                        onFreedContext(true);
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    onFailedFreedContext(e, node);
-                }
-            });
+                    @Override
+                    public void onFailure(Exception e) {
+                        onFailedFreedContext(e, node);
+                    }
+                });
+            } catch (Exception e) {
+                onFailedFreedContext(e, node);
+            }
         }
     }
 

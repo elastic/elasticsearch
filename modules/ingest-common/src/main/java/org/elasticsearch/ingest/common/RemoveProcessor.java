@@ -23,7 +23,8 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,14 +38,14 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     public static final String TYPE = "remove";
 
-    private final List<TemplateService.Template> fields;
+    private final List<TemplateScript.Factory> fields;
 
-    RemoveProcessor(String tag, List<TemplateService.Template> fields) {
+    RemoveProcessor(String tag, List<TemplateScript.Factory> fields) {
         super(tag);
         this.fields = new ArrayList<>(fields);
     }
 
-    public List<TemplateService.Template> getFields() {
+    public List<TemplateScript.Factory> getFields() {
         return fields;
     }
 
@@ -60,10 +61,10 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final TemplateService templateService;
+        private final ScriptService scriptService;
 
-        public Factory(TemplateService templateService) {
-            this.templateService = templateService;
+        public Factory(ScriptService scriptService) {
+            this.scriptService = scriptService;
         }
 
         @Override
@@ -77,8 +78,8 @@ public final class RemoveProcessor extends AbstractProcessor {
                 fields.add((String) field);
             }
 
-            final List<TemplateService.Template> compiledTemplates = fields.stream()
-                .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", f, templateService))
+            final List<TemplateScript.Factory> compiledTemplates = fields.stream()
+                .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", f, scriptService))
                 .collect(Collectors.toList());
             return new RemoveProcessor(processorTag, compiledTemplates);
         }

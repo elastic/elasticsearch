@@ -44,10 +44,10 @@ public class IngestCommonPlugin extends Plugin implements IngestPlugin {
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put(DateProcessor.TYPE, new DateProcessor.Factory());
-        processors.put(SetProcessor.TYPE, new SetProcessor.Factory(parameters.templateService));
-        processors.put(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.templateService));
+        processors.put(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService));
+        processors.put(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService));
         processors.put(RenameProcessor.TYPE, new RenameProcessor.Factory());
-        processors.put(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.templateService));
+        processors.put(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService));
         processors.put(SplitProcessor.TYPE, new SplitProcessor.Factory());
         processors.put(JoinProcessor.TYPE, new JoinProcessor.Factory());
         processors.put(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory());
@@ -55,7 +55,7 @@ public class IngestCommonPlugin extends Plugin implements IngestPlugin {
         processors.put(TrimProcessor.TYPE, new TrimProcessor.Factory());
         processors.put(ConvertProcessor.TYPE, new ConvertProcessor.Factory());
         processors.put(GsubProcessor.TYPE, new GsubProcessor.Factory());
-        processors.put(FailProcessor.TYPE, new FailProcessor.Factory(parameters.templateService));
+        processors.put(FailProcessor.TYPE, new FailProcessor.Factory(parameters.scriptService));
         processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory());
         processors.put(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory());
         processors.put(SortProcessor.TYPE, new SortProcessor.Factory());

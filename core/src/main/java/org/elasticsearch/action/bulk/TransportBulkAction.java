@@ -54,6 +54,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.ingest.IngestService;
@@ -144,6 +145,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // Attempt to create all the indices that we're going to need during the bulk before we start.
             // Step 1: collect all the indices in the request
             final Set<String> indices = bulkRequest.requests.stream()
+                    // delete requests should not attempt to create the index (if the index does not
+                    // exists), unless an external versioning is used
+                .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE 
+                        || request.versionType() == VersionType.EXTERNAL 
+                        || request.versionType() == VersionType.EXTERNAL_GTE)
                 .map(DocWriteRequest::index)
                 .collect(Collectors.toSet());
             /* Step 2: filter that to indices that don't exist and we can create. At the same time build a map of indices we can't create
@@ -563,9 +569,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
             if (itemResponses.isEmpty()) {
                 return ActionListener.wrap(
-                    response -> actionListener.onResponse(
-                        new BulkResponse(response.getItems(), response.getTookInMillis(), ingestTookInMillis)),
-                    actionListener::onFailure);
+                        response -> actionListener.onResponse(new BulkResponse(response.getItems(),
+                                response.getTook().getMillis(), ingestTookInMillis)),
+                        actionListener::onFailure);
             } else {
                 return new IngestBulkResponseListener(ingestTookInMillis, originalSlots, itemResponses, actionListener);
             }
@@ -604,7 +610,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             for (int i = 0; i < items.length; i++) {
                 itemResponses.add(originalSlots[i], response.getItems()[i]);
             }
-            actionListener.onResponse(new BulkResponse(itemResponses.toArray(new BulkItemResponse[itemResponses.size()]), response.getTookInMillis(), ingestTookInMillis));
+            actionListener.onResponse(new BulkResponse(
+                    itemResponses.toArray(new BulkItemResponse[itemResponses.size()]),
+                    response.getTook().getMillis(), ingestTookInMillis));
         }
 
         @Override

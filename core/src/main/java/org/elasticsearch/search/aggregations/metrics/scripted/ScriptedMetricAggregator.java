@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -38,12 +37,12 @@ import java.util.Map;
 
 public class ScriptedMetricAggregator extends MetricsAggregator {
 
-    private final SearchScript mapScript;
+    private final SearchScript.LeafFactory mapScript;
     private final ExecutableScript combineScript;
     private final Script reduceScript;
     private Map<String, Object> params;
 
-    protected ScriptedMetricAggregator(String name, SearchScript mapScript, ExecutableScript combineScript,
+    protected ScriptedMetricAggregator(String name, SearchScript.LeafFactory mapScript, ExecutableScript combineScript,
                                        Script reduceScript,
             Map<String, Object> params, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
@@ -62,7 +61,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        final LeafSearchScript leafMapScript = mapScript.getLeafSearchScript(ctx);
+        final SearchScript leafMapScript = mapScript.newInstance(ctx);
         return new LeafBucketCollectorBase(sub, leafMapScript) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

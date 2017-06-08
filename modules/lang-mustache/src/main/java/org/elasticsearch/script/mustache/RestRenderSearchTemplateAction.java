@@ -43,6 +43,11 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "render_search_template_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         // Creates the render template request
         SearchTemplateRequest renderRequest;

@@ -150,7 +150,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static ServiceHolder serviceHolder;
     private static int queryNameId = 0;
     private static Settings nodeSettings;
-    private static Settings indexSettings;
     private static Index index;
     private static String[] currentTypes;
     private static String[] randomTypes;
@@ -172,27 +171,25 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     @BeforeClass
     public static void beforeClass() {
-        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        Version indexVersionCreated = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), null, Version.CURRENT);
         nodeSettings = Settings.builder()
                 .put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
-        indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
-                .put("index.mapping.single_type", false).build();
 
         index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
 
-        //create some random type with some default field, those types will stick around for all of the subclasses
-        currentTypes = new String[randomIntBetween(0, 5)];
-        for (int i = 0; i < currentTypes.length; i++) {
-            String type = randomAlphaOfLengthBetween(1, 10);
-            currentTypes[i] = type;
-        }
-        //set some random types to be queried as part the search request, before each test
+        // Set a single type in the index
+        currentTypes = new String[] { "doc" };
         randomTypes = getRandomTypes();
+    }
+
+    protected Settings indexSettings() {
+        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
+        Version indexVersionCreated = randomBoolean() ? Version.CURRENT
+            : VersionUtils.randomVersionBetween(random(), null, Version.CURRENT);
+        return Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
+            .build();
     }
 
     @AfterClass
@@ -204,7 +201,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     @Before
     public void beforeTest() throws IOException {
         if (serviceHolder == null) {
-            serviceHolder = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), this);
+            serviceHolder = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), this);
         }
         serviceHolder.clientInvocationHandler.delegate = this;
     }
@@ -706,13 +703,19 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
+    protected static QueryBuilder assertSerialization(QueryBuilder testQuery) throws IOException {
+        return assertSerialization(testQuery, Version.CURRENT);
+    }
+
     /**
      * Serialize the given query builder and asserts that both are equal
      */
-    protected static QueryBuilder assertSerialization(QueryBuilder testQuery) throws IOException {
+    protected static QueryBuilder assertSerialization(QueryBuilder testQuery, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(version);
             output.writeNamedWriteable(testQuery);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), serviceHolder.namedWriteableRegistry)) {
+                in.setVersion(version);
                 QueryBuilder deserializedQuery = in.readNamedWriteable(QueryBuilder.class);
                 assertEquals(testQuery, deserializedQuery);
                 assertEquals(testQuery.hashCode(), deserializedQuery.hashCode());
@@ -847,10 +850,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
         }
         return types;
-    }
-
-    protected static String getRandomType() {
-        return (currentTypes.length == 0) ? MetaData.ALL : randomFrom(currentTypes);
     }
 
     protected static Fuzziness randomFuzziness(String fieldName) {
@@ -1013,10 +1012,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     new Class[]{Client.class},
                     clientInvocationHandler);
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
-            List<Setting<?>> scriptSettings = scriptModule.getSettings();
-            scriptSettings.addAll(pluginsService.getPluginSettings());
-            scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
-            SettingsModule settingsModule = new SettingsModule(nodeSettings, scriptSettings, pluginsService.getPluginSettingsFilter());
+            List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
+            additionalSettings.add(InternalSettingsPlugin.VERSION_CREATED);
+            SettingsModule settingsModule = new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter());
             searchModule = new SearchModule(nodeSettings, false, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
@@ -1087,12 +1085,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             if (scriptPlugins == null || scriptPlugins.isEmpty()) {
                 return newTestScriptModule();
             }
-
-            Settings settings = Settings.builder()
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                    .build();
-            Environment environment = new Environment(settings);
-            return ScriptModule.create(settings, environment, null, scriptPlugins);
+            return new ScriptModule(Settings.EMPTY, scriptPlugins);
         }
     }
 }

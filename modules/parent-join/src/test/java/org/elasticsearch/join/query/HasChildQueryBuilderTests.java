@@ -20,28 +20,27 @@
 package org.elasticsearch.join.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -56,6 +55,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -70,8 +70,10 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQueryBuilder> {
-    protected static final String PARENT_TYPE = "parent";
-    protected static final String CHILD_TYPE = "child";
+
+    private static final String TYPE = "doc";
+    private static final String PARENT_DOC = "parent";
+    private static final String CHILD_DOC = "child";
 
     private static String similarity;
 
@@ -83,20 +85,20 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     @Override
+    protected Settings indexSettings() {
+        return Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build();
+    }
+
+    @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         similarity = randomFrom("classic", "BM25");
-        mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
+        mapperService.merge(TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(TYPE,
+                "join_field", "type=join," + PARENT_DOC + "=" + CHILD_DOC,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",
-                INT_FIELD_NAME, "type=integer",
-                DOUBLE_FIELD_NAME, "type=double",
-                BOOLEAN_FIELD_NAME, "type=boolean",
-                DATE_FIELD_NAME, "type=date",
-                OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        mapperService.merge(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
-                "_parent", "type=" + PARENT_TYPE,
-                STRING_FIELD_NAME, "type=text",
                 "custom_string", "type=text,similarity=" + similarity,
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
@@ -120,7 +122,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             innerQueryBuilder = new WrapperQueryBuilder(innerQueryBuilder.toString());
         }
 
-        HasChildQueryBuilder hqb = new HasChildQueryBuilder(CHILD_TYPE, innerQueryBuilder,
+        HasChildQueryBuilder hqb = new HasChildQueryBuilder(CHILD_DOC, innerQueryBuilder,
                 RandomPicks.randomFrom(random(), ScoreMode.values()));
         hqb.minMaxChildren(min, max);
         hqb.ignoreUnmapped(randomBoolean());
@@ -128,7 +130,8 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             hqb.innerHit(new InnerHitBuilder()
                     .setName(randomAlphaOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
-                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)), hqb.ignoreUnmapped());
+                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC))
+                    .setIgnoreUnmapped(hqb.ignoreUnmapped()));
         }
         return hqb;
     }
@@ -144,19 +147,33 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from
             // doCreateTestQueryBuilder)
             queryBuilder = (HasChildQueryBuilder) queryBuilder.rewrite(searchContext.getQueryShardContext());
-            Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
-            InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
-            for (InnerHitBuilder builder : innerHitBuilders.values()) {
+            Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
+            InnerHitContextBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
+            for (InnerHitContextBuilder builder : innerHitBuilders.values()) {
                 builder.build(searchContext, searchContext.innerHits());
             }
             assertNotNull(searchContext.innerHits());
             assertEquals(1, searchContext.innerHits().getInnerHits().size());
             assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
-            InnerHitsContext.BaseInnerHits innerHits =
+            InnerHitsContext.InnerHitSubContext innerHits =
                     searchContext.innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
             assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
             assertEquals(innerHits.sort().sort.getSort().length, 1);
             assertEquals(innerHits.sort().sort.getSort()[0].getField(), STRING_FIELD_NAME_2);
+        }
+    }
+
+    /**
+     * Test (de)serialization on all previous released versions
+     */
+    public void testSerializationBWC() throws IOException {
+        for (Version version : VersionUtils.allReleasedVersions()) {
+            HasChildQueryBuilder testQuery = createTestQueryBuilder();
+            if (version.before(Version.V_5_2_0) && testQuery.innerHit() != null) {
+                // ignore unmapped for inner_hits has been added on 5.2
+                testQuery.innerHit().setIgnoreUnmapped(false);
+            }
+            assertSerialization(testQuery, version);
         }
     }
 
@@ -231,7 +248,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertEquals(query, queryBuilder.childType(), "child");
         assertEquals(query, queryBuilder.scoreMode(), ScoreMode.Avg);
         assertNotNull(query, queryBuilder.innerHit());
-        InnerHitBuilder expected = new InnerHitBuilder(new InnerHitBuilder(), queryBuilder.query(), "child", false)
+        InnerHitBuilder expected = new InnerHitBuilder("child")
                 .setName("inner_hits_name")
                 .setSize(100)
                 .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC));
@@ -239,14 +256,14 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     public void testToQueryInnerQueryType() throws IOException {
-        String[] searchTypes = new String[]{PARENT_TYPE};
+        String[] searchTypes = new String[]{TYPE};
         QueryShardContext shardContext = createShardContext();
         shardContext.setTypes(searchTypes);
-        HasChildQueryBuilder hasChildQueryBuilder = hasChildQuery(CHILD_TYPE, new IdsQueryBuilder().addIds("id"), ScoreMode.None);
+        HasChildQueryBuilder hasChildQueryBuilder = hasChildQuery(CHILD_DOC, new IdsQueryBuilder().addIds("id"), ScoreMode.None);
         Query query = hasChildQueryBuilder.toQuery(shardContext);
         //verify that the context types are still the same as the ones we previously set
         assertThat(shardContext.getTypes(), equalTo(searchTypes));
-        assertLateParsingQuery(query, CHILD_TYPE, "id");
+        assertLateParsingQuery(query, CHILD_DOC, "id");
     }
 
     static void assertLateParsingQuery(Query query, String type, String id) throws IOException {
@@ -268,14 +285,11 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertThat(booleanTermsQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
         assertThat(booleanTermsQuery.clauses().get(0).getQuery(), instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) booleanTermsQuery.clauses().get(0).getQuery();
-        assertThat(termQuery.getTerm().field(), equalTo(UidFieldMapper.NAME));
-        //we want to make sure that the inner ids query gets executed against the child type rather
-        // than the main type we initially set to the context
-        BytesRef[] ids = Uid.createUidsForTypesAndIds(Collections.singletonList(type), Collections.singletonList(id));
-        assertThat(termQuery.getTerm().bytes(), equalTo(ids[0]));
+        assertThat(termQuery.getTerm().field(), equalTo(IdFieldMapper.NAME));
+        assertThat(termQuery.getTerm().bytes().utf8ToString(), equalTo(id));
         //check the type filter
         assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
-        assertEquals(new TypeFieldMapper.TypesQuery(new BytesRef(type)), booleanQuery.clauses().get(1).getQuery());
+        assertEquals(new TermQuery(new Term("join_field", type)), booleanQuery.clauses().get(1).getQuery());
     }
 
     @Override
@@ -292,7 +306,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     public void testNonDefaultSimilarity() throws Exception {
         QueryShardContext shardContext = createShardContext();
         HasChildQueryBuilder hasChildQueryBuilder =
-            hasChildQuery(CHILD_TYPE, new TermQueryBuilder("custom_string", "value"), ScoreMode.None);
+            hasChildQuery(CHILD_DOC, new TermQueryBuilder("custom_string", "value"), ScoreMode.None);
         HasChildQueryBuilder.LateParsingQuery query = (HasChildQueryBuilder.LateParsingQuery) hasChildQueryBuilder.toQuery(shardContext);
         Similarity expected = SimilarityService.BUILT_IN.get(similarity)
             .apply(similarity, Settings.EMPTY, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build())
@@ -310,7 +324,8 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         final HasChildQueryBuilder failingQueryBuilder = new HasChildQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("[" + HasChildQueryBuilder.NAME + "] no mapping found for type [unmapped]"));
+        assertThat(e.getMessage(), containsString("[" + HasChildQueryBuilder.NAME +
+            "] join field [join_field] doesn't hold [unmapped] as a child"));
     }
 
     public void testIgnoreUnmappedWithRewrite() throws IOException {

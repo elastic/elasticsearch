@@ -18,6 +18,13 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -30,7 +37,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Represents a set of {@link Aggregation}s
  */
-public abstract class Aggregations implements Iterable<Aggregation> {
+public class Aggregations implements Iterable<Aggregation>, ToXContent {
+
+    public static final String AGGREGATIONS_FIELD = "aggregations";
 
     protected List<? extends Aggregation> aggregations = Collections.emptyList();
     protected Map<String, Aggregation> aggregationsAsMap;
@@ -38,7 +47,7 @@ public abstract class Aggregations implements Iterable<Aggregation> {
     protected Aggregations() {
     }
 
-    protected Aggregations(List<? extends Aggregation> aggregations) {
+    public Aggregations(List<? extends Aggregation> aggregations) {
         this.aggregations = aggregations;
     }
 
@@ -97,5 +106,36 @@ public abstract class Aggregations implements Iterable<Aggregation> {
     @Override
     public final int hashCode() {
         return Objects.hash(getClass(), aggregations);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (aggregations.isEmpty()) {
+            return builder;
+        }
+        builder.startObject(AGGREGATIONS_FIELD);
+        toXContentInternal(builder, params);
+        return builder.endObject();
+    }
+
+    /**
+     * Directly write all the aggregations without their bounding object. Used by sub-aggregations (non top level aggs)
+     */
+    public XContentBuilder toXContentInternal(XContentBuilder builder, Params params) throws IOException {
+        for (Aggregation aggregation : aggregations) {
+            aggregation.toXContent(builder, params);
+        }
+        return builder;
+    }
+
+    public static Aggregations fromXContent(XContentParser parser) throws IOException {
+        final List<Aggregation> aggregations = new ArrayList<>();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                aggregations.add(XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class));
+            }
+        }
+        return new Aggregations(aggregations);
     }
 }

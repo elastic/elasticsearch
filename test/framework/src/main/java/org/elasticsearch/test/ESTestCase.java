@@ -91,10 +91,12 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
@@ -136,12 +138,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -995,15 +994,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    /**
-     * Returns true iff assertions for elasticsearch packages are enabled
-     */
-    public static boolean assertionsEnabled() {
-        boolean enabled = false;
-        assert (enabled = true);
-        return enabled;
-    }
-
     public void assertAllIndicesRemovedAndDeletionCompleted(Iterable<IndicesService> indicesServices) throws Exception {
         for (IndicesService indicesService : indicesServices) {
             assertBusy(() -> assertFalse(indicesService.iterator().hasNext()), 1, TimeUnit.MINUTES);
@@ -1200,12 +1190,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static ScriptModule newTestScriptModule() {
-        Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .build();
-        Environment environment = new Environment(settings);
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
-        return new ScriptModule(settings, environment, null, singletonList(scriptEngine), emptyList());
+        return new ScriptModule(Settings.EMPTY, singletonList(new ScriptPlugin() {
+            @Override
+            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+                return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
+            }
+        }));
     }
 
     /** Creates an IndicesModule for testing with the given mappers and metadata mappers. */

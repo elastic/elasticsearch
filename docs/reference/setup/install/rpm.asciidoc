@@ -213,11 +213,6 @@ locations for an RPM-based system:
  d| Not configured
   | path.repo
 
-| script
-  | Location of script files.
-  | /etc/elasticsearch/scripts
-  | path.scripts
-
 |=======================================================================
 
 include::next-steps.asciidoc[]

@@ -90,8 +90,4 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         super.processTasks(request, operation);
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
-    }
 }

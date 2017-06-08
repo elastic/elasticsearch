@@ -51,6 +51,11 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "get_search_template_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
 

@@ -21,25 +21,44 @@ package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -48,6 +67,7 @@ import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -257,9 +277,8 @@ public class RequestTests extends ESTestCase {
         assertEquals(method, request.method);
 
         HttpEntity entity = request.entity;
-        assertNotNull(entity);
         assertTrue(entity instanceof ByteArrayEntity);
-
+        assertEquals(indexRequest.getContentType().mediaType(), entity.getContentType().getValue());
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());
         }
@@ -353,7 +372,6 @@ public class RequestTests extends ESTestCase {
         assertEquals("POST", request.method);
 
         HttpEntity entity = request.entity;
-        assertNotNull(entity);
         assertTrue(entity instanceof ByteArrayEntity);
 
         UpdateRequest parsedUpdateRequest = new UpdateRequest();
@@ -470,7 +488,7 @@ public class RequestTests extends ESTestCase {
         assertEquals("/_bulk", request.endpoint);
         assertEquals(expectedParams, request.params);
         assertEquals("POST", request.method);
-
+        assertEquals(xContentType.mediaType(), request.entity.getContentType().getValue());
         byte[] content = new byte[(int) request.entity.getContentLength()];
         try (InputStream inputStream = request.entity.getContent()) {
             Streams.readFully(inputStream, content);
@@ -582,6 +600,159 @@ public class RequestTests extends ESTestCase {
             assertEquals("Unsupported content-type found for request with content-type [" + xContentType
                     + "], only JSON and SMILE are supported", exception.getMessage());
         }
+    }
+
+    public void testSearch() throws Exception {
+        SearchRequest searchRequest = new SearchRequest();
+        int numIndices = randomIntBetween(0, 5);
+        String[] indices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        searchRequest.indices(indices);
+        int numTypes = randomIntBetween(0, 5);
+        String[] types = new String[numTypes];
+        for (int i = 0; i < numTypes; i++) {
+            types[i] = "type-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        searchRequest.types(types);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        if (randomBoolean()) {
+            searchRequest.routing(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("routing", searchRequest.routing());
+        }
+        if (randomBoolean()) {
+            searchRequest.preference(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("preference", searchRequest.preference());
+        }
+        if (randomBoolean()) {
+            searchRequest.searchType(randomFrom(SearchType.values()));
+        }
+        expectedParams.put("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
+        if (randomBoolean()) {
+            searchRequest.requestCache(randomBoolean());
+            expectedParams.put("request_cache", Boolean.toString(searchRequest.requestCache()));
+        }
+        if (randomBoolean()) {
+            searchRequest.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
+        }
+        expectedParams.put("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
+        if (randomBoolean()) {
+            searchRequest.scroll(randomTimeValue());
+            expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
+        }
+
+        if (randomBoolean()) {
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        }
+        expectedParams.put("ignore_unavailable", Boolean.toString(searchRequest.indicesOptions().ignoreUnavailable()));
+        expectedParams.put("allow_no_indices", Boolean.toString(searchRequest.indicesOptions().allowNoIndices()));
+        if (searchRequest.indicesOptions().expandWildcardsOpen() && searchRequest.indicesOptions().expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "open,closed");
+        } else if (searchRequest.indicesOptions().expandWildcardsOpen()) {
+            expectedParams.put("expand_wildcards", "open");
+        } else if (searchRequest.indicesOptions().expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "closed");
+        } else {
+            expectedParams.put("expand_wildcards", "none");
+        }
+
+        SearchSourceBuilder searchSourceBuilder = null;
+        if (frequently()) {
+            searchSourceBuilder = new SearchSourceBuilder();
+            if (randomBoolean()) {
+                searchSourceBuilder.size(randomIntBetween(0, Integer.MAX_VALUE));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.from(randomIntBetween(0, Integer.MAX_VALUE));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.minScore(randomFloat());
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.explain(randomBoolean());
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.profile(randomBoolean());
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.highlighter(new HighlightBuilder().field(randomAlphaOfLengthBetween(3, 10)));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.query(new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.aggregation(new TermsAggregationBuilder(randomAlphaOfLengthBetween(3, 10), ValueType.STRING)
+                        .field(randomAlphaOfLengthBetween(3, 10)));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(randomAlphaOfLengthBetween(3, 10),
+                        new CompletionSuggestionBuilder(randomAlphaOfLengthBetween(3, 10))));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.addRescorer(new QueryRescorerBuilder(
+                        new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10))));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.collapse(new CollapseBuilder(randomAlphaOfLengthBetween(3, 10)));
+            }
+            searchRequest.source(searchSourceBuilder);
+        }
+
+        Request request = Request.search(searchRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        String type = String.join(",", types);
+        if (Strings.hasLength(type)) {
+            endpoint.add(type);
+        }
+        endpoint.add("_search");
+        assertEquals(endpoint.toString(), request.endpoint);
+        assertEquals(expectedParams, request.params);
+        if (searchSourceBuilder == null) {
+            assertNull(request.entity);
+        } else {
+            assertToXContentBody(searchSourceBuilder, request.entity);
+        }
+    }
+
+    public void testSearchScroll() throws IOException {
+        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
+        searchScrollRequest.scrollId(randomAlphaOfLengthBetween(5, 10));
+        if (randomBoolean()) {
+            searchScrollRequest.scroll(randomPositiveTimeValue());
+        }
+        Request request = Request.searchScroll(searchScrollRequest);
+        assertEquals("GET", request.method);
+        assertEquals("/_search/scroll", request.endpoint);
+        assertEquals(0, request.params.size());
+        assertToXContentBody(searchScrollRequest, request.entity);
+        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaType(), request.entity.getContentType().getValue());
+    }
+
+    public void testClearScroll() throws IOException {
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        int numScrolls = randomIntBetween(1, 10);
+        for (int i = 0; i < numScrolls; i++) {
+            clearScrollRequest.addScrollId(randomAlphaOfLengthBetween(5, 10));
+        }
+        Request request = Request.clearScroll(clearScrollRequest);
+        assertEquals("DELETE", request.method);
+        assertEquals("/_search/scroll", request.endpoint);
+        assertEquals(0, request.params.size());
+        assertToXContentBody(clearScrollRequest, request.entity);
+        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaType(), request.entity.getContentType().getValue());
+    }
+
+    private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
+        BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, Request.REQUEST_BODY_CONTENT_TYPE, false);
+        assertEquals(XContentType.JSON.mediaType(), actualEntity.getContentType().getValue());
+        assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
 
     public void testParams() {

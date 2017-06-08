@@ -54,6 +54,16 @@ public class GrokProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Provided Grok expressions do not match field value: [23]"));
     }
 
+    public void testNoMatchingPatternName() {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        doc.setFieldValue(fieldName, "23");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new GrokProcessor(randomAlphaOfLength(10),
+            Collections.singletonMap("ONE", "1"), Collections.singletonList("%{NOTONE:not_one}"), fieldName,
+            false, false));
+        assertThat(e.getMessage(), equalTo("Unable to find pattern [NOTONE] in Grok's pattern dictionary"));
+    }
+
     public void testMatchWithoutCaptures() throws Exception {
         String fieldName = "value";
         IngestDocument originalDoc = new IngestDocument(new HashMap<>(), new HashMap<>());

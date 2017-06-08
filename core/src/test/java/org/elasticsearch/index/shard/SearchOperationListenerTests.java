@@ -21,6 +21,8 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequest.Empty;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -112,7 +114,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             }
 
             @Override
-            public void validateSearchContext(SearchContext context) {
+            public void validateSearchContext(SearchContext context, TransportRequest request) {
                 assertNotNull(context);
                 validateSearchContext.incrementAndGet();
             }
@@ -267,9 +269,10 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, validateSearchContext.get());
 
         if (throwingListeners == 0) {
-            compositeListener.validateSearchContext(ctx);
+            compositeListener.validateSearchContext(ctx, Empty.INSTANCE);
         } else {
-            RuntimeException expected = expectThrows(RuntimeException.class, () -> compositeListener.validateSearchContext(ctx));
+            RuntimeException expected =
+                expectThrows(RuntimeException.class, () -> compositeListener.validateSearchContext(ctx, Empty.INSTANCE));
             assertNull(expected.getMessage());
             assertEquals(throwingListeners - 1, expected.getSuppressed().length);
             if (throwingListeners > 1) {

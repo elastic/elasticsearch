@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,21 +39,23 @@ import java.util.function.Function;
 
 public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAggregatorFactory> {
 
-    private final Function<Map<String, Object>, SearchScript> mapScript;
-    private final Function<Map<String, Object>, ExecutableScript> combineScript;
+    private final SearchScript.Factory mapScript;
+    private final ExecutableScript.Factory combineScript;
     private final Script reduceScript;
     private final Map<String, Object> params;
-    private final Function<Map<String, Object>, ExecutableScript> initScript;
+    private final SearchLookup lookup;
+    private final ExecutableScript.Factory initScript;
 
-    public ScriptedMetricAggregatorFactory(String name, Function<Map<String, Object>, SearchScript> mapScript,
-            Function<Map<String, Object>, ExecutableScript> initScript, Function<Map<String, Object>, ExecutableScript> combineScript,
-            Script reduceScript, Map<String, Object> params, SearchContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+    public ScriptedMetricAggregatorFactory(String name, SearchScript.Factory mapScript, ExecutableScript.Factory initScript,
+                                           ExecutableScript.Factory combineScript, Script reduceScript, Map<String, Object> params,
+                                           SearchLookup lookup, SearchContext context, AggregatorFactory<?> parent,
+                                           AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
         this.mapScript = mapScript;
         this.initScript = initScript;
         this.combineScript = combineScript;
         this.reduceScript = reduceScript;
+        this.lookup = lookup;
         this.params = params;
     }
 
@@ -70,9 +73,9 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
             params.put("_agg", new HashMap<String, Object>());
         }
 
-        final ExecutableScript initScript = this.initScript.apply(params);
-        final SearchScript mapScript = this.mapScript.apply(params);
-        final ExecutableScript combineScript = this.combineScript.apply(params);
+        final ExecutableScript initScript = this.initScript.newInstance(params);
+        final SearchScript.LeafFactory mapScript = this.mapScript.newFactory(params, lookup);
+        final ExecutableScript combineScript = this.combineScript.newInstance(params);
 
         final Script reduceScript = deepCopyScript(this.reduceScript, context);
         if (initScript != null) {

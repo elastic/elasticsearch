@@ -41,6 +41,7 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -135,7 +136,7 @@ public class RecoverySourceHandler {
             if (isSequenceNumberBasedRecoveryPossible) {
                 logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
             } else {
-                final IndexCommit phase1Snapshot;
+                final Engine.IndexCommitRef phase1Snapshot;
                 try {
                     phase1Snapshot = shard.acquireIndexCommit(false);
                 } catch (final Exception e) {
@@ -143,12 +144,12 @@ public class RecoverySourceHandler {
                     throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
                 }
                 try {
-                    phase1(phase1Snapshot, translogView);
+                    phase1(phase1Snapshot.getIndexCommit(), translogView);
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
                 } finally {
                     try {
-                        shard.releaseIndexCommit(phase1Snapshot);
+                        IOUtils.close(phase1Snapshot);
                     } catch (final IOException ex) {
                         logger.warn("releasing snapshot caused exception", ex);
                     }
@@ -509,7 +510,7 @@ public class RecoverySourceHandler {
             logger.trace("no translog operations to send");
         }
 
-        final CancellableThreads.Interruptable sendBatch =
+        final CancellableThreads.IOInterruptable sendBatch =
                 () -> targetLocalCheckpoint.set(recoveryTarget.indexTranslogOperations(operations, expectedTotalOps));
 
         // send operations in batches
@@ -535,7 +536,7 @@ public class RecoverySourceHandler {
 
             // check if this request is past bytes threshold, and if so, send it off
             if (size >= chunkSizeInBytes) {
-                cancellableThreads.execute(sendBatch);
+                cancellableThreads.executeIO(sendBatch);
                 logger.trace("sent batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size), expectedTotalOps);
                 ops = 0;
                 size = 0;
@@ -545,7 +546,7 @@ public class RecoverySourceHandler {
 
         if (!operations.isEmpty() || totalSentOps == 0) {
             // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
-            cancellableThreads.execute(sendBatch);
+            cancellableThreads.executeIO(sendBatch);
         }
 
         assert expectedTotalOps == skippedOps + totalSentOps

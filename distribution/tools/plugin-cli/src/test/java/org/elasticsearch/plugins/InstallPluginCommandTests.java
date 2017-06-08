@@ -37,6 +37,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -52,7 +53,6 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -64,6 +64,7 @@ import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -73,18 +74,14 @@ import java.util.zip.ZipOutputStream;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class InstallPluginCommandTests extends ESTestCase {
 
-    private static InstallPluginCommand SKIP_JARHELL_COMMAND = new InstallPluginCommand() {
-        @Override
-        void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
-            // no jarhell check
-        }
-    };
-    private static InstallPluginCommand DEFAULT_COMMAND = new InstallPluginCommand();
+    private InstallPluginCommand skipJarHellCommand;
+    private InstallPluginCommand defaultCommand;
 
     private final Function<String, Path> temp;
 
@@ -104,9 +101,23 @@ public class InstallPluginCommandTests extends ESTestCase {
         System.setProperty("java.io.tmpdir", temp.apply("tmpdir").toString());
     }
 
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        skipJarHellCommand = new InstallPluginCommand() {
+            @Override
+            void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
+                // no jarhell check
+            }
+        };
+        defaultCommand = new InstallPluginCommand();
+    }
+
     @After
     @SuppressForbidden(reason = "resets java.io.tmpdir")
     public void tearDown() throws Exception {
+        defaultCommand.close();
+        skipJarHellCommand.close();
         System.setProperty("java.io.tmpdir", javaIoTmpdir);
         PathUtilsForTesting.teardown();
         super.tearDown();
@@ -210,11 +221,11 @@ public class InstallPluginCommandTests extends ESTestCase {
         return writeZip(structure, "elasticsearch");
     }
 
-    static MockTerminal installPlugin(String pluginUrl, Path home) throws Exception {
-        return installPlugin(pluginUrl, home, SKIP_JARHELL_COMMAND);
+    MockTerminal installPlugin(String pluginUrl, Path home) throws Exception {
+        return installPlugin(pluginUrl, home, skipJarHellCommand);
     }
 
-    static MockTerminal installPlugin(String pluginUrl, Path home, InstallPluginCommand command) throws Exception {
+    MockTerminal installPlugin(String pluginUrl, Path home, InstallPluginCommand command) throws Exception {
         Environment env = new Environment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
         command.execute(terminal, pluginUrl, true, env);
@@ -322,6 +333,20 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertPlugin("fake", pluginDir, env.v2());
     }
 
+    public void testInstallFailsIfPreviouslyRemovedPluginFailed() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir);
+        final Path removing = env.v2().pluginsFile().resolve(".removing-failed");
+        Files.createDirectory(removing);
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip, env.v1()));
+        final String expected = String.format(
+                Locale.ROOT,
+                "found file [%s] from a failed attempt to remove the plugin [failed]; execute [elasticsearch-plugin remove failed]",
+                removing);
+        assertThat(e, hasToString(containsString(expected)));
+    }
+
     public void testSpaceInUrl() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
@@ -377,7 +402,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         writeJar(pluginDirectory.resolve("other.jar"), "FakePlugin");
         String pluginZip = createPluginUrl("fake", pluginDirectory); // adds plugin.jar with FakePlugin
         IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> installPlugin(pluginZip, environment.v1(), DEFAULT_COMMAND));
+            () -> installPlugin(pluginZip, environment.v1(), defaultCommand));
         assertTrue(e.getMessage(), e.getMessage().contains("jar hell"));
         assertInstallCleaned(environment.v2());
     }
@@ -705,7 +730,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         String pluginZip = createPluginUrl("fake", pluginDir);
         installPlugin(pluginZip, env.v1());
         final UserException e = expectThrows(UserException.class,
-            () -> installPlugin(pluginZip, env.v1(), randomFrom(SKIP_JARHELL_COMMAND, DEFAULT_COMMAND)));
+            () -> installPlugin(pluginZip, env.v1(), randomFrom(skipJarHellCommand, defaultCommand)));
         assertThat(
             e.getMessage(),
             equalTo("plugin directory [" + env.v2().pluginsFile().resolve("fake") + "] already exists; " +
@@ -717,7 +742,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path pluginDir = createPluginDir(temp);
         // if batch is enabled, we also want to add a security policy
         String pluginZip = createPlugin("fake", pluginDir, isBatch).toUri().toURL().toString();
-        SKIP_JARHELL_COMMAND.execute(terminal, pluginZip, isBatch, env.v2());
+        skipJarHellCommand.execute(terminal, pluginZip, isBatch, env.v2());
     }
 
     public void assertInstallPluginFromUrl(String pluginId, String name, String url, String stagingHash) throws Exception {

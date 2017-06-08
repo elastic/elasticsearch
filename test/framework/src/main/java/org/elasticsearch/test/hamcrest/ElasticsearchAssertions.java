@@ -65,6 +65,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
@@ -196,21 +197,25 @@ public class ElasticsearchAssertions {
     }
 
     public static String formatShardStatus(BroadcastResponse response) {
-        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() + " & "
-                + response.getFailedShards() + " shard failures:";
+        StringBuilder msg = new StringBuilder();
+        msg.append(" Total shards: ").append(response.getTotalShards())
+           .append(" Successful shards: ").append(response.getSuccessfulShards())
+           .append(" & ").append(response.getFailedShards()).append(" shard failures:");
         for (ShardOperationFailedException failure : response.getShardFailures()) {
-            msg += "\n " + failure.toString();
+            msg.append("\n ").append(failure);
         }
-        return msg;
+        return msg.toString();
     }
 
     public static String formatShardStatus(SearchResponse response) {
-        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() + " & "
-                + response.getFailedShards() + " shard failures:";
+        StringBuilder msg = new StringBuilder();
+        msg.append(" Total shards: ").append(response.getTotalShards())
+           .append(" Successful shards: ").append(response.getSuccessfulShards())
+           .append(" & ").append(response.getFailedShards()).append(" shard failures:");
         for (ShardSearchFailure failure : response.getShardFailures()) {
-            msg += "\n " + failure.toString();
+            msg.append("\n ").append(failure);
         }
-        return msg;
+        return msg.toString();
     }
 
     public static void assertNoSearchHits(SearchResponse searchResponse) {
@@ -786,11 +791,19 @@ public class ElasticsearchAssertions {
         //1) whenever anything goes through a map while parsing, ordering is not preserved, which is perfectly ok
         //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
         //Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
+        Map<String, Object> actualMap = null;
+        Map<String, Object> expectedMap = null;
         try (XContentParser actualParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, actual)) {
-            Map<String, Object> actualMap = actualParser.map();
+            actualMap = actualParser.map();
             try (XContentParser expectedParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, expected)) {
-                Map<String, Object> expectedMap = expectedParser.map();
-                assertMapEquals(expectedMap, actualMap);
+                expectedMap = expectedParser.map();
+                try {
+                    assertMapEquals(expectedMap, actualMap);
+                } catch (AssertionError error) {
+                    NotEqualMessageBuilder message = new NotEqualMessageBuilder();
+                    message.compareMaps(actualMap, expectedMap);
+                    throw new AssertionError("Error when comparing xContent.\n" + message.toString(), error);
+                }
             }
         }
     }
@@ -798,7 +811,6 @@ public class ElasticsearchAssertions {
     /**
      * Compares two maps recursively, using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
-    @SuppressWarnings("unchecked")
     private static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual) {
         assertEquals(expected.size(), actual.size());
         for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {

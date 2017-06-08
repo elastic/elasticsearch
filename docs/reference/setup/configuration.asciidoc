@@ -51,7 +51,7 @@ path.logs: /var/log/elasticsearch
 --------------------------------------------------
 
 [float]
-=== Environment variable subsitution
+=== Environment variable substitution
 
 Environment variables referenced with the `${...}` notation within the
 configuration file will be replaced with the value of the environment

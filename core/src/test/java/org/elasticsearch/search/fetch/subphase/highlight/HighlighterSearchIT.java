@@ -802,7 +802,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
          * in the neighborhood of 300ms and the large phrase limit is in the
          * neighborhood of 8 seconds.
          */
-        assertThat(defaultPhraseLimit.getTookInMillis(), lessThan(largePhraseLimit.getTookInMillis()));
+        assertThat(defaultPhraseLimit.getTook().getMillis(),
+                lessThan(largePhraseLimit.getTook().getMillis()));
     }
 
 
@@ -1454,10 +1455,19 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         for (String type : UNIFIED_AND_NULL) {
             SearchSourceBuilder source = searchSource()
-                .query(matchPhrasePrefixQuery("field0", "quick bro"))
+                .query(matchPhrasePrefixQuery("field0", "bro"))
                 .highlighter(highlight().field("field0").order("score").preTags("<x>").postTags("</x>").highlighterType(type));
 
             SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+
+            assertHighlight(searchResponse, 0, "field0", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
+
+
+            source = searchSource()
+                .query(matchPhrasePrefixQuery("field0", "quick bro"))
+                .highlighter(highlight().field("field0").order("score").preTags("<x>").postTags("</x>").highlighterType(type));
+
+            searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
             assertHighlight(searchResponse, 0, "field0", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
 

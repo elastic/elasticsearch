@@ -40,6 +40,11 @@ public class RestDeleteSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "delete_search_template_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
 

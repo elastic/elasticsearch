@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -31,8 +30,8 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -56,7 +55,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -414,13 +412,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         FAILURE
     }
 
-    static {
-        assert Version.CURRENT.minimumCompatibilityVersion().after(Version.V_6_0_0_alpha1_UNRELEASED) == false:
-                "Remove logic handling NoOp result from primary response; see TODO in replicaItemExecutionMode" +
-                        " as the current minimum compatible version [" +
-                        Version.CURRENT.minimumCompatibilityVersion() + "] is after 6.0";
-    }
-
     /**
      * Determines whether a bulk item request should be executed on the replica.
      * @return {@link ReplicaItemExecutionMode#NORMAL} upon normal primary execution with no failures
@@ -436,10 +427,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     ? ReplicaItemExecutionMode.FAILURE // we have a seq no generated with the failure, replicate as no-op
                     : ReplicaItemExecutionMode.NOOP; // no seq no generated, ignore replication
         } else {
-            // NOTE: write requests originating from pre-6.0 nodes can send a no-op operation to
-            // the replica; we ignore replication
-            // TODO: remove noOp result check from primary response, when pre-6.0 nodes are not supported
-            // we should return ReplicationItemExecutionMode.NORMAL instead
+            // TODO: once we know for sure that every operation that has been processed on the primary is assigned a seq#
+            // (i.e., all nodes on the cluster are on v6.0.0 or higher) we can use the existence of a seq# to indicate whether
+            // an operation should be processed or be treated as a noop. This means we could remove this method and the
+            // ReplicaItemExecutionMode enum and have a simple boolean check for seq != UNASSIGNED_SEQ_NO which will work for
+            // both failures and indexing operations.
             return primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP
                     ? ReplicaItemExecutionMode.NORMAL // execution successful on primary
                     : ReplicaItemExecutionMode.NOOP; // ignore replication
@@ -454,6 +446,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
+        final long primaryTerm = request.primaryTerm();
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
             final Engine.Result operationResult;
@@ -465,10 +458,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         switch (docWriteRequest.opType()) {
                             case CREATE:
                             case INDEX:
-                                operationResult = executeIndexRequestOnReplica(primaryResponse, (IndexRequest) docWriteRequest, replica);
+                                operationResult =
+                                    executeIndexRequestOnReplica(primaryResponse, (IndexRequest) docWriteRequest, primaryTerm, replica);
                                 break;
                             case DELETE:
-                                operationResult = executeDeleteRequestOnReplica(primaryResponse, (DeleteRequest) docWriteRequest, replica);
+                                operationResult =
+                                    executeDeleteRequestOnReplica(primaryResponse, (DeleteRequest) docWriteRequest, primaryTerm, replica);
                                 break;
                             default:
                                 throw new IllegalStateException("Unexpected request operation type on replica: "
@@ -536,14 +531,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * Execute the given {@link IndexRequest} on a replica shard, throwing a
      * {@link RetryOnReplicaException} if the operation needs to be re-tried.
      */
-    private static Engine.IndexResult executeIndexRequestOnReplica(
-            DocWriteResponse primaryResponse,
-            IndexRequest request,
-            IndexShard replica) throws IOException {
+    private static Engine.IndexResult executeIndexRequestOnReplica(DocWriteResponse primaryResponse, IndexRequest request,
+                                                                   long primaryTerm, IndexShard replica) throws IOException {
 
         final Engine.Index operation;
         try {
-            operation = prepareIndexOperationOnReplica(primaryResponse, request, replica);
+            operation = prepareIndexOperationOnReplica(primaryResponse, request, primaryTerm, replica);
         } catch (MapperParsingException e) {
             return new Engine.IndexResult(e, primaryResponse.getVersion(), primaryResponse.getSeqNo());
         }
@@ -561,6 +554,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     static Engine.Index prepareIndexOperationOnReplica(
             DocWriteResponse primaryResponse,
             IndexRequest request,
+            long primaryTerm,
             IndexShard replica) {
 
         final ShardId shardId = replica.shardId();
@@ -573,7 +567,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final VersionType versionType = request.versionType().versionTypeForReplicationAndRecovery();
         assert versionType.validateVersionForWrites(version);
 
-        return replica.prepareIndexOnReplica(sourceToParse, seqNo, version, versionType,
+        return replica.prepareIndexOnReplica(sourceToParse, seqNo, primaryTerm, version, versionType,
                 request.getAutoGeneratedTimestamp(), request.isRetry());
     }
 
@@ -655,7 +649,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     private static Engine.DeleteResult executeDeleteRequestOnReplica(DocWriteResponse primaryResponse, DeleteRequest request,
-            IndexShard replica) throws Exception {
+            final long primaryTerm, IndexShard replica) throws Exception {
         if (replica.indexSettings().isSingleType()) {
             // We need to wait for the replica to have the mappings
             Mapping update;
@@ -675,7 +669,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final long version = primaryResponse.getVersion();
         assert versionType.validateVersionForWrites(version);
         final Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(),
-                primaryResponse.getSeqNo(), request.primaryTerm(), version, versionType);
+                primaryResponse.getSeqNo(), primaryTerm, version, versionType);
         return replica.delete(delete);
     }
 

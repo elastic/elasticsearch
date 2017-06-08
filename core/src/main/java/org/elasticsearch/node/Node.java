@@ -132,6 +132,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.tribe.TribeService;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.BufferedWriter;
@@ -325,10 +326,8 @@ public class Node implements Closeable {
             }
             client = new NodeClient(settings, threadPool);
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
-            final ScriptModule scriptModule = ScriptModule.create(settings, this.environment, resourceWatcherService,
-                pluginsService.filterPlugins(ScriptPlugin.class));
+            final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
             AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
-            additionalSettings.addAll(scriptModule.getSettings());
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
             final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
@@ -342,6 +341,7 @@ public class Node implements Closeable {
             final IngestService ingestService = new IngestService(clusterService.getClusterSettings(), settings, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
+            final UsageService usageService = new UsageService(settings);
 
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...
@@ -362,7 +362,7 @@ public class Node implements Closeable {
             resourcesToClose.add(circuitBreakerService);
             ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
                     settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                    threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService);
+                    threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService);
             modules.add(actionModule);
             modules.add(new GatewayModule());
 
@@ -457,6 +457,7 @@ public class Node implements Closeable {
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
+                b.bind(UsageService.class).toInstance(usageService);
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     b.bind(MetaDataUpgrader.class).toInstance(metaDataUpgrader);
                     b.bind(MetaStateService.class).toInstance(metaStateService);

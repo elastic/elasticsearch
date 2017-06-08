@@ -168,6 +168,8 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 current.println("  - skip:")
                 current.println("      features: ")
                 current.println("        - stash_in_key")
+                current.println("        - stash_in_path")
+                current.println("        - stash_path_replace")
                 current.println("        - warnings")
             }
             if (test.skipTest) {
@@ -180,12 +182,14 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             }
             if (test.setup != null) {
                 // Insert a setup defined outside of the docs
-                String setup = setups[test.setup]
-                if (setup == null) {
-                    throw new InvalidUserDataException("Couldn't find setup "
-                        + "for $test")
+                for (String setupName : test.setup.split(',')) {
+                    String setup = setups[setupName]
+                    if (setup == null) {
+                        throw new InvalidUserDataException("Couldn't find setup "
+                                + "for $test")
+                    }
+                    current.println(setup)
                 }
-                current.println(setup)
             }
 
             body(test, false)

@@ -41,15 +41,17 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
     }
 
     @Override
+    public String getName() {
+        return "delete_by_query_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         return doPrepareRequest(request, client, false, false);
     }
 
     @Override
     protected DeleteByQueryRequest buildRequest(RestRequest request) throws IOException {
-        if (false == request.hasContent()) {
-            throw new ElasticsearchException("_delete_by_query requires a request body");
-        }
         /*
          * Passing the search request through DeleteByQueryRequest first allows
          * it to set its own defaults which differ from SearchRequest's

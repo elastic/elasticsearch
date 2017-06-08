@@ -55,7 +55,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -63,7 +62,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -491,7 +489,7 @@ public class IndicesService extends AbstractLifecycleComponent
     @Override
     public IndexShard createShard(ShardRouting shardRouting, RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
                                   PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
-                                  Callback<IndexShard.ShardFailure> onShardFailure) throws IOException {
+                                  Consumer<IndexShard.ShardFailure> onShardFailure) throws IOException {
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         IndexShard indexShard = indexService.createShard(shardRouting);

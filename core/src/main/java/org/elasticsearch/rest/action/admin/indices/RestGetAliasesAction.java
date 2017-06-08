@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -26,7 +27,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -38,14 +42,17 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.SortedSet;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * The REST handler for get alias and head alias APIs.
@@ -56,8 +63,15 @@ public class RestGetAliasesAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(GET, "/_alias/{name}", this);
         controller.registerHandler(HEAD, "/_alias/{name}", this);
+        controller.registerHandler(GET, "/{index}/_alias", this);
+        controller.registerHandler(HEAD, "/{index}/_alias", this);
         controller.registerHandler(GET, "/{index}/_alias/{name}", this);
         controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "get_aliases_action";
     }
 
     @Override
@@ -72,41 +86,68 @@ public class RestGetAliasesAction extends BaseRestHandler {
         return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
-                if (response.getAliases().isEmpty()) {
-                    // empty body if indices were specified but no matching aliases exist
-                    if (indices.length > 0) {
-                        return new BytesRestResponse(OK, builder.startObject().endObject());
-                    } else {
-                        final String message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(getAliasesRequest.aliases()));
-                        builder.startObject();
-                        {
-                            builder.field("error", message);
-                            builder.field("status", RestStatus.NOT_FOUND.getStatus());
-                        }
-                        builder.endObject();
-                        return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                final ImmutableOpenMap<String, List<AliasMetaData>> aliasMap = response.getAliases();
+
+                final Set<String> aliasNames = new HashSet<>();
+                for (final ObjectCursor<List<AliasMetaData>> cursor : aliasMap.values()) {
+                    for (final AliasMetaData aliasMetaData : cursor.value) {
+                        aliasNames.add(aliasMetaData.alias());
                     }
-                } else {
-                    builder.startObject();
-                    {
-                        for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
-                            builder.startObject(entry.key);
+                }
+
+                // first remove requested aliases that are exact matches
+                final SortedSet<String> difference = Sets.sortedDifference(Arrays.stream(aliases).collect(Collectors.toSet()), aliasNames);
+
+                // now remove requested aliases that contain wildcards that are simple matches
+                final List<String> matches = new ArrayList<>();
+                outer:
+                for (final String pattern : difference) {
+                    if (pattern.contains("*")) {
+                        for (final String aliasName : aliasNames) {
+                            if (Regex.simpleMatch(pattern, aliasName)) {
+                                matches.add(pattern);
+                                continue outer;
+                            }
+                        }
+                    }
+                }
+                difference.removeAll(matches);
+
+                final RestStatus status;
+                builder.startObject();
+                {
+                    if (difference.isEmpty()) {
+                        status = RestStatus.OK;
+                    } else {
+                        status = RestStatus.NOT_FOUND;
+                        final String message;
+                        if (difference.size() == 1) {
+                            message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(difference.iterator().next()));
+                        } else {
+                            message = String.format(Locale.ROOT, "aliases [%s] missing", toNamesString(difference.toArray(new String[0])));
+                        }
+                        builder.field("error", message);
+                        builder.field("status", status.getStatus());
+                    }
+
+                    for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
+                        builder.startObject(entry.key);
+                        {
+                            builder.startObject("aliases");
                             {
-                                builder.startObject("aliases");
-                                {
-                                    for (final AliasMetaData alias : entry.value) {
-                                        AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
-                                    }
+                                for (final AliasMetaData alias : entry.value) {
+                                    AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
                                 }
-                                builder.endObject();
                             }
                             builder.endObject();
                         }
+                        builder.endObject();
                     }
-                    builder.endObject();
-                    return new BytesRestResponse(OK, builder);
                 }
+                builder.endObject();
+                return new BytesRestResponse(status, builder);
             }
+
         });
     }
 

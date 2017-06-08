@@ -20,9 +20,7 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.script.AbstractDoubleSearchScript;
 import org.elasticsearch.script.GeneralScriptException;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ESTestCase;
 
@@ -34,18 +32,13 @@ public class ScriptScoreFunctionTests extends ESTestCase {
      */
     public void testScriptScoresReturnsNaN() throws IOException {
         // script that always returns NaN
-        ScoreFunction scoreFunction = new ScriptScoreFunction(mockScript("Double.NaN"), new SearchScript() {
+        ScoreFunction scoreFunction = new ScriptScoreFunction(mockScript("Double.NaN"), new SearchScript.LeafFactory() {
             @Override
-            public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
-                return new AbstractDoubleSearchScript() {
+            public SearchScript newInstance(LeafReaderContext context) throws IOException {
+                return new SearchScript(null, null, null) {
                     @Override
                     public double runAsDouble() {
                         return Double.NaN;
-                    }
-
-                    @Override
-                    public void setDocument(int doc) {
-                        // do nothing: we are a fake with no lookup
                     }
                 };
             }

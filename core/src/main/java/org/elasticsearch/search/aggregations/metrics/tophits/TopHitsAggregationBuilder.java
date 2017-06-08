@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
@@ -533,8 +534,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         List<ScriptFieldsContext.ScriptField> fields = new ArrayList<>();
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
-                SearchScript searchScript = context.getQueryShardContext().getSearchScript(field.script(),
-                    ScriptContext.Standard.SEARCH);
+                QueryShardContext shardContext = context.getQueryShardContext();
+                SearchScript.Factory factory = shardContext.getScriptService().compile(field.script(), SearchScript.CONTEXT);
+                SearchScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), shardContext.lookup());
                 fields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), searchScript, field.ignoreFailure()));
             }

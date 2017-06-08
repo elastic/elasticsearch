@@ -23,6 +23,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,18 +31,23 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.join.mapper.ParentIdFieldMapper;
+import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -68,18 +74,18 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     private final QueryBuilder query;
     private final String type;
     private final boolean score;
-    private InnerHitBuilder innerHit;
+    private InnerHitBuilder innerHitBuilder;
     private boolean ignoreUnmapped = false;
 
     public HasParentQueryBuilder(String type, QueryBuilder query, boolean score) {
         this(type, query, score, null);
     }
 
-    private HasParentQueryBuilder(String type, QueryBuilder query, boolean score, InnerHitBuilder innerHit) {
+    private HasParentQueryBuilder(String type, QueryBuilder query, boolean score, InnerHitBuilder innerHitBuilder) {
         this.type = requireValue(type, "[" + NAME + "] requires 'type' field");
         this.query = requireValue(query, "[" + NAME + "] requires 'query' field");
         this.score = score;
-        this.innerHit = innerHit;
+        this.innerHitBuilder = innerHitBuilder;
     }
 
     /**
@@ -90,7 +96,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         type = in.readString();
         score = in.readBoolean();
         query = in.readNamedWriteable(QueryBuilder.class);
-        innerHit = in.readOptionalWriteable(InnerHitBuilder::new);
+        innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         ignoreUnmapped = in.readBoolean();
     }
 
@@ -99,7 +105,15 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         out.writeString(type);
         out.writeBoolean(score);
         out.writeNamedWriteable(query);
-        out.writeOptionalWriteable(innerHit);
+        if (out.getVersion().before(Version.V_5_5_0)) {
+            final boolean hasInnerHit = innerHitBuilder != null;
+            out.writeBoolean(hasInnerHit);
+            if (hasInnerHit) {
+                innerHitBuilder.writeToParentChildBWC(out, query, type);
+            }
+        } else {
+            out.writeOptionalWriteable(innerHitBuilder);
+        }
         out.writeBoolean(ignoreUnmapped);
     }
 
@@ -128,11 +142,11 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
      *  Returns inner hit definition in the scope of this query and reusing the defined type and query.
      */
     public InnerHitBuilder innerHit() {
-        return innerHit;
+        return innerHitBuilder;
     }
 
-    public HasParentQueryBuilder innerHit(InnerHitBuilder innerHit, boolean ignoreUnmapped) {
-        this.innerHit = new InnerHitBuilder(innerHit, query, type, ignoreUnmapped);
+    public HasParentQueryBuilder innerHit(InnerHitBuilder innerHit) {
+        this.innerHitBuilder = innerHit;
         return this;
     }
 
@@ -157,6 +171,44 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (context.getIndexSettings().isSingleType()) {
+            return joinFieldDoToQuery(context);
+        } else  {
+            return parentFieldDoToQuery(context);
+        }
+    }
+
+    private Query joinFieldDoToQuery(QueryShardContext context) throws IOException {
+        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
+        if (joinFieldMapper == null) {
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new QueryShardException(context, "[" + NAME + "] no join field has been configured");
+            }
+        }
+
+        ParentIdFieldMapper parentIdFieldMapper = joinFieldMapper.getParentIdFieldMapper(type, true);
+        if (parentIdFieldMapper != null) {
+            Query parentFilter = parentIdFieldMapper.getParentFilter();
+            Query innerQuery = Queries.filtered(query.toQuery(context), parentFilter);
+            Query childFilter = parentIdFieldMapper.getChildrenFilter();
+            MappedFieldType fieldType = parentIdFieldMapper.fieldType();
+            final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
+            return new HasChildQueryBuilder.LateParsingQuery(childFilter, innerQuery,
+                HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
+                fieldType.name(), score ? ScoreMode.Max : ScoreMode.None, fieldData, context.getSearchSimilarity());
+        } else {
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new QueryShardException(context, "[" + NAME + "] join field [" + joinFieldMapper.name() +
+                    "] doesn't hold [" + type + "] as a parent");
+            }
+        }
+    }
+
+    private Query parentFieldDoToQuery(QueryShardContext context) throws IOException {
         Query innerQuery;
         String[] previousTypes = context.getTypes();
         context.setTypes(type);
@@ -171,20 +223,18 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(context, "[" + NAME + "] query configured 'parent_type' [" + type + "] is not a valid type");
+                throw new QueryShardException(context,
+                    "[" + NAME + "] query configured 'parent_type' [" + type + "] is not a valid type");
             }
         }
 
         Set<String> childTypes = new HashSet<>();
-        ParentChildIndexFieldData parentChildIndexFieldData = null;
         for (DocumentMapper documentMapper : context.getMapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper.active() && type.equals(parentFieldMapper.type())) {
                 childTypes.add(documentMapper.type());
-                parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
             }
         }
-
         if (childTypes.isEmpty()) {
             throw new QueryShardException(context, "[" + NAME + "] no child types found for type [" + type + "]");
         }
@@ -204,14 +254,17 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter(context));
+
+        final MappedFieldType parentType = parentDocMapper.parentFieldMapper().getParentJoinFieldType();
+        final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(parentType);
         return new HasChildQueryBuilder.LateParsingQuery(childrenQuery,
-                                                         innerQuery,
-                                                         HasChildQueryBuilder.DEFAULT_MIN_CHILDREN,
-                                                         HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
-                                                         type,
-                                                         score ? ScoreMode.Max : ScoreMode.None,
-                                                         parentChildIndexFieldData,
-                                                         context.getSearchSimilarity());
+            innerQuery,
+            HasChildQueryBuilder.DEFAULT_MIN_CHILDREN,
+            HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
+            ParentFieldMapper.joinField(type),
+            score ? ScoreMode.Max : ScoreMode.None,
+            fieldData,
+            context.getSearchSimilarity());
     }
 
     @Override
@@ -223,8 +276,8 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         builder.field(SCORE_FIELD.getPreferredName(), score);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         printBoostAndQueryName(builder);
-        if (innerHit != null) {
-            builder.field(INNER_HITS_FIELD.getPreferredName(), innerHit, params);
+        if (innerHitBuilder != null) {
+            builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
         }
         builder.endObject();
     }
@@ -250,7 +303,8 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                 } else if (INNER_HITS_FIELD.match(currentFieldName)) {
                     innerHits = InnerHitBuilder.fromXContent(parseContext);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                        "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (TYPE_FIELD.match(currentFieldName)) {
@@ -274,7 +328,8 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                        "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -283,7 +338,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                 .queryName(queryName)
                 .boost(boost);
         if (innerHits != null) {
-            queryBuilder.innerHit(innerHits, ignoreUnmapped);
+            queryBuilder.innerHit(innerHits);
         }
         return queryBuilder;
     }
@@ -298,21 +353,20 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         return Objects.equals(query, that.query)
                 && Objects.equals(type, that.type)
                 && Objects.equals(score, that.score)
-                && Objects.equals(innerHit, that.innerHit)
+                && Objects.equals(innerHitBuilder, that.innerHitBuilder)
                 && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query, type, score, innerHit, ignoreUnmapped);
+        return Objects.hash(query, type, score, innerHitBuilder, ignoreUnmapped);
     }
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         QueryBuilder rewrittenQuery = query.rewrite(queryShardContext);
         if (rewrittenQuery != query) {
-            InnerHitBuilder rewrittenInnerHit = InnerHitBuilder.rewrite(innerHit, rewrittenQuery);
-            HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(type, rewrittenQuery, score, rewrittenInnerHit);
+            HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(type, rewrittenQuery, score, innerHitBuilder);
             hasParentQueryBuilder.ignoreUnmapped(ignoreUnmapped);
             return hasParentQueryBuilder;
         }
@@ -320,9 +374,15 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     }
 
     @Override
-    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
-        if (innerHit!= null) {
-            innerHit.inlineInnerHits(innerHits);
+    protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
+        if (innerHitBuilder != null) {
+            Map<String, InnerHitContextBuilder> children = new HashMap<>();
+            InnerHitContextBuilder.extractInnerHits(query, children);
+            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : type;
+            InnerHitContextBuilder innerHitContextBuilder =
+                new ParentChildInnerHitContextBuilder(type, false, query, innerHitBuilder, children);
+            innerHits.put(name, innerHitContextBuilder);
         }
     }
+
 }

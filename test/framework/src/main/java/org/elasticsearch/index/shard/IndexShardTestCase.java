@@ -365,7 +365,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
     }
 
-    private DiscoveryNode getFakeDiscoNode(String id) {
+    protected DiscoveryNode getFakeDiscoNode(String id) {
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), EnumSet.allOf(DiscoveryNode.Role.class),
             Version.CURRENT);
     }
@@ -489,7 +489,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             index = shard.prepareIndexOnReplica(
                 SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source),
                     xContentType),
-                randomInt(1 << 10), 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                shard.seqNoStats().getMaxSeqNo() + 1, shard.getPrimaryTerm(), 0,
+                VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         }
         shard.index(index);
         return index;

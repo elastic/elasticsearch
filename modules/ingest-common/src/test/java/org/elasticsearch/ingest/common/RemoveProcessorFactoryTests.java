@@ -25,9 +25,11 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -46,7 +48,18 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RemoveProcessor removeProcessor = factory.create(null, processorTag, config);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
-        assertThat(removeProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
+        assertThat(removeProcessor.getFields().get(0).execute(Collections.emptyMap()), equalTo("field1"));
+    }
+
+    public void testCreateMultipleFields() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", Arrays.asList("field1", "field2"));
+        String processorTag = randomAlphaOfLength(10);
+        RemoveProcessor removeProcessor = factory.create(null, processorTag, config);
+        assertThat(removeProcessor.getTag(), equalTo(processorTag));
+        assertThat(removeProcessor.getFields().stream()
+            .map(template -> template.execute(Collections.emptyMap()))
+            .collect(Collectors.toList()), equalTo(Arrays.asList("field1", "field2")));
     }
 
     public void testCreateMissingField() throws Exception {

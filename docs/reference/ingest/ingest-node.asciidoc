@@ -1649,21 +1649,35 @@ Converts a string to its lowercase equivalent.
 
 [[remove-processor]]
 === Remove Processor
-Removes an existing field. If the field doesn't exist, an exception will be thrown.
+Removes existing fields. If one field doesn't exist, an exception will be thrown.
 
 [[remove-options]]
 .Remove Options
 [options="header"]
 |======
 | Name      | Required  | Default  | Description
-| `field`   | yes       | -        | The field to be removed
+| `field`   | yes       | -        | Fields to be removed
 |======
+
+Here is an example to remove a single field:
 
 [source,js]
 --------------------------------------------------
 {
   "remove": {
     "field": "foo"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+To remove multiple fields, you can use the following query:
+
+[source,js]
+--------------------------------------------------
+{
+  "remove": {
+    "field": ["foo", "bar"]
   }
 }
 --------------------------------------------------

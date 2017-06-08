@@ -31,6 +31,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class TermSuggestionOptionTests extends ESTestCase {
@@ -43,12 +44,26 @@ public class TermSuggestionOptionTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
+        doTestFromXContent(false);
+    }
+
+    public void testFromXContentWithRandomFields() throws IOException {
+        doTestFromXContent(true);
+    }
+
+    private void doTestFromXContent(boolean addRandomFields) throws IOException {
         Option option = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(option, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference mutated;
+        if (addRandomFields) {
+            mutated = insertRandomFields(xContentType, originalBytes, null, random());
+        } else {
+            mutated = originalBytes;
+        }
         Option parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             parsed = Option.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());

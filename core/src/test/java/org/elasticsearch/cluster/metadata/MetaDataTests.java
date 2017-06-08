@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -191,5 +192,61 @@ public class MetaDataTests extends ESTestCase {
             new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)
         );
         assertThat(fromStreamMeta.indexGraveyard(), equalTo(fromStreamMeta.indexGraveyard()));
+    }
+
+    public void testGetConcreteIndexWorksOnIndex() throws Exception {
+        IndexMetaData.Builder builder = IndexMetaData.builder("my-index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetaData.builder("my-alias").build());
+
+        MetaData metaData = MetaData.builder().put(builder).build();
+
+        IndexMetaData indexMetaData = metaData.findConcreteIndexMetaData("my-index");
+        assertThat(indexMetaData.getIndex().getName(), is("my-index"));
+    }
+
+    public void testGetConcreteIndexWorksOnAlias() throws Exception {
+        IndexMetaData.Builder builder = IndexMetaData.builder("my-index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetaData.builder("my-alias").build());
+
+        MetaData metaData = MetaData.builder().put(builder).build();
+
+        IndexMetaData indexMetaData = metaData.findConcreteIndexMetaData("my-alias");
+        assertThat(indexMetaData.getIndex().getName(), is("my-index"));
+    }
+
+    public void testGetConcreteIndexFailsForNoIndex() throws Exception {
+        IndexMetaData.Builder builder = IndexMetaData.builder("my-index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetaData.builder("my-alias").build());
+
+        MetaData metaData = MetaData.builder().put(builder).build();
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> metaData.findConcreteIndexMetaData("does-not-exist"));
+        assertThat(e.getIndex().getName(), is("does-not-exist"));
+    }
+
+    public void testGetConcreteIndexFailsWithTwoAliases() throws Exception {
+        IndexMetaData.Builder myIndexBuilder = IndexMetaData.builder("my-index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetaData.builder("my-alias").build());
+
+        IndexMetaData.Builder myOtherIndexBuilder = IndexMetaData.builder("my-other-index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetaData.builder("my-alias").build());
+
+        MetaData metaData = MetaData.builder().put(myIndexBuilder).put(myOtherIndexBuilder).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> metaData.findConcreteIndexMetaData("my-alias"));
+        assertThat(e.getMessage(), is("alias [my-alias] points to indices [my-index, my-other-index], cannot get concrete index"));
     }
 }

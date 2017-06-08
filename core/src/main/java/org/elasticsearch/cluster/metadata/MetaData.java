@@ -66,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -287,6 +288,39 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
         }
         return aliases.length == 0;
+    }
+
+    /**
+     * Allows to return the concrete index meta data of the index specified or of the
+     * index that is hidden behind the alias specified
+     *
+     * @param aliasOrIndexName An alias or an index name
+     * @return The index metadata of the concrete index
+     * @throws IllegalArgumentException if the parameter points to an alias with more than one index
+     * @throws IndexNotFoundException if the parameter points neither to an index nor to an alias
+     */
+    public IndexMetaData findConcreteIndexMetaData(String aliasOrIndexName) {
+        assert aliasOrIndexName != null;
+        AliasOrIndex aliasOrIndex = getAliasAndIndexLookup().get(aliasOrIndexName);
+        if (aliasOrIndex == null) {
+            throw new IndexNotFoundException(aliasOrIndexName);
+        }
+
+        // regular index
+        if (indices.containsKey(aliasOrIndexName)) {
+            return indices.get(aliasOrIndexName);
+        }
+
+        // alias
+        if (aliasOrIndex.getIndices().size() == 1) {
+            String concreteIndex = aliasOrIndex.getIndices().get(0).getIndex().getName();
+            return indices.get(concreteIndex);
+        } else {
+            List<String> indices = aliasOrIndex.getIndices().stream()
+                    .map(IndexMetaData::getIndex).map(Index::getName).sorted().collect(Collectors.toList());
+            throw new IllegalArgumentException("alias [" + aliasOrIndexName + "] points to indices " + indices
+                    + ", cannot get concrete index");
+        }
     }
 
     /**

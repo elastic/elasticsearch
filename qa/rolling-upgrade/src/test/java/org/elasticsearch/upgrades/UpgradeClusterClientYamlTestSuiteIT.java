@@ -84,8 +84,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends SecurityClusterClientYa
         AtomicReference<IOException> exceptionHolder = new AtomicReference<>();
         awaitBusy(() -> {
             try {
-                ClientYamlTestResponse response = getAdminExecutionContext().callApi(apiName, params, bodies, Collections.emptyMap()
-                );
+                ClientYamlTestResponse response = getAdminExecutionContext().callApi(apiName, params, bodies, Collections.emptyMap());
                 if (response.getStatusCode() == HttpStatus.SC_OK) {
                     exceptionHolder.set(null);
                     return success.apply(response);

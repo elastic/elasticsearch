@@ -57,8 +57,10 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final String TYPE = "geoip";
-    private static final String CITY_DB_TYPE = "GeoLite2-City";
-    private static final String COUNTRY_DB_TYPE = "GeoLite2-Country";
+    private static final String CITY_LITE_DB_TYPE = "GeoLite2-City";
+    private static final String COUNTRY_LITE_DB_TYPE = "GeoLite2-Country";
+    private static final String CITY_DB_TYPE = "GeoIP2-City";
+    private static final String COUNTRY_DB_TYPE = "GeoIP2-Country";
 
     private final String field;
     private final String targetField;
@@ -94,6 +96,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         Map<String, Object> geoData;
         switch (dbReader.getMetadata().getDatabaseType()) {
+            case CITY_LITE_DB_TYPE:
             case CITY_DB_TYPE:
                 try {
                     geoData = retrieveCityGeoData(ipAddress);
@@ -101,6 +104,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     geoData = Collections.emptyMap();
                 }
                 break;
+            case COUNTRY_LITE_DB_TYPE:
             case COUNTRY_DB_TYPE:
                 try {
                     geoData = retrieveCountryGeoData(ipAddress);
@@ -299,9 +303,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     }
                 }
             } else {
-                if (CITY_DB_TYPE.equals(databaseType)) {
+                if (CITY_LITE_DB_TYPE.equals(databaseType) || CITY_DB_TYPE.equals(databaseType)) {
                     properties = DEFAULT_CITY_PROPERTIES;
-                } else if (COUNTRY_DB_TYPE.equals(databaseType)) {
+                } else if (COUNTRY_LITE_DB_TYPE.equals(databaseType) || COUNTRY_DB_TYPE.equals(databaseType)) {
                     properties = DEFAULT_COUNTRY_PROPERTIES;
                 } else {
                     throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type ["
@@ -340,9 +344,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         public static Property parseProperty(String databaseType, String value) {
             Set<Property> validProperties = EnumSet.noneOf(Property.class);
-            if (CITY_DB_TYPE.equals(databaseType)) {
+            if (CITY_LITE_DB_TYPE.equals(databaseType) || CITY_DB_TYPE.equals(databaseType)) {
                 validProperties = ALL_CITY_PROPERTIES;
-            } else if (COUNTRY_DB_TYPE.equals(databaseType)) {
+            } else if (COUNTRY_LITE_DB_TYPE.equals(databaseType) || COUNTRY_DB_TYPE.equals(databaseType)) {
                 validProperties = ALL_COUNTRY_PROPERTIES;
             }
 

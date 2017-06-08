@@ -91,7 +91,9 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
                         IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                         return shard == null ? null : shard.getPrimary().getDocs();
                     }, indexNameExpressionResolver);
-                createIndexService.createIndex(updateRequest, ActionListener.wrap(response ->
+                createIndexService.createIndex(
+                    updateRequest,
+                    ActionListener.wrap(response ->
                         listener.onResponse(
                             new ShrinkResponse(response.isAcknowledged(), response.isShardsAcked(), updateRequest.index())
                         ),

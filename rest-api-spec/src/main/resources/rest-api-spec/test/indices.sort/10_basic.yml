@@ -196,7 +196,7 @@
   - match: {hits.hits.2._id: "3" }
 
   - do:
-      catch:      /disabling \`track_total_hits\` is not allowed in a scroll context/
+      catch:      /disabling \[track_total_hits\] is not allowed in a scroll context/
       search:
         index: test
         type: test

@@ -498,7 +498,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         query.startObject();
         query.startObject("script");
         if (randomBoolean()) {
-            query.field("source", "return true");
+            query.field("script", "return true");
         } else {
             query.startObject("script");
             query.field("source", "return true");

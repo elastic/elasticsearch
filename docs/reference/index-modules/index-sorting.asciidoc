@@ -125,7 +125,7 @@ PUT events
     "settings" : {
         "index" : {
             "sort.field" : "timestamp",
-            "sort.order" : "desc" <2>
+            "sort.order" : "desc" <1>
         }
     },
     "mappings": {
@@ -172,7 +172,7 @@ to false:
 GET /events/_search
 {
     "size": 10,
-    "sort": [
+    "sort": [ <1>
         { "timestamp": "desc" }
     ],
     "track_total_hits": false

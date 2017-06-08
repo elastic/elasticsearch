@@ -243,7 +243,7 @@ POST sessions/session/dh3sgudg8gsrgl/_update
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/"id": "my_web_session_summariser"/"inline": "ctx._source.page_view_event = params.pageViewEvent"/]
+// TEST[s/"id": "my_web_session_summariser"/"source": "ctx._source.page_view_event = params.pageViewEvent"/]
 // TEST[continued]
 
 [float]

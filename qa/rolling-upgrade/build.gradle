@@ -3,8 +3,17 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.Version
 
 import java.nio.charset.StandardCharsets
+import java.util.regex.Matcher
 
-apply plugin: 'elasticsearch.standalone-test'
+// Apply the java plugin to this project so the sources can be edited in an IDE
+apply plugin: 'elasticsearch.build'
+test.enabled = false
+
+dependencies {
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+}
+
 
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
@@ -48,25 +57,51 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
     return tmpFile.exists()
 }
 
-String outputDir = "generated-resources/${project.name}"
+Project mainProject = project
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
+/**
+ * Subdirectories of this project are test rolling upgrades with various
+ * configuration options based on their name.
+ */
+subprojects {
+  Matcher m = project.name =~ /with(out)?-ssl-with(out)?-system-key/
+  if (false == m.matches()) {
+    throw new InvalidUserDataException("Invalid project name [${project.name}]")
+  }
+  boolean withSystemKey = m.group(2) == null
 
-task copyTestNodeKeystore(type: Copy) {
+  apply plugin: 'elasticsearch.standalone-test'
+
+  // Use resources from the rolling-upgrade project in subdirectories
+  sourceSets {
+    test {
+      java {
+        srcDirs = ["${mainProject.projectDir}/src/test/java"]
+      }
+      resources {
+        srcDirs = ["${mainProject.projectDir}/src/test/resources"]
+      }
+    }
+  }
+
+  String outputDir = "generated-resources/${project.name}"
+
+  // This is a top level task which we will add dependencies to below.
+  // It is a single task that can be used to backcompat tests against all versions.
+  task bwcTest {
+    description = 'Runs backwards compatibility tests.'
+    group = 'verification'
+  }
+
+  String output = "generated-resources/${project.name}"
+  task copyTestNodeKeystore(type: Copy) {
     from project(':x-pack-elasticsearch:plugin')
             .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
     into outputDir
-}
+  }
 
-for (boolean withSystemKey: [true, false]) {
-  String baseNameForSystemKey = (withSystemKey ? 'With' : 'Without') + 'SystemKey'
   for (Version version : wireCompatVersions) {
-    String baseName = "v${version}${baseNameForSystemKey}"
+    String baseName = "v${version}"
 
     Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
       mustRunAfter(precommit)
@@ -86,13 +121,15 @@ for (boolean withSystemKey: [true, false]) {
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'
+      dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {
         if (version.onOrAfter('5.1.0')) {
           // The setting didn't exist until 5.1.0
           setting 'xpack.security.system_key.required', 'true'
         }
-        extraConfigFile 'x-pack/system_key', 'src/test/resources/system_key'
+        extraConfigFile 'x-pack/system_key',
+            "${mainProject.projectDir}/src/test/resources/system_key"
       }
     }
 
@@ -114,10 +151,13 @@ for (boolean withSystemKey: [true, false]) {
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'
       setting 'node.attr.upgraded', 'first'
+      dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+      setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
       if (withSystemKey) {
         setting 'xpack.security.system_key.required', 'true'
-        extraConfigFile 'x-pack/system_key', 'src/test/resources/system_key'
+        extraConfigFile 'x-pack/system_key',
+            "${mainProject.projectDir}/src/test/resources/system_key"
       }
     }
 
@@ -139,10 +179,13 @@ for (boolean withSystemKey: [true, false]) {
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'
+      dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+      setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
       if (withSystemKey) {
         setting 'xpack.security.system_key.required', 'true'
-        extraConfigFile 'x-pack/system_key', 'src/test/resources/system_key'
+        extraConfigFile 'x-pack/system_key',
+            "${mainProject.projectDir}/src/test/resources/system_key"
       }
     }
 
@@ -171,48 +214,39 @@ for (boolean withSystemKey: [true, false]) {
 
     bwcTest.dependsOn(versionBwcTest)
   }
-}
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+  test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
-// basic integ tests includes testing bwc against the most recent version
-task integTest {
-  dependsOn = [
-    "v${wireCompatVersions[-1]}WithSystemKey#bwcTest",
-    "v${wireCompatVersions[-1]}WithoutSystemKey#bwcTest",
-  ]
-}
-check.dependsOn(integTest)
+  // basic integ tests includes testing bwc against the most recent version
+  task integTest {
+    dependsOn = ["v${wireCompatVersions[-1]}#bwcTest"]
+  }
+  check.dependsOn(integTest)
 
-dependencies {
+  dependencies {
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
-}
+  }
 
-// copy x-pack plugin info so it is on the classpath and security manager has the right permissions
-task copyXPackRestSpec(type: Copy) {
+  // copy x-pack plugin info so it is on the classpath and security manager has the right permissions
+  task copyXPackRestSpec(type: Copy) {
     dependsOn(project.configurations.restSpec, 'processTestResources')
     from project(':x-pack-elasticsearch:plugin').sourceSets.test.resources
     include 'rest-api-spec/api/**'
     into project.sourceSets.test.output.resourcesDir
-}
+  }
 
-task copyXPackPluginProps(type: Copy) {
+  task copyXPackPluginProps(type: Copy) {
     dependsOn(copyXPackRestSpec)
     from project(':x-pack-elasticsearch:plugin').file('src/main/plugin-metadata')
     from project(':x-pack-elasticsearch:plugin').tasks.pluginProperties
     into outputDir
-}
-project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
+  }
+  project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
-repositories {
+  repositories {
     maven {
-        url "https://oss.sonatype.org/content/repositories/snapshots/"
+      url "https://artifacts.elastic.co/maven"
     }
-    maven {
-        url "https://artifacts.elastic.co/maven"
-    }
-    maven {
-        url "https://snapshots.elastic.co/maven"
-    }
+  }
 }

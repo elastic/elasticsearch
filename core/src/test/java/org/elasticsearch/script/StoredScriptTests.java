@@ -266,10 +266,11 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             assertThat(parsed, equalTo(source));
         }
+        assertWarnings("Deprecated field [code] used, expected [source] instead");
 
         // complex script with script object and empty options
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code")
+            builder.startObject().field("script").startObject().field("lang", "lang").field("source", "code")
                 .field("options").startObject().endObject().endObject().endObject();
 
             StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
@@ -280,7 +281,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
         // complex script with embedded template
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script").startObject().field("lang", "lang").startObject("code").field("query", "code")
+            builder.startObject().field("script").startObject().field("lang", "lang").startObject("source").field("query", "code")
                 .endObject().startObject("options").endObject().endObject().endObject().string();
             String code;
 
@@ -308,7 +309,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
         // check for missing lang parameter when parsing a script
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script").startObject().field("code", "code").endObject().endObject();
+            builder.startObject().field("script").startObject().field("source", "code").endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
                 StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
@@ -326,7 +327,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
         // check for illegal options parameter when parsing a script
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code")
+            builder.startObject().field("script").startObject().field("lang", "lang").field("source", "code")
                 .startObject("options").field("option", "option").endObject().endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->

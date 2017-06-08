@@ -223,9 +223,7 @@ public final class Script implements ToXContentObject, Writeable {
          */
         private Script build(String defaultLang) {
             if (type == null) {
-                throw new IllegalArgumentException(
-                    "must specify either code for an [" + ScriptType.INLINE.getParseField().getPreferredName() + "] script " +
-                        "or an id for a [" + ScriptType.STORED.getParseField().getPreferredName() + "] script");
+                throw new IllegalArgumentException("must specify either [source] for an inline script or [id] for a stored script");
             }
 
             if (type == ScriptType.INLINE) {

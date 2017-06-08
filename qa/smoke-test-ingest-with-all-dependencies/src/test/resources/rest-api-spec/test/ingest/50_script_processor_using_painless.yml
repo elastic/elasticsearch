@@ -9,7 +9,7 @@
             "processors": [
               {
                 "script" : {
-                  "inline": "ctx.bytes_total = (ctx.bytes_in + ctx.bytes_out) * params.factor",
+                  "source": "ctx.bytes_total = (ctx.bytes_in + ctx.bytes_out) * params.factor",
                   "params": {
                      "factor": 10
                   }
@@ -98,13 +98,13 @@
             "processors": [
               {
                 "script" : {
-                  "inline": "invalid painless, hear me roar!"
+                  "source": "invalid painless, hear me roar!"
                 }
               }
             ]
           }
   - match: { error.header.processor_type: "script" }
-  - match: { error.header.property_name: "inline" }
+  - match: { error.header.property_name: "source" }
   - match: { error.type: "script_exception" }
   - match: { error.reason: "compile error" }
 

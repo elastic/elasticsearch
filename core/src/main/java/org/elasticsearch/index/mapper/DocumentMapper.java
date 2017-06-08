@@ -48,6 +48,10 @@ import java.util.Objects;
 import static java.util.Collections.emptyMap;
 
 public class DocumentMapper implements ToXContent {
+    /**
+     * The default type for 6.0 onwards indices where only a single type is allowed
+     */
+    public static String DEFAULT_DOC_TYPE = "doc";
 
     public static class Builder {
 

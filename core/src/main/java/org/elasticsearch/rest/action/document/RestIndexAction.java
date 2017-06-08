@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -35,6 +36,9 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+// TODO once the typeless API is backported to 5.5 we can cut over existing tests such that they don't use typed APIs
+// anymore. Once this is done we can add deprecation warnings to the typed APIs and add specific 6.x only tests for this.
+// We need to do this in RestIndexAction, RestGetAction and RestBulkAction
 public class RestIndexAction extends BaseRestHandler {
     public RestIndexAction(Settings settings, RestController controller) {
         super(settings);
@@ -44,6 +48,11 @@ public class RestIndexAction extends BaseRestHandler {
         CreateHandler createHandler = new CreateHandler(settings);
         controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
+        // new typeless API added in 5.5
+        controller.registerHandler(POST, "/{index}/_doc", this); // auto id creation
+        controller.registerHandler(PUT, "/{index}/_doc/{id}", this);
+        controller.registerHandler(PUT, "/{index}/_doc/{id}/_create", createHandler);
+        controller.registerHandler(POST, "/{index}/_doc/{id}/_create", createHandler);
     }
 
     @Override
@@ -70,7 +79,8 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
+        IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type",  DocumentMapper.DEFAULT_DOC_TYPE),
+            request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.parent(request.param("parent"));
         indexRequest.setPipeline(request.param("pipeline"));

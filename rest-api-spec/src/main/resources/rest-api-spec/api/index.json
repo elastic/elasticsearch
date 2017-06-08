@@ -3,8 +3,7 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html",
     "methods": ["POST", "PUT"],
     "url": {
-      "path": "/{index}/{type}",
-      "paths": ["/{index}/{type}", "/{index}/{type}/{id}"],
+      "paths": ["/{index}/{type}", "/{index}/_doc", "/{index}/{type}/{id}", "/{index}/_doc/{id}"],
       "parts": {
         "id": {
           "type" : "string",
@@ -17,7 +16,7 @@
         },
         "type": {
           "type" : "string",
-          "required" : true,
+          "required" : false,
           "description" : "The type of the document"
         }
       },

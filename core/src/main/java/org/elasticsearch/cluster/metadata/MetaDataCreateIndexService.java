@@ -238,9 +238,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         try {
                             validate(request, currentState);
 
-                            for (Alias alias : request.aliases()) {
-                                aliasValidator.validateAlias(alias, request.index(), currentState.metaData());
-                            }
+                            request.aliases().forEach(a -> aliasValidator.validateAlias(a, request.index(), currentState.metaData()));
 
                             // we only find a template when its an API call (a new index)
                             // find templates, highest order are better matching
@@ -255,13 +253,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                             List<String> templateNames = new ArrayList<>();
 
+                            //@todo checked exception here
                             for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
                                 mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
                             }
 
-                            for (Map.Entry<String, Custom> entry : request.customs().entrySet()) {
-                                customs.put(entry.getKey(), entry.getValue());
-                            }
+                            request.customs().forEach((key, value) -> customs.put(key, value));
 
                             // apply templates, merging the mappings into the request mapping if exists
                             for (IndexTemplateMetaData template : templates) {
@@ -311,35 +308,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                     templatesAliases.put(aliasMetaData.alias(), aliasMetaData);
                                 }
                             }
-                            Settings.Builder indexSettingsBuilder = Settings.builder();
-                            // apply templates, here, in reverse order, since first ones are better matching
-                            for (int i = templates.size() - 1; i >= 0; i--) {
-                                indexSettingsBuilder.put(templates.get(i).settings());
-                            }
-                            // now, put the request settings, so they override templates
-                            indexSettingsBuilder.put(request.settings());
-                            if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
-                            }
-                            if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                            }
-                            if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
-                                indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
-                            }
 
-                            if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
-                                DiscoveryNodes nodes = currentState.nodes();
-                                final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
-                                indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
-                            }
+                            Settings.Builder indexSettingsBuilder = getBuilder(request, currentState, templates);
 
-                            if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
-                                indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
-                            }
-                            indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
-                            indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                             final Index shrinkFromIndex = request.shrinkFrom();
+
                             int routingNumShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettingsBuilder.build());;
                             if (shrinkFromIndex != null) {
                                 prepareShrinkIndexSettings(currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex,
@@ -349,6 +322,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             }
 
                             Settings actualIndexSettings = indexSettingsBuilder.build();
+
+
+
                             IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index())
                                 .setRoutingNumShards(routingNumShards);
                             // Set up everything, now locally create the index to see that things are ok, and apply
@@ -472,6 +448,42 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 indicesService.removeIndex(createdIndex, removalReason, removalExtraInfo);
                             }
                         }
+                    }
+
+                    private Settings.Builder getBuilder(CreateIndexClusterStateUpdateRequest request, ClusterState currentState,
+                                                         List<IndexTemplateMetaData> templates) {
+                        Settings.Builder indexSettingsBuilder = Settings.builder();
+                        // apply templates, here, in reverse order, since first ones are better matching
+                        for (int i = templates.size() - 1; i >= 0; i--) {
+                            indexSettingsBuilder.put(templates.get(i).settings());
+                        }
+                        // now, put the request settings, so they override templates
+                        indexSettingsBuilder.put(request.settings());
+
+                        //@todo merge settings with default
+                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
+                        }
+                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                        }
+                        if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
+                            indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
+                        }
+
+                        if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
+                            DiscoveryNodes nodes = currentState.nodes();
+                            final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
+                            indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
+                        }
+
+                        if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
+                            indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
+                        }
+                        indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
+                        indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+
+                        return indexSettingsBuilder;
                     }
 
                     @Override

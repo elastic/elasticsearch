@@ -28,7 +28,7 @@ public class PipelineHttpResourceTests extends AbstractPublishableHttpResourceTe
     private final String pipelineName = ".my_pipeline";
     private final byte[] pipelineBytes = new byte[] { randomByte(), randomByte(), randomByte() };
     private final Supplier<byte[]> pipeline = () -> pipelineBytes;
-    private final int minimumVersion = randomFrom(MonitoringTemplateUtils.LAST_UPDATED_VERSION, Version.CURRENT.id);
+    private final int minimumVersion = Math.min(MonitoringTemplateUtils.LAST_UPDATED_VERSION, Version.CURRENT.id);
 
     private final PipelineHttpResource resource = new PipelineHttpResource(owner, masterTimeout, pipelineName, pipeline);
 

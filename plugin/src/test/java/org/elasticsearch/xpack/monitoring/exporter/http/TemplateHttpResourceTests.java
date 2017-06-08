@@ -28,7 +28,7 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
     private final String templateName = ".my_template";
     private final String templateValue = "{\"template\":\".xyz-*\",\"mappings\":{}}";
     private final Supplier<String> template = () -> templateValue;
-    private final int minimumVersion = randomFrom(MonitoringTemplateUtils.LAST_UPDATED_VERSION, Version.CURRENT.id);
+    private final int minimumVersion = Math.min(MonitoringTemplateUtils.LAST_UPDATED_VERSION, Version.CURRENT.id);
 
     private final TemplateHttpResource resource = new TemplateHttpResource(owner, masterTimeout, templateName, template);
 

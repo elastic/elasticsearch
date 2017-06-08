@@ -371,14 +371,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
                     new StringEntity("{\"" + resourceName + "\":{\"version\":" + olderVersion + "}}", ContentType.APPLICATION_JSON)
                 );
                 break;
-            // the version is there, and it's >= to what we expect
+            // the version is there and it's exactly what we specify
             case EXISTS:
-                final int version = randomFrom(
-                    Math.max(minimumVersion, Version.CURRENT.id),
-                    minimumVersion + randomIntBetween(1, 100000)
-                );
-
-                entity = new StringEntity("{\"" + resourceName + "\":{\"version\":" + version + "}}", ContentType.APPLICATION_JSON);
+                entity = new StringEntity("{\"" + resourceName + "\":{\"version\":" + minimumVersion + "}}", ContentType.APPLICATION_JSON);
                 break;
             // malformed
             case ERROR:

@@ -32,7 +32,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private final String watchId = randomFrom(ClusterAlertsUtil.WATCH_IDS);
     private final String watchValue = "{\"totally-valid\":{}}";
-    private final int minimumVersion = randomFrom(ClusterAlertsUtil.LAST_UPDATED_VERSION, Version.CURRENT.id);
+    private final int minimumVersion = Math.min(ClusterAlertsUtil.LAST_UPDATED_VERSION, Version.CURRENT.id);
 
     private final ClusterAlertHttpResource resource = new ClusterAlertHttpResource(owner, licenseState, () -> watchId, () -> watchValue);
 

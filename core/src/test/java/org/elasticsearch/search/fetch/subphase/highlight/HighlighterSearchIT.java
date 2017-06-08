@@ -1455,14 +1455,37 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         for (String type : UNIFIED_AND_NULL) {
             SearchSourceBuilder source = searchSource()
-                .query(matchPhrasePrefixQuery("field0", "quick bro"))
+                .query(matchPhrasePrefixQuery("field0", "bro"))
                 .highlighter(highlight().field("field0").order("score").preTags("<x>").postTags("</x>").highlighterType(type));
 
             SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
+            assertHighlight(searchResponse, 0, "field0", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
+
+            source = searchSource()
+                .query(matchPhrasePrefixQuery("field0", "quick bro"))
+                .highlighter(highlight().field("field0").order("score").preTags("<x>").postTags("</x>").highlighterType(type));
+
+            searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+
             assertHighlight(searchResponse, 0, "field0", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
 
             logger.info("--> highlighting and searching on field1");
+            source = searchSource()
+                .query(boolQuery()
+                    .should(matchPhrasePrefixQuery("field1", "test"))
+                    .should(matchPhrasePrefixQuery("field1", "bro"))
+                )
+                .highlighter(highlight().field("field1").order("score").preTags("<x>").postTags("</x>").highlighterType(type));
+
+            searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+            assertThat(searchResponse.getHits().totalHits, equalTo(2L));
+            for (int i = 0; i < 2; i++) {
+                assertHighlight(searchResponse, i, "field1", 0, 1, anyOf(
+                    equalTo("The quick <x>browse</x> button is a fancy thing, right <x>bro</x>?"),
+                    equalTo("The quick <x>brown</x> fox jumps over the lazy dog")));
+            }
+
             source = searchSource()
                 .query(matchPhrasePrefixQuery("field1", "quick bro"))
                 .highlighter(highlight().field("field1").order("score").preTags("<x>").postTags("</x>").highlighterType(type));

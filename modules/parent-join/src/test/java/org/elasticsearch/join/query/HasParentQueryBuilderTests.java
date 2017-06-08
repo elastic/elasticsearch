@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -61,8 +62,9 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
-    protected static final String PARENT_TYPE = "parent";
-    protected static final String CHILD_TYPE = "child";
+    private static final String TYPE = "doc";
+    private static final String PARENT_DOC = "parent";
+    private static final String CHILD_DOC = "child";
 
     boolean requiresRewrite = false;
 
@@ -75,15 +77,14 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     protected Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
-            .put("index.mapping.single_type", false)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
     }
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        // TODO: use a single type when inner hits have been changed to work with join field,
-        // this test randomly generates queries with inner hits
-        mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
+        mapperService.merge(TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(TYPE,
+                "join_field", "type=join," + PARENT_DOC + "=" + CHILD_DOC,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",
                 INT_FIELD_NAME, "type=integer",
@@ -91,18 +92,6 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        mapperService.merge(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
-                "_parent", "type=" + PARENT_TYPE,
-                STRING_FIELD_NAME, "type=text",
-                STRING_FIELD_NAME_2, "type=keyword",
-                INT_FIELD_NAME, "type=integer",
-                DOUBLE_FIELD_NAME, "type=double",
-                BOOLEAN_FIELD_NAME, "type=boolean",
-                DATE_FIELD_NAME, "type=date",
-                OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        mapperService.merge("just_a_type", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("just_a_type"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
@@ -116,7 +105,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             requiresRewrite = true;
             innerQueryBuilder = new WrapperQueryBuilder(innerQueryBuilder.toString());
         }
-        HasParentQueryBuilder hqb = new HasParentQueryBuilder(PARENT_TYPE, innerQueryBuilder, randomBoolean());
+        HasParentQueryBuilder hqb = new HasParentQueryBuilder(PARENT_DOC, innerQueryBuilder, randomBoolean());
         hqb.ignoreUnmapped(randomBoolean());
         if (randomBoolean()) {
             hqb.innerHit(new InnerHitBuilder()
@@ -183,7 +172,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         QueryShardContext context = createShardContext();
         HasParentQueryBuilder qb = hasParentQuery("just_a_type", new MatchAllQueryBuilder(), false);
         QueryShardException qse = expectThrows(QueryShardException.class, () -> qb.doToQuery(context));
-        assertThat(qse.getMessage(), equalTo("[has_parent] no child types found for type [just_a_type]"));
+        assertThat(qse.getMessage(), equalTo("[has_parent] join field [join_field] doesn't hold [just_a_type] as a parent"));
     }
 
     public void testDeprecatedXContent() throws IOException {
@@ -201,15 +190,15 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     }
 
     public void testToQueryInnerQueryType() throws IOException {
-        String[] searchTypes = new String[]{CHILD_TYPE};
+        String[] searchTypes = new String[]{TYPE};
         QueryShardContext shardContext = createShardContext();
         shardContext.setTypes(searchTypes);
-        HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(PARENT_TYPE, new IdsQueryBuilder().addIds("id"),
+        HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(PARENT_DOC, new IdsQueryBuilder().addIds("id"),
                 false);
         Query query = hasParentQueryBuilder.toQuery(shardContext);
         //verify that the context types are still the same as the ones we previously set
         assertThat(shardContext.getTypes(), equalTo(searchTypes));
-        HasChildQueryBuilderTests.assertLateParsingQuery(query, PARENT_TYPE, "id");
+        HasChildQueryBuilderTests.assertLateParsingQuery(query, PARENT_DOC, "id");
     }
 
     @Override
@@ -258,7 +247,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(),
-                    containsString("[" + HasParentQueryBuilder.NAME + "] query configured 'parent_type' [unmapped] is not a valid type"));
+                    containsString("[has_parent] join field [join_field] doesn't hold [unmapped] as a parent"));
     }
 
     public void testIgnoreUnmappedWithRewrite() throws IOException {

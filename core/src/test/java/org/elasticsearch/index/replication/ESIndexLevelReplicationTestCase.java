@@ -105,7 +105,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(index.getName())
             .settings(settings)
-            .primaryTerm(0, 1);
+            .primaryTerm(0, randomIntBetween(1, 100));
         for (Map.Entry<String, String> typeMapping : mappings.entrySet()) {
             metaData.putMapping(typeMapping.getKey(), typeMapping.getValue());
         }

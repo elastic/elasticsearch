@@ -28,6 +28,8 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class VersionUtilsTests extends ESTestCase {
 
@@ -86,6 +88,12 @@ public class VersionUtilsTests extends ESTestCase {
         assertEquals(got, VersionUtils.getFirstVersion());
         got = VersionUtils.randomVersionBetween(random(), Version.CURRENT, null);
         assertEquals(got, Version.CURRENT);
+
+        // max or min can be an unreleased version
+        Version unreleased = randomFrom(VersionUtils.allUnreleasedVersions());
+        assertThat(VersionUtils.randomVersionBetween(random(), null, unreleased), lessThanOrEqualTo(unreleased));
+        assertThat(VersionUtils.randomVersionBetween(random(), unreleased, null), greaterThanOrEqualTo(unreleased));
+        assertEquals(unreleased, VersionUtils.randomVersionBetween(random(), unreleased, unreleased));
     }
 
     static class TestReleaseBranch {
@@ -193,7 +201,7 @@ public class VersionUtilsTests extends ESTestCase {
         // This *should* be:
         //         Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
         // But instead it is:
-        Version minimumCompatibleVersion = Version.V_5_5_0;
+        Version minimumCompatibleVersion = Version.V_5_6_0;
         // Because things blow up all over the place if the minimum compatible version isn't released.
         // We'll fix this very, very soon. But for now, this hack.
         // end big horrible hack

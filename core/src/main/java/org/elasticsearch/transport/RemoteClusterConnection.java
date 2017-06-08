@@ -213,51 +213,46 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
      * that returns <code>null</code> if the node ID is not found.
      */
     void collectNodes(ActionListener<Function<String, DiscoveryNode>> listener) {
-        try {
-            Runnable runnable = () -> {
-                final ClusterStateRequest request = new ClusterStateRequest();
-                request.clear();
-                request.nodes(true);
-                request.local(true); // run this on the node that get's the request it's as good as any other
-                final DiscoveryNode node = nodeSupplier.get();
-                transportService.sendRequest(node, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
-                    new TransportResponseHandler<ClusterStateResponse>() {
-                        @Override
-                        public ClusterStateResponse newInstance() {
-                            return new ClusterStateResponse();
-                        }
+        Runnable runnable = () -> {
+            final ClusterStateRequest request = new ClusterStateRequest();
+            request.clear();
+            request.nodes(true);
+            request.local(true); // run this on the node that get's the request it's as good as any other
+            final DiscoveryNode node = nodeSupplier.get();
+            transportService.sendRequest(node, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
+                new TransportResponseHandler<ClusterStateResponse>() {
+                    @Override
+                    public ClusterStateResponse newInstance() {
+                        return new ClusterStateResponse();
+                    }
 
-                        @Override
-                        public void handleResponse(ClusterStateResponse response) {
-                            DiscoveryNodes nodes = response.getState().nodes();
-                            listener.onResponse(nodes::get);
-                        }
+                    @Override
+                    public void handleResponse(ClusterStateResponse response) {
+                        DiscoveryNodes nodes = response.getState().nodes();
+                        listener.onResponse(nodes::get);
+                    }
 
-                        @Override
-                        public void handleException(TransportException exp) {
-                            listener.onFailure(exp);
-                        }
+                    @Override
+                    public void handleException(TransportException exp) {
+                        listener.onFailure(exp);
+                    }
 
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
-                        }
-                    });
-            };
-            if (connectedNodes.isEmpty()) {
-                // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
-                // this will cause some back pressure on the search end and eventually will cause rejections but that's fine
-                // we can't proceed with a search on a cluster level.
-                // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the caller
-                // end since they provide the listener.
-                ensureConnected(ActionListener.wrap((x) -> runnable.run(), listener::onFailure));
-            } else {
-                runnable.run();
-            }
-        } catch (Exception ex) {
-            listener.onFailure(ex);
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+                });
+        };
+        if (connectedNodes.isEmpty()) {
+            // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
+            // this will cause some back pressure on the search end and eventually will cause rejections but that's fine
+            // we can't proceed with a search on a cluster level.
+            // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the
+            // caller end since they provide the listener.
+            ensureConnected(ActionListener.wrap((x) -> runnable.run(), listener::onFailure));
+        } else {
+            runnable.run();
         }
-
     }
 
     /**

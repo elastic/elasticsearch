@@ -175,7 +175,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     private void removeBanOnNodes(CancellableTask task, DiscoveryNodes nodes) {
         sendRemoveBanRequest(nodes,
-            BanParentTaskRequest.createRemoveBanParentTaskRequest(new TaskId(clusterService.localNode().getId(), task.getId())));
+            BanParentTaskRequest.createRemoveBanParentTaskRequest(new TaskId(nodes.getLocalNodeId(), task.getId())));
     }
 
     private void sendSetBanRequest(DiscoveryNodes nodes, BanParentTaskRequest request, ActionListener<Void> listener) {
@@ -290,12 +290,10 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         @Override
         public void messageReceived(final BanParentTaskRequest request, final TransportChannel channel) throws Exception {
             if (request.ban) {
-                logger.debug("Received ban for the parent [{}] on the node [{}], reason: [{}]", request.parentTaskId,
-                    clusterService.localNode().getId(), request.reason);
+                logger.debug("Received ban for the parent [{}], reason: [{}]", request.parentTaskId, request.reason);
                 taskManager.setBan(request.parentTaskId, request.reason);
             } else {
-                logger.debug("Removing ban for the parent [{}] on the node [{}]", request.parentTaskId,
-                    clusterService.localNode().getId());
+                logger.debug("Removing ban for the parent [{}]", request.parentTaskId);
                 taskManager.removeBan(request.parentTaskId);
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);

@@ -180,15 +180,14 @@ public class JobProvider {
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
         String indexName = job.getResultsIndexName();
 
-        final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
+        final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success ->
                     client.admin().indices().prepareAliases()
                             .addAlias(indexName, readAliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
                             .addAlias(indexName, writeAliasName)
                             // we could return 'success && r.isAcknowledged()' instead of 'true', but that makes
                             // testing not possible as we can't create IndicesAliasesResponse instance or
                             // mock IndicesAliasesResponse#isAcknowledged()
-                            .execute(ActionListener.wrap(r -> finalListener.onResponse(true), finalListener::onFailure));
-                },
+                            .execute(ActionListener.wrap(r -> finalListener.onResponse(true), finalListener::onFailure)),
                 finalListener::onFailure);
 
         // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
@@ -295,6 +294,7 @@ public class JobProvider {
     private SearchRequestBuilder createLatestDataCountsSearch(String indexName, String jobId) {
         return client.prepareSearch(indexName)
                 .setSize(1)
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 // look for both old and new formats
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId)))
                 .addSort(SortBuilders.fieldSort(DataCounts.LATEST_RECORD_TIME.getPreferredName()).order(SortOrder.DESC));
@@ -482,15 +482,13 @@ public class JobProvider {
             } else {
                 handler.accept(buckets);
             }
-        }, e -> { errorHandler.accept(mapAuthFailure(e, jobId, GetBucketsAction.NAME)); }));
+        }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetBucketsAction.NAME))));
     }
 
     private void expandBuckets(String jobId, BucketsQuery query, QueryPage<Bucket> buckets, Iterator<Bucket> bucketsToExpand,
                                Consumer<QueryPage<Bucket>> handler, Consumer<Exception> errorHandler, Client client) {
         if (bucketsToExpand.hasNext()) {
-            Consumer<Integer> c = i -> {
-                expandBuckets(jobId, query, buckets, bucketsToExpand, handler, errorHandler, client);
-            };
+            Consumer<Integer> c = i -> expandBuckets(jobId, query, buckets, bucketsToExpand, handler, errorHandler, client);
             expandBucket(jobId, query.isIncludeInterim(), bucketsToExpand.next(), query.getPartitionValue(), c, errorHandler, client);
         } else {
             handler.accept(buckets);
@@ -750,7 +748,7 @@ public class JobProvider {
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         SearchRequestBuilder search = createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, modelSnapshotId));
         searchSingleResult(jobId, ModelSnapshot.TYPE.getPreferredName(), search, ModelSnapshot.PARSER,
-                result -> handler.accept(result.result == null ? null : new Result(result.index, result.result.build())),
+                result -> handler.accept(result.result == null ? null : new Result<ModelSnapshot>(result.index, result.result.build())),
                 errorHandler, () -> null);
     }
 
@@ -953,9 +951,9 @@ public class JobProvider {
                     SearchHit[] hits = response.getHits().getHits();
                     if (hits.length == 0) {
                         LOGGER.trace("No {} for job with id {}", resultDescription, jobId);
-                        handler.accept(new Result(null, notFoundSupplier.get()));
+                        handler.accept(new Result<>(null, notFoundSupplier.get()));
                     } else if (hits.length == 1) {
-                        handler.accept(new Result(hits[0].getIndex(), parseSearchHit(hits[0], objectParser, errorHandler)));
+                        handler.accept(new Result<>(hits[0].getIndex(), parseSearchHit(hits[0], objectParser, errorHandler)));
                     } else {
                         errorHandler.accept(new IllegalStateException("Search for unique [" + resultDescription + "] returned ["
                                 + hits.length + "] hits even though size was 1"));
@@ -967,6 +965,7 @@ public class JobProvider {
     private SearchRequestBuilder createLatestModelSizeStatsSearch(String indexName) {
         return client.prepareSearch(indexName)
                 .setSize(1)
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_VALUE))
                 .addSort(SortBuilders.fieldSort(ModelSizeStats.LOG_TIME_FIELD.getPreferredName()).order(SortOrder.DESC));
     }

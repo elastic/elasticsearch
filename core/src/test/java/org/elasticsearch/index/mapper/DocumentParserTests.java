@@ -639,7 +639,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .value(0)
                 .value(1)
             .endArray().endObject().bytes();
-        MapperParsingException exception = expectThrows(MapperParsingException.class, 
+        MapperParsingException exception = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals("Could not dynamically add mapping for field [foo.bar.baz]. "
                 + "Existing mapping for [foo] must be of type object but found [long].", exception.getMessage());
@@ -758,7 +758,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         BytesReference bytes = XContentFactory.jsonBuilder()
                 .startObject().field("foo.bar.baz", 0)
             .endObject().bytes();
-        MapperParsingException exception = expectThrows(MapperParsingException.class, 
+        MapperParsingException exception = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertEquals("Could not dynamically add mapping for field [foo.bar.baz]. "
                 + "Existing mapping for [foo] must be of type object but found [long].", exception.getMessage());
@@ -880,7 +880,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         BytesReference bytes = XContentFactory.jsonBuilder().startObject().startObject("foo.bar.baz").field("a", 0).endObject().endObject()
                 .bytes();
-        MapperParsingException exception = expectThrows(MapperParsingException.class, 
+        MapperParsingException exception = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
 
         assertEquals("Could not dynamically add mapping for field [foo.bar.baz]. "
@@ -1017,7 +1017,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject()
-                .bytes(), 
+                .bytes(),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
@@ -1030,13 +1030,15 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
 
+        assertThat(defaultMapper.type(), equalTo("type"));
+
         ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")
                 .field("test1", "value1")
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject().endObject()
-                .bytes(), 
+                .bytes(),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("type.test1"), equalTo("value1"));
@@ -1056,7 +1058,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject()
-                .bytes(), 
+                .bytes(),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("type"), equalTo("value_type"));
@@ -1077,7 +1079,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject().endObject()
-                .bytes(), 
+                .bytes(),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("type.type"), equalTo("value_type"));
@@ -1098,7 +1100,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .field("test2", "value2")
                 .startObject("inner").field("inner_field", "inner_value").endObject()
                 .endObject()
-                .bytes(), 
+                .bytes(),
                 XContentType.JSON));
 
         // in this case, we analyze the type object as the actual document, and ignore the other same level fields

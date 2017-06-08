@@ -71,6 +71,48 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(set("", ".", ".."), extract(".."));
     }
 
+    public void testFieldNameWithDots() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("foo.bar").field("type", "text").endObject()
+            .startObject("foo.baz").field("type", "keyword").endObject()
+            .endObject().endObject().endObject().string();
+
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper docMapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        assertNotNull(docMapper.mappers().getMapper("foo.bar"));
+        assertNotNull(docMapper.mappers().getMapper("foo.baz"));
+        assertNotNull(docMapper.objectMappers().get("foo"));
+    }
+
+    public void testFieldNameWithDeepDots() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("foo.bar").field("type", "text").endObject()
+            .startObject("foo.baz").startObject("properties")
+            .startObject("deep.field").field("type", "keyword").endObject().endObject()
+            .endObject().endObject().endObject().endObject().string();
+
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper docMapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        assertNotNull(docMapper.mappers().getMapper("foo.bar"));
+        assertNotNull(docMapper.mappers().getMapper("foo.baz.deep.field"));
+        assertNotNull(docMapper.objectMappers().get("foo"));
+    }
+
+    public void testFieldNameWithDotsConflict() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("foo").field("type", "text").endObject()
+            .startObject("foo.baz").field("type", "keyword").endObject()
+            .endObject().endObject().endObject().string();
+
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            mapperParser.parse("type", new CompressedXContent(mapping)));
+        assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] of different type"));
+    }
+
     public void testFieldType() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").endObject()

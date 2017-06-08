@@ -3,6 +3,8 @@ setup:
       indices.create:
         index: test
         body:
+            settings:
+              mapping.single_type: true
             mappings:
               doc:
                 properties:
@@ -13,8 +15,8 @@ setup:
 ---
 "Parent/child inner hits":
     - skip:
-        version: " - 5.99.99"
-        reason:  mapping.single_type was added in 6.0
+        version: " - 5.4.99"
+        reason:  mapping.single_type was added in 5.5
 
     - do:
         index:

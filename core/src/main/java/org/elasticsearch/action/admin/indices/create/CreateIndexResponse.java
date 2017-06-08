@@ -34,7 +34,7 @@ public class CreateIndexResponse extends AcknowledgedResponse {
 
     private boolean shardsAcked;
     private String index;
-    private Version minimumVersionWithIndex = Version.CURRENT; // TODO set version
+    private Version minimumVersionWithIndex = Version.V_5_6_0;
 
     protected CreateIndexResponse() {
     }

@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -27,6 +30,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -36,8 +41,11 @@ import java.util.Set;
 
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 
@@ -64,6 +72,16 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(client.admin()).thenReturn(adminClient);
+        doAnswer(new Answer<Void>() {
+            @SuppressWarnings("unchecked")
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) {
+                ActionListener<PutIndexTemplateResponse> listener =
+                        (ActionListener<PutIndexTemplateResponse>) invocationOnMock.getArguments()[2];
+                listener.onResponse(new TestPutIndexTemplateResponse(true));
+                return null;
+            }
+        }).when(client).execute(same(PutIndexTemplateAction.INSTANCE), any(), any());
 
         ClusterService clusterService = mock(ClusterService.class);
         registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterSettings, clusterService, threadPool, internalClient);
@@ -101,5 +119,15 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
                 WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME));
         registry.clusterChanged(newEvent);
         verify(client, times(4)).execute(anyObject(), argumentCaptor.capture(), anyObject());
+    }
+
+    private static class TestPutIndexTemplateResponse extends PutIndexTemplateResponse {
+        TestPutIndexTemplateResponse(boolean acknowledged) {
+            super(acknowledged);
+        }
+
+        TestPutIndexTemplateResponse() {
+            super();
+        }
     }
 }

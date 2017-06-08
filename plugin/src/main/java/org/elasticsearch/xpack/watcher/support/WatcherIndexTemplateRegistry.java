@@ -28,7 +28,10 @@ import org.elasticsearch.xpack.template.TemplateUtils;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.unmodifiableMap;
@@ -58,6 +61,8 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TemplateConfig[] indexTemplates;
+
+    private final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
 
     private volatile Map<String, Settings> customIndexSettings;
 
@@ -99,11 +104,17 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
 
     void addTemplatesIfMissing(ClusterState state) {
         for (TemplateConfig template : indexTemplates) {
-            if (!state.metaData().getTemplates().containsKey(template.getTemplateName())) {
-                logger.debug("adding index template [{}], because it doesn't exist", template.getTemplateName());
-                putTemplate(template);
-            } else {
-                logger.trace("not adding index template [{}], because it already exists", template.getTemplateName());
+            final String templateName = template.getTemplateName();
+            final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
+            if (creationCheck.compareAndSet(false, true)) {
+                if (!state.metaData().getTemplates().containsKey(templateName)) {
+
+                    logger.debug("adding index template [{}], because it doesn't exist", templateName);
+                    putTemplate(template, creationCheck);
+                } else {
+                    creationCheck.set(false);
+                    logger.trace("not adding index template [{}], because it already exists", templateName);
+                }
             }
         }
     }
@@ -145,17 +156,18 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             Map<String, Settings> customIndexSettings = new HashMap<String, Settings>(this.customIndexSettings);
             customIndexSettings.put(config.getSetting().getKey(), builder.build());
             this.customIndexSettings = customIndexSettings;
-            putTemplate(config);
+            putTemplate(config, templateCreationsInProgress.computeIfAbsent(config.getTemplateName(), key -> new AtomicBoolean(true)));
         }
     }
 
-    private void putTemplate(final TemplateConfig config) {
+    private void putTemplate(final TemplateConfig config, final AtomicBoolean creationCheck) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
-            final byte[] template = TemplateUtils.loadTemplate("/" + config.getFileName()+ ".json", INDEX_TEMPLATE_VERSION,
+            final String templateName = config.getTemplateName();
+            final byte[] template = TemplateUtils.loadTemplate("/" + config.getFileName() + ".json", INDEX_TEMPLATE_VERSION,
                     Pattern.quote("${xpack.watcher.template.version}")).getBytes(StandardCharsets.UTF_8);
 
-            PutIndexTemplateRequest request = new PutIndexTemplateRequest(config.getTemplateName()).source(template, XContentType.JSON);
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(template, XContentType.JSON);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             Settings customSettings = customIndexSettings.get(config.getSetting().getKey());
             if (customSettings != null && customSettings.names().size() > 0) {
@@ -168,15 +180,16 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
                 @Override
                 public void onResponse(PutIndexTemplateResponse response) {
+                    creationCheck.set(false);
                     if (response.isAcknowledged() == false) {
-                        logger.error("Error adding watcher template [{}], request was not acknowledged", config.getTemplateName());
+                        logger.error("Error adding watcher template [{}], request was not acknowledged", templateName);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("Error adding watcher template [{}]",
-                            config.getTemplateName()), e);
+                    creationCheck.set(false);
+                    logger.error(new ParameterizedMessage("Error adding watcher template [{}]", templateName), e);
                 }
             });
         });

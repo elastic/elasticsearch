@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -31,13 +32,17 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SecurityTests extends ESTestCase {
+
+    private Security security = null;
 
     public static class DummyExtension extends XPackExtension {
         private String realmType;
@@ -59,10 +64,12 @@ public class SecurityTests extends ESTestCase {
     }
 
     private Collection<Object> createComponents(Settings testSettings, XPackExtension... extensions) throws Exception {
-        Settings settings = Settings.builder().put(testSettings)
-            .put("path.home", createTempDir()).build();
+        if (security != null) {
+            throw new IllegalStateException("Security object already exists (" + security + ")");
+        }
+        Settings settings = Settings.builder().put(testSettings).put("path.home", createTempDir()).build();
         Environment env = new Environment(settings);
-        Security security = new Security(settings, env, new XPackLicenseState(), new SSLService(settings, env));
+        security = new Security(settings, env, new XPackLicenseState(), new SSLService(settings, env));
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, false);
@@ -172,5 +179,16 @@ public class SecurityTests extends ESTestCase {
                 () -> Security.additionalSettings(settingsHttp, false));
         assertThat(badHttp.getMessage(), containsString(Security.NAME4));
         assertThat(badHttp.getMessage(), containsString(NetworkModule.HTTP_TYPE_KEY));
+    }
+
+    public void testSettingFilter() throws Exception {
+        createComponents(Settings.EMPTY);
+        final List<String> filter = security.getSettingsFilter(null);
+        assertThat(filter, hasItem(Security.setting("authc.realms.*.bind_dn")));
+        assertThat(filter, hasItem(Security.setting("authc.realms.*.bind_password")));
+        assertThat(filter, hasItem(Security.setting("authc.realms.*." + SessionFactory.HOSTNAME_VERIFICATION_SETTING)));
+        assertThat(filter, hasItem(Security.setting("authc.realms.*.ssl.truststore.password")));
+        assertThat(filter, hasItem(Security.setting("authc.realms.*.ssl.truststore.path")));
+        assertThat(filter, hasItem(Security.setting("authc.realms.*.ssl.truststore.algorithm")));
     }
 }

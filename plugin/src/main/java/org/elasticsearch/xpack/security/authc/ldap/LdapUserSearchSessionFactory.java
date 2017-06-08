@@ -72,8 +72,10 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     private static final Setting<Optional<String>> HEALTH_CHECK_DN = new Setting<>("user_search.pool.health_check.dn", (String) null,
             Optional::ofNullable, Setting.Property.NodeScope);
 
-    private static final Setting<String> BIND_DN = Setting.simpleString("bind_dn", Setting.Property.NodeScope);
-    private static final Setting<String> BIND_PASSWORD = Setting.simpleString("bind_password", Setting.Property.NodeScope);
+    private static final Setting<String> BIND_DN = Setting.simpleString("bind_dn",
+            Setting.Property.NodeScope, Setting.Property.Filtered);
+    private static final Setting<String> BIND_PASSWORD = Setting.simpleString("bind_password",
+            Setting.Property.NodeScope, Setting.Property.Filtered);
 
     private final String userSearchBaseDn;
     private final LdapSearchScope scope;

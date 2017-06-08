@@ -213,16 +213,11 @@ public abstract class SessionFactory {
         settings.addAll(LdapLoadBalancing.getSettings());
         settings.add(Setting.listSetting(URLS_SETTING, Collections.emptyList(), Function.identity(),
                 Setting.Property.NodeScope));
-        settings.add(Setting.timeSetting(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT,
-                Setting.Property.NodeScope));
-        settings.add(Setting.timeSetting(TIMEOUT_TCP_READ_SETTING, TIMEOUT_DEFAULT,
-                Setting.Property.NodeScope));
-        settings.add(Setting.timeSetting(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT,
-                Setting.Property.NodeScope));
-        settings.add(Setting.boolSetting(HOSTNAME_VERIFICATION_SETTING, true,
-                Setting.Property.NodeScope));
-        settings.add(Setting.boolSetting(FOLLOW_REFERRALS_SETTING, true,
-                Setting.Property.NodeScope));
+        settings.add(Setting.timeSetting(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
+        settings.add(Setting.timeSetting(TIMEOUT_TCP_READ_SETTING, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
+        settings.add(Setting.timeSetting(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
+        settings.add(Setting.boolSetting(HOSTNAME_VERIFICATION_SETTING, true, Setting.Property.NodeScope, Setting.Property.Filtered));
+        settings.add(Setting.boolSetting(FOLLOW_REFERRALS_SETTING, true, Setting.Property.NodeScope));
         settings.add(IGNORE_REFERRAL_ERRORS_SETTING);
         settings.addAll(SSLConfigurationSettings.withPrefix("ssl.").getAllSettings());
         return settings;

@@ -376,7 +376,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         filters.add("xpack.notification.pagerduty." + PagerDutyAccount.SERVICE_KEY_SETTING);
         filters.add("xpack.notification.pagerduty.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
         filters.add("xpack.notification.hipchat.account.*.auth_token");
-        filters.addAll(security.getSettingsFilter());
+        filters.addAll(security.getSettingsFilter(extensionsService));
         filters.addAll(MonitoringSettings.getSettingsFilter());
         if (transportClientMode == false) {
             for (XPackExtension extension : extensionsService.getExtensions()) {

@@ -113,15 +113,14 @@ import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
-import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -481,19 +480,15 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     }
 
     
-    public List<String> getSettingsFilter() {
+    public List<String> getSettingsFilter(@Nullable XPackExtensionsService extensionsService) {
         ArrayList<String> settingsFilter = new ArrayList<>();
         String[] asArray = settings.getAsArray(setting("hide_settings"));
         for (String pattern : asArray) {
             settingsFilter.add(pattern);
         }
 
-        settingsFilter.add(setting("authc.realms.*.bind_dn"));
-        settingsFilter.add(setting("authc.realms.*.bind_password"));
-        settingsFilter.add(setting("authc.realms.*." + SessionFactory.HOSTNAME_VERIFICATION_SETTING));
-        settingsFilter.add(setting("authc.realms.*.truststore.password"));
-        settingsFilter.add(setting("authc.realms.*.truststore.path"));
-        settingsFilter.add(setting("authc.realms.*.truststore.algorithm"));
+        final List<XPackExtension> extensions = extensionsService == null ? Collections.emptyList() : extensionsService.getExtensions();
+        settingsFilter.addAll(RealmSettings.getSettingsFilter(extensions));
 
         // hide settings where we don't define them - they are part of a group...
         settingsFilter.add("transport.profiles.*." + setting("*"));

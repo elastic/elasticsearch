@@ -405,8 +405,17 @@ public final class SearchPhaseController extends AbstractComponent {
      * @param queryResults a list of non-null query shard results
      */
     public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults, boolean isScrollRequest) {
-        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(), 0, isScrollRequest);
+        return reducedQueryPhase(queryResults, isScrollRequest, true);
     }
+
+    /**
+     * Reduces the given query results and consumes all aggregations and profile results.
+     * @param queryResults a list of non-null query shard results
+     */
+    public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults, boolean isScrollRequest, boolean trackTotalHits) {
+        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHits), 0, isScrollRequest);
+    }
+
 
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
@@ -711,6 +720,7 @@ public final class SearchPhaseController extends AbstractComponent {
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
+        final boolean trackTotalHits = source == null || source.trackTotalHits();
 
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
@@ -722,18 +732,30 @@ public final class SearchPhaseController extends AbstractComponent {
         return new InitialSearchPhase.SearchPhaseResults(numShards) {
             @Override
             public ReducedQueryPhase reduce() {
-                return reducedQueryPhase(results.asList(), isScrollRequest);
+                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHits);
             }
         };
     }
 
     static final class TopDocsStats {
+        final boolean trackTotalHits;
         long totalHits;
         long fetchHits;
         float maxScore = Float.NEGATIVE_INFINITY;
 
+        TopDocsStats() {
+            this(true);
+        }
+
+        TopDocsStats(boolean trackTotalHits) {
+            this.trackTotalHits = trackTotalHits;
+            this.totalHits = trackTotalHits ? 0 : -1;
+        }
+
         void add(TopDocs topDocs) {
-            totalHits += topDocs.totalHits;
+            if (trackTotalHits) {
+                totalHits += topDocs.totalHits;
+            }
             fetchHits += topDocs.scoreDocs.length;
             if (!Float.isNaN(topDocs.getMaxScore())) {
                 maxScore = Math.max(maxScore, topDocs.getMaxScore());

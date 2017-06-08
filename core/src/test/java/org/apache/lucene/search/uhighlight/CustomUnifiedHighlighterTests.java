@@ -121,6 +121,19 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             BreakIterator.getSentenceInstance(Locale.ROOT), 100, inputs);
     }
 
+    public void testMultiPhrasePrefixQuerySingleTerm() throws Exception {
+        final String[] inputs = {
+            "The quick brown fox."
+        };
+        final String[] outputs = {
+            "The quick <b>brown</b> fox."
+        };
+        MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery();
+        query.add(new Term("text", "bro"));
+        assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
+            BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
+    }
+
     public void testMultiPhrasePrefixQuery() throws Exception {
         final String[] inputs = {
             "The quick brown fox."

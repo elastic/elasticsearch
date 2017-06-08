@@ -25,8 +25,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.join.ParentJoinPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.join.query.ParentChildTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -34,14 +33,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -64,60 +58,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-@ClusterScope(scope = Scope.SUITE)
-public class ChildrenIT extends ESIntegTestCase {
+public class ChildrenIT extends ParentChildTestCase {
     private static final Map<String, Control> categoryToControl = new HashMap<>();
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ParentJoinPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
-    protected boolean legacy() {
-        return false;
-    }
-
-    private IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, Object... fields) {
-        String name = type;
-        if (legacy() == false) {
-            type = "doc";
-        }
-
-        IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index, type, id);
-        if (legacy()) {
-            if (parentId != null) {
-                indexRequestBuilder.setParent(parentId);
-            }
-            indexRequestBuilder.setSource(fields);
-        } else {
-            Map<String, Object> source = new HashMap<>();
-            for (int i = 0; i < fields.length; i += 2) {
-                source.put((String) fields[i], fields[i + 1]);
-            }
-            Map<String, Object> joinField = new HashMap<>();
-            if (parentId != null) {
-                joinField.put("name", name);
-                joinField.put("parent", parentId);
-                indexRequestBuilder.setRouting(parentId);
-            } else {
-                joinField.put("name", name);
-            }
-            source.put("join_field", joinField);
-            indexRequestBuilder.setSource(source);
-        }
-        indexRequestBuilder.setCreate(true);
-        return indexRequestBuilder;
-    }
 
     @Before
     public void setupCluster() throws Exception {

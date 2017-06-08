@@ -86,7 +86,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
     /**
      * Used at query execution time by script service in order to execute a query template.
      * */
-    private class MustacheExecutableScript implements TemplateScript {
+    private class MustacheExecutableScript extends TemplateScript {
         /** Factory template. */
         private Mustache template;
 
@@ -96,6 +96,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
          * @param template the compiled template object wrapper
          **/
         MustacheExecutableScript(Mustache template, Map<String, Object> params) {
+            super(params);
             this.template = template;
             this.params = params;
         }

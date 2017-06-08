@@ -23,7 +23,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Callback;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -37,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Simple utility methods for file and stream copying.
@@ -222,20 +222,15 @@ public abstract class Streams {
 
     public static List<String> readAllLines(InputStream input) throws IOException {
         final List<String> lines = new ArrayList<>();
-        readAllLines(input, new Callback<String>() {
-            @Override
-            public void handle(String line) {
-                lines.add(line);
-            }
-        });
+        readAllLines(input, lines::add);
         return lines;
     }
 
-    public static void readAllLines(InputStream input, Callback<String> callback) throws IOException {
+    public static void readAllLines(InputStream input, Consumer<String> consumer) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                callback.handle(line);
+                consumer.accept(line);
             }
         }
     }

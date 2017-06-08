@@ -51,8 +51,15 @@ if (enabled) {
   apply plugin: 'distribution'
 
   def (String major, String minor, String bugfix) = bwcVersion.split('\\.')
-  String bwcBranch =
-      project.name == 'bwc-stable-snapshot' ? "${major}.x" : "${major}.${minor}"
+  def (String currentMajor, String currentMinor, String currentBugfix) = version.split('\\.')
+  String bwcBranch
+  if (project.name == 'bwc-stable-snapshot') {
+    bwcBranch = "${major}.x"
+  } else if (major != currentMajor) {
+    bwcBranch = "${major}.x"
+  } else {
+    bwcBranch = "${major}.${minor}"
+  }
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
   task createClone(type: LoggedExec) {

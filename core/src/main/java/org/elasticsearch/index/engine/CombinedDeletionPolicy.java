@@ -83,4 +83,8 @@ class CombinedDeletionPolicy extends IndexDeletionPolicy {
     public SnapshotDeletionPolicy getIndexDeletionPolicy() {
         return indexDeletionPolicy;
     }
+
+    public TranslogDeletionPolicy getTranslogDeletionPolicy() {
+        return translogDeletionPolicy;
+    }
 }

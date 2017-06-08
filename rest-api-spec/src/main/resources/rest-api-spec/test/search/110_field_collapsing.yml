@@ -107,8 +107,8 @@ setup:
 "field collapsing and inner_hits":
 
   - skip:
-      version: " - 5.99.99"
-      reason:  disable this test temporary due to a pending backport (#24517)
+      version: " - 5.2.99"
+      reason:  this uses a new API that has been added in 5.3
 
   - do:
       search:

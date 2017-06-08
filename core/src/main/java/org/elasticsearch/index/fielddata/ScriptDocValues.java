@@ -85,76 +85,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         throw new UnsupportedOperationException("doc values are unmodifiable");
     }
 
-    public static final class Strings extends ScriptDocValues<String> {
-
-        private final SortedBinaryDocValues in;
-        private BytesRefBuilder[] values = new BytesRefBuilder[0];
-        private int count;
-
-        public Strings(SortedBinaryDocValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
-                resize(in.docValueCount());
-                for (int i = 0; i < count; i++) {
-                    values[i].copyBytes(in.nextValue());
-                }
-            } else {
-                resize(0);
-            }
-        }
-
-        /**
-         * Set the {@link #size()} and ensure that the {@link #values} array can
-         * store at least that many entries.
-         */
-        protected void resize(int newSize) {
-            count = newSize;
-            if (newSize > values.length) {
-                final int oldLength = values.length;
-                values = ArrayUtil.grow(values, count);
-                for (int i = oldLength; i < values.length; ++i) {
-                    values[i] = new BytesRefBuilder();
-                }
-            }
-        }
-
-        public SortedBinaryDocValues getInternalValues() {
-            return this.in;
-        }
-
-        public BytesRef getBytesValue() {
-            if (size() > 0) {
-                return values[0].get();
-            } else {
-                return null;
-            }
-        }
-
-        public String getValue() {
-            BytesRef value = getBytesValue();
-            if (value == null) {
-                return null;
-            } else {
-                return value.utf8ToString();
-            }
-        }
-
-        @Override
-        public String get(int index) {
-            return values[index].get().utf8ToString();
-        }
-
-        @Override
-        public int size() {
-            return count;
-        }
-
-    }
-
     public static final class Longs extends ScriptDocValues<Long> {
         protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Longs.class));
 
@@ -570,13 +500,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     }
 
-    public static final class BytesRefs extends ScriptDocValues<BytesRef> {
+    abstract static class BinaryScriptDocValues<T> extends ScriptDocValues<T> {
 
         private final SortedBinaryDocValues in;
-        private BytesRef[] values;
-        private int count;
+        protected BytesRefBuilder[] values = new BytesRefBuilder[0];
+        protected int count;
 
-        public BytesRefs(SortedBinaryDocValues in) {
+        BinaryScriptDocValues(SortedBinaryDocValues in) {
             this.in = in;
         }
 
@@ -585,7 +515,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
-                    values[i] = in.nextValue();
+                    // We need to make a copy here, because BytesBinaryDVAtomicFieldData's SortedBinaryDocValues
+                    // implementation reuses the returned BytesRef. Otherwise we would end up with the same BytesRef
+                    // instance for all slots in the values array.
+                    values[i].copyBytes(in.nextValue());
                 }
             } else {
                 resize(0);
@@ -598,32 +531,69 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         protected void resize(int newSize) {
             count = newSize;
-            if (values == null) {
-                values = new BytesRef[newSize];
-            } else {
+            if (newSize > values.length) {
+                final int oldLength = values.length;
                 values = ArrayUtil.grow(values, count);
+                for (int i = oldLength; i < values.length; ++i) {
+                    values[i] = new BytesRefBuilder();
+                }
             }
-        }
-
-        public SortedBinaryDocValues getInternalValues() {
-            return this.in;
-        }
-
-        public BytesRef getValue() {
-            if (count == 0) {
-                return new BytesRef();
-            }
-            return values[0];
-        }
-
-        @Override
-        public BytesRef get(int index) {
-            return values[index];
         }
 
         @Override
         public int size() {
             return count;
         }
+
+    }
+
+    public static final class Strings extends BinaryScriptDocValues<String> {
+
+        public Strings(SortedBinaryDocValues in) {
+            super(in);
+        }
+
+        @Override
+        public String get(int index) {
+            return values[index].get().utf8ToString();
+        }
+
+        public BytesRef getBytesValue() {
+            if (size() > 0) {
+                return values[0].get();
+            } else {
+                return null;
+            }
+        }
+
+        public String getValue() {
+            BytesRef value = getBytesValue();
+            if (value == null) {
+                return null;
+            } else {
+                return value.utf8ToString();
+            }
+        }
+
+    }
+
+    public static final class BytesRefs extends BinaryScriptDocValues<BytesRef> {
+
+        public BytesRefs(SortedBinaryDocValues in) {
+            super(in);
+        }
+
+        @Override
+        public BytesRef get(int index) {
+            return values[index].get();
+        }
+
+        public BytesRef getValue() {
+            if (count == 0) {
+                return new BytesRef();
+            }
+            return values[0].get();
+        }
+
     }
 }

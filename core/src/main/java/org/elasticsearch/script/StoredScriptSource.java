@@ -72,12 +72,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     /**
      * Standard {@link ParseField} for source on the inner level.
      */
-    public static final ParseField SOURCE_PARSE_FIELD = new ParseField("source");
-
-    /**
-     * Standard {@link ParseField} for source on the inner level.
-     */
-    public static final ParseField CODE_PARSE_FIELD = new ParseField("code");
+    public static final ParseField SOURCE_PARSE_FIELD = new ParseField("source", "code");
 
     /**
      * Standard {@link ParseField} for options on the inner level.
@@ -161,8 +156,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         // Defines the fields necessary to parse a Script as XContent using an ObjectParser.
         PARSER.declareString(Builder::setLang, LANG_PARSE_FIELD);
         PARSER.declareField(Builder::setSource, parser -> parser, SOURCE_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
-        // accepting "code" here is for backcompat with version 5.3 to 5.5
-        PARSER.declareField(Builder::setSource, parser -> parser, CODE_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
         PARSER.declareField(Builder::setOptions, XContentParser::mapStrings, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
     }
 
@@ -442,7 +435,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(LANG_PARSE_FIELD.getPreferredName(), lang);
-        builder.field(CODE_PARSE_FIELD.getPreferredName(), source);
+        builder.field(SOURCE_PARSE_FIELD.getPreferredName(), source);
         builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
         builder.endObject();
 

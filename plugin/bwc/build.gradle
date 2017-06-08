@@ -33,8 +33,15 @@ subprojects {
     apply plugin: 'distribution'
 
     def (String major, String minor, String bugfix) = bwcVersion.split('\\.')
-    String bwcBranch =
-      project.name == 'stable-snapshot' ? "${major}.x" : "${major}.${minor}"
+    def (String currentMajor, String currentMinor, String currentBugfix) = version.split('\\.')
+    String bwcBranch
+    if (project.name == 'bwc-stable-snapshot') {
+      bwcBranch = "${major}.x"
+    } else if (major != currentMajor) {
+      bwcBranch = "${major}.x"
+    } else {
+      bwcBranch = "${major}.${minor}"
+    }
 
     File esCheckoutDir = file("${buildDir}/bwc/checkout-es-${bwcBranch}")
     File xpackCheckoutDir = file("${esCheckoutDir}-extra/x-pack-elasticsearch")

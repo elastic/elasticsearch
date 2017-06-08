@@ -36,12 +36,12 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
@@ -50,10 +50,8 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.internal.ScrollContext;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -64,11 +62,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.nullValue;
 
 public class QueryPhaseTests extends ESTestCase {
 
@@ -436,6 +432,73 @@ public class QueryPhaseTests extends ESTestCase {
             assertThat(context.queryResult().topDocs().scoreDocs[0], instanceOf(FieldDoc.class));
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
             assertThat(totalHitCountCollector.getTotalHits(), equalTo(numDocs));
+        }
+        reader.close();
+        dir.close();
+    }
+
+    public void testIndexSortScrollOptimization() throws Exception {
+        Directory dir = newDirectory();
+        final Sort sort = new Sort(
+            new SortField("rank", SortField.Type.INT),
+            new SortField("tiebreaker", SortField.Type.INT)
+        );
+        IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
+        final int numDocs = scaledRandomIntBetween(100, 200);
+        for (int i = 0; i < numDocs; ++i) {
+            Document doc = new Document();
+            doc.add(new NumericDocValuesField("rank", random().nextInt()));
+            doc.add(new NumericDocValuesField("tiebreaker", i));
+            w.addDocument(doc);
+        }
+        w.close();
+
+        TestSearchContext context = new TestSearchContext(null);
+        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        ScrollContext scrollContext = new ScrollContext();
+        scrollContext.lastEmittedDoc = null;
+        scrollContext.maxScore = Float.NaN;
+        scrollContext.totalHits = -1;
+        context.scrollContext(scrollContext);
+        context.setTask(new SearchTask(123L, "", "", "", null));
+        context.setSize(10);
+        context.sort(new SortAndFormats(sort, new DocValueFormat[] {DocValueFormat.RAW, DocValueFormat.RAW}));
+
+        final AtomicBoolean collected = new AtomicBoolean();
+        final IndexReader reader = DirectoryReader.open(dir);
+        IndexSearcher contextSearcher = new IndexSearcher(reader) {
+            protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+                collected.set(true);
+                super.search(leaves, weight, collector);
+            }
+        };
+
+        QueryPhase.execute(context, contextSearcher, sort);
+        assertThat(context.queryResult().topDocs().totalHits, equalTo(numDocs));
+        assertTrue(collected.get());
+        assertNull(context.queryResult().terminatedEarly());
+        assertThat(context.terminateAfter(), equalTo(0));
+        assertThat(context.queryResult().getTotalHits(), equalTo(numDocs));
+        int sizeMinus1 = context.queryResult().topDocs().scoreDocs.length - 1;
+        FieldDoc lastDoc = (FieldDoc) context.queryResult().topDocs().scoreDocs[sizeMinus1];
+
+        QueryPhase.execute(context, contextSearcher, sort);
+        assertThat(context.queryResult().topDocs().totalHits, equalTo(numDocs));
+        assertTrue(collected.get());
+        assertTrue(context.queryResult().terminatedEarly());
+        assertThat(context.terminateAfter(), equalTo(0));
+        assertThat(context.queryResult().getTotalHits(), equalTo(numDocs));
+        FieldDoc firstDoc = (FieldDoc) context.queryResult().topDocs().scoreDocs[0];
+        for (int i = 0; i < sort.getSort().length; i++) {
+            @SuppressWarnings("unchecked")
+            FieldComparator<Object> comparator = (FieldComparator<Object>) sort.getSort()[i].getComparator(1, i);
+            int cmp = comparator.compareValues(firstDoc.fields[i], lastDoc.fields[i]);
+            if (cmp == 0) {
+                continue;
+            }
+            assertThat(cmp, equalTo(1));
+            break;
         }
         reader.close();
         dir.close();

@@ -94,9 +94,7 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
                 createIndexService.createIndex(
                     updateRequest,
                     ActionListener.wrap(response ->
-                        listener.onResponse(
-                            new ShrinkResponse(response.isAcknowledged(), response.isShardsAcked(), updateRequest.index())
-                        ),
+                        listener.onResponse(new ShrinkResponse(response.isAcknowledged(), response.isShardsAcked(), updateRequest.index())),
                         listener::onFailure
                     )
                 );

@@ -519,8 +519,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public PrimaryContext primaryContext() {
         verifyPrimary();
-        assert shardRouting.relocating();
-        assert !shardRouting.isRelocationTarget();
+        assert shardRouting.relocating() : "primary context can only be obtained from a relocating primary but was " + shardRouting;
+        assert !shardRouting.isRelocationTarget() : "primary context can only be obtained from relocation source but was " + shardRouting;
         return new PrimaryContext(getEngine().seqNoService().seqNoPrimaryContext());
     }
 

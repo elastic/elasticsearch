@@ -49,6 +49,7 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TimeLimitingCollector;
@@ -841,14 +842,16 @@ public class Lucene {
     }
 
     /**
-     * Given a {@link Scorer}, return a {@link Bits} instance that will match
+     * Given a {@link ScorerSupplier}, return a {@link Bits} instance that will match
      * all documents contained in the set. Note that the returned {@link Bits}
      * instance MUST be consumed in order.
      */
-    public static Bits asSequentialAccessBits(final int maxDoc, @Nullable Scorer scorer) throws IOException {
-        if (scorer == null) {
+    public static Bits asSequentialAccessBits(final int maxDoc, @Nullable ScorerSupplier scorerSupplier) throws IOException {
+        if (scorerSupplier == null) {
             return new Bits.MatchNoBits(maxDoc);
         }
+        // Since we want bits, we need random-access
+        final Scorer scorer = scorerSupplier.get(true); // this never returns null
         final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
         final DocIdSetIterator iterator;
         if (twoPhase == null) {

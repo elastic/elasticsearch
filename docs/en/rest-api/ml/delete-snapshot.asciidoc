@@ -12,10 +12,8 @@ The delete model snapshot API enables you to delete an existing model snapshot.
 ==== Description
 
 IMPORTANT: You cannot delete the active model snapshot. To delete that snapshot,
-first revert to a different one.
-
-//TBD: Where do you see restorePriority? Per old docs, the active model snapshot
-//is "...the snapshot with the highest restorePriority".
+first revert to a different one. To identify the active model snapshot, refer to
+the `model_snapshot_id` in the results from the get jobs API. 
 
 ==== Path Parameters
 

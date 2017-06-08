@@ -25,7 +25,10 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TemplateService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Processor that removes existing fields. Nothing happens if the field is not present.
@@ -34,20 +37,20 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     public static final String TYPE = "remove";
 
-    private final TemplateService.Template field;
+    private final List<TemplateService.Template> fields;
 
-    RemoveProcessor(String tag, TemplateService.Template field) {
+    RemoveProcessor(String tag, List<TemplateService.Template> fields) {
         super(tag);
-        this.field = field;
+        this.fields = new ArrayList<>(fields);
     }
 
-    public TemplateService.Template getField() {
-        return field;
+    public List<TemplateService.Template> getFields() {
+        return fields;
     }
 
     @Override
     public void execute(IngestDocument document) {
-        document.removeField(field);
+       fields.forEach(document::removeField);
     }
 
     @Override
@@ -66,10 +69,18 @@ public final class RemoveProcessor extends AbstractProcessor {
         @Override
         public RemoveProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            TemplateService.Template compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "field", field, templateService);
-            return new RemoveProcessor(processorTag, compiledTemplate);
+            final List<String> fields = new ArrayList<>();
+            final Object field = ConfigurationUtils.readObject(TYPE, processorTag, config, "field");
+            if (field instanceof List) {
+                fields.addAll((List) field);
+            } else {
+                fields.add((String) field);
+            }
+
+            final List<TemplateService.Template> compiledTemplates = fields.stream()
+                .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", f, templateService))
+                .collect(Collectors.toList());
+            return new RemoveProcessor(processorTag, compiledTemplates);
         }
     }
 }

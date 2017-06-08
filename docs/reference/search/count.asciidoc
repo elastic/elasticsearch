@@ -17,7 +17,7 @@ PUT /twitter/tweet/1?refresh
 
 GET /twitter/tweet/_count?q=user:kimchy
 
-GET /twitter/tweet/_count
+POST /twitter/tweet/_count
 {
     "query" : {
         "term" : { "user" : "kimchy" }

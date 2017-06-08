@@ -1,5 +1,6 @@
 package org.elasticsearch.gradle.vagrant
 
+import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
 import org.elasticsearch.gradle.FileContentsTask
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
@@ -100,23 +101,10 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static void createBatsConfiguration(Project project) {
         project.configurations.create(BATS)
 
-        final long seed
-        final String formattedSeed
-        String maybeTestsSeed = System.getProperty("tests.seed")
-        if (maybeTestsSeed != null) {
-            if (maybeTestsSeed.trim().isEmpty()) {
-                throw new GradleException("explicit tests.seed cannot be empty")
-            }
-            String masterSeed = maybeTestsSeed.tokenize(':').get(0)
-            seed = new BigInteger(masterSeed, 16).longValue()
-            formattedSeed = maybeTestsSeed
-        } else {
-            seed = new Random().nextLong()
-            formattedSeed = String.format("%016X", seed)
-        }
-
         String upgradeFromVersion = System.getProperty("tests.packaging.upgradeVersion");
         if (upgradeFromVersion == null) {
+            String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
+            final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16)
             upgradeFromVersion = project.indexCompatVersions[new Random(seed).nextInt(project.indexCompatVersions.size())]
         }
 
@@ -130,8 +118,6 @@ class VagrantTestPlugin implements Plugin<Project> {
             project.dependencies.add(BATS, "org.elasticsearch.distribution.${it}:elasticsearch:${upgradeFromVersion}@${it}")
         }
 
-        project.extensions.esvagrant.testSeed = seed
-        project.extensions.esvagrant.formattedTestSeed = formattedSeed
         project.extensions.esvagrant.upgradeFromVersion = upgradeFromVersion
     }
 
@@ -395,7 +381,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 void afterExecute(Task task, TaskState state) {
                     if (state.failure != null) {
                         println "REPRODUCE WITH: gradle ${packaging.path} " +
-                            "-Dtests.seed=${project.extensions.esvagrant.formattedTestSeed} "
+                            "-Dtests.seed=${project.testSeed} "
                     }
                 }
             }
@@ -415,14 +401,14 @@ class VagrantTestPlugin implements Plugin<Project> {
                 environmentVars vagrantEnvVars
                 dependsOn up
                 finalizedBy halt
-                args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.extensions.esvagrant.formattedTestSeed}"
+                args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.testSeed}"
             }
             TaskExecutionAdapter platformReproListener = new TaskExecutionAdapter() {
                 @Override
                 void afterExecute(Task task, TaskState state) {
                     if (state.failure != null) {
                         println "REPRODUCE WITH: gradle ${platform.path} " +
-                            "-Dtests.seed=${project.extensions.esvagrant.formattedTestSeed} "
+                            "-Dtests.seed=${project.testSeed} "
                     }
                 }
             }

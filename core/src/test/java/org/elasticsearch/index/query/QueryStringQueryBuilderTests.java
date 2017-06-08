@@ -858,9 +858,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testDisabledFieldNamesField() throws Exception {
         QueryShardContext context = createShardContext();
-        context.getMapperService().merge("new_type",
+        context.getMapperService().merge("doc",
             new CompressedXContent(
-                PutMappingRequest.buildFromSimplifiedDef("new_type",
+                PutMappingRequest.buildFromSimplifiedDef("doc",
                     "foo", "type=text",
                     "_field_names", "enabled=false").string()),
             MapperService.MergeReason.MAPPING_UPDATE, true);
@@ -868,9 +868,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query query = queryBuilder.toQuery(context);
         Query expected = new WildcardQuery(new Term("foo", "*"));
         assertThat(query, equalTo(expected));
-        context.getMapperService().merge("new_type",
+        context.getMapperService().merge("doc",
             new CompressedXContent(
-                PutMappingRequest.buildFromSimplifiedDef("new_type",
+                PutMappingRequest.buildFromSimplifiedDef("doc",
                     "foo", "type=text",
                     "_field_names", "enabled=true").string()),
             MapperService.MergeReason.MAPPING_UPDATE, true);

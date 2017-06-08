@@ -16,11 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.join.query;
 
-package org.elasticsearch.common.util;
+public class LegacyInnerHitsIT extends InnerHitsIT {
 
-public interface Callback<T> {
-
-    void handle(T t);
+    @Override
+    protected boolean legacy() {
+        return true;
+    }
 
 }

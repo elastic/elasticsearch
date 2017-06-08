@@ -119,7 +119,7 @@ import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
+import org.elasticsearch.index.shard.TranslogOpToEngineOpConverter;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
@@ -151,6 +151,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -172,6 +173,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.shuffle;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
@@ -260,9 +262,9 @@ public class InternalEngineTests extends ESTestCase {
     public EngineConfig copy(EngineConfig config, EngineConfig.OpenMode openMode, Analyzer analyzer) {
         return new EngineConfig(openMode, config.getShardId(), config.getThreadPool(), config.getIndexSettings(), config.getWarmer(),
             config.getStore(), config.getMergePolicy(), analyzer, config.getSimilarity(),
-            new CodecService(null, logger), config.getEventListener(), config.getTranslogRecoveryPerformer(), config.getQueryCache(),
+            new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
             config.getQueryCachingPolicy(), config.getTranslogConfig(),
-            config.getFlushMergesAfter(), config.getRefreshListeners(), config.getIndexSort());
+            config.getFlushMergesAfter(), config.getRefreshListeners(), config.getIndexSort(), config.getTranslogRecoveryRunner());
     }
 
     @Override
@@ -429,11 +431,14 @@ public class InternalEngineTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
+        final TranslogHandler handler = new TranslogHandler(xContentRegistry(), IndexSettingsModule.newIndexSettings(shardId.getIndexName(),
+            indexSettings.getSettings()));
+        final List<ReferenceManager.RefreshListener> refreshListenerList =
+            refreshListener == null ? emptyList() : Collections.singletonList(refreshListener);
         EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store,
-            mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
-                new TranslogHandler(xContentRegistry(), shardId.getIndexName(), indexSettings.getSettings(), logger),
+                mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), refreshListener, indexSort);
+                TimeValue.timeValueMinutes(5), refreshListenerList, indexSort, handler);
 
         return config;
     }
@@ -920,7 +925,8 @@ public class InternalEngineTests extends ESTestCase {
         engine.index(indexForDoc(doc));
 
         final AtomicReference<Engine.GetResult> latestGetResult = new AtomicReference<>();
-        latestGetResult.set(engine.get(newGet(true, doc)));
+        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+        latestGetResult.set(engine.get(newGet(true, doc), searcherFactory));
         final AtomicBoolean flushFinished = new AtomicBoolean(false);
         final CyclicBarrier barrier = new CyclicBarrier(2);
         Thread getThread = new Thread(() -> {
@@ -934,7 +940,7 @@ public class InternalEngineTests extends ESTestCase {
                 if (previousGetResult != null) {
                     previousGetResult.release();
                 }
-                latestGetResult.set(engine.get(newGet(true, doc)));
+                latestGetResult.set(engine.get(newGet(true, doc), searcherFactory));
                 if (latestGetResult.get().exists() == false) {
                     break;
                 }
@@ -954,6 +960,8 @@ public class InternalEngineTests extends ESTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         searchResult.close();
 
+        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+
         // create a document
         Document document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
@@ -967,12 +975,12 @@ public class InternalEngineTests extends ESTestCase {
         searchResult.close();
 
         // but, not there non realtime
-        Engine.GetResult getResult = engine.get(newGet(false, doc));
+        Engine.GetResult getResult = engine.get(newGet(false, doc), searcherFactory);
         assertThat(getResult.exists(), equalTo(false));
         getResult.release();
 
         // but, we can still get it (in realtime)
-        getResult = engine.get(newGet(true, doc));
+        getResult = engine.get(newGet(true, doc), searcherFactory);
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -987,7 +995,7 @@ public class InternalEngineTests extends ESTestCase {
         searchResult.close();
 
         // also in non realtime
-        getResult = engine.get(newGet(false, doc));
+        getResult = engine.get(newGet(false, doc), searcherFactory);
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -1007,7 +1015,7 @@ public class InternalEngineTests extends ESTestCase {
         searchResult.close();
 
         // but, we can still get it (in realtime)
-        getResult = engine.get(newGet(true, doc));
+        getResult = engine.get(newGet(true, doc), searcherFactory);
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -1032,7 +1040,7 @@ public class InternalEngineTests extends ESTestCase {
         searchResult.close();
 
         // but, get should not see it (in realtime)
-        getResult = engine.get(newGet(true, doc));
+        getResult = engine.get(newGet(true, doc), searcherFactory);
         assertThat(getResult.exists(), equalTo(false));
         getResult.release();
 
@@ -1072,7 +1080,7 @@ public class InternalEngineTests extends ESTestCase {
         engine.flush();
 
         // and, verify get (in real time)
-        getResult = engine.get(newGet(true, doc));
+        getResult = engine.get(newGet(true, doc), searcherFactory);
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
@@ -1858,6 +1866,7 @@ public class InternalEngineTests extends ESTestCase {
         ParsedDocument doc = testParsedDocument("1", null, testDocument(), bytesArray(""), null);
         final Term uidTerm = newUid(doc);
         engine.index(indexForDoc(doc));
+        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
@@ -1867,7 +1876,7 @@ public class InternalEngineTests extends ESTestCase {
                     throw new AssertionError(e);
                 }
                 for (int op = 0; op < opsPerThread; op++) {
-                    try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), uidTerm))) {
+                    try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), uidTerm), searcherFactory)) {
                         FieldsVisitor visitor = new FieldsVisitor(true);
                         get.docIdAndVersion().context.reader().document(get.docIdAndVersion().docId, visitor);
                         List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(visitor.source().utf8ToString()));
@@ -1909,7 +1918,7 @@ public class InternalEngineTests extends ESTestCase {
             assertTrue(op.added + " should not exist", exists);
         }
 
-        try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), uidTerm))) {
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, doc.type(), doc.id(), uidTerm), searcherFactory)) {
             FieldsVisitor visitor = new FieldsVisitor(true);
             get.docIdAndVersion().context.reader().document(get.docIdAndVersion().docId, visitor);
             List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
@@ -2262,6 +2271,8 @@ public class InternalEngineTests extends ESTestCase {
             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null))) {
             engine.config().setEnableGcDeletes(false);
 
+            final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
+
             // Add document
             Document document = testDocument();
             document.add(new TextField("value", "test1", Field.Store.YES));
@@ -2273,7 +2284,7 @@ public class InternalEngineTests extends ESTestCase {
             engine.delete(new Engine.Delete("test", "1", newUid(doc), SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
 
             // Get should not find the document
-            Engine.GetResult getResult = engine.get(newGet(true, doc));
+            Engine.GetResult getResult = engine.get(newGet(true, doc), searcherFactory);
             assertThat(getResult.exists(), equalTo(false));
 
             // Give the gc pruning logic a chance to kick in
@@ -2287,7 +2298,7 @@ public class InternalEngineTests extends ESTestCase {
             engine.delete(new Engine.Delete("test", "2", newUid("2"), SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
 
             // Get should not find the document (we never indexed uid=2):
-            getResult = engine.get(new Engine.Get(true, "type", "2", newUid("2")));
+            getResult = engine.get(new Engine.Get(true, "type", "2", newUid("2")), searcherFactory);
             assertThat(getResult.exists(), equalTo(false));
 
             // Try to index uid=1 with a too-old version, should fail:
@@ -2297,7 +2308,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
 
             // Get should still not find the document
-            getResult = engine.get(newGet(true, doc));
+            getResult = engine.get(newGet(true, doc), searcherFactory);
             assertThat(getResult.exists(), equalTo(false));
 
             // Try to index uid=2 with a too-old version, should fail:
@@ -2307,7 +2318,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
 
             // Get should not find the document
-            getResult = engine.get(newGet(true, doc));
+            getResult = engine.get(newGet(true, doc), searcherFactory);
             assertThat(getResult.exists(), equalTo(false));
         }
     }
@@ -2605,7 +2616,7 @@ public class InternalEngineTests extends ESTestCase {
         }
         assertVisibleCount(engine, numDocs);
 
-        TranslogHandler parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
+        TranslogHandler parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
         parser.mappingUpdate = dynamicUpdate();
 
         engine.close();
@@ -2613,8 +2624,8 @@ public class InternalEngineTests extends ESTestCase {
         engine.recoverFromTranslog();
 
         assertVisibleCount(engine, numDocs, false);
-        parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
-        assertEquals(numDocs, parser.recoveredOps.get());
+        parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
+        assertEquals(numDocs, parser.appliedOperations.get());
         if (parser.mappingUpdate != null) {
             assertEquals(1, parser.getRecoveredTypes().size());
             assertTrue(parser.getRecoveredTypes().containsKey("test"));
@@ -2625,8 +2636,8 @@ public class InternalEngineTests extends ESTestCase {
         engine.close();
         engine = createEngine(store, primaryTranslogDir);
         assertVisibleCount(engine, numDocs, false);
-        parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
-        assertEquals(0, parser.recoveredOps.get());
+        parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
+        assertEquals(0, parser.appliedOperations.get());
 
         final boolean flush = randomBoolean();
         int randomId = randomIntBetween(numDocs + 1, numDocs + 10);
@@ -2654,8 +2665,8 @@ public class InternalEngineTests extends ESTestCase {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
             assertThat(topDocs.totalHits, equalTo(numDocs + 1));
         }
-        parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
-        assertEquals(flush ? 1 : 2, parser.recoveredOps.get());
+        parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
+        assertEquals(flush ? 1 : 2, parser.appliedOperations.get());
         engine.delete(new Engine.Delete("test", Integer.toString(randomId), newUid(doc)));
         if (randomBoolean()) {
             engine.refresh("test");
@@ -2669,23 +2680,22 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-    public static class TranslogHandler extends TranslogRecoveryPerformer {
+    public static class TranslogHandler extends TranslogOpToEngineOpConverter
+        implements EngineConfig.TranslogRecoveryRunner {
 
         private final MapperService mapperService;
         public Mapping mappingUpdate = null;
+        private final Map<String, Mapping> recoveredTypes = new HashMap<>();
+        private final AtomicLong appliedOperations = new AtomicLong();
 
-        public final AtomicInteger recoveredOps = new AtomicInteger(0);
-
-        public TranslogHandler(NamedXContentRegistry xContentRegistry, String indexName, Settings settings, Logger logger) {
-            super(new ShardId("test", "_na_", 0), null, logger);
-            Index index = new Index(indexName, "_na_");
-            IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings) {
+            super(new ShardId("test", "_na_", 0), null);
             NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
             IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultAnalyzer, defaultAnalyzer, Collections.emptyMap(), Collections.emptyMap());
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
             MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
             mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
-                    () -> null);
+                () -> null);
         }
 
         @Override
@@ -2695,9 +2705,44 @@ public class InternalEngineTests extends ESTestCase {
             return new DocumentMapperForType(b.build(mapperService), mappingUpdate);
         }
 
+        private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
+            switch (operation.operationType()) {
+                case INDEX:
+                    Engine.Index engineIndex = (Engine.Index) operation;
+                    Mapping update = engineIndex.parsedDoc().dynamicMappingsUpdate();
+                    if (engineIndex.parsedDoc().dynamicMappingsUpdate() != null) {
+                        recoveredTypes.compute(engineIndex.type(), (k, mapping) -> mapping == null ? update : mapping.merge(update, false));
+                    }
+                    engine.index(engineIndex);
+                    break;
+                case DELETE:
+                    engine.delete((Engine.Delete) operation);
+                    break;
+                case NO_OP:
+                    engine.noOp((Engine.NoOp) operation);
+                    break;
+                default:
+                    throw new IllegalStateException("No operation defined for [" + operation + "]");
+            }
+        }
+
+        /**
+         * Returns the recovered types modifying the mapping during the recovery
+         */
+        public Map<String, Mapping> getRecoveredTypes() {
+            return recoveredTypes;
+        }
+
         @Override
-        protected void operationProcessed() {
-            recoveredOps.incrementAndGet();
+        public int run(Engine engine, Translog.Snapshot snapshot) throws IOException {
+            int opsRecovered = 0;
+            Translog.Operation operation;
+            while ((operation = snapshot.next()) != null) {
+                applyOperation(engine, convertToEngineOp(operation, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY));
+                opsRecovered++;
+                appliedOperations.incrementAndGet();
+            }
+            return opsRecovered;
         }
     }
 
@@ -2727,9 +2772,10 @@ public class InternalEngineTests extends ESTestCase {
 
         EngineConfig brokenConfig = new EngineConfig(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, shardId, threadPool,
                 config.getIndexSettings(), null, store, newMergePolicy(), config.getAnalyzer(),
-                config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getTranslogRecoveryPerformer(),
+                config.getSimilarity(), new CodecService(null, logger), config.getEventListener(),
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), config.getRefreshListeners(), null);
+                TimeValue.timeValueMinutes(5), config.getRefreshListeners(), null,
+                config.getTranslogRecoveryRunner());
 
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
@@ -3639,6 +3685,7 @@ public class InternalEngineTests extends ESTestCase {
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         final ParsedDocument doc = testParsedDocument("1", null, document, B_1, null);
         final Term uid = newUid(doc);
+        final Function<String, Searcher> searcherFactory = engine::acquireSearcher;
         for (int i = 0; i < numberOfOperations; i++) {
             if (randomBoolean()) {
                 final Engine.Index index = new Engine.Index(
@@ -3700,7 +3747,7 @@ public class InternalEngineTests extends ESTestCase {
         }
 
         assertThat(engine.seqNoService().getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
-        try (Engine.GetResult result = engine.get(new Engine.Get(true, "type", "2", uid))) {
+        try (Engine.GetResult result = engine.get(new Engine.Get(true, "type", "2", uid), searcherFactory)) {
             assertThat(result.exists(), equalTo(exists));
         }
     }

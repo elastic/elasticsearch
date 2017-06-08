@@ -365,7 +365,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
     }
 
-    private DiscoveryNode getFakeDiscoNode(String id) {
+    protected DiscoveryNode getFakeDiscoNode(String id) {
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), EnumSet.allOf(DiscoveryNode.Role.class),
             Version.CURRENT);
     }

@@ -18,24 +18,10 @@
  */
 package org.elasticsearch.join.aggregations;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
-
-@ClusterScope(scope = Scope.SUITE)
 public class LegacyChildrenIT extends ChildrenIT {
 
     @Override
     protected boolean legacy() {
         return true;
-    }
-
-    @Override
-    public Settings indexSettings() {
-        Settings indexSettings = super.indexSettings();
-        return Settings.builder()
-            .put(indexSettings)
-            .put("index.mapping.single_type", false)
-            .build();
     }
 }

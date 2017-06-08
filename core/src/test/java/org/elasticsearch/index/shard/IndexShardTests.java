@@ -555,7 +555,7 @@ public class IndexShardTests extends IndexShardTestCase {
         if (shardRouting.primary() == false) {
             final IllegalStateException e =
                     expectThrows(IllegalStateException.class, () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.INDEX));
-            assertThat(e, hasToString(containsString("shard is not a primary")));
+            assertThat(e, hasToString(containsString("shard " + shardRouting + " is not a primary")));
         }
 
         final long primaryTerm = indexShard.getPrimaryTerm();

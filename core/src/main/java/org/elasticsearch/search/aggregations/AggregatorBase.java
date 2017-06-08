@@ -294,7 +294,7 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     protected final InternalAggregations buildEmptySubAggregations() {
-        List<InternalAggregation> aggs = new ArrayList<>();
+        List<InternalAggregation> aggs = new ArrayList<>(subAggregators.length);
         for (Aggregator aggregator : subAggregators) {
             aggs.add(aggregator.buildEmptyAggregation());
         }

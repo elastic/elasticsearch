@@ -703,7 +703,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
         assert hostAddresses.length > 0;
 
-        List<InetSocketAddress> boundAddresses = new ArrayList<>();
+        List<InetSocketAddress> boundAddresses = new ArrayList<>(hostAddresses.length);
         for (InetAddress hostAddress : hostAddresses) {
             boundAddresses.add(bindToPort(name, hostAddress, settings.get("port")));
         }

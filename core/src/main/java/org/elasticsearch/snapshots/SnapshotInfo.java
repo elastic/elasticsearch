@@ -132,7 +132,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     public SnapshotInfo(final StreamInput in) throws IOException {
         snapshotId = new SnapshotId(in);
         int size = in.readVInt();
-        List<String> indicesListBuilder = new ArrayList<>();
+        List<String> indicesListBuilder = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             indicesListBuilder.add(in.readString());
         }
@@ -149,7 +149,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         successfulShards = in.readVInt();
         size = in.readVInt();
         if (size > 0) {
-            List<SnapshotShardFailure> failureBuilder = new ArrayList<>();
+            List<SnapshotShardFailure> failureBuilder = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 failureBuilder.add(SnapshotShardFailure.readSnapshotShardFailure(in));
             }

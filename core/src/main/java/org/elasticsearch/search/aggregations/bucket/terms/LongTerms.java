@@ -163,7 +163,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
      */
     static DoubleTerms convertLongTermsToDouble(LongTerms longTerms, DocValueFormat decimalFormat) {
         List<LongTerms.Bucket> buckets = longTerms.getBuckets();
-        List<DoubleTerms.Bucket> newBuckets = new ArrayList<>();
+        List<DoubleTerms.Bucket> newBuckets = new ArrayList<>(buckets.size());
         for (Terms.Bucket bucket : buckets) {
             newBuckets.add(new DoubleTerms.Bucket(bucket.getKeyAsNumber().doubleValue(),
                 bucket.getDocCount(), (InternalAggregations) bucket.getAggregations(), longTerms.showTermDocCountError,

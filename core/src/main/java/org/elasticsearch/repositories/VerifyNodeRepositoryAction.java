@@ -69,7 +69,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         final DiscoveryNode localNode = discoNodes.getLocalNode();
 
         final ObjectContainer<DiscoveryNode> masterAndDataNodes = discoNodes.getMasterAndDataNodes().values();
-        final List<DiscoveryNode> nodes = new ArrayList<>();
+        final List<DiscoveryNode> nodes = new ArrayList<>(masterAndDataNodes.size());
         for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
             DiscoveryNode node = cursor.value;
             nodes.add(node);

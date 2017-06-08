@@ -175,7 +175,7 @@ public class SimulatePipelineRequest extends ActionRequest {
 
     private static List<IngestDocument> parseDocs(Map<String, Object> config, boolean newDateFormat) {
         List<Map<String, Object>> docs = ConfigurationUtils.readList(null, null, config, Fields.DOCS);
-        List<IngestDocument> ingestDocumentList = new ArrayList<>();
+        List<IngestDocument> ingestDocumentList = new ArrayList<>(docs.size());
         for (Map<String, Object> dataMap : docs) {
             Map<String, Object> document = ConfigurationUtils.readMap(null, null, dataMap, Fields.SOURCE);
             IngestDocument ingestDocument = new IngestDocument(ConfigurationUtils.readStringProperty(null, null, dataMap, MetaData.INDEX.getFieldName(), "_index"),

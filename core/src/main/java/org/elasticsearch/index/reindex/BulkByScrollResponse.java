@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import java.util.Collection;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.common.Nullable;
@@ -59,11 +60,11 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContent {
         this.timedOut = timedOut;
     }
 
-    public BulkByScrollResponse(Iterable<BulkByScrollResponse> toMerge, @Nullable String reasonCancelled) {
+    public BulkByScrollResponse(List<BulkByScrollResponse> toMerge, @Nullable String reasonCancelled) {
         long mergedTook = 0;
-        List<BulkByScrollTask.StatusOrException> statuses = new ArrayList<>();
         bulkFailures = new ArrayList<>();
         searchFailures = new ArrayList<>();
+        List<BulkByScrollTask.StatusOrException> statuses = new ArrayList<>(toMerge.size());
         for (BulkByScrollResponse response : toMerge) {
             mergedTook = max(mergedTook, response.getTook().nanos());
             statuses.add(new BulkByScrollTask.StatusOrException(response.status));

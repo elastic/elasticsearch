@@ -54,7 +54,7 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
             @SuppressWarnings("rawtypes")
             InternalMultiBucketAggregation multiBucketsAgg = (InternalMultiBucketAggregation) aggregation;
             List<? extends Bucket> buckets = multiBucketsAgg.getBuckets();
-            List<Bucket> newBuckets = new ArrayList<>();
+            List<Bucket> newBuckets = new ArrayList<>(buckets.size());
             for (int i = 0; i < buckets.size(); i++) {
                 InternalMultiBucketAggregation.InternalBucket bucket = (InternalMultiBucketAggregation.InternalBucket) buckets.get(i);
                 InternalAggregation aggToAdd = doReduce(bucket.getAggregations(), reduceContext);

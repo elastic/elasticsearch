@@ -68,7 +68,7 @@ public class Regex {
         if (patterns.length < 1) {
             throw new IllegalArgumentException("There must be at least one pattern, zero given");
         }
-        List<Automaton> automata = new ArrayList<>();
+        List<Automaton> automata = new ArrayList<>(patterns.length);
         for (String pattern : patterns) {
             automata.add(simpleMatchToAutomaton(pattern));
         }

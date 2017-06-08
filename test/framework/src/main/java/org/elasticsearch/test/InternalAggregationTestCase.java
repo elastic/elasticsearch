@@ -216,9 +216,10 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     public void testReduceRandom() {
         String name = randomAlphaOfLength(5);
-        List<T> inputs = new ArrayList<>();
-        List<InternalAggregation> toReduce = new ArrayList<>();
         int toReduceSize = between(1, 200);
+        boolean extraReduce = randomBoolean() && toReduceSize > 1;
+        List<T> inputs = new ArrayList<>(toReduceSize);
+        List<InternalAggregation> toReduce = new ArrayList<>(extraReduce ? toReduceSize + 1 : toReduceSize);
         for (int i = 0; i < toReduceSize; i++) {
             T t = randomBoolean() ? createUnmappedInstance(name) : createTestInstance(name);
             inputs.add(t);
@@ -226,7 +227,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
-        if (randomBoolean() && toReduce.size() > 1) {
+        if (extraReduce && toReduce.size() > 1) {
             // sometimes do an incremental reduce
             Collections.shuffle(toReduce, random());
             int r = randomIntBetween(1, toReduceSize);

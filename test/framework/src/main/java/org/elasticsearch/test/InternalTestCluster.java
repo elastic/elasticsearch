@@ -1022,7 +1022,9 @@ public final class InternalTestCluster extends TestCluster {
         assert newSize == numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
         final int numberOfMasterNodes = numSharedDedicatedMasterNodes > 0 ? numSharedDedicatedMasterNodes : numSharedDataNodes;
         final int defaultMinMasterNodes = (numberOfMasterNodes / 2) + 1;
-        final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go due to min master nodes
+
+        // we want to start nodes in one go due to min master nodes
+        final List<NodeAndClient> toStartAndPublish = new ArrayList<>(numSharedDedicatedMasterNodes);
         for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
             final Settings.Builder settings = Settings.builder();
             settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
@@ -1676,7 +1678,7 @@ public final class InternalTestCluster extends TestCluster {
         } else {
             defaultMinMasterNodes = -1;
         }
-        List<NodeAndClient> nodes = new ArrayList<>();
+        List<NodeAndClient> nodes = new ArrayList<>(settings.length);
         for (Settings nodeSettings: settings) {
             nodes.add(buildNode(nodeSettings, defaultMinMasterNodes));
         }

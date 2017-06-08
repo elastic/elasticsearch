@@ -944,7 +944,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // shuffle fields of objects in the list, but not the list itself
     private static List<Object> shuffleList(List<Object> list, Set<String> exceptFields) {
-        List<Object> targetList = new ArrayList<>();
+        List<Object> targetList = new ArrayList<>(list.size());
         for(Object value : list) {
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")

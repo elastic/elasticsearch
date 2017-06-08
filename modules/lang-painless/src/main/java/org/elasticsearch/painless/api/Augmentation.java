@@ -212,7 +212,7 @@ public class Augmentation {
      * the function, returning a list of transformed values. 
      */
     public static <T,U> List<U> collect(Collection<T> receiver, Function<T,U> function) {
-        List<U> list = new ArrayList<>();
+        List<U> list = new ArrayList<>(receiver.size());
         for (T t : receiver) {
             list.add(function.apply(t));
         }

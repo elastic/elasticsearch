@@ -254,14 +254,12 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     public ANode visitSource(SourceContext ctx) {
         reserved.push(new MainMethodReserved());
 
-        List<SFunction> functions = new ArrayList<>();
-
+        List<SFunction> functions = new ArrayList<>(ctx.function().size());
         for (FunctionContext function : ctx.function()) {
             functions.add((SFunction)visit(function));
         }
 
-        List<AStatement> statements = new ArrayList<>();
-
+        List<AStatement> statements = new ArrayList<>(ctx.statement().size());
         for (StatementContext statement : ctx.statement()) {
             statements.add((AStatement)visit(statement));
         }
@@ -276,9 +274,9 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         String rtnType = ctx.decltype().getText();
         String name = ctx.ID().getText();
-        List<String> paramTypes = new ArrayList<>();
-        List<String> paramNames = new ArrayList<>();
-        List<AStatement> statements = new ArrayList<>();
+        List<String> paramTypes = new ArrayList<>(ctx.parameters().decltype().size());
+        List<String> paramNames = new ArrayList<>(ctx.parameters().ID().size());
+        List<AStatement> statements = new ArrayList<>(ctx.block().statement().size());
 
         for (DecltypeContext decltype : ctx.parameters().decltype()) {
             paramTypes.add(decltype.getText());
@@ -409,7 +407,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitTry(TryContext ctx) {
         SBlock block = (SBlock)visit(ctx.block());
-        List<SCatch> catches = new ArrayList<>();
+        List<SCatch> catches = new ArrayList<>(ctx.trap().size());
 
         for (TrapContext trap : ctx.trap()) {
             catches.add((SCatch)visit(trap));
@@ -451,7 +449,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         if (ctx.statement().isEmpty()) {
             return null;
         } else {
-            List<AStatement> statements = new ArrayList<>();
+            List<AStatement> statements = new ArrayList<>(ctx.statement().size());
 
             for (StatementContext statement : ctx.statement()) {
                 statements.add((AStatement)visit(statement));
@@ -485,7 +483,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitDeclaration(DeclarationContext ctx) {
         String type = ctx.decltype().getText();
-        List<SDeclaration> declarations = new ArrayList<>();
+        List<SDeclaration> declarations = new ArrayList<>(ctx.declvar().size());
 
         for (DeclvarContext declvar : ctx.declvar()) {
             String name = declvar.ID().getText();
@@ -972,7 +970,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitNewstandardarray(NewstandardarrayContext ctx) {
         String type = ctx.TYPE().getText();
-        List<AExpression> expressions = new ArrayList<>();
+        List<AExpression> expressions = new ArrayList<>(ctx.expression().size());
 
         for (ExpressionContext expression : ctx.expression()) {
             expressions.add((AExpression)visit(expression));
@@ -984,7 +982,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitNewinitializedarray(NewinitializedarrayContext ctx) {
         String type = ctx.TYPE().getText();
-        List<AExpression> expressions = new ArrayList<>();
+        List<AExpression> expressions = new ArrayList<>(ctx.expression().size());
 
         for (ExpressionContext expression : ctx.expression()) {
             expressions.add((AExpression)visit(expression));
@@ -995,7 +993,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitListinitializer(ListinitializerContext ctx) {
-        List<AExpression> values = new ArrayList<>();
+        List<AExpression> values = new ArrayList<>(ctx.expression().size());
 
         for (ExpressionContext expression : ctx.expression()) {
             values.add((AExpression)visit(expression));
@@ -1006,8 +1004,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitMapinitializer(MapinitializerContext ctx) {
-        List<AExpression> keys = new ArrayList<>();
-        List<AExpression> values = new ArrayList<>();
+        List<AExpression> keys = new ArrayList<>(ctx.maptoken().size());
+        List<AExpression> values = new ArrayList<>(ctx.maptoken().size());
 
         for (MaptokenContext maptoken : ctx.maptoken()) {
             keys.add((AExpression)visit(maptoken.expression(0)));
@@ -1028,7 +1026,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     private List<AExpression> collectArguments(ArgumentsContext ctx) {
-        List<AExpression> arguments = new ArrayList<>();
+        List<AExpression> arguments = new ArrayList<>(ctx.argument().size());
 
         for (ArgumentContext argument : ctx.argument()) {
             arguments.add((AExpression)visit(argument));

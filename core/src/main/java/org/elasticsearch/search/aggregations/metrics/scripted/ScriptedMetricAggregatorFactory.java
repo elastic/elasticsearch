@@ -110,7 +110,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
             clone = (T) clonedMap;
         } else if (original instanceof List) {
             List<?> originalList = (List<?>) original;
-            List<Object> clonedList = new ArrayList<>();
+            List<Object> clonedList = new ArrayList<>(originalList.size());
             for (Object o : originalList) {
                 clonedList.add(deepCopyParams(o, context));
             }

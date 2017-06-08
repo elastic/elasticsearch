@@ -253,8 +253,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                             Map<String, AliasMetaData> templatesAliases = new HashMap<>();
 
-                            List<String> templateNames = new ArrayList<>();
-
                             for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
                                 mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
                             }
@@ -264,6 +262,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             }
 
                             // apply templates, merging the mappings into the request mapping if exists
+                            List<String> templateNames = new ArrayList<>(templates.size());
                             for (IndexTemplateMetaData template : templates) {
                                 templateNames.add(template.getName());
                                 for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {

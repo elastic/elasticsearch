@@ -226,11 +226,12 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 } else if (repositoryData.getIncompatibleSnapshotIds().contains(snapshotId)) {
                     throw new SnapshotException(repositoryName, snapshotName, "cannot get the status for an incompatible snapshot");
                 }
+
                 SnapshotInfo snapshotInfo = snapshotsService.snapshot(repositoryName, snapshotId);
-                List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                 if (snapshotInfo.state().completed()) {
                     Map<ShardId, IndexShardSnapshotStatus> shardStatues =
                         snapshotsService.snapshotShards(request.repository(), snapshotInfo);
+                    List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>(shardStatues.size());
                     for (Map.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatues.entrySet()) {
                         shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), shardStatus.getValue()));
                     }

@@ -401,7 +401,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
             int indices = in.readVInt();
-            List<String> indexBuilder = new ArrayList<>();
+            List<String> indexBuilder = new ArrayList<>(indices);
             for (int j = 0; j < indices; j++) {
                 indexBuilder.add(in.readString());
             }

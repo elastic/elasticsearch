@@ -314,7 +314,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             }
         }
 
-        final List<B> ranges = new ArrayList<>();
+        final List<B> ranges = new ArrayList<>(this.ranges.size());
         for (int i = 0; i < this.ranges.size(); ++i) {
             ranges.add((B) rangeList[i].get(0).reduce(rangeList[i], reduceContext));
         }

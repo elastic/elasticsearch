@@ -103,7 +103,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         size = in.readVInt();
         if (in.readBoolean()) {
             int size = in.readVInt();
-            sorts = new ArrayList<>();
+            sorts = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 sorts.add(in.readNamedWriteable(SortBuilder.class));
             }

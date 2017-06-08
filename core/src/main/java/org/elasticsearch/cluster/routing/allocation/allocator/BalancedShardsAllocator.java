@@ -967,7 +967,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             }
             List<NodeAllocationResult> nodeDecisions = null;
             if (explain) {
-                nodeDecisions = new ArrayList<>();
+                nodeDecisions = new ArrayList<>(nodeWeights.size());
                 // fill in the correct weight ranking, once we've been through all nodes
                 nodeWeights.sort((nodeWeight1, nodeWeight2) -> Float.compare(nodeWeight1.v2(), nodeWeight2.v2()));
                 int weightRanking = 0;

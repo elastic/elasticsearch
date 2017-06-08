@@ -71,7 +71,7 @@ public final class InternalAggregations extends Aggregations implements ToXConte
         }
 
         // now we can use the first aggregation of each list to handle the reduce of its list
-        List<InternalAggregation> reducedAggregations = new ArrayList<>();
+        List<InternalAggregation> reducedAggregations = new ArrayList<>(aggByName.size());
         for (Map.Entry<String, List<InternalAggregation>> entry : aggByName.entrySet()) {
             List<InternalAggregation> aggregations = entry.getValue();
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand

@@ -57,7 +57,7 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        List<SnapshotStatus> builder = new ArrayList<>();
+        List<SnapshotStatus> builder = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             builder.add(SnapshotStatus.readSnapshotStatus(in));
         }

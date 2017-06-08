@@ -26,6 +26,7 @@ import org.elasticsearch.ExceptionsHelper;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -161,10 +162,25 @@ public final class ConfigurationUtils {
         if (value instanceof List) {
             @SuppressWarnings("unchecked")
             List<T> stringList = (List<T>) value;
+            readInlineScriptInList(stringList);
             return stringList;
         } else {
             throw newConfigurationException(processorType, processorTag, propertyName,
                 "property isn't a list, but of type [" + value.getClass().getName() + "]");
+        }
+    }
+
+    private static <T> void readInlineScriptInList(List<T> value){
+        for(T elem: value){
+            if (elem instanceof Map){
+                Map<String, Object> actualElement = (Map) elem;
+                if(actualElement.get("script") instanceof String){
+                    Map<String, Object> scriptProcessor = new HashMap<String, Object>();
+                    scriptProcessor.put("inline", (String) actualElement.get("script"));
+                    scriptProcessor.put("lang", "painless");
+                    actualElement.replace("script", scriptProcessor);
+                }
+            }
         }
     }
 
@@ -264,6 +280,7 @@ public final class ConfigurationUtils {
 
         return processors;
     }
+
 
     public static TemplateService.Template compileTemplate(String processorType, String processorTag, String propertyName,
                                                            String propertyValue, TemplateService templateService) {

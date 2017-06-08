@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.nio.channels.Pipe;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -96,7 +97,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadProcessors() throws Exception {
         Processor processor = mock(Processor.class);
         Map<String, Processor.Factory> registry =
-            Collections.singletonMap("test_processor", (factories, tag, config) -> processor);
+                Collections.singletonMap("test_processor", (factories, tag, config) -> processor);
 
         List<Map<String, Map<String, Object>>> config = new ArrayList<>();
         Map<String, Object> emptyConfig = Collections.emptyMap();
@@ -112,7 +113,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         unknownTaggedConfig.put("tag", "my_unknown");
         config.add(Collections.singletonMap("unknown_processor", unknownTaggedConfig));
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> ConfigurationUtils.readProcessorConfigs(config, registry));
+                () -> ConfigurationUtils.readProcessorConfigs(config, registry));
         assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
         assertThat(e.getHeader("processor_tag"), equalTo(Collections.singletonList("my_unknown")));
         assertThat(e.getHeader("processor_type"), equalTo(Collections.singletonList("unknown_processor")));
@@ -140,4 +141,18 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(e2.getHeader("property_name"), is(nullValue()));
     }
 
+    public void testParsingInlineScript(){
+        List<Map<String, Object>> inlineScriptProcessor = new ArrayList<Map<String, Object>>();
+        Map<String, Object> inlineScriptMap = new HashMap<String, Object>();
+        inlineScriptMap.put("script", "ctx.foo='bar'");
+        inlineScriptProcessor.add(inlineScriptMap);
+        Map<String, Object> config = new HashMap<>();
+        config.put(Pipeline.PROCESSORS_KEY, inlineScriptProcessor);
+        List<Map<String, Map<String, Object>>> processorConfigs = ConfigurationUtils.readList(null, null, config, Pipeline.PROCESSORS_KEY);
+        assertTrue("Script processor is not a Map instance", processorConfigs.get(0).get("script") instanceof Map);
+
+        assertThat(processorConfigs.get(0).get("script").get("inline"), equalTo("ctx.foo='bar'"));
+        assertThat(processorConfigs.get(0).get("script").get("lang"), equalTo("painless"));
+
+    }
 }

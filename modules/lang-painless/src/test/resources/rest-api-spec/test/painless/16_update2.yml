@@ -6,7 +6,7 @@
   - do:
       put_script:
         id: "1"
-        body: { "script": {"lang": "painless", "code": "_score * doc['myParent.weight'].value" } }
+        body: { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value" } }
   - match: { acknowledged: true }
 
   - do:
@@ -14,7 +14,7 @@
        lang: "1"
   - match: { found: true }
   - match: { _id: "1" }
-  - match: { "script": {"lang": "painless", "code": "_score * doc['myParent.weight'].value"} }
+  - match: { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value"} }
 
   - do:
      catch: missing
@@ -39,11 +39,11 @@
       put_script:
         id: "1"
         context: "search"
-        body: { "script": {"lang": "painless", "code": "_score * foo bar + doc['myParent.weight'].value"} }
+        body: { "script": {"lang": "painless", "source": "_score * foo bar + doc['myParent.weight'].value"} }
 
   - do:
       catch: /compile error/
       put_script:
         id: "1"
         context: "search"
-        body: { "script": {"lang": "painless", "code": "_score * foo bar + doc['myParent.weight'].value"} }
+        body: { "script": {"lang": "painless", "source": "_score * foo bar + doc['myParent.weight'].value"} }

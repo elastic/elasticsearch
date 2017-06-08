@@ -48,7 +48,7 @@
           {
             "script": {
               "lang": "painless",
-              "code" : "ctx.bytes_total = ctx.bytes_in + ctx.bytes_out"
+              "source" : "ctx.bytes_total = ctx.bytes_in + ctx.bytes_out"
             }
           }
   - match: { acknowledged: true }

@@ -106,8 +106,8 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
 
     public static SearchProfileShardResults fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        Map<String, ProfileShardResult> searchProfileResults = new HashMap<>();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        Map<String, ProfileShardResult> searchProfileResults = new HashMap<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_ARRAY) {
                 if (SHARDS_FIELD.equals(parser.currentName())) {

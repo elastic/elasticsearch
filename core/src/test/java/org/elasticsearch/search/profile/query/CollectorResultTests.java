@@ -58,14 +58,14 @@ public class CollectorResultTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
-        dofromXContentTestWithRandomFields(false);
+        doFromXContentTestWithRandomFields(false);
     }
 
     public void testFromXContentWithRandomFields() throws IOException {
-        dofromXContentTestWithRandomFields(true);
+        doFromXContentTestWithRandomFields(true);
     }
 
-    private void dofromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         CollectorResult collectorResult = createTestItem(1);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();

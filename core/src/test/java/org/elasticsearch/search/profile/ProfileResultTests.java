@@ -64,7 +64,7 @@ public class ProfileResultTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
-        dofromXContentTestWithRandomFields(false);
+        doFromXContentTestWithRandomFields(false);
     }
 
     /**
@@ -72,10 +72,10 @@ public class ProfileResultTests extends ESTestCase {
      * back to be forward compatible with additions to the xContent
      */
     public void testFromXContentWithRandomFields() throws IOException {
-        dofromXContentTestWithRandomFields(true);
+        doFromXContentTestWithRandomFields(true);
     }
 
-    private void dofromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         ProfileResult profileResult = createTestItem(2);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();

@@ -60,7 +60,7 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
-        dofromXContentTestWithRandomFields(false);
+        doFromXContentTestWithRandomFields(false);
     }
 
     /**
@@ -68,10 +68,10 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
      * back to be forward compatible with additions to the xContent
      */
     public void testFromXContentWithRandomFields() throws IOException {
-        dofromXContentTestWithRandomFields(true);
+        doFromXContentTestWithRandomFields(true);
     }
 
-    private void dofromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         SearchProfileShardResults shardResult = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();

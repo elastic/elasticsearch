@@ -231,7 +231,9 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
             }
 
-            dummyIndexService.mapperService().merge(mappingsForValidation, MergeReason.MAPPING_UPDATE, false);
+            if (request.validation){
+                dummyIndexService.mapperService().merge(mappingsForValidation, MergeReason.MAPPING_UPDATE, false);
+            }
 
         } finally {
             if (createdIndex != null) {
@@ -316,6 +318,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         Map<String, String> mappings = new HashMap<>();
         List<Alias> aliases = new ArrayList<>();
         Map<String, IndexMetaData.Custom> customs = new HashMap<>();
+        boolean validation;
 
         TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
@@ -371,6 +374,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         public PutRequest version(Integer version) {
             this.version = version;
+            return this;
+        }
+
+        public PutRequest validation(boolean validation) {
+            this.validation = validation;
             return this;
         }
     }

@@ -75,6 +75,10 @@ PUT _template/template_1
 <1> the `{index}` placeholder in the alias name will be replaced with the
 actual index name that the template gets applied to, during index creation.
 
+NOTE: After 2.4, Elasticsearch validates each template as a complete mapping and settings.
+If you have some incomplete template, e.g. analyzer settings in a template and mappings in another template,
+you can set `validate` to `false` and skip validation that is `true` by default.
+
 [float]
 [[delete]]
 === Deleting a Template

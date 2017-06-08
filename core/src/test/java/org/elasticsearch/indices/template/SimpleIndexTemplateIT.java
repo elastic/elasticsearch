@@ -725,6 +725,48 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
     }
 
+    public void testCombineTemplatesWithoutValidation() throws Exception{
+        // clean all templates setup by the framework.
+        client().admin().indices().prepareDeleteTemplate("*").get();
+
+        // check get all templates on an empty index.
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), empty());
+
+        //Now, a complete mapping with two separated templates is error
+        // base template
+        client().admin().indices().preparePutTemplate("template_1")
+            .setTemplate("*")
+            .setSettings(
+                "    {\n" +
+                    "        \"index\" : {\n" +
+                    "            \"analysis\" : {\n" +
+                    "                \"analyzer\" : {\n" +
+                    "                    \"custom_1\" : {\n" +
+                    "                        \"tokenizer\" : \"whitespace\"\n" +
+                    "                    }\n" +
+                    "                }\n" +
+                    "            }\n" +
+                    "         }\n" +
+                    "    }\n")
+            .get();
+
+        // put template using custom_1 analyzer
+        client().admin().indices().preparePutTemplate("template_2")
+            .setTemplate("test*")
+            .setCreate(true)
+            .setOrder(1)
+            .setValidation(false)
+            .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("field2").field("type", "string").field("analyzer", "custom_1").endObject()
+                .endObject().endObject().endObject())
+            .get();
+
+        response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), hasSize(2));
+
+    }
+
     public void testOrderAndVersion() {
         int order = randomInt();
         Integer version = randomBoolean() ? randomInt() : null;

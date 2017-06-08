@@ -303,4 +303,12 @@ public class PutIndexTemplateRequestBuilder
         request.source(templateSource, offset, length, xContentType);
         return this;
     }
+
+    /**
+     * Set to <tt>true</tt> to validate
+     */
+    public PutIndexTemplateRequestBuilder setValidation(boolean validation) {
+        request.validation(validation);
+        return this;
+    }
 }

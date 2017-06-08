@@ -100,6 +100,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("api", "validate_template");
         request.template("validate_template");
         request.putMapping("type1", "{}");
+        request.validation(true);
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -113,6 +114,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         request.putMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
             .startObject("field2").field("type", "string").field("analyzer", "custom_1").endObject()
             .endObject().endObject().endObject().string());
+        request.validation(true);
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -120,10 +122,35 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.get(0).getMessage(), containsString("analyzer [custom_1] not found for field [field2]"));
     }
 
+    public void testIndexTemplateWrongMappingsWithNoValidation() throws Exception {
+        PutRequest request = new PutRequest("api", "validate_template");
+        request.template("te*");
+        request.putMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+            .startObject("field2").field("type", "string").field("analyzer", "custom_1").endObject()
+            .endObject().endObject().endObject().string());
+        request.validation(false);
+
+        List<Throwable> errors = putTemplateDetail(request);
+        assertThat(errors.size(), equalTo(0));
+    }
+
     public void testBrokenMapping() throws Exception {
         PutRequest request = new PutRequest("api", "broken_mapping");
         request.template("te*");
         request.putMapping("type1", "abcde");
+        request.validation(false);
+
+        List<Throwable> errors = putTemplateDetail(request);
+        assertThat(errors.size(), equalTo(1));
+        assertThat(errors.get(0), instanceOf(MapperParsingException.class));
+        assertThat(errors.get(0).getMessage(), containsString("Failed to parse mapping "));
+    }
+
+    public void testBrokenMappingWithVlidation() throws Exception {
+        PutRequest request = new PutRequest("api", "broken_mapping");
+        request.template("te*");
+        request.putMapping("type1", "abcde");
+        request.validation(true);
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -135,6 +162,17 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("api", "blank_mapping");
         request.template("te*");
         request.putMapping("type1", "{}");
+        request.validation(false);
+
+        List<Throwable> errors = putTemplateDetail(request);
+        assertThat(errors.size(), equalTo(0));
+    }
+
+    public void testBlankMappingWithValidation() throws Exception {
+        PutRequest request = new PutRequest("api", "blank_mapping");
+        request.template("te*");
+        request.putMapping("type1", "{}");
+        request.validation(true);
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));

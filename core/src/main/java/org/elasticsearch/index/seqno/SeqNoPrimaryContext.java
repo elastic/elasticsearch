@@ -28,6 +28,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
+/**
+ * Represents the sequence number component of the primary context. This is the knowledge on the primary of the in-sync and initializing
+ * shards and their local checkpoints.
+ */
 public class SeqNoPrimaryContext implements Writeable {
 
     private ObjectLongMap<String> inSyncLocalCheckpoints;

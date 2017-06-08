@@ -72,7 +72,7 @@ public class SearchAfterSortedDocQuery extends Query {
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 Sort segmentSort = context.reader().getMetaData().getSort();
                 if (EarlyTerminatingSortingCollector.canEarlyTerminate(sort, segmentSort) == false) {
-                    throw new IOException("wrong sort");
+                    throw new IOException("search sort :[" + sort.getSort() + "] does not match the index sort:[" + segmentSort + "]");
                 }
                 TopComparator comparator= getTopComparator(fieldComparators, context, after.doc);
                 final int maxDoc = context.reader().maxDoc();

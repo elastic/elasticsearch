@@ -201,7 +201,6 @@ as soon as N documents have been collected per segment.
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
-// TESTRESPONSE[s/"total": \.\.\./"total": "$body.hits.total",/]
 // TESTRESPONSE[s/"took": 20,/"took": "$body.took",/]
 // TESTRESPONSE[s/"terminated_early": true,//]
 
@@ -229,4 +228,3 @@ close to each other.
 
 For instance if you were indexing cars for sale, it might be interesting to
 sort by fuel type, body type, make, year of registration and finally mileage.
-=======

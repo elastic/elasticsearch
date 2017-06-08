@@ -32,7 +32,8 @@ if (bwcVersion.endsWith('-SNAPSHOT')) {
   apply plugin: 'distribution'
 
   def (String major, String minor, String bugfix) = bwcVersion.split('\\.')
-  String bwcBranch = "${major}.${minor}"
+  def (String currentMajor, String currentMinor, String currentBugfix) = version.split('\\.')
+  String bwcBranch = currentMajor != major ? "${major}.x" : "${major}.${minor}"
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
   task createClone(type: LoggedExec) {
     onlyIf { checkoutDir.exists() == false }

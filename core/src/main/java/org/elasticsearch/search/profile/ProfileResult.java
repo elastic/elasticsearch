@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 
 /**
  * This class is the internal representation of a profiled Query, corresponding
@@ -50,12 +49,12 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknown
  */
 public final class ProfileResult implements Writeable, ToXContentObject {
 
-    private static final ParseField TYPE = new ParseField("type");
-    private static final ParseField DESCRIPTION = new ParseField("description");
-    private static final ParseField NODE_TIME = new ParseField("time");
-    private static final ParseField NODE_TIME_NANOS = new ParseField("time_in_nanos");
-    private static final ParseField CHILDREN = new ParseField("children");
-    private static final ParseField BREAKDOWN = new ParseField("breakdown");
+    static final ParseField TYPE = new ParseField("type");
+    static final ParseField DESCRIPTION = new ParseField("description");
+    static final ParseField NODE_TIME = new ParseField("time");
+    static final ParseField NODE_TIME_NANOS = new ParseField("time_in_nanos");
+    static final ParseField CHILDREN = new ParseField("children");
+    static final ParseField BREAKDOWN = new ParseField("breakdown");
 
     private final String type;
     private final String description;
@@ -189,7 +188,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
                     // skip, total time is calculate by adding up 'timings' values in ProfileResult ctor
                     parser.longValue();
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (BREAKDOWN.match(currentFieldName)) {
@@ -201,7 +200,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
                         timings.put(name, value);
                     }
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (CHILDREN.match(currentFieldName)) {
@@ -209,7 +208,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
                         children.add(ProfileResult.fromXContent(parser));
                     }
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren();
                 }
             }
         }

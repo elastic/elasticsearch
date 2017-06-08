@@ -34,8 +34,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * Public interface and serialization container for profiled timings of the
@@ -182,7 +180,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
                 } else if (TIME_NANOS.match(currentFieldName)) {
                     time = parser.longValue();
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (CHILDREN.match(currentFieldName)) {
@@ -190,10 +188,10 @@ public class CollectorResult implements ToXContentObject, Writeable {
                         children.add(CollectorResult.fromXContent(parser));
                     }
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren();
                 }
             } else {
-                throwUnknownToken(token, parser.getTokenLocation());
+                parser.skipChildren();
             }
         }
         return new CollectorResult(name, reason, time, children);

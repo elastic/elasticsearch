@@ -60,7 +60,7 @@ public class IngestService {
                 }
             }
         }
-        this.pipelineStore = new PipelineStore(clusterSettings, settings, Collections.unmodifiableMap(processorFactories));
+        this.pipelineStore = new PipelineStore(clusterSettings, settings, Collections.unmodifiableMap(processorFactories), scriptService);
         this.pipelineExecutionService = new PipelineExecutionService(pipelineStore, threadPool);
     }
 

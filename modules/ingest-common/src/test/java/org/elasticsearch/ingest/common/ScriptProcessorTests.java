@@ -24,7 +24,7 @@ import java.util.Map;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -45,10 +45,10 @@ public class ScriptProcessorTests extends ESTestCase {
 
         ScriptService scriptService = mock(ScriptService.class);
         Script script = mockScript("_script");
-        ExecutableScript.Factory factory = mock(ExecutableScript.Factory.class);
-        ExecutableScript executableScript = mock(ExecutableScript.class);
-        when(scriptService.compile(script, ExecutableScript.INGEST_CONTEXT)).thenReturn(factory);
-        when(factory.newInstance(any())).thenReturn(executableScript);
+        IngestScript.Factory factory = mock(IngestScript.Factory.class);
+        IngestScript ingestScript = mock(IngestScript.class);
+        when(scriptService.compile(script, IngestScript.CONTEXT)).thenReturn(factory);
+        when(factory.newInstance(any())).thenReturn(ingestScript);
 
         Map<String, Object> document = new HashMap<>();
         document.put("bytes_in", randomInt());
@@ -58,7 +58,7 @@ public class ScriptProcessorTests extends ESTestCase {
         doAnswer(invocationOnMock ->  {
             ingestDocument.setFieldValue("bytes_total", randomBytesTotal);
             return null;
-        }).when(executableScript).run();
+        }).when(ingestScript).execute(any());
 
         ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), script, scriptService);
 

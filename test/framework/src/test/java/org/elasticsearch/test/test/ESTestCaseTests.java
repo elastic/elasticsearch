@@ -20,6 +20,7 @@
 package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -97,16 +98,20 @@ public class ESTestCaseTests extends ESTestCase {
                 builder.field("field2", "value2");
                 {
                     builder.startObject("object1");
-                    builder.field("inner1", "value1");
-                    builder.field("inner2", "value2");
-                    builder.field("inner3", "value3");
+                    {
+                        builder.field("inner1", "value1");
+                        builder.field("inner2", "value2");
+                        builder.field("inner3", "value3");
+                    }
                     builder.endObject();
                 }
                 {
                     builder.startObject("object2");
-                    builder.field("inner4", "value4");
-                    builder.field("inner5", "value5");
-                    builder.field("inner6", "value6");
+                    {
+                        builder.field("inner4", "value4");
+                        builder.field("inner5", "value5");
+                        builder.field("inner6", "value6");
+                    }
                     builder.endObject();
                 }
             }

@@ -24,14 +24,26 @@ import java.util.Map;
 /**
  * A string template rendered as a script.
  */
-public interface TemplateScript {
+public abstract class TemplateScript {
 
+    private final Map<String, Object> params;
+
+    public TemplateScript(Map<String, Object> params) {
+        this.params = params;
+    }
+
+    /** Return the parameters for this script. */
+    public Map<String, Object> getParams() {
+        return params;
+    }
+
+    public static final String[] PARAMETERS = {};
     /** Run a template and return the resulting string, encoded in utf8 bytes. */
-    String execute();
+    public abstract String execute();
 
-    interface Factory {
+    public interface Factory {
         TemplateScript newInstance(Map<String, Object> params);
     }
 
-    ScriptContext<Factory> CONTEXT = new ScriptContext<>("template", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("template", Factory.class);
 }

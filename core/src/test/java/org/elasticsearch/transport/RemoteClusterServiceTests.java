@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -354,10 +355,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         }
                     });
                     latch.await();
-
-                    CountDownLatch failLatch = new CountDownLatch(1);
-                    AtomicReference<Exception> ex = new AtomicReference<>();
-                    service.collectNodes(new HashSet<>(Arrays.asList("cluster_1", "cluster_2", "no such cluster")),
+                    {
+                        CountDownLatch failLatch = new CountDownLatch(1);
+                        AtomicReference<Exception> ex = new AtomicReference<>();
+                        service.collectNodes(new HashSet<>(Arrays.asList("cluster_1", "cluster_2", "no such cluster")),
                             new ActionListener<BiFunction<String, String, DiscoveryNode>>() {
                                 @Override
                                 public void onResponse(BiFunction<String, String, DiscoveryNode> stringStringDiscoveryNodeBiFunction) {
@@ -377,10 +378,41 @@ public class RemoteClusterServiceTests extends ESTestCase {
                                     }
                                 }
                             });
-                    failLatch.await();
-                    assertNotNull(ex.get());
-                    assertTrue(ex.get() instanceof IllegalArgumentException);
-                    assertEquals("no such remote cluster: [no such cluster]", ex.get().getMessage());
+                        failLatch.await();
+                        assertNotNull(ex.get());
+                        assertTrue(ex.get() instanceof IllegalArgumentException);
+                        assertEquals("no such remote cluster: [no such cluster]", ex.get().getMessage());
+                    }
+                    {
+                        // close all targets and check for the transport level failure path
+                        IOUtils.close(c1N1, c1N2, c2N1, c2N2);
+                        CountDownLatch failLatch = new CountDownLatch(1);
+                        AtomicReference<Exception> ex = new AtomicReference<>();
+                        service.collectNodes(new HashSet<>(Arrays.asList("cluster_1", "cluster_2")),
+                            new ActionListener<BiFunction<String, String, DiscoveryNode>>() {
+                                @Override
+                                public void onResponse(BiFunction<String, String, DiscoveryNode> stringStringDiscoveryNodeBiFunction) {
+                                    try {
+                                        fail("should not be called");
+                                    } finally {
+                                        failLatch.countDown();
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    try {
+                                        ex.set(e);
+                                    } finally {
+                                        failLatch.countDown();
+                                    }
+                                }
+                            });
+                        failLatch.await();
+                        assertNotNull(ex.get());
+                        assertTrue(ex.get().getClass().toString(), ex.get() instanceof ConnectTransportException);
+                        assertTrue(ex.get().getMessage().contains("general node connection failure"));
+                    }
                 }
             }
         }

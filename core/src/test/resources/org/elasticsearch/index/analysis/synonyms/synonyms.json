@@ -22,11 +22,6 @@
                     "tokenizer":"trigram",
                     "filter":["synonymWithTokenizerSettings"]
                 },
-                "synonymAnalyzerWithCharfilter": {
-                    "char_filter": ["html_strip"],
-                    "tokenizer":"whitespace",
-                    "filter":["synonym_within_html"]
-                },
                 "synonymAnalyzerWithStopBeforeSynonym": {
                     "tokenizer":"whitespace",
                     "filter":["stop","synonym"]
@@ -86,14 +81,6 @@
                     "type":"synonym",
                     "synonyms":[
                         "kimchy => shay"
-                    ]
-                },
-                "synonym_within_html":{
-                    "type":"synonym",
-                    "synonyms":[
-                        "<p>kimchy</p> => shay",
-                        "dude => <html>elasticsearch</html>",
-                        "<font>abides</font> => man!"
                     ]
                 },
                 "stop":{

@@ -26,9 +26,11 @@ import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -157,5 +159,56 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = parser2x.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, defaultMapper.mappingSource().string());
+    }
+
+    public void testParseNullValue() throws Exception {
+        DocumentMapper mapper = createIndexWithTokenCountField();
+        ParseContext.Document doc = parseDocument(mapper, createDocument(null));
+        assertNull(doc.getField("test.tc"));
+    }
+
+    public void testParseEmptyValue() throws Exception {
+        DocumentMapper mapper = createIndexWithTokenCountField();
+        ParseContext.Document doc = parseDocument(mapper, createDocument(""));
+        assertEquals(0, doc.getField("test.tc").numericValue());
+    }
+
+    public void testParseNotNullValue() throws Exception {
+        DocumentMapper mapper = createIndexWithTokenCountField();
+        ParseContext.Document doc = parseDocument(mapper, createDocument("three tokens string"));
+        assertEquals(3, doc.getField("test.tc").numericValue());
+    }
+
+    private DocumentMapper createIndexWithTokenCountField() throws IOException {
+        final String content = XContentFactory.jsonBuilder().startObject()
+            .startObject("person")
+                .startObject("properties")
+                    .startObject("test")
+                        .field("type", "text")
+                        .startObject("fields")
+                            .startObject("tc")
+                                .field("type", "token_count")
+                                .field("analyzer", "standard")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject().endObject().string();
+
+        return createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(content));
+    }
+
+    private SourceToParse createDocument(String fieldValue) throws Exception {
+        BytesReference request = XContentFactory.jsonBuilder()
+            .startObject()
+                .field("test", fieldValue)
+            .endObject().bytes();
+
+        return SourceToParse.source("test", "person", "1", request, XContentType.JSON);
+    }
+
+    private ParseContext.Document parseDocument(DocumentMapper mapper, SourceToParse request) {
+        return mapper.parse(request)
+            .docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
     }
 }

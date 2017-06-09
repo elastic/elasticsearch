@@ -375,7 +375,7 @@ public class ShardStateAction extends AbstractComponent {
         public void messageReceived(ShardEntry request, TransportChannel channel) throws Exception {
             logger.debug("{} received shard started for [{}]", request.shardId, request);
             clusterService.submitStateUpdateTask(
-                "shard-started",
+                "shard-started " + request.shardId,
                 request,
                 ClusterStateTaskConfig.build(Priority.URGENT),
                 shardStartedClusterStateTaskExecutor,

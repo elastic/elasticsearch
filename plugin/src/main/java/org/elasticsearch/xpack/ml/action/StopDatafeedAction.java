@@ -305,8 +305,16 @@ public class StopDatafeedAction
             Set<String> executorNodes = new HashSet<>();
             for (String datafeedId : startedDatafeeds) {
                 PersistentTask<?> datafeedTask = MlMetadata.getDatafeedTask(datafeedId, tasks);
-                executorNodes.add(datafeedTask.getExecutorNode());
+                if (datafeedTask == null || datafeedTask.isAssigned() == false) {
+                    String message = "Cannot stop datafeed [" + datafeedId + "] because the datafeed does not have an assigned node." +
+                            " Use force stop to stop the datafeed";
+                    listener.onFailure(ExceptionsHelper.conflictStatusException(message));
+                    return;
+                } else {
+                    executorNodes.add(datafeedTask.getExecutorNode());
+                }
             }
+
             request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
 
             // wait for started and stopping datafeeds

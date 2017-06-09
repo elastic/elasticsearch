@@ -342,21 +342,23 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                     return;
                 }
 
-                Set<String> executorNodes = new HashSet<>();
-                PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-                for (String resolvedJobId : request.openJobIds) {
-                    PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(resolvedJobId, tasks);
-                    if (jobTask == null || jobTask.isAssigned() == false) {
-                        String message = "Cannot perform requested action because job [" + resolvedJobId
-                                + "] is not open";
-                        listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-                        return;
-                    } else {
-                        executorNodes.add(jobTask.getExecutorNode());
+                if (request.isForce() == false) {
+                    Set<String> executorNodes = new HashSet<>();
+                    PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+                    for (String resolvedJobId : request.openJobIds) {
+                        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(resolvedJobId, tasks);
+                        if (jobTask == null || jobTask.isAssigned() == false) {
+                            String message = "Cannot close job [" + resolvedJobId + "] because the job does not have an assigned node." +
+                                    " Use force close to close the job";
+                            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
+                            return;
+                        } else {
+                            executorNodes.add(jobTask.getExecutorNode());
+                        }
                     }
+                    request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
                 }
 
-                request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
                 if (request.isForce()) {
                     List<String> jobIdsToForceClose = new ArrayList<>(openJobIds);
                     jobIdsToForceClose.addAll(closingJobIds);

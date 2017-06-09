@@ -13,8 +13,8 @@ is used exclusively for communication between nodes and the
 used only by external REST clients.
 
 All nodes know about all the other nodes in the cluster and can forward client
-requests to the appropriate node. In addition, each node functions as one or
-more of the following node types:
+requests to the appropriate node. Besides that, each node serves one or more
+purpose:
 
 <<master-node,Master-eligible node>>::
 
@@ -41,19 +41,10 @@ A tribe node, configured via the `tribe.*` settings, is a special type  of
 coordinating only node that can connect to multiple clusters and perform
 search and other operations across all connected clusters.
 
-[xpack]#<<machine-learning-node,Machine learning node>>#::
-
-A node that has `xpack.ml.enabled` and `node.ml` set to `true`, which is the
-default behavior when X-Pack is installed. If you want to use X-Pack machine
-learning features, there must be at least one machine learning node in your
-cluster. For more information about X-Pack machine learning features,
-see {xpack}/xpack-ml.html[Machine Learning in the Elastic Stack].
-
-By default, nodes are master-eligible, data, and ingest nodes. If X-Pack is
-installed, they are also machine learning nodes by default. This is very
-convenient for small clusters but, as the cluster grows, it becomes important
-to consider separating dedicated master-eligible nodes from dedicated data
-nodes.
+By default a node is a master-eligible node and a data node, plus it can
+pre-process documents through ingest pipelines. This is very convenient for
+small clusters but, as the cluster grows, it becomes important to consider
+separating dedicated master-eligible nodes from dedicated data nodes.
 
 [NOTE]
 [[coordinating-node]]
@@ -72,10 +63,10 @@ coordinating node reduces each data node's results into a single global
 resultset.
 
 Every node is implicitly a coordinating node. This means that a node that has
-all three `node.master`, `node.data`, and `node.ingest` set to `false` (and
-`node.ml` set to `false` when X-Pack is installed) will only act as a
-coordinating node, which cannot be disabled. As a result, such a node needs to
-have enough memory and CPU in order to deal with the gather phase.
+all three `node.master`, `node.data` and `node.ingest` set to `false` will
+only act as a coordinating node, which cannot be disabled. As a result, such
+a node needs to have enough memory and CPU in order to deal with the gather
+phase.
 
 ===============================================
 
@@ -113,17 +104,10 @@ To create a standalone master-eligible node, set:
 node.master: true <1>
 node.data: false <2>
 node.ingest: false <3>
-node.ml: false <4>
-xpack.ml.enabled: true <5>
 -------------------
 <1> The `node.master` role is enabled by default.
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
-<4> Disable the `node.ml` role (enabled by default in X-Pack).
-<5> The `xpack.ml.enabled` setting is enabled by default in X-Pack.
-
-IMPORTANT: Do not set use the `node.ml` and `xpack.ml.enabled` settings unless
-X-Pack is installed. Otherwise, the node fails to start.
 
 [float]
 [[split-brain]]
@@ -204,15 +188,10 @@ To create a dedicated data node, set:
 node.master: false <1>
 node.data: true <2>
 node.ingest: false <3>
-node.ml: false <4>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.data` role is enabled by default.
 <3> Disable the `node.ingest` role (enabled by default).
-<4> Disable the `node.ml` role (enabled by default in X-Pack).
-
-IMPORTANT: Do not set use the `node.ml` setting unless X-Pack is installed.
-Otherwise, the node fails to start.
 
 [float]
 [[node-ingest-node]]
@@ -231,16 +210,11 @@ node.master: false <1>
 node.data: false <2>
 node.ingest: true <3>
 search.remote.connect: false <4>
-node.ml: false <5>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
 <3> The `node.ingest` role is enabled by default.
 <4> Disable cross-cluster search (enabled by default).
-<5> Disable the `node.ml` role (enabled by default in X-Pack).
-
-IMPORTANT: Do not set use the `node.ml` setting unless X-Pack is installed.
-Otherwise, the node fails to start.
 
 [float]
 [[coordinating-only-node]]
@@ -271,54 +245,11 @@ node.master: false <1>
 node.data: false <2>
 node.ingest: false <3>
 search.remote.connect: false <4>
-node.ml: false <5>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
 <4> Disable cross-cluster search (enabled by default).
-<5> Disable the `node.ml` role (enabled by default in X-Pack).
-
-IMPORTANT: Do not set use the `node.ml` setting unless X-Pack is installed.
-Otherwise, the node fails to start.
-
-[float]
-[[machine-learning-node]]
-=== [xpack]#Machine learning node#
-
-The X-Pack machine learning features provide machine learning nodes, which run
-jobs and handle machine learning API requests.
-If `xpack.ml.enabled` is set to true and `node.ml` is set to `false`, the node
-can service API requests but it cannot run jobs.
-
-If you want to use X-Pack machine learning features in your cluster, you must
-enable machine learning (set `xpack.ml.enabled` to `true`) on all master-eligible
-nodes. Do not use these settings if you do not have X-Pack installed.
-
-For more information about these settings,
-see {xpack}/ml-settings.html[Machine Learning Settings].
-
-To create a dedicated machine learning node, set:
-
-[source,yaml]
--------------------
-node.master: false <1>
-node.data: false <2>
-node.ingest: false <3>
-search.remote.connect: false <4>
-node.ml: true <5>
-xpack.ml.enabled: true <6>
--------------------
-<1> Disable the `node.master` role (enabled by default).
-<2> Disable the `node.data` role (enabled by default).
-<3> Disable the `node.ingest` role (enabled by default).
-<4> Disable cross-cluster search (enabled by default).
-<5> The `node.ml` role is enabled by default in X-Pack.
-<6> The `xpack.ml.enabled` setting is enabled by default in X-Pack.
-
-IMPORTANT: Do not set use the `node.ml` and `xpack.ml.enabled` settings unless
-X-Pack is installed. Otherwise, the node fails to start.
-
 
 [float]
 == Node data path settings
@@ -371,3 +302,7 @@ lead to unexpected data loss.
 More node settings can be found in <<modules,Modules>>.  Of particular note are
 the <<cluster.name,`cluster.name`>>, the <<node.name,`node.name`>> and the
 <<modules-network,network settings>>.
+
+ifdef::include-xpack[]
+include::{xes-repo-dir}/node.asciidoc[]
+endif::include-xpack[]

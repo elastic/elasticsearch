@@ -117,7 +117,6 @@ subprojects {
       numNodes = 2
       clusterName = 'rolling-upgrade'
       waitCondition = waitWithAuth
-      setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'
@@ -153,7 +152,6 @@ subprojects {
       setting 'node.attr.upgraded', 'first'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-      setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
       if (withSystemKey) {
         setting 'xpack.security.system_key.required', 'true'
         extraConfigFile 'x-pack/system_key',
@@ -181,7 +179,6 @@ subprojects {
       setting 'xpack.ssl.keystore.password', 'testnode'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-      setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
       if (withSystemKey) {
         setting 'xpack.security.system_key.required', 'true'
         extraConfigFile 'x-pack/system_key',

@@ -1574,7 +1574,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             latch.countDown();
                         } catch (final InterruptedException e) {
                             onFailure(e);
-                            onFailureConsumer.accept(e);
                         } finally {
                             releasable.close();
                         }
@@ -1582,6 +1581,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     @Override
                     public void onFailure(final Exception e) {
+                        onFailureConsumer.accept(e);
                         latch.countDown();
                     }
                 },

@@ -177,6 +177,21 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         assertEquals(Collections.emptyList(), closingJobs);
     }
 
+    public void testResolve_throwsWithUnknownJobId() {
+        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
+        mlBuilder.putJob(BaseMlIntegTestCase.createFareQuoteJob("job_id_1").build(new Date()), false);
+
+        ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build()))
+                .build();
+
+        List<String> openJobs = new ArrayList<>();
+        List<String> closingJobs = new ArrayList<>();
+
+        expectThrows(ResourceNotFoundException.class,
+                () -> CloseJobAction.resolveAndValidateJobId("missing-job", cs1, openJobs, closingJobs, false));
+    }
+
     public void testResolve_givenJobIdFailed() {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(BaseMlIntegTestCase.createFareQuoteJob("job_id_failed").build(new Date()), false);

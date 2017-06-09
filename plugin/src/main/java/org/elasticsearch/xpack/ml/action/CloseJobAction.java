@@ -563,12 +563,9 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
      */
     static void resolveAndValidateJobId(String jobId, ClusterState state, List<String> openJobIds, List<String> closingJobIds,
             boolean allowFailed) {
-        MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
         PersistentTasksCustomMetaData tasksMetaData = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-
-        if (mlMetadata.getJobs().isEmpty()) {
-            return;
-        }
+        MlMetadata maybeNull = state.metaData().custom(MlMetadata.TYPE);
+        final MlMetadata mlMetadata = (maybeNull == null) ? MlMetadata.EMPTY_METADATA : maybeNull;
 
         List<String> failedJobs = new ArrayList<>();
 
@@ -582,6 +579,9 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         };
 
         if (!Job.ALL.equals(jobId)) {
+            if (mlMetadata.getJobs().containsKey(jobId) == false) {
+                throw ExceptionsHelper.missingJobException(jobId);
+            }
             jobIdProcessor.accept(jobId);
 
             if (allowFailed == false && failedJobs.size() > 0) {

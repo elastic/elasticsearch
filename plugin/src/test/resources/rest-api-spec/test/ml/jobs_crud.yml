@@ -573,6 +573,18 @@
   - match: { closed: true }
 
 ---
+"Test open and close an unknown job is resource not found":
+  - do:
+      catch: missing
+      xpack.ml.open_job:
+        job_id: jobs-crud-some-missing-job-i-made-up
+
+  - do:
+      catch: missing
+      xpack.ml.close_job:
+        job_id: jobs-crud-some-missing-job-i-made-up
+
+---
 "Test cannot create job with existing categorizer state document":
 
   - do:

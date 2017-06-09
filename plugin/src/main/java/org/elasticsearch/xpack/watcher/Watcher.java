@@ -112,7 +112,6 @@ import org.elasticsearch.xpack.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
-import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
@@ -304,8 +303,8 @@ public class Watcher implements ActionPlugin {
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
 
-        final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = new WatcherIndexTemplateRegistry(settings,
-                clusterService.getClusterSettings(), clusterService, threadPool, internalClient);
+        final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = new WatcherIndexTemplateRegistry(settings, clusterService,
+                threadPool, internalClient);
 
         WatcherService watcherService = new WatcherService(settings, triggerService, triggeredWatchStore, executionService,
                 watchParser, internalClient);
@@ -361,9 +360,6 @@ public class Watcher implements ActionPlugin {
 
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<>();
-        for (TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
-            settings.add(templateConfig.getSetting());
-        }
         settings.add(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
         settings.add(MAX_STOP_TIMEOUT_SETTING);
         settings.add(ExecutionService.DEFAULT_THROTTLE_PERIOD_SETTING);

@@ -39,7 +39,6 @@ import org.junit.Before;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.watcher.history.HistoryStore.getHistoryIndexNameForTime;
-import static org.elasticsearch.xpack.watcher.test.WatcherMatchers.indexRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;

@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -30,14 +29,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.when;
@@ -56,11 +51,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
     @Before
     public void createRegistryAndClient() {
-        Set<Setting<?>> registeredSettings = new HashSet<>();
-        registeredSettings.add(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_SETTING);
-        registeredSettings.add(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_SETTING);
-        registeredSettings.add(WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_SETTING);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, registeredSettings);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet());
 
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -72,19 +63,15 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(client.admin()).thenReturn(adminClient);
-        doAnswer(new Answer<Void>() {
-            @SuppressWarnings("unchecked")
-            @Override
-            public Void answer(InvocationOnMock invocationOnMock) {
-                ActionListener<PutIndexTemplateResponse> listener =
-                        (ActionListener<PutIndexTemplateResponse>) invocationOnMock.getArguments()[2];
-                listener.onResponse(new TestPutIndexTemplateResponse(true));
-                return null;
-            }
+        doAnswer(invocationOnMock -> {
+            ActionListener<PutIndexTemplateResponse> listener =
+                    (ActionListener<PutIndexTemplateResponse>) invocationOnMock.getArguments()[2];
+            listener.onResponse(new TestPutIndexTemplateResponse(true));
+            return null;
         }).when(client).execute(same(PutIndexTemplateAction.INSTANCE), any(), any());
 
         ClusterService clusterService = mock(ClusterService.class);
-        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterSettings, clusterService, threadPool, internalClient);
+        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, internalClient);
     }
 
     private ClusterChangedEvent createClusterChangedEvent(List<String> existingTemplateNames) {

@@ -1581,8 +1581,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     @Override
                     public void onFailure(final Exception e) {
-                        onFailureConsumer.accept(e);
-                        latch.countDown();
+                        try {
+                            onFailureConsumer.accept(e);
+                        } finally {
+                            latch.countDown();
+                        }
                     }
                 },
                 ThreadPool.Names.GENERIC);

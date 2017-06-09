@@ -358,7 +358,7 @@ Customized scores can be implemented via a script:
 	    "script_heuristic": {
               "script": {
 	        "lang": "painless",
-	        "inline": "params._subset_freq/(params._superset_freq - params._subset_freq + 1)"
+	        "source": "params._subset_freq/(params._superset_freq - params._subset_freq + 1)"
 	      }
             }
 --------------------------------------------------

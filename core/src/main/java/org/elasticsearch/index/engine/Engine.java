@@ -1102,8 +1102,8 @@ public abstract class Engine implements Closeable {
         public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType,
                       Origin origin, long startTime) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
-            this.type = type;
-            this.id = id;
+            this.type = Objects.requireNonNull(type);
+            this.id = Objects.requireNonNull(id);
         }
 
         public Delete(String type, String id, Term uid) {

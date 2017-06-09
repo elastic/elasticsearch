@@ -35,9 +35,7 @@ subprojects {
     def (String major, String minor, String bugfix) = bwcVersion.split('\\.')
     def (String currentMajor, String currentMinor, String currentBugfix) = version.split('\\.')
     String bwcBranch
-    if (project.name == 'bwc-stable-snapshot') {
-      bwcBranch = "${major}.x"
-    } else if (major != currentMajor) {
+    if (project.name == 'stable-snapshot') {
       bwcBranch = "${major}.x"
     } else {
       bwcBranch = "${major}.${minor}"

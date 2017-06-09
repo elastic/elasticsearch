@@ -5,7 +5,7 @@
       render_search_template:
         body:  >
           {
-            "inline": {
+            "source": {
               "query": {
                 "match": {
                   "url": "https://localhost:9200/{{#url}}{{index}}{{/url}}/{{#url}}{{type}}{{/url}}/_search"
@@ -27,7 +27,7 @@
       render_search_template:
         body:  >
           {
-            "inline": {
+            "source": {
               "query": {
                 "match": {
                   "url": "{{#url}}https://localhost:9200/{{#join}}indices{{/join}}/_stats{{/url}}"

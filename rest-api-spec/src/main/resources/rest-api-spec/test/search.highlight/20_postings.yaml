@@ -4,7 +4,7 @@ setup:
           index: test
           body:
             mappings:
-              unified:
+              doc:
                 "properties":
                   "text":
                      "type": "text"
@@ -12,7 +12,7 @@ setup:
   - do:
       index:
         index: test
-        type:  unified
+        type:  doc
         id:    1
         body:
             "text" : "The quick brown fox is brown."
@@ -20,7 +20,7 @@ setup:
   - do:
       index:
         index: test
-        type:  unified
+        type:  doc
         id:    2
         body:
             "text" : "The quick brown fox is brown."
@@ -32,8 +32,8 @@ setup:
 "Postings highlighter should have deprecation warning":
   - skip:
       features: 'warnings'
-      version: ' - 5.4.99'
-      reason: deprecated in 5.5
+      version: ' - 5.5.99'
+      reason: deprecated in 5.6
   - do:
       warnings:
         - "[postings] highlighter is deprecated, please use [unified] instead"

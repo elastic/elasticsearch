@@ -22,12 +22,15 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.util.Counter;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class TranslogDeletionPolicy {
 
-    /** Records how many views are held against each
-     *  translog generation */
+    /**
+     * Records how many views are held against each
+     * translog generation
+     */
     private final Map<Long, Counter> translogRefCounts = new HashMap<>();
 
     /**
@@ -36,12 +39,29 @@ public class TranslogDeletionPolicy {
      */
     private long minTranslogGenerationForRecovery = 1;
 
+    private long retentionSizeInBytes;
+
+    private long maxRetentionAgeInMillis;
+
+    public TranslogDeletionPolicy(long retentionSizeInBytes, long maxRetentionAgeInMillis) {
+        this.retentionSizeInBytes = retentionSizeInBytes;
+        this.maxRetentionAgeInMillis = maxRetentionAgeInMillis;
+    }
+
     public synchronized void setMinTranslogGenerationForRecovery(long newGen) {
         if (newGen < minTranslogGenerationForRecovery) {
             throw new IllegalArgumentException("minTranslogGenerationForRecovery can't go backwards. new [" + newGen + "] current [" +
-                minTranslogGenerationForRecovery+ "]");
+                minTranslogGenerationForRecovery + "]");
         }
         minTranslogGenerationForRecovery = newGen;
+    }
+
+    public synchronized void setRetentionSizeInBytes(long bytes) {
+        retentionSizeInBytes = bytes;
+    }
+
+    public synchronized void setMaxRetentionAgeInMillis(long ageInMillis) {
+        maxRetentionAgeInMillis = ageInMillis;
     }
 
     /**
@@ -74,10 +94,51 @@ public class TranslogDeletionPolicy {
     /**
      * returns the minimum translog generation that is still required by the system. Any generation below
      * the returned value may be safely deleted
+     *
+     * @param readers current translog readers
+     * @param writer  current translog writer
      */
-    synchronized long minTranslogGenRequired() {
-        long viewRefs = translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
-        return Math.min(viewRefs, minTranslogGenerationForRecovery);
+    synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) {
+        long minByView = getMinTranslogGenRequiredByViews();
+        long minByAge = getMinTranslogGenByAge(readers, writer);
+        long minBySize = getMinTranslogGenBySize(readers, writer);
+        long minByAgeAndSize = Math.max(minByAge, minBySize);
+        return Math.min(minByAgeAndSize, Math.min(minByView, minTranslogGenerationForRecovery));
+    }
+
+    private long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer) {
+        if (retentionSizeInBytes >= 0) {
+            long totalSize = writer.sizeInBytes();
+            long minGen = writer.getGeneration();
+            for (int i = readers.size() - 1; i >= 0 && totalSize < retentionSizeInBytes; i--) {
+                final TranslogReader reader = readers.get(i);
+                totalSize += reader.sizeInBytes();
+                minGen = reader.getGeneration();
+            }
+            return minGen;
+        } else {
+            return Long.MIN_VALUE;
+        }
+    }
+
+    private long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer) {
+        if (maxRetentionAgeInMillis >= 0) {
+            long now = currentTime();
+            BaseTranslogReader firstNonExpired = readers.stream().map(r -> (BaseTranslogReader) r).filter(
+                r -> now - r.getCreationTimeInMillis() <= maxRetentionAgeInMillis
+            ).findFirst().orElse(writer);
+            return firstNonExpired.getGeneration();
+        } else {
+            return Long.MIN_VALUE;
+        }
+    }
+
+    protected long currentTime() {
+        return System.currentTimeMillis();
+    }
+
+    private long getMinTranslogGenRequiredByViews() {
+        return translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
     }
 
     /** returns the translog generation that will be used as a basis of a future store/peer recovery */

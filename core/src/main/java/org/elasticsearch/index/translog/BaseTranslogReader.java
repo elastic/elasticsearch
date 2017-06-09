@@ -35,8 +35,10 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     protected final FileChannel channel;
     protected final Path path;
     protected final long firstOperationOffset;
+    private final long creationTimeInMillis;
 
-    public BaseTranslogReader(long generation, FileChannel channel, Path path, long firstOperationOffset) {
+    public BaseTranslogReader(long generation, FileChannel channel, Path path, long firstOperationOffset, long creationTimeInMillis) {
+        this.creationTimeInMillis = creationTimeInMillis;
         assert Translog.parseIdFromFileName(path) == generation : "generation mismatch. Path: " + Translog.parseIdFromFileName(path) + " but generation: " + generation;
 
         this.generation = generation;
@@ -120,5 +122,9 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
 
     public Path path() {
         return path;
+    }
+
+    public long getCreationTimeInMillis() {
+        return creationTimeInMillis;
     }
 }

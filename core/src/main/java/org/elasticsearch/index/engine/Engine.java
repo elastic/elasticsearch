@@ -1402,7 +1402,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public void onSettingsChanged() {
+    public void onSettingsChanged() throws IOException {
     }
 
     /**

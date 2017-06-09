@@ -618,12 +618,6 @@ GET /_search
 // CONSOLE
 // TEST[setup:twitter]
 
-Note that the score of text fragment in this case is calculated by the Lucene
-highlighting framework. For implementation details you can check the
-`ScoreOrderFragmentsBuilder.java` class. On the other hand when using the
-postings highlighter the fragments are scored using, as mentioned above,
-the BM25 algorithm.
-
 [[highlighting-settings]]
 ==== Global Settings
 

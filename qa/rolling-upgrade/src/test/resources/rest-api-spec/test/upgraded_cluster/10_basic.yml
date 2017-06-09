@@ -5,6 +5,7 @@
         wait_for_status: green
         wait_for_nodes: 2
         timeout: 25s
+        level: shards
 
  - do:
      search:

@@ -134,7 +134,7 @@ public final class ScriptProcessor extends AbstractProcessor {
             String scriptPropertyUsed;
             if (Strings.hasLength(source)) {
                 script = new Script(INLINE, lang, source, (Map<String, Object>)params);
-                scriptPropertyUsed = "inline";
+                scriptPropertyUsed = "source";
             } else if (Strings.hasLength(id)) {
                 script = new Script(STORED, lang, id, (Map<String, Object>)params);
                 scriptPropertyUsed = "id";

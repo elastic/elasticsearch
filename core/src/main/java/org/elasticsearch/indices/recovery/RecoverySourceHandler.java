@@ -41,6 +41,7 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -59,7 +60,9 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
@@ -448,7 +451,23 @@ public class RecoverySourceHandler {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("finalizing recovery");
         cancellableThreads.execute(() -> {
-            shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint);
+            final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<Exception> reference = new AtomicReference<>();
+            shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint, latch, reference::set);
+            /*
+             * We wait for the shard to be marked as in-sync. However, our latch could also be counted down if marking the shard in-sync
+             * was interrupted or for any other exception that is thrown marking the shard as in-sync. Therefore, after we are unlatched we
+             * check if an exception was thrown. Interrupted exceptions must be handled specially due to their meaning to cancellable
+             * threads. All other exceptions are wrapped as runtime exceptions and rethrown.
+             */
+            latch.await();
+            if (reference.get() != null) {
+                if (reference.get() instanceof InterruptedException) {
+                    throw (InterruptedException) reference.get();
+                } else {
+                    throw new RuntimeException(reference.get());
+                }
+            }
             recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint());
         });
 

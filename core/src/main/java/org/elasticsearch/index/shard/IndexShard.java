@@ -57,6 +57,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -1536,19 +1537,55 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Marks the shard with the provided allocation ID as in-sync with the primary shard. See
      * {@link org.elasticsearch.index.seqno.GlobalCheckpointTracker#markAllocationIdAsInSync(String, long)}
-     * for additional details.
+     * for additional details. Because this operation could be completed asynchronously on another thread, the caller must provide a latch;
+     * this latch will be counted down after the operation completes.
      *
-     * @param allocationId    the allocation ID of the shard to mark as in-sync
-     * @param localCheckpoint the current local checkpoint on the shard
+     * @param allocationId      the allocation ID of the shard to mark as in-sync
+     * @param localCheckpoint   the current local checkpoint on the shard
+     * @param latch             a latch that is counted down after the operation completes
+     * @param onFailureConsumer a callback if an exception occurs completing the operation
      */
-    public void markAllocationIdAsInSync(final String allocationId, final long localCheckpoint) throws InterruptedException {
-        verifyPrimary();
-        getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
+    public void markAllocationIdAsInSync(
+            final String allocationId,
+            final long localCheckpoint,
+            final CountDownLatch latch,
+            final Consumer<Exception> onFailureConsumer) {
         /*
-         * We could have blocked waiting for the replica to catch up that we fell idle and there will not be a background sync to the
-         * replica; mark our self as active to force a future background sync.
+         * Before marking the shard as in-sync we acquire an operation permit. We do this so that there is a barrier between marking a shard
+         * as in-sync and relocating a shard. If we acquire the permit then no relocation handoff can complete before we are done marking
+         * the shard as in-sync. If the relocation handoff holds all the permits then after the handoff completes and we acquire the permit
+         * then the state of the shard will be relocated and this recovery will fail.
          */
-        active.compareAndSet(false, true);
+        acquirePrimaryOperationPermit(
+                new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(final Releasable releasable) {
+                        // we could have been relocated while waiting for a permit
+                        if (state() == IndexShardState.RELOCATED) {
+                            onFailure(new IndexShardRelocatedException(shardId));
+                        }
+                        try {
+                            getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
+                            /*
+                             * We could have blocked waiting for the replica to catch up that we fell idle and there will not be a
+                             * background sync to the replica; mark our self as active to force a future background sync.
+                             */
+                            active.compareAndSet(false, true);
+                            latch.countDown();
+                        } catch (final InterruptedException e) {
+                            onFailure(e);
+                            onFailureConsumer.accept(e);
+                        } finally {
+                            releasable.close();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        latch.countDown();
+                    }
+                },
+                ThreadPool.Names.GENERIC);
     }
 
     /**

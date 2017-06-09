@@ -121,6 +121,9 @@ releases 2.0 and later do not support rivers.
 * http://haystacksearch.org/[Haystack]:
   Modular search for Django
 
+* http://hibernate.org/search/[Hibernate Search]
+  Integration with Hibernate ORM, from the Hibernate team. Automatic synchronization of write operations, yet exposes full Elasticsearch capabilities for queries. Can return either Elasticsearch native or re-map queries back into managed entities loaded within transaction from the reference database.
+
 * https://github.com/cleverage/play2-elasticsearch[play2-elasticsearch]:
   Elasticsearch module for Play Framework 2.x
 

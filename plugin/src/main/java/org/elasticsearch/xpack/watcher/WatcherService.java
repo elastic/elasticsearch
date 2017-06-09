@@ -126,7 +126,7 @@ public class WatcherService extends AbstractComponent {
                 Collection<Watch> watches = loadWatches(clusterState);
                 triggerService.start(watches);
 
-                Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches);
+                Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, clusterState);
                 executionService.executeTriggeredWatches(triggeredWatches);
 
                 state.set(WatcherState.STARTED);
@@ -175,7 +175,7 @@ public class WatcherService extends AbstractComponent {
         // then load triggered watches, which might have been in the queue that we just cleared,
         // maybe we dont need to execute those anymore however, i.e. due to shard shuffling
         // then someone else will
-        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches);
+        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, clusterState);
         executionService.executeTriggeredWatches(triggeredWatches);
     }
 

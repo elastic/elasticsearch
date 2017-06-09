@@ -203,18 +203,24 @@ public class TriggeredWatchStore extends AbstractComponent {
      *
      * Note: This is executing a blocking call over the network, thus a potential source of problems
      *
-     * @param watches The list of watches that will be loaded here
-     * @return A list of triggered watches that have been started to execute somewhere else but not finished
+     * @param watches       The list of watches that will be loaded here
+     * @param clusterState  The current cluster state
+     * @return              A list of triggered watches that have been started to execute somewhere else but not finished
      */
-    public Collection<TriggeredWatch> findTriggeredWatches(Collection<Watch> watches) {
+    public Collection<TriggeredWatch> findTriggeredWatches(Collection<Watch> watches, ClusterState clusterState) {
         if (watches.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // non existing index, return immediately
+        IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStore.INDEX_NAME, clusterState.metaData());
+        if (indexMetaData == null) {
             return Collections.emptyList();
         }
 
         try {
             client.admin().indices().refresh(new RefreshRequest(TriggeredWatchStore.INDEX_NAME)).actionGet(TimeValue.timeValueSeconds(5));
         } catch (IndexNotFoundException e) {
-            // no index, no problems, we dont need to search further
             return Collections.emptyList();
         }
 

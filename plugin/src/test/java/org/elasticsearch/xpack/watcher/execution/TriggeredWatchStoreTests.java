@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -58,6 +59,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class TriggeredWatchStoreTests extends ESTestCase {
@@ -80,7 +82,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     }
 
     public void testFindTriggeredWatchesEmptyCollection() throws Exception {
-        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(Collections.emptyList());
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));
+        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(Collections.emptyList(), csBuilder.build());
         assertThat(triggeredWatches, hasSize(0));
     }
 
@@ -219,7 +222,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         if (randomBoolean()) {
             watches.add(watch2);
         }
-        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches);
+        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, cs);
         assertThat(triggeredWatches, notNullValue());
         assertThat(triggeredWatches, hasSize(watches.size()));
 
@@ -295,6 +298,36 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         csBuilder.metaData(metaDataBuilder);
 
         assertThat(triggeredWatchStore.validate(csBuilder.build()), is(false));
+    }
+
+    public void testTriggeredWatchesIndexDoesNotExistOnStartup() throws Exception {
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        ClusterState cs = csBuilder.build();
+        assertThat(triggeredWatchStore.validate(cs), is(true));
+        Watch watch = mock(Watch.class);
+        triggeredWatchStore.findTriggeredWatches(Collections.singletonList(watch), cs);
+        verifyZeroInteractions(client);
+    }
+
+    public void testIndexNotFoundButInMetaData() throws Exception {
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        MetaData.Builder metaDataBuilder = MetaData.builder()
+                .put(IndexMetaData.builder(TriggeredWatchStore.INDEX_NAME).settings(indexSettings));
+        csBuilder.metaData(metaDataBuilder);
+
+        ClusterState cs = csBuilder.build();
+        Watch watch = mock(Watch.class);
+
+        AdminClient adminClient = mock(AdminClient.class);
+        when(client.admin()).thenReturn(adminClient);
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+        PlainActionFuture<RefreshResponse> future = PlainActionFuture.newFuture();
+        when(indicesAdminClient.refresh(any())).thenReturn(future);
+        future.onFailure(new IndexNotFoundException(TriggeredWatchStore.INDEX_NAME));
+
+        Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(Collections.singletonList(watch), cs);
+        assertThat(triggeredWatches, hasSize(0));
     }
 
     private RefreshResponse mockRefreshResponse(int total, int successful) {

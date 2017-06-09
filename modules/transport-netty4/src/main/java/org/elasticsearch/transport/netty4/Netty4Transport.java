@@ -316,7 +316,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     @Override
     protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) {
         final Channel[] channels = new Channel[profile.getNumConnections()];
-        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile, transportServiceAdapter::onConnectionClosed);
+        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile, this::onNodeChannelsClosed);
         boolean success = false;
         try {
             final TimeValue connectTimeout;
@@ -345,7 +345,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
                         throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.cause());
                     }
                     channels[i] = future.channel();
-                    channels[i].closeFuture().addListener(new ChannelCloseListener(node));
+                    channels[i].closeFuture().addListener(new ChannelCloseListener());
                 }
                 assert iterator.hasNext() == false : "not all created connection have been consumed";
             } catch (final RuntimeException e) {
@@ -374,21 +374,17 @@ public class Netty4Transport extends TcpTransport<Channel> {
         return nodeChannels;
     }
 
-    private class ChannelCloseListener implements ChannelFutureListener {
-
-        private final DiscoveryNode node;
-
-        private ChannelCloseListener(DiscoveryNode node) {
-            this.node = node;
-        }
-
+    private final class ChannelCloseListener implements ChannelFutureListener {
         @Override
         public void operationComplete(final ChannelFuture future) throws Exception {
-            onChannelClosed(future.channel());
-            NodeChannels nodeChannels = connectedNodes.get(node);
-            if (nodeChannels != null && nodeChannels.hasChannel(future.channel())) {
-                threadPool.generic().execute(() -> disconnectFromNode(node, future.channel(), "channel closed event"));
+            try {
+                onChannelClosed(future.channel());
+            } finally {
+                // we also disconnect here since if the other end closes the connection we don't get an exception
+                // but still need to handle node disconnects
+                disconnectFromNodeChannel(future.channel(), "channel closed event");
             }
+
         }
     }
 

@@ -164,6 +164,113 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
     }
 
+    public void testSimpleNested_singleType() throws Exception {
+        assertAcked(prepareCreate("test")
+            .setSettings(Settings.builder().put("index.mapping.single_type", true))
+            .addMapping("type1", "nested1", "type=nested"));
+        ensureGreen();
+
+        // check on no data, see it works
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0L));
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0L));
+
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+            .field("field1", "value1")
+            .startArray("nested1")
+            .startObject()
+            .field("n_field1", "n_value1_1")
+            .field("n_field2", "n_value2_1")
+            .endObject()
+            .startObject()
+            .field("n_field1", "n_value1_2")
+            .field("n_field2", "n_value2_2")
+            .endObject()
+            .endArray()
+            .endObject()).execute().actionGet();
+
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        // flush, so we fetch it from the index (as see that we filter nested docs)
+        flush();
+        GetResponse getResponse = client().prepareGet("test", "type1", "1").get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getSourceAsBytes(), notNullValue());
+
+        // check the numDocs
+        assertDocumentCount("test", 3);
+
+        // check that _all is working on nested docs
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0L));
+
+        // search for something that matches the nested doc, and see that we don't find the nested doc
+        searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0L));
+
+        // now, do a nested query
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)).get();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).get();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+
+        // add another doc, one that would match if it was not nested...
+
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+            .field("field1", "value1")
+            .startArray("nested1")
+            .startObject()
+            .field("n_field1", "n_value1_1")
+            .field("n_field2", "n_value2_2")
+            .endObject()
+            .startObject()
+            .field("n_field1", "n_value1_2")
+            .field("n_field2", "n_value2_1")
+            .endObject()
+            .endArray()
+            .endObject()).execute().actionGet();
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        // flush, so we fetch it from the index (as see that we filter nested docs)
+        flush();
+        assertDocumentCount("test", 6);
+
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
+            boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")), ScoreMode.Avg)).execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+
+        // filter
+        searchResponse = client().prepareSearch("test").setQuery(boolQuery().must(matchAllQuery()).mustNot(nestedQuery("nested1",
+            boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")), ScoreMode.Avg))).execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+
+        // check with type prefix
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
+            boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")), ScoreMode.Avg)).execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+
+        // check delete, so all is gone...
+        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "2").execute().actionGet();
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+
+        // flush, so we fetch it from the index (as see that we filter nested docs)
+        flush();
+        assertDocumentCount("test", 3);
+
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)).execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+    }
+
     public void testMultiNested() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")

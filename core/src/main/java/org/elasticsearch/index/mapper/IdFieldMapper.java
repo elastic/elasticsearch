@@ -52,6 +52,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public static final String NAME = IdFieldMapper.NAME;
 
         public static final MappedFieldType FIELD_TYPE = new IdFieldType();
+        public static final MappedFieldType NESTED_FIELD_TYPE;
 
         static {
             FIELD_TYPE.setTokenized(false);
@@ -62,6 +63,10 @@ public class IdFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
+
+            NESTED_FIELD_TYPE = FIELD_TYPE.clone();
+            NESTED_FIELD_TYPE.setStored(false);
+            NESTED_FIELD_TYPE.freeze();
         }
     }
 

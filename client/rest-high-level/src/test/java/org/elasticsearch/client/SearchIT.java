@@ -174,7 +174,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertThat(searchResponse.getTook().nanos(), greaterThanOrEqualTo(0L));
         assertEquals(5, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
@@ -257,7 +256,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertThat(searchResponse.getTook().nanos(), greaterThanOrEqualTo(0L));
         assertEquals(5, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
@@ -337,7 +335,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertThat(searchResponse.getTook().nanos(), greaterThanOrEqualTo(0L));
         assertEquals(3, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);

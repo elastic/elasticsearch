@@ -1720,7 +1720,7 @@ public class InternalEngineTests extends ESTestCase {
         indexResult = engine.index(index);
         assertFalse(indexResult.isCreated());
 
-        engine.delete(new Engine.Delete(null, "1", newUid(doc)));
+        engine.delete(new Engine.Delete("doc", "1", newUid(doc)));
 
         index = indexForDoc(doc);
         indexResult = engine.index(index);
@@ -1728,12 +1728,12 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testCreatedFlagAfterFlush() throws IOException {
-        ParsedDocument doc = testParsedDocument("1", "test", null, -1, -1, testDocument(), B_1, null);
+        ParsedDocument doc = testParsedDocument("1", "doc", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = indexForDoc(doc);
         Engine.IndexResult indexResult = engine.index(index);
         assertTrue(indexResult.isCreated());
 
-        engine.delete(new Engine.Delete(null, "1", newUid(doc)));
+        engine.delete(new Engine.Delete("doc", "1", newUid(doc)));
 
         engine.flush();
 

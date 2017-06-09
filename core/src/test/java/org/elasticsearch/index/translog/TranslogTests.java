@@ -50,6 +50,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
@@ -298,7 +299,7 @@ public class TranslogTests extends ESTestCase {
         assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
         assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
         assertEquals(6, total.estimatedNumberOfOperations());
-        assertEquals(455, total.getTranslogSizeInBytes());
+        assertEquals(476, total.getTranslogSizeInBytes());
 
         BytesStreamOutput out = new BytesStreamOutput();
         total.writeTo(out);
@@ -306,13 +307,13 @@ public class TranslogTests extends ESTestCase {
         copy.readFrom(out.bytes().streamInput());
 
         assertEquals(6, copy.estimatedNumberOfOperations());
-        assertEquals(455, copy.getTranslogSizeInBytes());
+        assertEquals(476, copy.getTranslogSizeInBytes());
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            assertEquals("{\"translog\":{\"operations\":6,\"size_in_bytes\":455}}", builder.string());
+            assertEquals("{\"translog\":{\"operations\":6,\"size_in_bytes\":476}}", builder.string());
         }
 
         try {
@@ -1924,5 +1925,21 @@ public class TranslogTests extends ESTestCase {
 
     public static Translog.Location randomTranslogLocation() {
         return new Translog.Location(randomLong(), randomLong(), randomInt());
+    }
+
+    public void testSerialization() throws Exception {
+        // simulate legacy delete serialization
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeVInt(Translog.Delete.FORMAT_5_0);
+        out.writeString(UidFieldMapper.NAME);
+        out.writeString("my_type#my_id");
+        out.writeLong(3); // version
+        out.writeByte(VersionType.INTERNAL.getValue());
+        out.writeLong(2); // seq no
+        out.writeLong(0); // primary term
+        StreamInput in = out.bytes().streamInput();
+        Translog.Delete serializedDelete = new Translog.Delete(in);
+        assertEquals("my_type", serializedDelete.type());
+        assertEquals("my_id", serializedDelete.id());
     }
 }

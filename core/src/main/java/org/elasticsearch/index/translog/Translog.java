@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
@@ -54,6 +55,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -975,17 +977,29 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     public static class Delete implements Operation {
-        public static final int SERIALIZATION_FORMAT = 2; // since 2.0-beta1 and 1.1
+        public static final int FORMAT_5_0 = 2; // 5.0 - 5.5
+        private static final int FORMAT_SINGLE_TYPE = FORMAT_5_0 + 1; // 5.5 - 6.0
 
-        private String type, id;
+        private final String type, id;
         private final Term uid;
         private final long version;
         private final VersionType versionType;
 
         public Delete(StreamInput in) throws IOException {
             final int format = in.readVInt();// SERIALIZATION_FORMAT
-            assert format == SERIALIZATION_FORMAT : "format was: " + format;
-            uid = new Term(in.readString(), in.readString());
+            assert format >= FORMAT_5_0 && format <= FORMAT_SINGLE_TYPE : "format was: " + format;
+            if (format >= FORMAT_SINGLE_TYPE) {
+                type = in.readString();
+                id = in.readString();
+                uid = new Term(in.readString(), in.readString());
+            } else {
+                uid = new Term(in.readString(), in.readString());
+                // the uid was constructed from the type and id so we can
+                // extract them back
+                Uid uidObject = Uid.createUid(uid.text());
+                type = uidObject.type();
+                id = uidObject.id();
+            }
             this.version = in.readLong();
             this.versionType = VersionType.fromValue(in.readByte());
             assert versionType.validateVersionForWrites(this.version);
@@ -1000,8 +1014,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         public Delete(String type, String id, Term uid, long version, VersionType versionType) {
-            this.type = type;
-            this.id = id;
+            this.type = Objects.requireNonNull(type);
+            this.id = Objects.requireNonNull(id);
             this.uid = uid;
             this.version = version;
             this.versionType = versionType;
@@ -1044,7 +1058,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(SERIALIZATION_FORMAT);
+            out.writeVInt(FORMAT_SINGLE_TYPE);
+            out.writeString(type);
+            out.writeString(id);
             out.writeString(uid.field());
             out.writeString(uid.text());
             out.writeLong(version);

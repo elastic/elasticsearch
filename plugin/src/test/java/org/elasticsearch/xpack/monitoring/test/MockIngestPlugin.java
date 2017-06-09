@@ -26,7 +26,7 @@ public class MockIngestPlugin extends Plugin implements IngestPlugin {
                 .put("gsub", new String[] { "field", "pattern", "replacement" })
                 .put("rename", new String[] { "field", "target_field" })
                 .put("set", new String[] { "field", "value" })
-                .put("script", new String[] { "inline" })
+                .put("script", new String[] { "source" })
                 .map();
 
         return processorFields.entrySet()

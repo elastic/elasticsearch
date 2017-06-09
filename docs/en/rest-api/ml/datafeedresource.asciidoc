@@ -58,7 +58,7 @@ A {dfeed} resource has the following properties:
     "total_error_count": {
       "script": {
         "lang": "painless",
-        "inline": "doc['error_count'].value + doc['aborted_count'].value"
+        "source": "doc['error_count'].value + doc['aborted_count'].value"
       }
     }
   }

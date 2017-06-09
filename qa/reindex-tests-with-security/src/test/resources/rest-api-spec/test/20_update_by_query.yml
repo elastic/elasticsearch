@@ -16,7 +16,7 @@
         index: source
         body:
           script:
-            inline: ctx._source['hi'] = 'there'
+            source: ctx._source['hi'] = 'there'
   - match: {updated: 1}
 
   - do:
@@ -47,7 +47,7 @@
         index: source
         body:
           script:
-            inline: ctx._source['hi'] = 'there'
+            source: ctx._source['hi'] = 'there'
   - match: {updated: 1}
 
   - do:
@@ -78,7 +78,7 @@
         index: source
         body:
           script:
-            inline: ctx._source['hi'] = 'there'
+            source: ctx._source['hi'] = 'there'
   - match: {updated: 1}
 
   - do:
@@ -151,7 +151,7 @@
         index: source
         body:
           script:
-            inline: ctx._source['hi'] = 'there'
+            source: ctx._source['hi'] = 'there'
   - match: {updated: 1}
 
   # We only updated one doc, presumably the one without the hidden field
@@ -196,7 +196,7 @@
         index: source
         body:
           script:
-            inline: ctx._source['hi'] = ctx._source['text'] + ';' + ctx._source['foo']
+            source: ctx._source['hi'] = ctx._source['text'] + ';' + ctx._source['foo']
   - match: {updated: 1}
 
   - do:

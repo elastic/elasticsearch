@@ -319,7 +319,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(searchRequest, containsString("\"stored_fields\":\"_none_\""));
 
         // Check for the scripts
-        assertThat(searchRequest, containsString("{\"script\":{\"inline\":\"return 1 + 1;\",\"lang\":\"mockscript\"}"
+        assertThat(searchRequest, containsString("{\"script\":{\"source\":\"return 1 + 1;\",\"lang\":\"mockscript\"}"
                 .replaceAll("\\s", "")));
         assertThat(searchRequest, containsString("List domainSplit(String host, Map params)".replaceAll("\\s", "")));
         assertThat(searchRequest, containsString("String replaceDots(String input) {".replaceAll("\\s", "")));

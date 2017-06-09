@@ -19,12 +19,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class WatcherSearchTemplateRequestTests extends ESTestCase {
 
     public void testFromXContentWithTemplateDefaultLang() throws IOException {
-        String source = "{\"template\":{\"stored\":\"default-script\", \"params\":{\"foo\":\"bar\"}}}";
+        String source = "{\"template\":{\"id\":\"default-script\", \"params\":{\"foo\":\"bar\"}}}";
         assertTemplate(source, "default-script", "mustache", singletonMap("foo", "bar"));
     }
 
     public void testFromXContentWithTemplateCustomLang() throws IOException {
-        String source = "{\"template\":{\"inline\":\"custom-script\", \"lang\":\"painful\",\"params\":{\"bar\":\"baz\"}}}";
+        String source = "{\"template\":{\"source\":\"custom-script\", \"lang\":\"painful\",\"params\":{\"bar\":\"baz\"}}}";
         assertTemplate(source, "custom-script", "painful", singletonMap("bar", "baz"));
     }
 

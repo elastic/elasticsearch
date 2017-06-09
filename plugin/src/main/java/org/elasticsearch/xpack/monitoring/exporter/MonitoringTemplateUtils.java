@@ -162,7 +162,7 @@ public final class MonitoringTemplateUtils {
                         .startObject()
                             // Drop the .monitoring-data-2 index and effectively drop unnecessary data (duplicate or simply unused)
                             .startObject("script")
-                                .field("inline",
+                                .field("source",
                                        "boolean legacyIndex = ctx._index == '.monitoring-data-2';" +
                                        "if (legacyIndex || ctx._index.startsWith('.monitoring-es-2')) {" +
                                          "if (ctx._type == 'cluster_info') {" +

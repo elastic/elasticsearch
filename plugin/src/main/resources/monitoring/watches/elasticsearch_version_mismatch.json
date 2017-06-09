@@ -99,12 +99,12 @@
   },
   "condition": {
     "script": {
-      "inline": "ctx.vars.fails_check = ctx.payload.check.hits.total != 0 && ctx.payload.check.hits.hits[0]._source.cluster_stats.nodes.versions.size() != 1;ctx.vars.not_resolved = ctx.payload.alert.hits.total == 1 && ctx.payload.alert.hits.hits[0]._source.resolved_timestamp == null;return ctx.vars.fails_check || ctx.vars.not_resolved;"
+      "source": "ctx.vars.fails_check = ctx.payload.check.hits.total != 0 && ctx.payload.check.hits.hits[0]._source.cluster_stats.nodes.versions.size() != 1;ctx.vars.not_resolved = ctx.payload.alert.hits.total == 1 && ctx.payload.alert.hits.hits[0]._source.resolved_timestamp == null;return ctx.vars.fails_check || ctx.vars.not_resolved;"
     }
   },
   "transform": {
     "script": {
-      "inline": "def versionMessage = null;if (ctx.vars.fails_check) {def versions = new ArrayList(ctx.payload.check.hits.hits[0]._source.cluster_stats.nodes.versions);Collections.sort(versions);versionMessage = 'Versions: [' + String.join(', ', versions) + '].';}if (ctx.vars.not_resolved) {ctx.payload = ctx.payload.alert.hits.hits[0]._source;if (ctx.vars.fails_check) {ctx.payload.message = versionMessage;} else {ctx.payload.resolved_timestamp = ctx.execution_time;}} else {ctx.payload = [ 'timestamp': ctx.execution_time, 'prefix': 'This cluster is running with multiple versions of Elasticsearch.', 'message': versionMessage, 'metadata': ctx.metadata.xpack ];}ctx.payload.update_timestamp = ctx.execution_time;return ctx.payload;"
+      "source": "def versionMessage = null;if (ctx.vars.fails_check) {def versions = new ArrayList(ctx.payload.check.hits.hits[0]._source.cluster_stats.nodes.versions);Collections.sort(versions);versionMessage = 'Versions: [' + String.join(', ', versions) + '].';}if (ctx.vars.not_resolved) {ctx.payload = ctx.payload.alert.hits.hits[0]._source;if (ctx.vars.fails_check) {ctx.payload.message = versionMessage;} else {ctx.payload.resolved_timestamp = ctx.execution_time;}} else {ctx.payload = [ 'timestamp': ctx.execution_time, 'prefix': 'This cluster is running with multiple versions of Elasticsearch.', 'message': versionMessage, 'metadata': ctx.metadata.xpack ];}ctx.payload.update_timestamp = ctx.execution_time;return ctx.payload;"
     }
   },
   "actions": {

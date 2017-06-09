@@ -63,7 +63,7 @@ teardown:
       search_template:
         index: foobar
         body:
-          inline:
+          source:
             query:
               match:
                 title: "{{query_string}}"
@@ -80,7 +80,7 @@ teardown:
         Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
       search_template:
         body:
-          inline:
+          source:
             query:
               match:
                 title: "{{query_string}}"
@@ -98,7 +98,7 @@ teardown:
       search_template:
         index: foo*
         body:
-          inline:
+          source:
             query:
               match:
                 title: "{{query_string}}"
@@ -116,7 +116,7 @@ teardown:
       search_template:
         index: unauthorized*
         body:
-          inline:
+          source:
             query:
               match:
                 title: "{{query_string}}"
@@ -134,14 +134,14 @@ teardown:
       msearch_template:
         body:
           - index: foobar
-          - inline:
+          - source:
               query:
                 match:
                   title: "{{query_string}}"
             params:
               query_string: "search for these words"
           - index: unauthorized*
-          - inline:
+          - source:
               query:
                 match:
                   title: "{{query_string}}"
@@ -158,7 +158,7 @@ teardown:
         Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
       render_search_template:
         body:
-          inline:
+          source:
             query:
               match:
                 title: "{{query_string}}"

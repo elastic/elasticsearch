@@ -14,7 +14,7 @@
           {
             "script":{
               "lang": "painless",
-              "code":"return [ 'email': 'foo@bar.org' ]"
+              "source":"return [ 'email': 'foo@bar.org' ]"
             }
           }
 
@@ -33,7 +33,7 @@
             },
             "transform": {
               "script": {
-                "stored": "transform-script"
+                "id": "transform-script"
               }
             },
             "actions": {
@@ -62,7 +62,7 @@
             "script":
             {
               "lang": "painless",
-              "code":"return [ 'email': 'foo@example.org' ]"
+              "source":"return [ 'email': 'foo@example.org' ]"
             }
           }
 
@@ -90,7 +90,7 @@
             "script":
             {
               "lang": "painless",
-              "code": "return false"
+              "source": "return false"
             }
           }
 
@@ -109,7 +109,7 @@
             },
             "condition": {
               "script": {
-                "stored": "condition-script"
+                "id": "condition-script"
               }
             },
             "actions": {
@@ -137,7 +137,7 @@
           {
             "script": {
               "lang": "painless",
-              "code": "return true"
+              "source": "return true"
             }
           }
 

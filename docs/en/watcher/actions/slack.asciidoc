@@ -108,7 +108,7 @@ aggregation and the Slack action:
     "throttle_period" : "5m",
     "transform" : {
       "script" : {
-        "inline" : "['items': ctx.payload.aggregations.users_per_month.buckets.collect(bucket -> ['count': bucket.doc_count, 'name': bucket.key_as_string, 'color': bucket.doc_count < 100 ? 'danger' : 'good'])]",
+        "source" : "['items': ctx.payload.aggregations.users_per_month.buckets.collect(bucket -> ['count': bucket.doc_count, 'name': bucket.key_as_string, 'color': bucket.doc_count < 100 ? 'danger' : 'good'])]",
         "lang" : "painless"
       }
     },

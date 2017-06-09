@@ -144,7 +144,7 @@ The following is an example of using templates that refer to provided parameters
         "indices" : [ "logstash-*" ],
         "types" : [ "event" ],
         "template" : {
-          "inline" : {
+          "source" : {
             "size" : 0,
             "query" : {
               "bool" : {

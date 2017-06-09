@@ -201,7 +201,7 @@
           dest:
             index: dest
           script:
-            inline: if (ctx._source.user == "kimchy") {ctx._index = 'other_dest'}
+            source: if (ctx._source.user == "kimchy") {ctx._index = 'other_dest'}
 
   - do:
       indices.refresh: {}

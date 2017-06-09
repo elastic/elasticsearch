@@ -90,7 +90,7 @@ parameters while building the `RestClient` instance:
 `setDefaultHeaders`:: default headers that need to be sent with each request,
 to prevent having to specify them with each single request
 `setMaxRetryTimeoutMillis`:: the timeout that should be honoured in case
-multiple attempts are made for the same request. The default value is 10
+multiple attempts are made for the same request. The default value is 30
 seconds, same as the default socket timeout. In case the socket timeout is
 customized, the maximum retry timeout should be adjusted accordingly
 `setFailureListener`:: a listener that gets notified every time a node

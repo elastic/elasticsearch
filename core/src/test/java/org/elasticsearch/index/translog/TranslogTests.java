@@ -2064,6 +2064,7 @@ public class TranslogTests extends ESTestCase {
      * that we can, after we hit an exception, open and recover the translog successfully and retrieve all successfully synced operations
      * from the transaction log.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25133")
     public void testWithRandomException() throws IOException {
         final int runs = randomIntBetween(5, 10);
         for (int run = 0; run < runs; run++) {

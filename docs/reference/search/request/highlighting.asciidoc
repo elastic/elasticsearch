@@ -53,7 +53,6 @@ This highlighter breaks the text into sentences and scores individual sentences 
 if they were documents in this corpus, using the BM25 algorithm.
 It also supports accurate phrase and multi-term (fuzzy, prefix, regex) highlighting.
 
-[float]
 ===== Offsets Strategy
 
 In order to create meaningful search snippets from the terms being queried,
@@ -65,7 +64,6 @@ These offsets can be obtained from:
 * Term vectors (fields mapped as "term_vectors": "with_positions_offsets").
 * The original field, by reanalysing the text on-the-fly.
 
-[float]
 ====== Plain highlighting
 
 This mode is picked when there is no other alternative.
@@ -73,7 +71,6 @@ It creates a tiny in-memory index and re-runs the original query criteria throug
 Lucene's query execution planner to get access to low-level match information on the current document.
 This is repeated for every field and every document that needs highlighting.
 
-[float]
 ====== Postings
 
 If `index_options` is set to `offsets` in the mapping the `unified` highlighter
@@ -105,7 +102,6 @@ PUT /example
 --------------------------------------------------
 // CONSOLE
 
-[float]
 ====== Term Vectors
 
 If `term_vector` information is provided by setting `term_vector` to

@@ -39,6 +39,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -101,6 +102,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
      * The {@link RestHighLevelClient} must declare the following execution methods using the <code>protected</code> modifier
      * so that they can be used by subclasses to implement custom logic.
      */
+    @SuppressForbidden(reason = "We're forced to uses Class#getDeclaredMethods() here because this test checks protected methods")
     public void testMethodsVisibility() throws ClassNotFoundException {
         String[] methodNames = new String[]{"performRequest", "performRequestAndParseEntity", "performRequestAsync",
                 "performRequestAsyncAndParseEntity"};

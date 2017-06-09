@@ -58,9 +58,9 @@ if the corresponding context value is absent.
 The basic structure of this element is that each field forms a new context and the fieldname
 is used to reference this context information later on during indexing or querying. All context
 mappings have the `default` and the `type` option in common. The value of the `default` field
-is used, when ever no specific is provided for the certain context. Note that a context is
+is used, when ever no specific is provided for the certain context. Note that, a context is
 defined by at least one value. The `type` option defines the kind of information hold by this
-context. These type will be explained further in the following sections.
+context. These types will be explained further in the following sections.
 
 [[suggester-context-category]]
 [float]
@@ -142,8 +142,8 @@ PUT services/service/1
 
 [float]
 ===== Category Query
-A query within a category works similar to the configuration. If the value is `null`
-the mappings default categories will be used. Otherwise the suggestion takes place
+A query within a category works similar to the configuration. If the value is `null`,
+the mappings default categories will be used. Otherwise, the suggestion takes place
 for all documents that have at least one category in common with the query.
 
 [source,js]
@@ -186,7 +186,7 @@ The mapping for a geo context accepts four settings, only of which `precision` i
 `default`::    The geopoint to use if no geopoint has been specified.
 
 Since all locations of this mapping are translated into geohashes, each location matches
-a geohash cell. So some results that lie within the specified range but not in the same
+a geohash cell. So, some results that lie within the specified range but not in the same
 cell as the query location will not match. To avoid this the `neighbors` option allows a
 matching of cells that join the bordering regions of the documents location. This option
 is turned on by default.

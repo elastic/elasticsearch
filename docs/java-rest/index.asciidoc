@@ -1,7 +1,7 @@
 [[java-rest]]
 = Java REST Client
 
-:doctests:   {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java
+:doc-tests:   {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation
 
 include::../Versions.asciidoc[]
 

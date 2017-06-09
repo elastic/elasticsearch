@@ -98,3 +98,14 @@ but the only reason why it has not been deprecated too is because it is used
 for the `random_score` function. If you really need access to the id of
 documents for sorting, aggregations or search scripts, the recommandation is
 to duplicate the id as a field in the document.
+
+==== Highlighers
+
+The `unified` highlighter is the new default choice for highlighter.
+The offset strategy for each field is picked internally by this highlighter depending on the
+type of the field (`index_options`).
+It is still possible to force the highlighter to `fvh` or `plain` types.
+
+The `postings` highlighter has been removed from Lucene and Elasticsearch.
+The `unified` highlighter outputs the same highlighting when `index_options` is set
+ to `offsets`.

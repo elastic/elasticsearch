@@ -90,7 +90,7 @@ GET _cat/shards
 // CONSOLE
 // TEST[skip:there is no guarantee to test for shards in initializing state]
 
-You can the the initializing state in the response like this
+You can get the initializing state in the response like this
 
 [source,js]
 ---------------------------------------------------------------------------

@@ -245,7 +245,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             // the script has been updated since the last compilation
             StoredScriptSource source = getScriptFromClusterState(id, lang);
             lang = source.getLang();
-            idOrCode = source.getCode();
+            idOrCode = source.getSource();
             options = source.getOptions();
         }
 
@@ -407,11 +407,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(source.getLang());
 
             if (isAnyScriptContextEnabled(source.getLang(), ScriptType.STORED)) {
-                Object compiled = scriptEngineService.compile(request.id(), source.getCode(), Collections.emptyMap());
+                Object compiled = scriptEngineService.compile(request.id(), source.getSource(), Collections.emptyMap());
 
                 if (compiled == null) {
                     throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]" +
-                        (source.getCode() == null ? "" : " using code [" + source.getCode() + "]"));
+                        (source.getSource() == null ? "" : " using code [" + source.getSource() + "]"));
                 }
             } else {
                 throw new IllegalArgumentException(

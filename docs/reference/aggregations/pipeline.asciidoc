@@ -167,7 +167,7 @@ POST /sales/_search
               "count": "categories._bucket_count" <1>
             },
             "script": {
-              "inline": "params.count != 0"
+              "source": "params.count != 0"
             }
           }
         }

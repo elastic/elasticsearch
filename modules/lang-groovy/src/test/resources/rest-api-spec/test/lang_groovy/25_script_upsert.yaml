@@ -13,7 +13,7 @@
           id:       1
           body:
             script:
-              inline: "ctx._source.foo = bar"
+              source: "ctx._source.foo = bar"
               params: { bar: 'xxx' }
               lang: "groovy"
             upsert: { foo: baz }
@@ -36,7 +36,7 @@
           id:       1
           body:
             script:
-              inline: "ctx._source.foo = bar"
+              source: "ctx._source.foo = bar"
               params: { bar: 'xxx' }
               lang: "groovy"
             upsert: { foo: baz }
@@ -58,7 +58,7 @@
           id:       2
           body:
             script:
-              inline: "ctx._source.foo = bar"
+              source: "ctx._source.foo = bar"
               params: { bar: 'xxx' }
               lang: "groovy"
             upsert: { foo: baz }

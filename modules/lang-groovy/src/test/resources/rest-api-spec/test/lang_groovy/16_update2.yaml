@@ -7,7 +7,7 @@
   - do:
       put_script:
         lang: "1"
-        body: { "script": {"lang": "groovy", "code": "_score * doc[\"myParent.weight\"].value" } }
+        body: { "script": {"lang": "groovy", "source": "_score * doc[\"myParent.weight\"].value" } }
   - match: { acknowledged: true }
 
   - do:
@@ -16,7 +16,7 @@
   - match: { found: true }
   - match: { _id: "1" }
   - match: { "script.lang":  "groovy" }
-  - match: { "script.code":  "_score * doc[\"myParent.weight\"].value" }
+  - match: { "script.source":  "_score * doc[\"myParent.weight\"].value" }
 
   - do:
      catch: missing
@@ -40,19 +40,19 @@
       catch: request
       put_script:
         lang: "1"
-        body: { "script": {"lang": "groovy", "code": "_score * foo bar + doc[\"myParent.weight\"].value" } }
+        body: { "script": {"lang": "groovy", "source": "_score * foo bar + doc[\"myParent.weight\"].value" } }
 
 
   - do:
       catch: /script_exception,.+Error.compiling.script.*/
       put_script:
         lang: "1"
-        body: { "script":  {"lang": "groovy", "code": "_score * foo bar + doc[\"myParent.weight\"].value" } }
+        body: { "script":  {"lang": "groovy", "source": "_score * foo bar + doc[\"myParent.weight\"].value" } }
 
   - do:
       catch: request
       put_script:
         lang: "1"
-        body: { "script" : {"lang": "foobar", "code": "_score * doc[\"myParent.weight\"].value" } }
+        body: { "script" : {"lang": "foobar", "source": "_score * doc[\"myParent.weight\"].value" } }
 
 

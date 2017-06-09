@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * ScriptType represents the way a script is stored and retrieved from the {@link ScriptService}.
@@ -40,7 +41,7 @@ public enum ScriptType implements Writeable {
      * (Groovy and others), but can be overriden by the specific {@link ScriptEngineService}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    INLINE ( 0 , new ParseField("inline") , false ),
+    INLINE ( 0 , new ParseField("source", "inline") , false ),
 
     /**
      * STORED scripts are saved as part of the {@link org.elasticsearch.cluster.ClusterState}
@@ -49,7 +50,7 @@ public enum ScriptType implements Writeable {
      * (Groovy and others), but can be overriden by the specific {@link ScriptEngineService}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    STORED ( 1 , new ParseField("stored", "id") , false ),
+    STORED ( 1 , new ParseField("id", "stored") , false ),
 
     /**
      * FILE scripts are loaded from disk either on start-up or on-the-fly depending on
@@ -111,7 +112,7 @@ public enum ScriptType implements Writeable {
      * @return The unique name for this {@link ScriptType} based on the {@link ParseField}.
      */
     public String getName() {
-        return parseField.getPreferredName();
+        return name().toLowerCase(Locale.ROOT);
     }
 
     /**

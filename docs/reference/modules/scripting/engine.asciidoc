@@ -39,7 +39,7 @@ POST /_search
         {
           "script_score": {
             "script": {
-                "inline": "pure_df",
+                "source": "pure_df",
                 "lang" : "expert_scripts",
                 "params": {
                     "field": "body",

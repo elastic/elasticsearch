@@ -32,7 +32,7 @@
           id:     1
           body:
             script:
-              inline: "ctx._source.foo = bar"
+              source: "ctx._source.foo = bar"
               params: { bar: 'xxx' }
               lang: "groovy"
 
@@ -44,5 +44,5 @@
           ignore: 404
           body:
             script:
-              inline:       "ctx._source.foo = bar"
+              source:       "ctx._source.foo = bar"
               params:       { bar: 'xxx' }

@@ -494,7 +494,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             query.field("script", "return true");
         } else {
             query.startObject("script");
-            query.field("inline", "return true");
+            query.field("source", "return true");
             query.endObject();
         }
         query.endObject();
@@ -518,7 +518,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             query.field("script", "return true");
         } else {
             query.startObject("script");
-            query.field("inline", "return true");
+            query.field("source", "return true");
             query.endObject();
         }
         query.endObject();

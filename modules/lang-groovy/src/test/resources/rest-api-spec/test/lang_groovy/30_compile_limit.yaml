@@ -43,7 +43,7 @@ teardown:
           script_fields:
             myfield:
               script:
-                inline: "\"aoeu\""
+                source: "\"aoeu\""
                 lang: groovy
 
   - match: { hits.total: 1 }
@@ -58,7 +58,7 @@ teardown:
           script_fields:
             myfield:
               script:
-                inline: "\"aoeuaoeu\""
+                source: "\"aoeuaoeu\""
                 lang: groovy
 
 ---

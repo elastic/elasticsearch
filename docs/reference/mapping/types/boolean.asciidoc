@@ -82,7 +82,7 @@ GET my_index/_search
     "is_published": {
       "script": {
         "lang": "painless",
-        "inline": "doc['is_published'].value"
+        "source": "doc['is_published'].value"
       }
     }
   }

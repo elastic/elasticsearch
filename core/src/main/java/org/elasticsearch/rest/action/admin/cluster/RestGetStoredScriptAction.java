@@ -93,7 +93,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
                     if (lang == null) {
                         builder.startObject(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName());
                         builder.field(StoredScriptSource.LANG_PARSE_FIELD.getPreferredName(), source.getLang());
-                        builder.field(StoredScriptSource.CODE_PARSE_FIELD.getPreferredName(), source.getCode());
+                        builder.field(StoredScriptSource.SOURCE_PARSE_FIELD.getPreferredName(), source.getSource());
 
                         if (source.getOptions().isEmpty() == false) {
                             builder.field(StoredScriptSource.OPTIONS_PARSE_FIELD.getPreferredName(), source.getOptions());
@@ -101,7 +101,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
 
                         builder.endObject();
                     } else {
-                        builder.field(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName(), source.getCode());
+                        builder.field(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName(), source.getSource());
                     }
                 }
 

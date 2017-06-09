@@ -102,7 +102,7 @@ setup:
         typed_keys: true
         body:
           - index: test-*
-          - inline:
+          - source:
               query:
                 match:
                  name: "{{name_value}}"

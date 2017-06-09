@@ -137,7 +137,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         TemplateQueryBuilder testQuery = createTestQueryBuilder();
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.YAML);
         String testQueryAsString = toXContent(testQuery, xContentType).string();
-        String queryAsString = testQueryAsString.replace("inline", "bogusField");
+        String queryAsString = testQueryAsString.replace("source", "bogusField");
         try {
             parseQuery(createParser(xContentType.xContent(), queryAsString));
             fail("IllegalArgumentException expected");
@@ -155,13 +155,13 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         builder.doXContent(content, null);
         content.endObject();
         content.close();
-        assertEquals("{\"template\":{\"inline\":\"I am a $template string\",\"lang\":\"mustache\",\"params\":{\"template\":\"filled\"}}}",
+        assertEquals("{\"template\":{\"source\":\"I am a $template string\",\"lang\":\"mustache\",\"params\":{\"template\":\"filled\"}}}",
                 content.string());
     }
 
     public void testRawEscapedTemplate() throws IOException {
         String expectedTemplateString = "{\"match_{{template}}\": {}}\"";
-        String query = "{\"template\": {\"inline\": \"{\\\"match_{{template}}\\\": {}}\\\"\",\"params\" : {\"template\" : \"all\"}}}";
+        String query = "{\"template\": {\"source\": \"{\\\"match_{{template}}\\\": {}}\\\"\",\"params\" : {\"template\" : \"all\"}}}";
         Map<String, Object> params = new HashMap<>();
         params.put("template", "all");
         QueryBuilder expectedBuilder = new TemplateQueryBuilder(expectedTemplateString, ScriptType.INLINE, params);
@@ -170,7 +170,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     public void testRawTemplate() throws IOException {
         String expectedTemplateString = "{\"match_{{template}}\":{}}";
-        String query = "{\"template\": {\"inline\": {\"match_{{template}}\": {}},\"params\" : {\"template\" : \"all\"}}}";
+        String query = "{\"template\": {\"source\": {\"match_{{template}}\": {}},\"params\" : {\"template\" : \"all\"}}}";
         Map<String, Object> params = new HashMap<>();
         params.put("template", "all");
         QueryBuilder expectedBuilder = new TemplateQueryBuilder(expectedTemplateString, ScriptType.INLINE, params, XContentType.JSON);

@@ -84,7 +84,7 @@ GET my_index/_search
   "script_fields": {
     "parent": {
       "script": {
-         "inline": "doc['_parent']" <3>
+         "source": "doc['_parent']" <3>
       }
     }
   }

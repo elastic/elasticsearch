@@ -47,7 +47,7 @@ GET my_index/_search
     "type": {
       "script": {
         "lang": "painless",
-        "inline": "doc['_type']" <4>
+        "source": "doc['_type']" <4>
       }
     }
   }

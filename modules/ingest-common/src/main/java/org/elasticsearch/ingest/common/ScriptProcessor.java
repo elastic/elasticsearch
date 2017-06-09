@@ -19,7 +19,10 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -87,6 +90,8 @@ public final class ScriptProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
+        private final Logger logger = ESLoggerFactory.getLogger(Factory.class);
+        private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
         private final ScriptService scriptService;
 
@@ -99,20 +104,27 @@ public final class ScriptProcessor extends AbstractProcessor {
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
             String lang = readOptionalStringProperty(TYPE, processorTag, config, "lang");
-            String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");
+            String source = readOptionalStringProperty(TYPE, processorTag, config, "source");
             String file = readOptionalStringProperty(TYPE, processorTag, config, "file");
             String id = readOptionalStringProperty(TYPE, processorTag, config, "id");
             Map<String, ?> params = readOptionalMap(TYPE, processorTag, config, "params");
 
-            boolean containsNoScript = !hasLength(file) && !hasLength(id) && !hasLength(inline);
+            if (source == null) {
+                source = readOptionalStringProperty(TYPE, processorTag, config, "inline");
+                if (source != null) {
+                    deprecationLogger.deprecated("Specifying script source with [inline] is deprecated, use [source] instead.");
+                }
+            }
+
+            boolean containsNoScript = !hasLength(file) && !hasLength(id) && !hasLength(source);
             if (containsNoScript) {
-                throw newConfigurationException(TYPE, processorTag, null, "Need [file], [id], or [inline] parameter to refer to scripts");
+                throw newConfigurationException(TYPE, processorTag, null, "Need [file], [id], or [source] parameter to refer to scripts");
             }
 
             boolean moreThanOneConfigured = (Strings.hasLength(file) && Strings.hasLength(id)) ||
-                (Strings.hasLength(file) && Strings.hasLength(inline)) || (Strings.hasLength(id) && Strings.hasLength(inline));
+                (Strings.hasLength(file) && Strings.hasLength(source)) || (Strings.hasLength(id) && Strings.hasLength(source));
             if (moreThanOneConfigured) {
-                throw newConfigurationException(TYPE, processorTag, null, "Only one of [file], [id], or [inline] may be configured");
+                throw newConfigurationException(TYPE, processorTag, null, "Only one of [file], [id], or [source] may be configured");
             }
 
             if (lang == null) {
@@ -128,9 +140,9 @@ public final class ScriptProcessor extends AbstractProcessor {
             if (Strings.hasLength(file)) {
                 script = new Script(FILE, lang, file, (Map<String, Object>)params);
                 scriptPropertyUsed = "file";
-            } else if (Strings.hasLength(inline)) {
-                script = new Script(INLINE, lang, inline, (Map<String, Object>)params);
-                scriptPropertyUsed = "inline";
+            } else if (Strings.hasLength(source)) {
+                script = new Script(INLINE, lang, source, (Map<String, Object>)params);
+                scriptPropertyUsed = "source";
             } else if (Strings.hasLength(id)) {
                 script = new Script(STORED, lang, id, (Map<String, Object>)params);
                 scriptPropertyUsed = "id";

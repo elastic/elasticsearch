@@ -397,3 +397,4 @@ buildRestTests.setups['exams'] = '''
             {"grade": 100}
             {"index":{}}
             {"grade": 50}'''
+

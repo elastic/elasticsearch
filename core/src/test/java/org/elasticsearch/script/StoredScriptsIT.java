@@ -55,7 +55,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
                 .setId("foobar")
                 .setContent(new BytesArray("{\"script\":\"1\"}"), XContentType.JSON));
         String script = client().admin().cluster().prepareGetStoredScript(LANG, "foobar")
-                .get().getSource().getCode();
+                .get().getSource().getSource();
         assertNotNull(script);
         assertEquals("1", script);
 

@@ -1564,6 +1564,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         if (state() == IndexShardState.RELOCATED) {
                             onFailure(new IndexShardRelocatedException(shardId));
                         }
+                        boolean success = false;
                         try {
                             getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
                             /*
@@ -1571,11 +1572,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                              * background sync to the replica; mark our self as active to force a future background sync.
                              */
                             active.compareAndSet(false, true);
-                            latch.countDown();
+                            success = true;
                         } catch (final InterruptedException e) {
                             onFailure(e);
                         } finally {
                             releasable.close();
+                            if (success) {
+                                latch.countDown();
+                            }
                         }
                     }
 

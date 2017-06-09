@@ -122,9 +122,12 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                 DiscoveryNode localNode = event.state().nodes().getLocalNode();
                 RoutingNode routingNode = event.state().getRoutingNodes().node(localNode.getId());
                 IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
-                // no watcher index, time to pause
+                // no watcher index, time to pause, if we currently have shards here
                 if (watcherIndexMetaData == null) {
-                    executor.execute(() -> watcherService.pauseExecution("no watcher index found"));
+                    if (previousAllocationIds.get().isEmpty() == false) {
+                        previousAllocationIds.set(Collections.emptyList());
+                        executor.execute(() -> watcherService.pauseExecution("no watcher index found"));
+                    }
                     return;
                 }
 

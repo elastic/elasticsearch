@@ -314,6 +314,43 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         verify(watcherService, times(0)).reload(any(), any());
     }
 
+    public void testThatMissingWatcherIndexMetadataOnlyResetsOnce() {
+        Index watchIndex = new Index(Watch.INDEX, "foo");
+        ShardId shardId = new ShardId(watchIndex, 0);
+        IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(watchIndex)
+                .addShard(TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED)).build();
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")).build();
+
+        IndexMetaData.Builder newIndexMetaDataBuilder = IndexMetaData.builder(Watch.INDEX)
+                .settings(Settings.builder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                );
+
+        ClusterState clusterStateWithWatcherIndex = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(nodes)
+                .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
+                .metaData(MetaData.builder().put(newIndexMetaDataBuilder))
+                .build();
+
+        ClusterState clusterStateWithoutWatcherIndex = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(nodes)
+                .build();
+
+        when(watcherService.state()).thenReturn(WatcherState.STARTED);
+
+        // first add the shard allocation ids, by going from empty cs to CS with watcher index
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithWatcherIndex, clusterStateWithoutWatcherIndex));
+
+        // now remove watches index, and ensure that pausing is only called once, no matter how often called (i.e. each CS update)
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutWatcherIndex, clusterStateWithWatcherIndex));
+        verify(watcherService, times(1)).pauseExecution(anyObject());
+
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutWatcherIndex, clusterStateWithWatcherIndex));
+        verify(watcherService, times(1)).pauseExecution(anyObject());
+    }
+
     private static DiscoveryNode newNode(String nodeName) {
         return new DiscoveryNode(nodeName, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
                 new HashSet<>(asList(DiscoveryNode.Role.values())), Version.CURRENT);

@@ -120,7 +120,10 @@ public class SearchAfterSortedDocQuery extends Query {
         boolean lessThanTop(int doc) throws IOException;
     }
 
-    static TopComparator getTopComparator(FieldComparator<?>[] fieldComparators, int[] reverseMuls, LeafReaderContext leafReaderContext, int topDoc) {
+    static TopComparator getTopComparator(FieldComparator<?>[] fieldComparators,
+                                          int[] reverseMuls,
+                                          LeafReaderContext leafReaderContext,
+                                          int topDoc) {
         return doc -> {
             // DVs use forward iterators so we recreate the iterator for each sort field
             // every time we need to compare a document with the <code>after<code> doc.

@@ -371,7 +371,7 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.getTranslogSizeInBytes(), equalTo(245L));
         }
 
-        final long expectedSizeInBytes = 288L;
+        final long expectedSizeInBytes = 296L;
         translog.rollGeneration();
         {
             final TranslogStats stats = stats();

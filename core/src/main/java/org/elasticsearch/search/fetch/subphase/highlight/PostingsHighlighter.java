@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+@Deprecated
 public class PostingsHighlighter implements Highlighter {
 
     private static final String CACHE_KEY = "highlight-postings";

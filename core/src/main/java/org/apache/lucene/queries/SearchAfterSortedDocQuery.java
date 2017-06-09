@@ -31,6 +31,7 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
@@ -46,7 +47,8 @@ import java.util.Objects;
 public class SearchAfterSortedDocQuery extends Query {
     private final Sort sort;
     private final FieldDoc after;
-    private final List<FieldComparator<?>> fieldComparators;
+    private final FieldComparator<?>[] fieldComparators;
+    private final int[] reverseMuls;
 
     public SearchAfterSortedDocQuery(Sort sort, FieldDoc after) {
         if (sort.getSort().length != after.fields.length) {
@@ -55,13 +57,17 @@ public class SearchAfterSortedDocQuery extends Query {
         }
         this.sort = sort;
         this.after = after;
-        this.fieldComparators = new ArrayList<>();
-        for (int i = 0; i < sort.getSort().length; i++) {
-            FieldComparator<?> fieldComparator = sort.getSort()[i].getComparator(1, i);
+        int numFields = sort.getSort().length;
+        this.fieldComparators = new FieldComparator[numFields];
+        this.reverseMuls = new int[numFields];
+        for (int i = 0; i < numFields; i++) {
+            SortField sortField = sort.getSort()[i];
+            FieldComparator<?> fieldComparator = sortField.getComparator(1, i);
             @SuppressWarnings("unchecked")
             FieldComparator<Object> comparator = (FieldComparator<Object>) fieldComparator;
             comparator.setTopValue(after.fields[i]);
-            fieldComparators.add(fieldComparator);
+            fieldComparators[i] = fieldComparator;
+            reverseMuls[i] = sortField.getReverse() ? -1 : 1;
         }
     }
 
@@ -74,7 +80,8 @@ public class SearchAfterSortedDocQuery extends Query {
                 if (EarlyTerminatingSortingCollector.canEarlyTerminate(sort, segmentSort) == false) {
                     throw new IOException("search sort :[" + sort.getSort() + "] does not match the index sort:[" + segmentSort + "]");
                 }
-                TopComparator comparator= getTopComparator(fieldComparators, context, after.doc);
+                final int afterDoc = after.doc - context.docBase;
+                TopComparator comparator= getTopComparator(fieldComparators, reverseMuls, context, afterDoc);
                 final int maxDoc = context.reader().maxDoc();
                 final int firstDoc = searchAfterDoc(comparator, 0, context.reader().maxDoc());
                 if (firstDoc >= maxDoc) {
@@ -113,29 +120,24 @@ public class SearchAfterSortedDocQuery extends Query {
         boolean lessThanTop(int doc) throws IOException;
     }
 
-    static TopComparator getTopComparator(List<FieldComparator<?>> fieldComparators, LeafReaderContext leafReaderContext, int topDoc) {
+    static TopComparator getTopComparator(FieldComparator<?>[] fieldComparators, int[] reverseMuls, LeafReaderContext leafReaderContext, int topDoc) {
         return doc -> {
             // DVs use forward iterators so we recreate the iterator for each sort field
             // every time we need to compare a document with the <code>after<code> doc.
             // We could reuse the iterators when the comparison goes forward but
             // this should only be called a few time per segment (binary search).
-            for (int i = 0; i < fieldComparators.size(); i++) {
-                LeafFieldComparator comparator =  fieldComparators.get(i).getLeafComparator(leafReaderContext);
-                int value = comparator.compareTop(doc);
+            for (int i = 0; i < fieldComparators.length; i++) {
+                LeafFieldComparator comparator =  fieldComparators[i].getLeafComparator(leafReaderContext);
+                int value = reverseMuls[i] * comparator.compareTop(doc);
                 if (value != 0) {
                     return value < 0;
                 }
             }
-            if (topDoc < leafReaderContext.docBase) {
+
+            if (topDoc <= doc) {
                 return false;
-            } else {
-                if (topDoc < leafReaderContext.docBase + leafReaderContext.reader().maxDoc()) {
-                    if (topDoc <= doc+leafReaderContext.docBase) {
-                        return false;
-                    }
-                }
-                return true;
             }
+            return true;
         };
     }
 

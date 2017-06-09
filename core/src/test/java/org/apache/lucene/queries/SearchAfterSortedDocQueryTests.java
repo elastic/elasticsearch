@@ -81,8 +81,8 @@ public class SearchAfterSortedDocQueryTests extends ESTestCase {
         final Document doc = new Document();
         final Directory dir = newDirectory();
         Sort sort = new Sort(
-            new SortedNumericSortField("number1", SortField.Type.INT),
-            new SortField("string", SortField.Type.STRING)
+            new SortedNumericSortField("number1", SortField.Type.INT, randomBoolean()),
+            new SortField("string", SortField.Type.STRING, randomBoolean())
         );
         final IndexWriterConfig config = new IndexWriterConfig();
         config.setIndexSort(sort);

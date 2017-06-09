@@ -19,6 +19,7 @@
 package org.elasticsearch.test.hamcrest;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -513,6 +514,14 @@ public class ElasticsearchAssertions {
         assertThat(q.clauses().size(), greaterThan(i));
         assertThat(q.clauses().get(i).getQuery(), instanceOf(subqueryType));
         return subqueryType.cast(q.clauses().get(i).getQuery());
+    }
+
+    public static <T extends Query> T assertDisjunctionSubQuery(Query query, Class<T> subqueryType, int i) {
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery q = (DisjunctionMaxQuery) query;
+        assertThat(q.getDisjuncts().size(), greaterThan(i));
+        assertThat(q.getDisjuncts().get(i), instanceOf(subqueryType));
+        return subqueryType.cast(q.getDisjuncts().get(i));
     }
 
     /**

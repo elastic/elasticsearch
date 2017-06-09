@@ -104,12 +104,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomLongBetween;
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ESTestCase {
@@ -141,7 +143,7 @@ public class TranslogTests extends ESTestCase {
         return new Translog(config, translogUUID, new TranslogDeletionPolicy(), () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
     }
 
-    private void markCurrentGenAsCommitted(Translog translog) {
+    private void markCurrentGenAsCommitted(Translog translog) throws IOException {
         commit(translog, translog.currentFileGeneration());
     }
 
@@ -150,9 +152,14 @@ public class TranslogTests extends ESTestCase {
         commit(translog, translog.currentFileGeneration());
     }
 
-    private void commit(Translog translog, long genToCommit) {
-        translog.getDeletionPolicy().setMinTranslogGenerationForRecovery(genToCommit);
+    private void commit(Translog translog, long genToCommit) throws IOException {
+        final TranslogDeletionPolicy deletionPolicy = translog.getDeletionPolicy();
+        deletionPolicy.setMinTranslogGenerationForRecovery(genToCommit);
         translog.trimUnreferencedReaders();
+        if (deletionPolicy.pendingViewsCount() == 0) {
+            assertThat(deletionPolicy.minTranslogGenRequired(), equalTo(genToCommit));
+        }
+        assertThat(translog.getMinFileGeneration(), equalTo(deletionPolicy.minTranslogGenRequired()));
     }
 
     @Override
@@ -484,7 +491,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void assertFileIsPresent(Translog translog, long id) {
-        if (Files.exists(translogDir.resolve(Translog.getFilename(id)))) {
+        if (Files.exists(translog.location().resolve(Translog.getFilename(id)))) {
             return;
         }
         fail(Translog.getFilename(id) + " is not present in any location: " + translog.location());
@@ -492,6 +499,15 @@ public class TranslogTests extends ESTestCase {
 
     public void assertFileDeleted(Translog translog, long id) {
         assertFalse("translog [" + id + "] still exists", Files.exists(translog.location().resolve(Translog.getFilename(id))));
+    }
+
+    private void assertFilePresences(Translog translog) {
+        for (long gen = translog.getMinFileGeneration(); gen < translog.currentFileGeneration(); gen++) {
+            assertFileIsPresent(translog, gen);
+        }
+        for (long gen = 1; gen < translog.getMinFileGeneration(); gen++) {
+            assertFileDeleted(translog, gen);
+        }
     }
 
     static class LocationOperation implements Comparable<LocationOperation> {
@@ -1015,7 +1031,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testTranslogWriter() throws IOException {
-        final TranslogWriter writer = translog.createWriter(0);
+        final TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1);
         final int numOps = randomIntBetween(8, 128);
         byte[] bytes = new byte[4];
         ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
@@ -1075,7 +1091,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testCloseIntoReader() throws IOException {
-        try (TranslogWriter writer = translog.createWriter(0)) {
+        try (TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1)) {
             final int numOps = randomIntBetween(8, 128);
             final byte[] bytes = new byte[4];
             final ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
@@ -1270,7 +1286,7 @@ public class TranslogTests extends ESTestCase {
         TranslogConfig config = translog.getConfig();
         Path ckp = config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME);
         Checkpoint read = Checkpoint.read(ckp);
-        Checkpoint corrupted = Checkpoint.emptyTranslogCheckpoint(0, 0, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        Checkpoint corrupted = Checkpoint.emptyTranslogCheckpoint(0, 0, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0);
         Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), corrupted, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         final String translogUUID = translog.getTranslogUUID();
         final TranslogDeletionPolicy deletionPolicy = translog.getDeletionPolicy();
@@ -1278,8 +1294,8 @@ public class TranslogTests extends ESTestCase {
             fail("corrupted");
         } catch (IllegalStateException ex) {
             assertEquals("Checkpoint file translog-2.ckp already exists but has corrupted content expected: Checkpoint{offset=3123, " +
-                "numOps=55, generation=2, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-2} but got: Checkpoint{offset=0, numOps=0, " +
-                "generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-2}", ex.getMessage());
+                "numOps=55, generation=2, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-2, minTranslogGeneration=1} but got: Checkpoint{offset=0, numOps=0, " +
+                "generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-2, minTranslogGeneration=0}", ex.getMessage());
         }
         Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), read, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
         try (Translog translog = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO)) {
@@ -1699,6 +1715,91 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    /**
+     * Tests the situation where the node crashes after a translog gen was committed to lucene, but before the translog had the chance
+     * to clean up its files.
+     */
+    public void testRecoveryFromAFutureGenerationCleansUp() throws IOException {
+        int translogOperations = randomIntBetween(10, 100);
+        for (int op = 0; op < translogOperations / 2; op++) {
+            translog.add(new Translog.Index("test", "" + op, op, Integer.toString(op).getBytes(Charset.forName("UTF-8"))));
+            if (rarely()) {
+                translog.rollGeneration();
+            }
+        }
+        translog.rollGeneration();
+        long comittedGeneration = randomLongBetween(2, translog.currentFileGeneration());
+        for (int op = translogOperations / 2; op < translogOperations; op++) {
+            translog.add(new Translog.Index("test", "" + op, op, Integer.toString(op).getBytes(Charset.forName("UTF-8"))));
+            if (rarely()) {
+                translog.rollGeneration();
+            }
+        }
+        // engine blows up, after committing the above generation
+        translog.close();
+        TranslogConfig config = translog.getConfig();
+        final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy();
+        deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
+        translog = new Translog(config, translog.getTranslogUUID(), deletionPolicy, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        assertThat(translog.getMinFileGeneration(), equalTo(1L));
+        // no trimming done yet, just recovered
+        for (long gen = 1; gen < translog.currentFileGeneration(); gen++) {
+            assertFileIsPresent(translog, gen);
+        }
+        translog.trimUnreferencedReaders();
+        for (long gen = 1; gen < comittedGeneration; gen++) {
+            assertFileDeleted(translog, gen);
+        }
+    }
+
+    /**
+     * Tests the situation where the node crashes after a translog gen was committed to lucene, but before the translog had the chance
+     * to clean up its files.
+     */
+    public void testRecoveryFromFailureOnTrimming() throws IOException {
+        Path tempDir = createTempDir();
+        final FailSwitch fail = new FailSwitch();
+        fail.failNever();
+        final TranslogConfig config = getTranslogConfig(tempDir);
+        final long comittedGeneration;
+        final String translogUUID;
+        try (Translog translog = getFailableTranslog(fail, config)) {
+            translogUUID = translog.getTranslogUUID();
+            int translogOperations = randomIntBetween(10, 100);
+            for (int op = 0; op < translogOperations / 2; op++) {
+                translog.add(new Translog.Index("test", "" + op, op, Integer.toString(op).getBytes(Charset.forName("UTF-8"))));
+                if (rarely()) {
+                    translog.rollGeneration();
+                }
+            }
+            translog.rollGeneration();
+            comittedGeneration = randomLongBetween(2, translog.currentFileGeneration());
+            for (int op = translogOperations / 2; op < translogOperations; op++) {
+                translog.add(new Translog.Index("test", "" + op, op, Integer.toString(op).getBytes(Charset.forName("UTF-8"))));
+                if (rarely()) {
+                    translog.rollGeneration();
+                }
+            }
+            fail.failRandomly();
+            try {
+                commit(translog, comittedGeneration);
+            } catch (Exception e) {
+                // expected...
+            }
+        }
+        final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy();
+        deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
+        try (Translog translog = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO)) {
+            // we don't know when things broke exactly
+            assertThat(translog.getMinFileGeneration(), greaterThanOrEqualTo(1L));
+            assertThat(translog.getMinFileGeneration(), lessThanOrEqualTo(comittedGeneration));
+            assertFilePresences(translog);
+            translog.trimUnreferencedReaders();
+            assertThat(translog.getMinFileGeneration(), equalTo(comittedGeneration));
+            assertFilePresences(translog);
+        }
+    }
+
     private Translog getFailableTranslog(FailSwitch fail, final TranslogConfig config) throws IOException {
         return getFailableTranslog(fail, config, randomBoolean(), false, null, new TranslogDeletionPolicy());
     }
@@ -1755,6 +1856,16 @@ public class TranslogTests extends ESTestCase {
                         }
                     }
                 };
+            }
+
+            @Override
+            void deleteReaderFiles(TranslogReader reader) {
+                if (fail.fail()) {
+                    // simulate going OOM and dieing just at the wrong moment.
+                    throw new RuntimeException("simulated");
+                } else {
+                    super.deleteReaderFiles(reader);
+                }
             }
         };
     }
@@ -2054,7 +2165,9 @@ public class TranslogTests extends ESTestCase {
             minSeqNo = b;
             maxSeqNo = a;
         }
-        return new Checkpoint(randomLong(), randomInt(), randomLong(), minSeqNo, maxSeqNo, randomNonNegativeLong());
+        final long generation = randomNonNegativeLong();
+        return new Checkpoint(randomLong(), randomInt(), generation, minSeqNo, maxSeqNo, randomNonNegativeLong(),
+            randomLongBetween(1, generation));
     }
 
     public void testCheckpointOnDiskFull() throws IOException {

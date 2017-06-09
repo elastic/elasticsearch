@@ -76,6 +76,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final boolean namesProvided = request.hasParam("name");
         final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
@@ -89,9 +90,13 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 final ImmutableOpenMap<String, List<AliasMetaData>> aliasMap = response.getAliases();
 
                 final Set<String> aliasNames = new HashSet<>();
-                for (final ObjectCursor<List<AliasMetaData>> cursor : aliasMap.values()) {
+                final Set<String> indicesToDisplay = new HashSet<>();
+                for (final ObjectObjectCursor<String, List<AliasMetaData>> cursor : aliasMap) {
                     for (final AliasMetaData aliasMetaData : cursor.value) {
                         aliasNames.add(aliasMetaData.alias());
+                        if (namesProvided) {
+                            indicesToDisplay.add(cursor.key);
+                        }
                     }
                 }
 
@@ -131,17 +136,19 @@ public class RestGetAliasesAction extends BaseRestHandler {
                     }
 
                     for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
-                        builder.startObject(entry.key);
-                        {
-                            builder.startObject("aliases");
+                        if (namesProvided == false || (namesProvided && indicesToDisplay.contains(entry.key))) {
+                            builder.startObject(entry.key);
                             {
-                                for (final AliasMetaData alias : entry.value) {
-                                    AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
+                                builder.startObject("aliases");
+                                {
+                                    for (final AliasMetaData alias : entry.value) {
+                                        AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
+                                    }
                                 }
+                                builder.endObject();
                             }
                             builder.endObject();
                         }
-                        builder.endObject();
                     }
                 }
                 builder.endObject();

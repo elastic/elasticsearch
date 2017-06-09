@@ -114,6 +114,7 @@ final class DefaultSearchContext extends SearchContext {
     private SortAndFormats sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
+    private boolean trackTotalHits = true;
     private FieldDoc searchAfter;
     private CollapseContext collapse;
     private boolean lowLevelCancellation;
@@ -546,6 +547,17 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public boolean trackScores() {
         return this.trackScores;
+    }
+
+    @Override
+    public SearchContext trackTotalHits(boolean trackTotalHits) {
+        this.trackTotalHits = trackTotalHits;
+        return this;
+    }
+
+    @Override
+    public boolean trackTotalHits() {
+        return trackTotalHits;
     }
 
     @Override

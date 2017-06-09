@@ -46,7 +46,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         FailProcessor failProcessor = factory.create(null, processorTag, config);
         assertThat(failProcessor.getTag(), equalTo(processorTag));
-        assertThat(failProcessor.getMessage().execute(Collections.emptyMap()), equalTo("error"));
+        assertThat(failProcessor.getMessage().newInstance(Collections.emptyMap()).execute(), equalTo("error"));
     }
 
     public void testCreateMissingMessageField() throws Exception {

@@ -635,6 +635,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         context.trackScores(source.trackScores());
+        if (source.trackTotalHits() == false && context.scrollContext() != null) {
+            throw new SearchContextException(context, "disabling [track_total_hits] is not allowed in a scroll context");
+        }
+        context.trackTotalHits(source.trackTotalHits());
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
         }

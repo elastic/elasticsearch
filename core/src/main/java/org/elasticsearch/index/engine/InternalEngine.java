@@ -1847,7 +1847,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    public void onSettingsChanged() throws IOException {
+    public void onSettingsChanged() {
         mergeScheduler.refreshConfig();
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
         maybePruneDeletedTombstones();
@@ -1861,7 +1861,6 @@ public class InternalEngine extends Engine {
         final IndexSettings indexSettings = engineConfig.getIndexSettings();
         translogDeletionPolicy.setMaxRetentionAgeInMillis(indexSettings.getTranslogRetentionAge().getMillis());
         translogDeletionPolicy.setRetentionSizeInBytes(indexSettings.getTranslogRetentionSize().getBytes());
-        translog.trimUnreferencedReaders();
     }
 
     public MergeStats getMergeStats() {

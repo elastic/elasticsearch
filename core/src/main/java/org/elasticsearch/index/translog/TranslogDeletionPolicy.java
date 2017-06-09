@@ -100,13 +100,17 @@ public class TranslogDeletionPolicy {
      */
     synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) {
         long minByView = getMinTranslogGenRequiredByViews();
-        long minByAge = getMinTranslogGenByAge(readers, writer);
-        long minBySize = getMinTranslogGenBySize(readers, writer);
+        long minByAge = getMinTranslogGenByAge(readers, writer, maxRetentionAgeInMillis, currentTime());
+        long minBySize = getMinTranslogGenBySize(readers, writer, retentionSizeInBytes);
         long minByAgeAndSize = Math.max(minByAge, minBySize);
+        if (minByAgeAndSize == Long.MIN_VALUE) {
+            // both size and age are disabled;
+            minByAgeAndSize = Long.MAX_VALUE;
+        }
         return Math.min(minByAgeAndSize, Math.min(minByView, minTranslogGenerationForRecovery));
     }
 
-    private long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer) {
+    static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {
         if (retentionSizeInBytes >= 0) {
             long totalSize = writer.sizeInBytes();
             long minGen = writer.getGeneration();
@@ -121,9 +125,8 @@ public class TranslogDeletionPolicy {
         }
     }
 
-    private long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer) {
+    static long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer, long maxRetentionAgeInMillis, long now) {
         if (maxRetentionAgeInMillis >= 0) {
-            long now = currentTime();
             BaseTranslogReader firstNonExpired = readers.stream().map(r -> (BaseTranslogReader) r).filter(
                 r -> now - r.getCreationTimeInMillis() <= maxRetentionAgeInMillis
             ).findFirst().orElse(writer);

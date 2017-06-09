@@ -135,17 +135,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             initialMinTranslogGen, minTranslogGenerationSupplier, System.currentTimeMillis());
     }
 
-    static TranslogWriter create(
-        ShardId shardId,
-        String translogUUID,
-        long fileGeneration,
-        Path file,
-        ChannelFactory channelFactory,
-        ByteSizeValue bufferSize,
-        final LongSupplier globalCheckpointSupplier,
-        final long initialMinTranslogGen,
-        final LongSupplier minTranslogGenerationSupplier,
-        final long creationTimeInMillis) throws IOException {
+    static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
+        ByteSizeValue bufferSize, final LongSupplier globalCheckpointSupplier, final long initialMinTranslogGen,
+        final LongSupplier minTranslogGenerationSupplier, final long creationTimeInMillis) throws IOException {
         final BytesRef ref = new BytesRef(translogUUID);
         final int firstOperationOffset = getHeaderLength(ref.length);
         final FileChannel channel = channelFactory.open(file);

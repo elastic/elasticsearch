@@ -23,9 +23,9 @@
                     "filter":["synonymWithTokenizerSettings"]
                 },
                 "synonymAnalyzerWithCharfilter": {
-                    "char_filter": ["mapping"],
+                    "char_filter": ["html_strip"],
                     "tokenizer":"whitespace",
-                    "filter":["synonym_within_upper"]
+                    "filter":["synonym_within_html"]
                 },
                 "synonymAnalyzerWithStopBeforeSynonym": {
                     "tokenizer":"whitespace",
@@ -88,12 +88,12 @@
                         "kimchy => shay"
                     ]
                 },
-                "synonym_within_upper":{
+                "synonym_within_html":{
                     "type":"synonym",
                     "synonyms":[
-                        "kimchy => shAy",
-                        "dude => elasticsearch",
-                        "Acides => man!"
+                        "<p>kimchy</p> => shay",
+                        "dude => <html>elasticsearch</html>",
+                        "<font>abides</font> => man!"
                     ]
                 },
                 "stop":{
@@ -110,15 +110,6 @@
                         "kimchy , shay",
                         "dude , elasticsearch",
                         "abides , man!"
-                    ]
-                }
-            },
-            "char_filter": {
-                "mapping": {
-                    "type": "mapping",
-                    "mappings": [
-                        "A=>a",
-                        "B=>c"
                     ]
                 }
             }

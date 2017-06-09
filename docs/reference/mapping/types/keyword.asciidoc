@@ -102,7 +102,7 @@ The following parameters are accepted by `keyword` fields:
 <<similarity,`similarity`>>::
 
     Which scoring algorithm or _similarity_ should be used. Defaults
-    to `classic`, which uses TF/IDF.
+    to `BM25`.
 
 <<normalizer,`normalizer`>>::
 

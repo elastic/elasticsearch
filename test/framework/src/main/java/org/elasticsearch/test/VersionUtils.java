@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.lang.reflect.Field;
@@ -110,17 +111,21 @@ public class VersionUtils {
 
     private static final List<Version> RELEASED_VERSIONS;
     private static final List<Version> UNRELEASED_VERSIONS;
+    private static final List<Version> ALL_VERSIONS;
 
     static {
         Tuple<List<Version>, List<Version>> versions = resolveReleasedVersions(Version.CURRENT, Version.class);
         RELEASED_VERSIONS = versions.v1();
         UNRELEASED_VERSIONS = versions.v2();
+        List<Version> allVersions = new ArrayList<>(RELEASED_VERSIONS.size() + UNRELEASED_VERSIONS.size());
+        allVersions.addAll(RELEASED_VERSIONS);
+        allVersions.addAll(UNRELEASED_VERSIONS);
+        Collections.sort(allVersions);
+        ALL_VERSIONS = unmodifiableList(allVersions);
     }
 
     /**
      * Returns an immutable, sorted list containing all released versions.
-     *
-     * @return all released versions
      */
     public static List<Version> allReleasedVersions() {
         return RELEASED_VERSIONS;
@@ -128,27 +133,40 @@ public class VersionUtils {
 
     /**
      * Returns an immutable, sorted list containing all unreleased versions.
-     *
-     * @return all unreleased versions
      */
     public static List<Version> allUnreleasedVersions() {
         return UNRELEASED_VERSIONS;
     }
 
+    /**
+     * Returns an immutable, sorted list containing all versions, both released and unreleased.
+     */
+    public static List<Version> allVersions() {
+        return ALL_VERSIONS;
+    }
+
+    /**
+     * Get the released version before {@code version}.
+     */
     public static Version getPreviousVersion(Version version) {
         int index = RELEASED_VERSIONS.indexOf(version);
         assert index > 0;
         return RELEASED_VERSIONS.get(index - 1);
     }
 
-    /** Returns the {@link Version} before the {@link Version#CURRENT} */
+    /**
+     * Get the released version before {@link Version#CURRENT}.
+     */
     public static Version getPreviousVersion() {
         Version version = getPreviousVersion(Version.CURRENT);
         assert version.before(Version.CURRENT);
         return version;
     }
 
-    /** Returns the {@link Version} before the {@link Version#CURRENT} where the minor version is less than the currents minor version. */
+    /**
+     * Returns the released {@link Version} before the {@link Version#CURRENT}
+     * where the minor version is less than the currents minor version.
+     */
     public static Version getPreviousMinorVersion() {
         Version version = Version.CURRENT;
         do {
@@ -158,25 +176,25 @@ public class VersionUtils {
         return version;
     }
 
-    /** Returns the oldest {@link Version} */
+    /** Returns the oldest released {@link Version} */
     public static Version getFirstVersion() {
         return RELEASED_VERSIONS.get(0);
     }
 
     /** Returns a random {@link Version} from all available versions. */
     public static Version randomVersion(Random random) {
-        return RELEASED_VERSIONS.get(random.nextInt(RELEASED_VERSIONS.size()));
+        return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
     }
 
     /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
-    public static Version randomVersionBetween(Random random, Version minVersion, Version maxVersion) {
+    public static Version randomVersionBetween(Random random, @Nullable Version minVersion, @Nullable Version maxVersion) {
         int minVersionIndex = 0;
         if (minVersion != null) {
-            minVersionIndex = RELEASED_VERSIONS.indexOf(minVersion);
+            minVersionIndex = ALL_VERSIONS.indexOf(minVersion);
         }
-        int maxVersionIndex = RELEASED_VERSIONS.size() - 1;
+        int maxVersionIndex = ALL_VERSIONS.size() - 1;
         if (maxVersion != null) {
-            maxVersionIndex = RELEASED_VERSIONS.indexOf(maxVersion);
+            maxVersionIndex = ALL_VERSIONS.indexOf(maxVersion);
         }
         if (minVersionIndex == -1) {
             throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
@@ -187,14 +205,7 @@ public class VersionUtils {
         } else {
             // minVersionIndex is inclusive so need to add 1 to this index
             int range = maxVersionIndex + 1 - minVersionIndex;
-            return RELEASED_VERSIONS.get(minVersionIndex + random.nextInt(range));
+            return ALL_VERSIONS.get(minVersionIndex + random.nextInt(range));
         }
-    }
-
-    public static boolean isSnapshot(Version version) {
-        if (Version.CURRENT.equals(version)) {
-            return true;
-        }
-        return false;
     }
 }

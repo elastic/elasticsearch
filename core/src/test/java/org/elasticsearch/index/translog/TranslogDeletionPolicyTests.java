@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.translog;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -71,7 +70,6 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
         }
     }
 
-    @Seed("8F60F8B33644887D")
     public void testBytesRetention() throws IOException {
         long now = System.currentTimeMillis();
         Tuple<List<TranslogReader>, TranslogWriter> readersAndWriter = createReadersAndWriter(now);
@@ -181,7 +179,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
 
         long now;
 
-        public MockDeletionPolicy(long now, long retentionSizeInBytes, long maxRetentionAgeInMillis) {
+        MockDeletionPolicy(long now, long retentionSizeInBytes, long maxRetentionAgeInMillis) {
             super(retentionSizeInBytes, maxRetentionAgeInMillis);
             this.now = now;
         }

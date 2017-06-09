@@ -55,8 +55,6 @@ if (enabled) {
   String bwcBranch
   if (project.name == 'bwc-stable-snapshot') {
     bwcBranch = "${major}.x"
-  } else if (major != currentMajor) {
-    bwcBranch = "${major}.x"
   } else {
     bwcBranch = "${major}.${minor}"
   }

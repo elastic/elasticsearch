@@ -1,8 +1,6 @@
 [[java-rest]]
 = Java REST Client
 
-:doc-tests:   {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation
-
 include::../Versions.asciidoc[]
 
 include::overview.asciidoc[]

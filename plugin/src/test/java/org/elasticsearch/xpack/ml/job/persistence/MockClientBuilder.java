@@ -173,10 +173,10 @@ public class MockClientBuilder {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public MockClientBuilder createIndexRequest(ArgumentCaptor<CreateIndexRequest> requestCapture) {
+    public MockClientBuilder createIndexRequest(ArgumentCaptor<CreateIndexRequest> requestCapture, final String index) {
 
         doAnswer(invocation -> {
-            CreateIndexResponse response = new CreateIndexResponse(true, true) {};
+            CreateIndexResponse response = new CreateIndexResponse(true, true, index) {};
             ((ActionListener) invocation.getArguments()[1]).onResponse(response);
             return null;
         }).when(indicesAdminClient).create(requestCapture.capture(), any(ActionListener.class));

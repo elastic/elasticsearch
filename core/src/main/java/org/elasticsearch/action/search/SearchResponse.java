@@ -45,8 +45,6 @@ import java.util.Map;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 
 /**
@@ -252,7 +250,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 } else if (NUM_REDUCE_PHASES.match(currentFieldName)) {
                     numReducePhases = parser.intValue();
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (SearchHits.Fields.HITS.equals(currentFieldName)) {
@@ -275,7 +273,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                             } else if (RestActions.TOTAL_FIELD.match(currentFieldName)) {
                                 totalShards = parser.intValue();
                             } else {
-                                throwUnknownField(currentFieldName, parser.getTokenLocation());
+                                parser.skipChildren();
                             }
                         } else if (token == XContentParser.Token.START_ARRAY) {
                             if (RestActions.FAILURES_FIELD.match(currentFieldName)) {
@@ -283,14 +281,14 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                                     failures.add(ShardSearchFailure.fromXContent(parser));
                                 }
                             } else {
-                                throwUnknownField(currentFieldName, parser.getTokenLocation());
+                                parser.skipChildren();
                             }
                         } else {
-                            throwUnknownToken(token, parser.getTokenLocation());
+                            parser.skipChildren();
                         }
                     }
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren();
                 }
             }
         }

@@ -57,7 +57,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "expand", true, deprecationLogger);
 
         // for backward compatibility
-        if (indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_alpha3)) {
             String tokenizerName = settings.get("tokenizer", "whitespace");
             AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =
                 analysisRegistry.getTokenizerProvider(tokenizerName, indexSettings);

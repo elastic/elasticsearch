@@ -81,7 +81,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             if (tokenFilter == null) {
                 throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name [" + tokenFilterName + "]");
             }
-            tokenFilter = checkAndApplySynonymFilter(tokenFilter, tokenizer, tokenFilterList, charFiltersList,
+            tokenFilter = checkAndApplySynonymFilter(tokenFilter, tokenizerName, tokenizer, tokenFilterList, charFiltersList,
                 positionIncrementGap, offsetGap, this.environment);
             tokenFilterList.add(tokenFilter);
         }
@@ -94,14 +94,14 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         );
     }
 
-    public static TokenFilterFactory checkAndApplySynonymFilter(TokenFilterFactory tokenFilter, TokenizerFactory tokenizer,
+    public static TokenFilterFactory checkAndApplySynonymFilter(TokenFilterFactory tokenFilter, String tokenizerName, TokenizerFactory tokenizer,
                                                                 List<TokenFilterFactory> tokenFilterList,
                                                                 List<CharFilterFactory> charFiltersList,
                                                                 int positionIncrementGap, int offsetGap, Environment env) {
         if (tokenFilter instanceof SynonymGraphTokenFilterFactory) {
             List<TokenFilterFactory> tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
 
-            try (CustomAnalyzer analyzer = new CustomAnalyzer(tokenizer,
+            try (CustomAnalyzer analyzer = new CustomAnalyzer(tokenizerName, tokenizer,
                     charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                     tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
                     positionIncrementGap,
@@ -111,7 +111,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
 
         } else if (tokenFilter instanceof SynonymTokenFilterFactory) {
             List<TokenFilterFactory> tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
-            try (CustomAnalyzer analyzer = new CustomAnalyzer(tokenizer,
+            try (CustomAnalyzer analyzer = new CustomAnalyzer(tokenizerName, tokenizer,
                     charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                     tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
                     positionIncrementGap,

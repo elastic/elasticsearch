@@ -537,7 +537,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     }
                     // Need to set anonymous "name" of tokenfilter
                     tokenFilterFactory = tokenFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenfilter_[" + i + "]", settings);
-                    tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory, tokenFilterFactoryList,
+                    tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory.v1(), tokenizerFactory.v2(), tokenFilterFactoryList,
                         charFilterFactoryList, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP, -1, environment);
 
 
@@ -557,7 +557,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         Settings settings = AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
                             AnalysisRegistry.INDEX_ANALYSIS_FILTER + "." + tokenFilter.name);
                         tokenFilterFactory = tokenFilterFactoryFactory.get(indexSettings, environment, tokenFilter.name, settings);
-                        tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory, tokenFilterFactoryList,
+                        tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory.v1(), tokenizerFactory.v2(), tokenFilterFactoryList,
                             charFilterFactoryList, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP, -1, environment);
                     }
                 }

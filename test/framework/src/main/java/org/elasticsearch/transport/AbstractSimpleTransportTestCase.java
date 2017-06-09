@@ -169,8 +169,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try {
             assertNoPendingHandshakes(serviceA.getOriginalTransport());
             assertNoPendingHandshakes(serviceB.getOriginalTransport());
-            assertNoPendingConnections(serviceA.getOriginalTransport());
-            assertNoPendingConnections(serviceB.getOriginalTransport());
+            assertPendingConnections(0, serviceA.getOriginalTransport());
+            assertPendingConnections(0, serviceB.getOriginalTransport());
         } finally {
             IOUtils.close(serviceA, serviceB, () -> {
                 try {
@@ -196,14 +196,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void assertPendingConnections(int numConnections, Transport transport) {
         if (transport instanceof TcpTransport) {
-            assertEquals(numConnections, ((TcpTransport) transport).getNonNodeConnections().size());
-        }
-    }
-
-    public void assertNoPendingConnections(Transport transport) {
-        if (transport instanceof TcpTransport) {
-            Collection nonNodeConnections = ((TcpTransport) transport).getNonNodeConnections();
-            assertEquals("some connections are still open: " + nonNodeConnections, 0, nonNodeConnections.size());
+            TcpTransport tcpTransport = (TcpTransport) transport;
+            assertEquals(numConnections, tcpTransport.getNumOpenConnections() - tcpTransport.getNumConnectedNodes());
         }
     }
 
@@ -787,6 +781,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         } finally {
             serviceB.close(); // make sure we are fully closed here otherwise we might run into assertions down the road
+            serviceA.disconnectFromNode(nodeB);
         }
     }
 
@@ -1866,7 +1861,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
         logger.debug("DONE");
         serviceC.close();
-
+        // when we close C here we have to disconnect the service otherwise assertions mit trip with pending connections in tearDown
+        // since the disconnect will then happen concurrently and that might confuse the assertions since we disconnect due to a
+        // connection reset by peer or other exceptions depending on the implementation
+        serviceB.disconnectFromNode(nodeC);
+        serviceA.disconnectFromNode(nodeC);
     }
 
     public void testRegisterHandlerTwice() {
@@ -2174,11 +2173,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportRequestOptions.Type.RECOVERY,
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE);
-        Transport.Connection connection = serviceB.openConnection(serviceC.getLocalNode(), builder.build());
-        serviceC.close();
-        serviceB.sendRequest(connection, "action",  new TestRequest("boom"), TransportRequestOptions.EMPTY,
-            transportResponseHandler);
-        connection.close();
+        try (Transport.Connection connection = serviceB.openConnection(serviceC.getLocalNode(), builder.build())) {
+            serviceC.close();
+            serviceB.sendRequest(connection, "action", new TestRequest("boom"), TransportRequestOptions.EMPTY,
+                transportResponseHandler);
+        }
         latch.await();
     }
 
@@ -2246,11 +2245,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             receivedLatch.await();
             assertPendingConnections(1, serviceB.getOriginalTransport());
             serviceC.close();
-            assertNoPendingConnections(serviceC.getOriginalTransport());
+            assertPendingConnections(0, serviceC.getOriginalTransport());
             sendResponseLatch.countDown();
             responseLatch.await();
         }
-        assertNoPendingConnections(serviceC.getOriginalTransport());
+        assertPendingConnections(0, serviceC.getOriginalTransport());
     }
 
 }

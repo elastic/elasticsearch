@@ -1675,15 +1675,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         transportServiceAdapter.onConnectionClosed(channels);
     }
 
-    Collection<Connection> getNonNodeConnections() {
-        globalLock.readLock().lock();
-        try {
-            final HashSet<Connection> allConnections = new HashSet<>(openConnections);
-            allConnections.removeAll(connectedNodes.values());
-            return Collections.unmodifiableCollection(allConnections);
-        } finally {
-            globalLock.readLock().unlock();
-        }
+    final int getNumOpenConnections() {
+        return openConnections.size();
     }
 
+    final int getNumConnectedNodes() {
+        return connectedNodes.size();
+    }
 }

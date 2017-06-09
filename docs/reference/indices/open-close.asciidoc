@@ -32,3 +32,5 @@ This setting can also be changed via the cluster update settings api.
 
 Closed indices consume a significant amount of disk-space which can cause problems in managed environments. Closing indices can be disabled via the cluster settings
 API by setting `cluster.indices.close.enable` to `false`. The default is `true`.
+
+Closed index responses with `index_closed_exception` and `403` status on call to `_stats` API. Closed indices are not returned in cross index `_aliases` or `_stats` API responses.

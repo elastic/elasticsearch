@@ -410,8 +410,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             });
                         failLatch.await();
                         assertNotNull(ex.get());
-                        assertTrue(ex.get().getClass().toString(), ex.get() instanceof ConnectTransportException);
-                        assertTrue(ex.get().getMessage().contains("general node connection failure"));
+                        assertTrue(ex.get().getClass().toString(), ex.get() instanceof TransportException);
                     }
                 }
             }

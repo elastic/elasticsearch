@@ -129,7 +129,8 @@ what happened:
 --------------------------------------------------
 {
     "acknowledged": true,
-    "shards_acknowledged": true
+    "shards_acknowledged": true,
+    "index": "test"
 }
 --------------------------------------------------
 // TESTRESPONSE

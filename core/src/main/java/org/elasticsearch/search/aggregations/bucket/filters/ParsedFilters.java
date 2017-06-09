@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -131,7 +132,11 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
                         bucket.setDocCount(parser.longValue());
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    aggregations.add(XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class));
+                    Optional<Aggregation> aggregation = XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER,
+                            Aggregation.class, true);
+                    if (aggregation.isPresent()) {
+                        aggregations.add(aggregation.get());
+                    }
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

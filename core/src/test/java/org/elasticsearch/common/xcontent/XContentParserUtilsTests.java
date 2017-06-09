@@ -68,7 +68,7 @@ public class XContentParserUtilsTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
 
-            ParsingException e = expectThrows(ParsingException.class, () -> parseTypedKeysObject(parser, delimiter, Boolean.class));
+            ParsingException e = expectThrows(ParsingException.class, () -> parseTypedKeysObject(parser, delimiter, Boolean.class, false));
             assertEquals("Cannot parse object of class [Boolean] without type information. Set [typed_keys] parameter " +
                     "on the request to ensure the type information is added to the response output", e.getMessage());
         }
@@ -79,7 +79,7 @@ public class XContentParserUtilsTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
 
             NamedXContentRegistry.UnknownNamedObjectException e = expectThrows(NamedXContentRegistry.UnknownNamedObjectException.class,
-                    () -> parseTypedKeysObject(parser, delimiter, Boolean.class));
+                    () -> parseTypedKeysObject(parser, delimiter, Boolean.class, false));
             assertEquals("Unknown Boolean [type]", e.getMessage());
             assertEquals("type", e.getName());
             assertEquals("java.lang.Boolean", e.getCategoryClass());
@@ -97,12 +97,12 @@ public class XContentParserUtilsTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-            Long parsedLong = parseTypedKeysObject(parser, delimiter, Long.class);
+            Long parsedLong = parseTypedKeysObject(parser, delimiter, Long.class, false).get();
             assertNotNull(parsedLong);
             assertEquals(longValue, parsedLong.longValue());
 
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-            Boolean parsedBoolean = parseTypedKeysObject(parser, delimiter, Boolean.class);
+            Boolean parsedBoolean = parseTypedKeysObject(parser, delimiter, Boolean.class, false).get();
             assertNotNull(parsedBoolean);
             assertEquals(boolValue, parsedBoolean);
 

@@ -130,12 +130,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
@@ -297,7 +299,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     public final void testFromXContent() throws IOException {
         final T aggregation = createTestInstance();
-        final Aggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean());
+        final Aggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), false);
+        assertFromXContent(aggregation, (ParsedAggregation) parsedAggregation);
+    }
+
+    public final void testFromXContentWithRandomFields() throws IOException {
+        final T aggregation = createTestInstance();
+        final Aggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), true);
         assertFromXContent(aggregation, (ParsedAggregation) parsedAggregation);
     }
 
@@ -305,7 +313,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     @SuppressWarnings("unchecked")
     protected <P extends ParsedAggregation> P parseAndAssert(final InternalAggregation aggregation,
-                                                             final boolean shuffled) throws IOException {
+                                                             final boolean shuffled, final boolean addRandomFields) throws IOException {
 
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         final XContentType xContentType = randomFrom(XContentType.values());
@@ -317,13 +325,28 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         } else {
             originalBytes = toXContent(aggregation, xContentType, params, humanReadable);
         }
+        BytesReference mutated;
+        if (addRandomFields) {
+            /**
+             * - we don't add to the root object because it should only contain the named aggregation to test
+             * - we don't want to insert into the "meta" object, because we pass on everything we find there
+             * - we don't want to directly insert anything ranodm into "buckets" objects, they are used with "keyed" aggregations and contain
+             *   named bucket objects. Any new named object on this level should also be a bucket and be parsed as such.
+             */
+            Predicate<String> basicExcludes = path -> path.isEmpty() || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
+                    || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName());
+            Predicate<String> excludes = basicExcludes.or(excludePathsFromXContentInsertion());
+            mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
+        } else {
+            mutated = originalBytes;
+        }
 
         Aggregation parsedAggregation;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
 
-            parsedAggregation = XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class);
+            parsedAggregation = XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, false).get();
 
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -340,6 +363,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
 
         return (P) parsedAggregation;
+    }
+
+    /**
+     * Overwrite this in your test if other than the basic xContent paths should be excluded during insertion of random fields
+     */
+    protected Predicate<String> excludePathsFromXContentInsertion() {
+        return path -> false;
     }
 
     /**

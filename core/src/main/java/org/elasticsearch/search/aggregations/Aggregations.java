@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -133,7 +134,11 @@ public class Aggregations implements Iterable<Aggregation>, ToXContent {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_OBJECT) {
-                aggregations.add(XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class));
+                Optional<Aggregation> aggregation = XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER,
+                        Aggregation.class, true);
+                if (aggregation.isPresent()) {
+                    aggregations.add(aggregation.get());
+                }
             }
         }
         return new Aggregations(aggregations);

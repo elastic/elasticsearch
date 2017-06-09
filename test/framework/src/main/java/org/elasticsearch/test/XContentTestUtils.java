@@ -32,13 +32,13 @@ import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Stack;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
@@ -197,13 +197,14 @@ public final class XContentTestUtils {
 
         try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY, xContent, contentType)) {
             Supplier<Object> value = () -> {
+                List<Object> randomValues = RandomObjects.randomStoredFieldValues(random, contentType).v1();
                 if (random.nextBoolean()) {
-                    return RandomObjects.randomStoredFieldValues(random, contentType);
+                    return randomValues.get(0);
                 } else {
                     if (random.nextBoolean()) {
-                        return Collections.singletonMap(randomAsciiOfLength(random, 10), randomAsciiOfLength(random, 10));
+                        return randomValues.stream().collect(Collectors.toMap(obj -> randomAsciiOfLength(random, 10), obj -> obj));
                     } else {
-                        return Collections.singletonList(randomAsciiOfLength(random, 10));
+                        return randomValues;
                     }
                 }
             };

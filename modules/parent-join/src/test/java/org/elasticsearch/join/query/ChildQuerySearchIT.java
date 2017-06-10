@@ -29,11 +29,7 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -42,8 +38,6 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.elasticsearch.join.ParentJoinPlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -55,15 +49,10 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -77,7 +66,6 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.parentId;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -86,6 +74,7 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
+import static org.elasticsearch.join.query.JoinQueryBuilders.parentId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -97,77 +86,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = Scope.SUITE)
-public class ChildQuerySearchIT extends ESIntegTestCase {
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ParentJoinPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
-    @Override
-    public Settings indexSettings() {
-        return Settings.builder().put(super.indexSettings())
-            // aggressive filter caching so that we can assert on the filter cache size
-            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), true)
-            .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
-            .build();
-    }
-
-    protected boolean legacy() {
-        return false;
-    }
-
-    private IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, Object... fields) {
-        Map<String, Object> source = new HashMap<>();
-        for (int i = 0; i < fields.length; i += 2) {
-            source.put((String) fields[i], fields[i + 1]);
-        }
-        return createIndexRequest(index, type, id, parentId, source);
-    }
-
-    private IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId,
-                                                   XContentBuilder builder) throws IOException {
-        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, builder.string(), false);
-        return createIndexRequest(index, type, id, parentId, source);
-    }
-
-    private IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, Map<String, Object> source) {
-        String name = type;
-        if (legacy() == false) {
-            type = "doc";
-        }
-
-        IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index, type, id);
-        if (legacy()) {
-            if (parentId != null) {
-                indexRequestBuilder.setParent(parentId);
-            }
-            indexRequestBuilder.setSource(source);
-        } else {
-            Map<String, Object> joinField = new HashMap<>();
-            if (parentId != null) {
-                joinField.put("name", name);
-                joinField.put("parent", parentId);
-                indexRequestBuilder.setRouting(parentId);
-            } else {
-                joinField.put("name", name);
-            }
-            source.put("join_field", joinField);
-            indexRequestBuilder.setSource(source);
-        }
-        return indexRequestBuilder;
-    }
+public class ChildQuerySearchIT extends ParentChildTestCase {
 
     public void testSelfReferentialIsForbidden() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
@@ -1262,27 +1181,31 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testParentIdQuery() throws Exception {
-        if (legacy() == false) {
-            // Fix parent_id query
-            return;
+        if (legacy()) {
+            assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder()
+                    .put(indexSettings())
+                    .put("index.refresh_interval", -1)
+                )
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent"));
+        } else {
+            assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder()
+                    .put(indexSettings())
+                    .put("index.refresh_interval", -1)
+                )
+                .addMapping("doc", "join_field", "type=join,parent=child"));
         }
-
-        assertAcked(prepareCreate("test")
-            .setSettings(Settings.builder()
-                .put(indexSettings())
-                .put("index.refresh_interval", -1)
-            )
-            .addMapping("parent")
-            .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
 
-        client().prepareIndex("test", "child", "c1").setSource("{}", XContentType.JSON).setParent("p1").get();
+        createIndexRequest("test", "child", "c1", "p1").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test").setQuery(parentId("child", "p1")).get();
         assertHitCount(response, 1L);
 
-        client().prepareIndex("test", "child", "c2").setSource("{}", XContentType.JSON).setParent("p2").get();
+        createIndexRequest("test", "child", "c2", "p2").get();
         refresh();
 
         response = client().prepareSearch("test")

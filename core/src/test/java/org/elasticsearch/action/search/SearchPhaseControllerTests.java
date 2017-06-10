@@ -148,29 +148,35 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
         AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false);
-        SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResults.asList(), false);
-        AtomicArray<SearchPhaseResult> searchPhaseResultAtomicArray = generateFetchResults(nShards, reducedQueryPhase.scoreDocs,
-            reducedQueryPhase.suggest);
-        InternalSearchResponse mergedResponse = searchPhaseController.merge(false,
-            reducedQueryPhase,
-            searchPhaseResultAtomicArray.asList(), searchPhaseResultAtomicArray::get);
-        int suggestSize = 0;
-        for (Suggest.Suggestion s : reducedQueryPhase.suggest) {
-            Stream<CompletionSuggestion.Entry> stream = s.getEntries().stream();
-            suggestSize += stream.collect(Collectors.summingInt(e -> e.getOptions().size()));
-        }
-        assertThat(suggestSize, lessThanOrEqualTo(maxSuggestSize));
-        assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.scoreDocs.length-suggestSize));
-        Suggest suggestResult = mergedResponse.suggest();
-        for (Suggest.Suggestion<?> suggestion : reducedQueryPhase.suggest) {
-            assertThat(suggestion, instanceOf(CompletionSuggestion.class));
-            if (suggestion.getEntries().get(0).getOptions().size() > 0) {
-                CompletionSuggestion suggestionResult = suggestResult.getSuggestion(suggestion.getName());
-                assertNotNull(suggestionResult);
-                List<CompletionSuggestion.Entry.Option> options = suggestionResult.getEntries().get(0).getOptions();
-                assertThat(options.size(), equalTo(suggestion.getEntries().get(0).getOptions().size()));
-                for (CompletionSuggestion.Entry.Option option : options) {
-                    assertNotNull(option.getHit());
+        for (boolean trackTotalHits : new boolean[] {true, false}) {
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase =
+                searchPhaseController.reducedQueryPhase(queryResults.asList(), false, trackTotalHits);
+            AtomicArray<SearchPhaseResult> searchPhaseResultAtomicArray = generateFetchResults(nShards, reducedQueryPhase.scoreDocs,
+                reducedQueryPhase.suggest);
+            InternalSearchResponse mergedResponse = searchPhaseController.merge(false,
+                reducedQueryPhase,
+                searchPhaseResultAtomicArray.asList(), searchPhaseResultAtomicArray::get);
+            if (trackTotalHits == false) {
+                assertThat(mergedResponse.hits.totalHits, equalTo(-1L));
+            }
+            int suggestSize = 0;
+            for (Suggest.Suggestion s : reducedQueryPhase.suggest) {
+                Stream<CompletionSuggestion.Entry> stream = s.getEntries().stream();
+                suggestSize += stream.collect(Collectors.summingInt(e -> e.getOptions().size()));
+            }
+            assertThat(suggestSize, lessThanOrEqualTo(maxSuggestSize));
+            assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.scoreDocs.length - suggestSize));
+            Suggest suggestResult = mergedResponse.suggest();
+            for (Suggest.Suggestion<?> suggestion : reducedQueryPhase.suggest) {
+                assertThat(suggestion, instanceOf(CompletionSuggestion.class));
+                if (suggestion.getEntries().get(0).getOptions().size() > 0) {
+                    CompletionSuggestion suggestionResult = suggestResult.getSuggestion(suggestion.getName());
+                    assertNotNull(suggestionResult);
+                    List<CompletionSuggestion.Entry.Option> options = suggestionResult.getEntries().get(0).getOptions();
+                    assertThat(options.size(), equalTo(suggestion.getEntries().get(0).getOptions().size()));
+                    for (CompletionSuggestion.Entry.Option option : options) {
+                        assertNotNull(option.getHit());
+                    }
                 }
             }
         }

@@ -81,7 +81,6 @@ import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -514,7 +513,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
 
         @Override
-        public void handle(ShardLock lock) {
+        public void accept(ShardLock lock) {
             try {
                 assert lock.getShardId().equals(shardId) : "shard id mismatch, expected: " + shardId + " but got: " + lock.getShardId();
                 onShardClose(lock);

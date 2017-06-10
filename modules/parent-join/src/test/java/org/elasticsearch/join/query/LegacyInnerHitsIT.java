@@ -16,23 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.ingest;
+package org.elasticsearch.join.query;
 
-import java.util.Map;
+public class LegacyInnerHitsIT extends InnerHitsIT {
 
-/**
- * Abstraction for the ingest template engine used to decouple {@link IngestDocument} from {@link org.elasticsearch.script.ScriptService}.
- * Allows to compile a template into an ingest {@link Template} object.
- * A compiled template can be executed by calling its {@link Template#execute(Map)} method.
- */
-public interface TemplateService {
-
-    Template compile(String template);
-
-    interface Template {
-
-        String execute(Map<String, Object> model);
-
-        String getKey();
+    @Override
+    protected boolean legacy() {
+        return true;
     }
+
 }

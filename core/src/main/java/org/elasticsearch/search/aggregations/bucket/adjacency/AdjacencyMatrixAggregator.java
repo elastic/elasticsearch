@@ -172,7 +172,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
         // no need to provide deleted docs to the filter
         final Bits[] bits = new Bits[filters.length + totalNumIntersections];
         for (int i = 0; i < filters.length; ++i) {
-            bits[i] = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].scorer(ctx));
+            bits[i] = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].scorerSupplier(ctx));
         }
         // Add extra Bits for intersections
         int pos = filters.length;

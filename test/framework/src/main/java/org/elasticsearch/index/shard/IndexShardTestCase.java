@@ -159,7 +159,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(shardRouting.getIndexName())
             .settings(settings)
-            .primaryTerm(0, 1);
+            .primaryTerm(0, randomIntBetween(1, 100));
         return newShard(shardRouting, metaData.build(), listeners);
     }
 
@@ -365,7 +365,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
     }
 
-    private DiscoveryNode getFakeDiscoNode(String id) {
+    protected DiscoveryNode getFakeDiscoNode(String id) {
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), EnumSet.allOf(DiscoveryNode.Role.class),
             Version.CURRENT);
     }

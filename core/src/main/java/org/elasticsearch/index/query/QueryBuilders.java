@@ -471,14 +471,6 @@ public abstract class QueryBuilders {
         return moreLikeThisQuery(null, null, likeItems);
     }
 
-    /**
-     * Constructs a new parent id query that returns all child documents of the specified type that
-     * point to the specified id.
-     */
-    public static ParentIdQueryBuilder parentId(String type, String id) {
-        return new ParentIdQueryBuilder(type, id);
-    }
-
     public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query, ScoreMode scoreMode) {
         return new NestedQueryBuilder(path, query, scoreMode);
     }

@@ -92,9 +92,6 @@ public class RestGetMappingAction extends BaseRestHandler {
                 builder.startObject();
                 {
                     for (final ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappingsByIndex) {
-                        if (indexEntry.value.isEmpty()) {
-                            continue;
-                        }
                         builder.startObject(indexEntry.key);
                         {
                             builder.startObject("mappings");

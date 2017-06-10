@@ -29,36 +29,37 @@ task bwcTest {
     group = 'verification'
 }
 
-// this test causes issues when it tries to run a 2.0.0
-// disabled due to https://github.com/elastic/elasticsearch/issues/25170
-//for (Version version : indexCompatVersions) {
-//
-//    String baseName = "v${version}"
-//    Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
-//        mustRunAfter(precommit)
-//    }
-//    configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-//        distribution = 'zip'
-//        bwcVersion = version
-//        numBwcNodes = 1
-//        numNodes = 1
-//        clusterName = 'verify-version-constants'
-//        if (version.onOrAfter('5.3.0')) {
-//            setting 'http.content_type.required', 'true'
-//        }
-//    }
-//
-//    Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
-//        dependsOn = [oldClusterTest]
-//    }
-//
-//    bwcTest.dependsOn(versionBwcTest)
-//}
-//
-//test.enabled = false
-//
-//task integTest {
-//    dependsOn = ["v${indexCompatVersions[-1]}#bwcTest"]
-//}
-//
-//check.dependsOn(integTest)
+for (Version version : indexCompatVersions) {
+
+    // we do not have infrastructure for starting pre-5.0.0 nodes so we skip them
+    if (version.before("5.0.0")) continue
+
+    String baseName = "v${version}"
+    Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
+        mustRunAfter(precommit)
+    }
+    configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
+        distribution = 'zip'
+        bwcVersion = version
+        numBwcNodes = 1
+        numNodes = 1
+        clusterName = 'verify-version-constants'
+        if (version.onOrAfter('5.3.0')) {
+            setting 'http.content_type.required', 'true'
+        }
+    }
+
+    Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
+        dependsOn = [oldClusterTest]
+    }
+
+    bwcTest.dependsOn(versionBwcTest)
+}
+
+test.enabled = false
+
+task integTest {
+    dependsOn = ["v${indexCompatVersions[-1]}#bwcTest"]
+}
+
+check.dependsOn(integTest)

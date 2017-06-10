@@ -47,6 +47,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
 
 public class EvilLoggerTests extends ESTestCase {
@@ -168,6 +169,20 @@ public class EvilLoggerTests extends ESTestCase {
                 assertThat(events.get(i), startsWith("[" + prefix + "] test"));
             }
         }
+    }
+
+    public void testPrefixLoggerMarkersCanBeCollected() throws IOException, UserException {
+        setupLogging("prefix");
+
+        final int prefixes = 1 << 19; // to ensure enough markers that the GC should collect some when we force a GC below
+        for (int i = 0; i < prefixes; i++) {
+            // this has the side effect of caching a marker with this prefix
+            Loggers.getLogger("prefix" + i, "prefix" + i);
+        }
+
+        // this will free the weakly referenced keys in the marker cache
+        System.gc();
+        assertThat(PrefixLogger.markersSize(), lessThan(prefixes));
     }
 
     public void testProperties() throws IOException, UserException {

@@ -75,7 +75,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -84,6 +86,7 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -450,6 +453,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             return null;
         }).when(shard).relocated(any(String.class), any(Runnable.class));
         when(shard.acquireIndexCommit(anyBoolean())).thenReturn(mock(Engine.IndexCommitRef.class));
+        doAnswer(invocationOrMock -> {
+            ((CountDownLatch)invocationOrMock.getArguments()[2]).countDown();
+            return null;
+        }).when(shard).markAllocationIdAsInSync(any(String.class), anyLong(), any(CountDownLatch.class), any(Consumer.class));
 
         final Supplier<Long> currentClusterStateVersionSupplier = () -> {
             assertFalse(ensureClusterStateVersionCalled.get());

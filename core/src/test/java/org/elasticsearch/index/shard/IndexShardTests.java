@@ -1281,7 +1281,7 @@ public class IndexShardTests extends IndexShardTestCase {
         while((operation = snapshot.next()) != null) {
             if (operation.opType() == Translog.Operation.Type.NO_OP) {
                 numNoops++;
-                assertEquals(1, operation.primaryTerm());
+                assertEquals(newShard.getPrimaryTerm(), operation.primaryTerm());
                 assertEquals(0, operation.seqNo());
             }
         }

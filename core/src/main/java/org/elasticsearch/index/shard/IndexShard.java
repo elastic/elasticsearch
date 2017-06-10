@@ -642,10 +642,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
-    public Engine.NoOp prepareMarkingSeqNoAsNoOp(long seqNo, String reason) {
+    public Engine.NoOp prepareMarkingSeqNoAsNoOpOnReplica(long seqNo, long opPrimaryTerm, String reason) {
         verifyReplicationTarget();
+        assert opPrimaryTerm <= this.primaryTerm : "op term [ " + opPrimaryTerm + " ] > shard term [" + this.primaryTerm + "]";
         long startTime = System.nanoTime();
-        return new Engine.NoOp(seqNo, primaryTerm, Engine.Operation.Origin.REPLICA, startTime, reason);
+        return new Engine.NoOp(seqNo, opPrimaryTerm, Engine.Operation.Origin.REPLICA, startTime, reason);
     }
 
     public Engine.NoOpResult markSeqNoAsNoOp(Engine.NoOp noOp) throws IOException {

@@ -76,7 +76,8 @@ if (bwcVersion.endsWith('-SNAPSHOT')) {
     commandLine = ['git', 'fetch', 'upstream']
   }
 
-  task checkoutBwcBranch(type: LoggedExec) {
+  // this is an Exec task so that the SHA that is checked out is logged
+  task checkoutBwcBranch(type: Exec) {
     dependsOn fetchLatest
     workingDir = checkoutDir
     commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]

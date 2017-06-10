@@ -30,6 +30,10 @@ task bwcTest {
 }
 
 for (Version version : indexCompatVersions) {
+    // this test causes issues when it tries to run a 2.0.0
+    // disabled due to https://github.com/elastic/elasticsearch/issues/25170
+    continue
+
     String baseName = "v${version}"
     Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
         mustRunAfter(precommit)
